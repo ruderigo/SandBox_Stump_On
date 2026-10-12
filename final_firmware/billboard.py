@@ -400,8 +400,10 @@ def _prune_and_write(new_entry=None):
         else:
             taken.add(pid)
         kept.append((sig, text, body, pid))
+    new_id = None
     if new_entry is not None:
-        kept.append((new_entry[0], new_entry[1], new_entry[2], _new_post_id(now, taken)))
+        new_id = _new_post_id(now, taken)
+        kept.append((new_entry[0], new_entry[1], new_entry[2], new_id))
     # Safety-valve ceiling only, applied after time-based pruning above
     # -- oldest-first, matching MAX_DMS_PER_USER's own eviction order
     # and its own reasoning for why this is secondary, not primary.
@@ -419,10 +421,14 @@ def _prune_and_write(new_entry=None):
         # Best-effort: a full card or similar mid-rewrite failure
         # leaves the original file untouched rather than risking it --
         # the next post's prune attempt just tries again.
+        # The new post (if any) was NOT saved: say so, rather than let the
+        # poster believe it was.
         try:
             os.remove(tmp)
         except OSError:
             pass
+        return None
+    return new_id
 
 
 def _clean_title(text):
@@ -435,15 +441,20 @@ def _append_entry(title, body="", identifier="unknown"):
     A post with a body but no title (a client that only filled one
     field) takes the body's first line as its title rather than being
     rejected. Tabs become spaces everywhere, since tab is the field
-    separator on disk; the body keeps its line breaks."""
+    separator on disk; the body keeps its line breaks.
+
+    Returns (True, new_id), or (False, reason): "title_required" (nothing
+    to post) or "storage" (couldn't be written -- it wasn't saved)."""
     body = body.replace("\r", "").replace("\t", " ").strip()[:MAX_BODY_LEN]
     title = _clean_title(title)[:MAX_TITLE_LEN]
     if not title and body:
         title = _clean_title(body.split("\n", 1)[0])[:MAX_TITLE_LEN]
     if not title:
-        return False
-    _prune_and_write((_signature(identifier), title, body))
-    return True
+        return False, "title_required"
+    new_id = _prune_and_write((_signature(identifier), title, body))
+    if new_id is None:
+        return False, "storage"
+    return True, new_id
 
 
 def delete_entry(ts_str):

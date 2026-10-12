@@ -32,6 +32,9 @@ except ImportError:
 # in a field bug report: it says exactly which build is on the board,
 # which no amount of reading the log afterwards can tell you.
 STUMP_VERSION = "Beta A"
+# The exact release (a git tag "v" + this, built and signed by
+# .github/workflows/release.yml, which refuses a tag that doesn't match).
+STUMP_RELEASE = "1.0.0-beta.1"
 
 # Node-type beacon: a second destination on this node's own identity,
 # aspect "stump.node", so clients can tell a Stump from a person without
@@ -278,40 +281,19 @@ def setup_node(rns, node_name):
 
 
 def load_plugins():
-    """Activate every plugin folder present on the board.
-
-    A plugin is any directory shipping an install.py with an activate().
-    Discovering them rather than naming them means dropping a folder in
-    and re-running the wizard is the whole install -- no edit here, no
-    new hash on this file, for the second plugin or the twentieth.
-
-    Deliberately forgiving: a plugin that fails to import or activate
-    logs and is skipped. An add-on must never be able to stop the node
-    booting, and the alternative -- a boot loop with no web server -- is
-    exactly the failure that is hardest to diagnose in the field.
-    """
-    import os
-    activated = []
+    """Start every plugin folder present on the board -- plugins.py does
+    the work (docs/PLUGINS.md): setup(stump) for plugins written for the
+    plugin API, activate() exactly as before for the ones that aren't,
+    each guarded so a broken plugin is logged and skipped, never a
+    reason the node fails to boot. It also keeps the safe-mode marker: a
+    plugin that resets or hangs the board while starting is switched off
+    at the next boot."""
     try:
-        entries = os.listdir()
-    except Exception:
-        return activated
-    for name in sorted(entries):
-        if name.startswith(".") or name in ("urns", "lib", "peripherals"):
-            continue
-        try:
-            os.stat(name + "/install.py")
-        except OSError:
-            continue  # not a plugin folder
-        try:
-            mod = __import__(name + ".install", None, None, ("activate",))
-            if mod.activate():
-                activated.append(name)
-        except Exception as e:
-            print("[plugin] %s did not activate: %s" % (name, e))
-    if activated:
-        print("[plugin] active:", ", ".join(activated))
-    return activated
+        import plugins
+        return plugins.load_all()
+    except Exception as e:
+        print("[plugin] loader failed:", e)
+        return []
 
 
 def needs_wifi(config):
@@ -329,7 +311,7 @@ def main():
     import uasyncio as asyncio
 
     print("=" * 46)
-    print("Project Stump -- %s" % STUMP_VERSION)
+    print("Project Stump -- %s (%s)" % (STUMP_VERSION, STUMP_RELEASE))
     print("=" * 46)
 
     ip = None
@@ -371,8 +353,13 @@ def main():
     # activation block directly below; that was leftover from before
     # this generic loader existed and just activated it a second time,
     # caught only by fservbot's own re-entry guard. Removed.)
-    load_plugins()
+    # The card first: plugins read their saved state while they start
+    # (fservbot's dialogues and stumpid's identities live on it). With
+    # the plugins first, fservbot looked before /sd existed, found
+    # nothing, and ran on its defaults until the next reboot -- every
+    # reboot.
     fserv.mount_sd()
+    load_plugins()
     # Move any flash-stored billboard onto the card now that it's
     # mounted, so posts written before a card was fitted aren't
     # stranded on flash and replaced by an empty SD-backed board.
@@ -409,8 +396,23 @@ def main():
     rns.config = CONFIG
 
     dest, router = setup_node(rns, NODE_NAME)
+    # Reported in /rrc/poll as "node", so a client can tell the Wi-Fi
+    # session and the LXMF address are the same node.
+    try:
+        import rrc
+        rrc.NODE = {"name": NODE_NAME, "lxmf": dest.hexhash}
+    except Exception:
+        pass
     gc.collect()
 
+    # Radio settings saved from /admin override config.py's bridge entry,
+    # written in before the interfaces exist so the Heltec's very first
+    # connection already gets them (see radio.py).
+    try:
+        import radio
+        radio.overlay(rns.config)
+    except Exception as e:
+        print("[radio] saved settings not applied:", e)
     rns.setup_interfaces()
     gc.collect()
 
@@ -437,6 +439,30 @@ def main():
     except Exception as e:
         beacon = None
         print("Stump beacon not created:", e)
+
+    # LXMF propagation node (store-and-forward), when switched on in the
+    # provisioner or /admin (see propagation.py).
+    pn_on = False
+    try:
+        import propagation
+        propagation.attach(router, NODE_NAME)
+        if propagation.configured_on():
+            pn_on = propagation.enable()
+    except Exception as e:
+        print("[pn] not started:", e)
+
+    async def pn_announce_loop():
+        # Its own slow cycle, offset from the LXMF announce and the Stump
+        # beacon so the signing stalls never coincide.
+        await asyncio.sleep(10)
+        while True:
+            try:
+                if propagation._enabled:
+                    propagation.announce()
+            except Exception as e:
+                print("[pn] announce error:", e)
+            gc.collect()
+            await asyncio.sleep(STUMP_ANNOUNCE_INTERVAL)
 
     async def beacon_loop():
         # Announce signing freezes the event loop (see reannounce_loop
@@ -501,8 +527,24 @@ def main():
         asyncio.create_task(reannounce_loop())
         if beacon is not None:
             asyncio.create_task(beacon_loop())
+        try:
+            import propagation
+            # Always started: /admin can switch the node on at runtime, and
+            # both idle cheaply while it's off or has nothing to check.
+            asyncio.create_task(propagation.checker_loop())
+            asyncio.create_task(pn_announce_loop())
+        except Exception as e:
+            print("[pn] tasks not started:", e)
         asyncio.create_task(serial_input_loop(router))
         asyncio.create_task(barkeep.run_barkeep_server())
+        try:
+            import plugins
+            # Plugin timers, and the minute after which this boot counts
+            # as good (clears the safe-mode marker).
+            asyncio.create_task(plugins.scheduler_loop())
+            asyncio.create_task(plugins.stable_loop())
+        except Exception as e:
+            print("[plugin] tasks not started:", e)
         # The DNS redirect is what actually makes the captive portal
         # work -- setup_ap() above only brings the AP interface up.
         # Without this task running, a phone joining "Stump" gets no
@@ -533,6 +575,13 @@ def main():
     try:
         asyncio.run(run_with_reannounce())
     except KeyboardInterrupt:
+        # Stopped on purpose (Ctrl+C, the provisioner): not a crash, so
+        # the next boot shouldn't start in plugin safe mode.
+        try:
+            import plugins
+            plugins.clear_marker()
+        except Exception:
+            pass
         rns.shutdown()
         if DEBUG >= 1:
             print("Shutdown complete")

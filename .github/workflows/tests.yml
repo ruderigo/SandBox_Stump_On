@@ -1,0 +1,59 @@
+name: Tests
+
+# Every push to main and every pull request: the whole suite (tests/run.py) --
+# the firmware on MicroPython built with single-precision floats like the
+# ESP32-S3, the plugin API, both packs, and the Provisioner (manifest hashes,
+# pack checks, uploads against a simulated board). Releases are built by
+# release.yml, which runs the same suite first.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: MicroPython (cached)
+        id: mp-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/micropython-f32
+          key: micropython-f32-${{ hashFiles('scripts/build_micropython.sh') }}
+
+      - name: Build MicroPython, single-precision floats
+        if: steps.mp-cache.outputs.cache-hit != 'true'
+        run: sh scripts/build_micropython.sh ~/micropython-f32
+
+      - name: Every Python file compiles (CPython and MicroPython)
+        run: |
+          python3 -m py_compile provisioner.py scripts/*.py tests/*.py
+          find final_firmware packs -name '*.py' -not -path '*/third_party/*' | while read f; do
+            ~/micropython-f32/micropython -c "compile(open('$f').read(), '$f', 'exec')" || exit 1
+          done
+
+      - name: Test suite
+        run: |
+          export MICROPYTHON=$HOME/micropython-f32/micropython
+          python3 tests/run.py
+
+      - name: The release builds, reproducibly
+        run: |
+          V=$(sed -n 's/^STUMP_RELEASE = "\(.*\)"/\1/p' final_firmware/example_node.py)
+          python3 scripts/build_release.py "$V" dist-a > /dev/null
+          python3 scripts/build_release.py "$V" dist-b > /dev/null
+          diff dist-a/SHA256SUMS dist-b/SHA256SUMS
+          cat dist-a/SHA256SUMS

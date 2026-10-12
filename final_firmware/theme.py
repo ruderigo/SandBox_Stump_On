@@ -14,6 +14,61 @@ entirely -- including the per-browser choice from /admin.
 """
 
 THEMES = ("amber", "phosphor", "oled", "paper")
+BUILTIN_THEMES = THEMES
+
+# Themes added by packs (docs/PACKS.md): the Provisioner writes them to
+# themes.json on the board's flash, {name: {"label", "colors"}}. Checked
+# hard -- a name is lowercase letters, digits and "-", a colour variable
+# is one of the names below and a colour is #rgb or #rrggbb -- because
+# they are written straight into every page's CSS.
+THEMES_FILE = "themes.json"
+COLOR_VARS = ("--bg", "--panel", "--ember", "--ember-bright", "--text", "--muted", "--border",
+              "--panel-2", "--line", "--dim", "--action", "--dm", "--dm-nick", "--err")
+EXTRA = {}   # name -> {"label": str|dict, "colors": {var: colour}}
+
+
+def _ok_name(n):
+    return isinstance(n, str) and 0 < len(n) <= 20 and all(c in "abcdefghijklmnopqrstuvwxyz0123456789-" for c in n)
+
+
+def _ok_colour(c):
+    return isinstance(c, str) and len(c) in (4, 7) and c[0] == "#" and \
+        all(ch in "0123456789abcdefABCDEF" for ch in c[1:])
+
+
+def _load_extra():
+    try:
+        import ujson as json
+    except ImportError:
+        import json
+    try:
+        with open(THEMES_FILE) as f:
+            data = json.loads(f.read())
+    except Exception:
+        return
+    if not isinstance(data, dict):
+        return
+    for name, t in data.items():
+        if not _ok_name(name) or name in BUILTIN_THEMES or not isinstance(t, dict):
+            continue
+        colors = t.get("colors")
+        if not isinstance(colors, dict):
+            continue
+        clean = {k: v for k, v in colors.items() if k in COLOR_VARS and _ok_colour(v)}
+        if clean:
+            EXTRA[name] = {"label": t.get("label") or name, "colors": clean}
+
+
+_load_extra()
+THEMES = BUILTIN_THEMES + tuple(sorted(EXTRA))
+
+
+def label(name, lang=None):
+    """A pack theme's display name, in the visitor's language if given."""
+    lab = EXTRA.get(name, {}).get("label", name)
+    if isinstance(lab, dict):
+        return lab.get(lang) or lab.get("en") or next(iter(lab.values()), name)
+    return str(lab)
 
 try:
     from config import THEME as _CONFIGURED
@@ -72,6 +127,11 @@ CSS = """
 }
 """
 
+# Pack themes start from amber (any variable they leave out) and override.
+CSS += "".join("[data-theme='%s']{%s}\n" % (n, " ".join("%s:%s;" % kv for kv in sorted(t["colors"].items())))
+               for n, t in sorted(EXTRA.items()))
+
+
 # Runs in <head>, before the body renders. The server has already set
 # data-theme to the site theme; this only applies a per-browser
 # override from /admin, if one exists. Each localStorage access is
@@ -84,7 +144,7 @@ STARTUP_SCRIPT = """
     if (t === 'custom') {
       var c = JSON.parse(localStorage.getItem('stump_custom_colors') || '{}');
       for (var k in c) document.documentElement.style.setProperty(k, c[k]);
-    } else if (t === 'amber' || t === 'phosphor' || t === 'oled' || t === 'paper') {
+    } else if (STUMP_THEME_NAMES.indexOf(t) >= 0) {
       document.documentElement.setAttribute('data-theme', t);
     }
   } catch (e) {}
@@ -102,3 +162,7 @@ STARTUP_SCRIPT = """
   } catch (e) {}
 })();
 """
+
+# The names a browser may pick from /admin (built-in and pack themes).
+STARTUP_SCRIPT = STARTUP_SCRIPT.replace(
+    "STUMP_THEME_NAMES", "[" + ",".join("'" + n + "'" for n in THEMES) + "]")
