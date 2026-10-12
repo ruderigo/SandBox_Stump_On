@@ -7,7 +7,9 @@ Writes to dist/:
 
   Stump-<version>.zip         everything a technician needs, in one folder:
                               provisioner.py, final_firmware/, packs/,
-                              README, CHANGELOG, LICENSE
+                              README, CHANGELOG, LICENSE, and what checks
+                              a release (docs/RELEASE.md, the signing key,
+                              scripts/sign_release.py)
   provisioner.py              the same Provisioner, on its own
   <pack>-pack-<v>.zip         each pack in packs/, for packs/ next to the
                               Provisioner (or --install-pack)
@@ -80,7 +82,11 @@ def main():
     manifest = {}
     top = "Stump-%s/" % version
 
-    entries = [(ROOT / n, top + n) for n in ("provisioner.py", "README.md", "CHANGELOG.md", "LICENSE")
+    # With the signature checker and the public key, so a release can be
+    # checked offline from the folder itself (docs/RELEASE.md).
+    entries = [(ROOT / n, top + n) for n in ("provisioner.py", "README.md", "CHANGELOG.md", "LICENSE",
+                                             "RELEASE_SIGNING_KEY.txt", "docs/RELEASE.md",
+                                             "scripts/sign_release.py")
                if (ROOT / n).is_file()]
     for base in ("final_firmware", "packs"):
         entries += [(p, top + str(p.relative_to(ROOT))) for p in files_under(ROOT / base) if p.suffix != ".zip"]

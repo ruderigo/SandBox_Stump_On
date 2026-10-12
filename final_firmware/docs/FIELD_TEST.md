@@ -1,4 +1,4 @@
-# Field test — Beta A, home branding build
+# Field test — Stump 1.0.0-beta.1 (Beta A)
 
 What's new since the last field test, in the order you'd check it on
 site, and what to send back. Items marked **(hardware)** are things the
@@ -6,11 +6,18 @@ lab tests could not settle — they need the real board, radio and phones.
 
 ## Before you go
 
+- [ ] Download `Stump-1.0.0-beta.1.zip` and `SHA256SUMS` from the
+      [release](https://github.com/ruderigo/SandBox_Stump_On/releases),
+      check them (`shasum -a 256 -c SHA256SUMS` on a Mac; see
+      `docs/RELEASE.md` for the signatures), unzip, and work from that
+      folder: the Provisioner, the firmware and `packs/` are all in it.
 - [ ] `python3 provisioner.py --upload-app PORT --skip-tools` — the app
-      is ~1.6 MB with the two voice codecs: about 11 minutes over USB.
+      and its two built-in plugins are ~1.7 MB: about 12 minutes over USB.
+      It then offers the packs (tavern, rnfs): see section 9.
 - [ ] Once, with time to spare: `--upload-app PORT` **without**
       `--skip-tools`, to fill in the technician tools (~1 MB, 15–20
-      minutes the first time; later runs skip what's unchanged).
+      minutes the first time; later runs skip what's unchanged). The
+      rnfs pack's tools are another ~1 MB (~17 minutes the first time).
 - [ ] With a card reader, onto the SD card:
   - `tools/FireFly-Android-0.2.11.apk` (rename `app-debug.apk`)
   - `home/` — your branding, if testing it (see `HOME_BRANDING.md`)
@@ -114,8 +121,9 @@ lab tests could not settle — they need the real board, radio and phones.
 
 ## 9. Plugins and packs
 
-Before you go: put `packs/` next to `provisioner.py` and, in the
-wizard, install **tavern** and **rnfs** (or afterwards:
+Before you go: the release folder already has `packs/` next to
+`provisioner.py`. Install **tavern** and **rnfs** when the wizard or
+`--upload-app` offers them (or afterwards:
 `--install-pack PORT packs/tavern-pack`). The wizard then offers the
 Tavern theme and "Tavernier" as the bot's name.
 
@@ -151,7 +159,8 @@ Tavern theme and "Tavernier" as the bot's name.
 
 ## What to send back
 
-- The boot log (from power-on to `Announced as`).
+- The boot log (from power-on to `Announced as`); its first line names
+  the release (`Project Stump -- Beta A (1.0.0-beta.1)`).
 - Screenshots of `/admin` (radio, propagation status) and the home page
   with branding, phone and laptop.
 - The iPhone ♪ answer, the APK download time, the 15 s Opus note time

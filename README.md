@@ -84,6 +84,10 @@ assuming you know what "turn on hybrid" does.
 
 ## Quick start
 
+Download `Stump-<version>.zip` from
+[Releases](https://github.com/ruderigo/SandBox_Stump_On/releases),
+check it (`docs/RELEASE.md`), unzip it, and inside the folder:
+
 ```bash
 python3 provisioner.py
 ```
@@ -103,6 +107,9 @@ python3 provisioner.py --upload-app PORT  # update the CAM's code only, no erase
 python3 provisioner.py --get-ip PORT      # query LAN + hotspot addresses
 python3 provisioner.py --diag PORT        # serial, SD and radio checks
 python3 provisioner.py --wipe-sd PORT     # reformat a problem SD card
+python3 provisioner.py --list-packs       # the packs in packs/, with their hashes
+python3 provisioner.py --install-pack PORT packs/tavern-pack   # add a pack to a node
+python3 provisioner.py --remove-plugin PORT tavern             # take a plugin off a node
 ```
 
 **Updating a CAM that's already deployed:** the wizard's "Flash

@@ -23,7 +23,11 @@ python3 scripts/sign_release.py verify SHA256SUMS SHA256SUMS.rnsig RELEASE_SIGNI
 ```
 
 That needs nothing but Reticulum, so it works offline, on a laptop at
-the node or a handheld. `MANIFEST.json` gives the size and SHA-256 of
+the node or a handheld. From 1.0.0-beta.2 on, the release zip itself
+carries `scripts/sign_release.py` and `RELEASE_SIGNING_KEY.txt` — but a
+key that came inside the download proves nothing about that download:
+compare it once with the one published in the repository. The release
+identity is `d88b72f6e0deb5991f5a5aed5f3f3cdd`. `MANIFEST.json` gives the size and SHA-256 of
 every file *inside* every zip, e.g. to check one file on a node.
 
 **Reproducible:** `python3 scripts/build_release.py <version> dist/` on

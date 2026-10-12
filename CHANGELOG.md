@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+- The release zip also carries `docs/RELEASE.md`, the public signing
+  key and `scripts/sign_release.py`, to check a release offline.
+- Docs: the field-test checklist and the README's quick start start
+  from the release download; the README lists the pack commands.
+
 ## 1.0.0-beta.1
 First beta-test release from this repository: Stump **Beta A** with
 everything since the `beta-a` tag on LaBuche-Stump (Oct 9).
