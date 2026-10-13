@@ -25,8 +25,9 @@
   of the admin page, and nothing in the history can resend the password.
   Admin pages are sent `no-store`. Sessions end after 30 min unused.
 - **Order of the buttons from `/admin`:** drag the navigation row and the
-  home page tiles into order (arrows on a phone). Home now comes first
-  in the navigation row by default.
+  home page tiles into order (arrows on a phone), and hide or show each
+  one (a hidden page still answers at its address). Home now comes
+  first in the navigation row by default.
 - `/admin` → Plugins: one tidy row per plugin (name, state, version and
   RAM, commands), the button beside it, or under it on a phone.
 - Fixed: **`--upload-app` replaced the node's `config.py`** with the one

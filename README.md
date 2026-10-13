@@ -871,7 +871,10 @@ refused. A session also ends after 30 minutes unused, and at restart.
 **Order of the buttons, behind `/admin`.** Drag the navigation row's
 buttons and the home page's tiles into order (arrows on a phone), and
 save: for everyone, at once, saved on the board (`/layout.json`). Home
-is first by default. Something new (a plugin's card, a feature switched
+is first by default. **Masquer / Hide** beside each takes a button or a
+tile off for everyone (its page still answers at its address; to switch
+a feature off entirely, that's `FEATURES` in `config.py`); **Afficher /
+Show** brings it back, and *Default order* shows everything again. Something new (a plugin's card, a feature switched
 back on) goes at the end.
 
 **Tools page, behind `/admin` too.** *Tools page* lists every section

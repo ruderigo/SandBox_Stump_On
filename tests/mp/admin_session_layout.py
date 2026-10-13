@@ -76,4 +76,24 @@ check("order survives a restart", layout.nav()[0] == 'about')
 req('/admin/layout', b'admin_pass=pw&reset=1')
 check("default order again", nav_hrefs(req('/tools')[2])[0] == '/')
 
+# Hiding
+req('/admin/layout', b'admin_pass=pw&nav=home,chat,board,files,tools,about&tiles=chat,board,files,tools,about'
+    b'&nav_hidden=tools,bogus&tiles_hidden=about,files')
+check("hidden nav button gone from every page", '/tools' not in nav_hrefs(req('/about')[2])
+      and '/tools' not in nav_hrefs(req('/files')[2]), nav_hrefs(req('/about')[2]))
+check("hidden from the chat page's nav too", "href='/tools'" not in req('/rrc')[2])
+home = req('/')[2]
+t = home[home.find("tiles home"):]
+check("hidden tiles gone from home", "href='/about'" not in t and "href='/files'" not in t and "href='/rrc'" in t, t[:400])
+check("a hidden page still answers", req('/tools')[0].startswith('200') and req('/about')[0].startswith('200'))
+s, ct, b = admin_page()
+check("admin still lists hidden ones, marked", "data-key='tools' class='off'" in b and "data-key='about' class='off'" in b
+      and "data-key='chat' class='off'" not in b)
+req('/admin/layout', b'admin_pass=pw&nav=home,chat,board,files,tools,about&tiles=chat,board,files,tools,about'
+    b'&nav_hidden=&tiles_hidden=')
+check("shown again", '/tools' in nav_hrefs(req('/about')[2]) and "href='/about'" in req('/')[2])
+req('/admin/layout', b'admin_pass=pw&nav_hidden=tools&tiles_hidden=about')
+req('/admin/layout', b'admin_pass=pw&reset=1')
+check("default order shows everything", '/tools' in nav_hrefs(req('/about')[2]) and not layout.hidden('tiles'))
+
 print("FAILURES", FAIL)

@@ -73,8 +73,9 @@ lab tests could not settle — they need the real board, radio and phones.
       changes at once, on a second phone too; restart the node, it stays.
       *As set up* brings back the Provisioner's choice.
 - [ ] `/admin` → **Order of the buttons**: drag one nav button and one
-      home tile (arrows on a phone), save; every page and the home page
-      follow, on a second device too.
+      home tile (arrows on a phone), and **Masquer** one of each, save;
+      every page and the home page follow, on a second device too.
+      **Afficher** brings them back.
 - [ ] `/admin` → **Se déconnecter / Log out**, then the browser's Back
       button: the password prompt, never the admin page.
 - [ ] `/admin` → **Tools page**: tick one file and one whole section,

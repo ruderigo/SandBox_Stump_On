@@ -136,6 +136,10 @@ ol.reorder li{display:flex; align-items:center; gap:10px; padding:6px 4px;
   border-bottom:1px solid var(--border); cursor:grab; user-select:none; -webkit-user-select:none;}
 ol.reorder li:last-child{border-bottom:none;}
 ol.reorder li.dragging{opacity:.4;}
+ol.reorder li.off .rname{text-decoration:line-through; color:var(--muted);}
+ol.reorder li.off svg{opacity:.35;}
+ol.reorder button.vis{min-width:5.5em;}
+ol.reorder li.off button.vis{background:var(--panel-2); color:var(--text); border:1px solid var(--border);}
 ol.reorder li.over{border-top:2px solid var(--ember);}
 ol.reorder svg{width:22px; height:22px; flex-shrink:0;}
 ol.reorder .rname{flex:1; min-width:0;}
@@ -437,10 +441,10 @@ _HOME_TILES = (
 )
 
 
-def home_tile_items(lang):
+def home_tile_items(lang, all=False):
     """[(key, label, html)] for the home page's tiles, in layout order:
     the built-in ones this node offers, then plugin cards (key "p:" +
-    their address)."""
+    their address). Tiles an admin hid only with all=True."""
     items = {}
     keys = []
     for key, feat, href, icon, label, sub in _HOME_TILES:
@@ -458,7 +462,7 @@ def home_tile_items(lang):
                       "<div class='tile-text'><span>" + billboard._esc(c["label"]) + "</span>"
                       "<small>" + billboard._esc(c["sub"]) + "</small></div></a>")
         keys.append(key)
-    return [items[k] for k in layout.tiles(keys)]
+    return [items[k] for k in layout.tiles(keys, all=all)]
 
 
 def _page(body):
@@ -954,7 +958,7 @@ def _nav_items(lang):
     """[(key, label, icon)] for the navigation row, in layout order:
     the destinations this node offers."""
     out = []
-    for k in layout.nav():
+    for k in layout.nav(all=True):
         if k not in _DESTINATIONS:
             continue
         feat = _NAV_FEATURE.get(k)
@@ -968,18 +972,23 @@ def _nav_items(lang):
 def _render_admin_layout_section(lang, pw):
     """The order of the navigation buttons and of the home page's tiles:
     drag them (or use the arrows, on a phone), then save. layout.py."""
+    hide, show = i18n.t("admin_layout_hide", lang), i18n.t("admin_layout_show", lang)
+
     def lst(field, items):
+        off = layout.hidden(field)
         return ("<ol class='reorder' data-field='" + field + "'>"
-                + "".join("<li draggable='true' data-key='" + _attr_esc(k) + "'>"
+                + "".join("<li draggable='true' data-key='" + _attr_esc(k) + "'"
+                          + (" class='off'" if k in off else "") + ">"
                           "<span class='grip' aria-hidden='true'>⠿</span>" + icon
                           + "<span class='rname'>" + billboard._esc(name) + "</span>"
+                          "<button type='button' class='vis'>" + (show if k in off else hide) + "</button>"
                           "<button type='button' class='up' aria-label='↑'>▲</button>"
                           "<button type='button' class='dn' aria-label='↓'>▼</button></li>"
                           for k, name, icon in items)
                 + "</ol>")
     tiles = []
     icons = {k: icon for k, f, h, icon, l, sub in _HOME_TILES}
-    for k, name, html in home_tile_items(lang):
+    for k, name, html in home_tile_items(lang, all=True):
         tiles.append((k, name, icons.get(k, _ICON_PLUGIN)))
     return (
         "<h2 class='sub'>" + i18n.t("admin_layout_header", lang) + "</h2>"
@@ -987,11 +996,13 @@ def _render_admin_layout_section(lang, pw):
         "<form method='POST' action='/admin/layout' autocomplete='off' id='layout-form'>"
         "<input type='hidden' name='admin_pass' value='" + billboard._esc(pw) + "'>"
         "<input type='hidden' name='nav' value=''><input type='hidden' name='tiles' value=''>"
+        "<input type='hidden' name='nav_hidden' value=''><input type='hidden' name='tiles_hidden' value=''>"
         "<div class='panel'><b>" + i18n.t("admin_layout_nav", lang) + "</b>" + lst("nav", _nav_items(lang)) + "</div>"
         "<div class='panel'><b>" + i18n.t("admin_layout_tiles", lang) + "</b>" + lst("tiles", tiles) + "</div>"
         "<div class='row'><button type='submit'>" + i18n.t("admin_layout_save", lang) + "</button>"
         "<button type='submit' name='reset' value='1'>" + i18n.t("admin_layout_reset", lang) + "</button></div>"
-        "</form><script>" + _LAYOUT_SCRIPT + "</script>"
+        "</form><script>" + _LAYOUT_SCRIPT.replace("I18N_HIDE", json.dumps(hide)).replace("I18N_SHOW", json.dumps(show))
+        + "</script>"
     )
 
 
@@ -1033,12 +1044,21 @@ _LAYOUT_SCRIPT = """
       var li = b.closest('li');
       if (b.classList.contains('up') && li.previousElementSibling) ol.insertBefore(li, li.previousElementSibling);
       if (b.classList.contains('dn') && li.nextElementSibling) ol.insertBefore(li.nextElementSibling, li);
+      if (b.classList.contains('vis')) {
+        li.classList.toggle('off');
+        b.textContent = li.classList.contains('off') ? I18N_SHOW : I18N_HIDE;
+      }
     });
   });
   f.addEventListener('submit', function(){
     f.querySelectorAll('ol.reorder').forEach(function(ol){
-      var keys = []; ol.querySelectorAll('li').forEach(function(li){ keys.push(li.dataset.key); });
+      var keys = [], off = [];
+      ol.querySelectorAll('li').forEach(function(li){
+        keys.push(li.dataset.key);
+        if (li.classList.contains('off')) off.push(li.dataset.key);
+      });
       f.elements[ol.dataset.field].value = keys.join(',');
+      f.elements[ol.dataset.field + '_hidden'].value = off.join(',');
     });
   });
 })();
@@ -2406,13 +2426,20 @@ async def _handle(reader, writer, secure=False):
             else:
                 lang = i18n.get_lang(identifier)
                 if fields.get("reset"):
-                    ok = layout.save("nav", None) and layout.save("tiles", None)
+                    ok = layout.save_many({k: None for k in layout.KINDS})
                 else:
                     nav_ok = set(_DESTINATIONS)
-                    tile_ok = set(k for k, n, h in home_tile_items(lang))
-                    nav = [k for k in fields.get("nav", "").split(",") if k in nav_ok]
-                    tiles = [k for k in fields.get("tiles", "").split(",") if k in tile_ok]
-                    ok = (not nav or layout.save("nav", nav)) and (not tiles or layout.save("tiles", tiles))
+                    tile_ok = set(k for k, n, h in home_tile_items(lang, all=True))
+
+                    def keys(name, allowed):
+                        return [k for k in fields.get(name, "").split(",") if k in allowed]
+                    changes = {"nav_hidden": keys("nav_hidden", nav_ok),
+                               "tiles_hidden": keys("tiles_hidden", tile_ok)}
+                    if keys("nav", nav_ok):
+                        changes["nav"] = keys("nav", nav_ok)
+                    if keys("tiles", tile_ok):
+                        changes["tiles"] = keys("tiles", tile_ok)
+                    ok = layout.save_many(changes)
                 msg = i18n.t("admin_layout_saved" if ok else "admin_layout_not_saved", lang)
                 names = fserv._list_files() if fserv.sd_ok else []
                 await _send(writer, "200 OK", _page("<p class='sub'>" + billboard._esc(msg) + "</p>"

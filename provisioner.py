@@ -204,7 +204,7 @@ DEFAULT_CREDIT_WEIGHTS = {"video": 3, "music": 2, "document": 1, "other": 1}
 #   [print(f'    {str(f.relative_to(\"final_firmware\"))!r}: {hashlib.sha256(f.read_bytes()).hexdigest()[:16]!r},')
 #    for f in sorted(Path('final_firmware').rglob('*')) if f.is_file()]"
 EXPECTED_FILE_HASHES = {
-    "barkeep.py": "d68bdb9d5b37ddb4",
+    "barkeep.py": "a314267aa1f71766",
     "billboard.py": "23b3263eb7fddcf3",
     "boot_common.py": "d1f60dd4434752bf",
     "captive_portal.py": "35cb3a279ecc42db",
@@ -212,8 +212,8 @@ EXPECTED_FILE_HASHES = {
     "config.py": "4b546033fac3572a",
     "docs/CHAIN.md": "c16a45a09ee64ca0",
     "docs/CLIENT_QUICKSTART.md": "7da377c205209b1c",
-    "docs/COMMANDS.md": "6311b4e074cb2fca",
-    "docs/FIELD_TEST.md": "3620650a51a236ed",
+    "docs/COMMANDS.md": "dc1e12390a36a0e9",
+    "docs/FIELD_TEST.md": "8fe391b6dcb0846b",
     "docs/HIDDEN_FEATURES.md": "053479ae239e0891",
     "docs/HOME_BRANDING.md": "e1a1a9cf854dcdce",
     "docs/HTTPS_SETUP.md": "30171f88d7a75712",
@@ -224,8 +224,8 @@ EXPECTED_FILE_HASHES = {
     "flasher_ui.py": "1d3035b1132bc87e",
     "fserv.py": "b1a890c80e969652",
     "fservbot/plugin.json": "fecf7cbfff4e7d97",
-    "i18n.py": "cd24299b3a07fdf2",
-    "layout.py": "95baebd316b37412",
+    "i18n.py": "c34aa079f87abc6f",
+    "layout.py": "e4dd81500a86f71d",
     "lib/bz2_fast_xtensawin.mpy": "ac55d9eda2126432",
     "lib/ed25519_fast_xtensawin.mpy": "96e74dac45f91687",
     "lib/ed25519_iram.mpy": "96e74dac45f91687",
