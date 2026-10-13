@@ -11,6 +11,11 @@
   moved, not copied). `/tools.json` adds `sections` and each file's
   `section`; `/tool?f=` takes `folder/name`. The rnfs pack's
   `rnfs-INSTALL.txt` is now its section's `README.md`.
+- Fixed: **`--upload-app` replaced the node's `config.py`** with the one
+  in the firmware folder, so an update could change a node's name,
+  Wi-Fi, passwords or theme (the theme was what showed). It now keeps
+  the node's own; `--replace-config` copies the folder's anyway, and a
+  freshly flashed board still gets one.
 - Fixed: the Provisioner printed "no tools_payload folder found" on
   every run without a `home/` folder.
 

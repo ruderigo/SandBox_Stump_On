@@ -2133,6 +2133,20 @@ def upload_stump_app(port, app_dir=None):
     for name, spec in discover_plugins(resolved):
         present += [f for f in plugin_files(resolved / name, spec) if _belongs_on_board(f)]
 
+    # An update keeps the node's own settings. config.py on the board is
+    # what the config wizard wrote for THIS node (its name, Wi-Fi,
+    # passwords, theme...); the one in the firmware folder is someone
+    # else's, and copying it over silently changed nodes (a theme, for
+    # one, was the visible sign). Older configs are fine: the firmware
+    # reads every newer setting with a default. --replace-config copies
+    # the folder's config.py anyway; a freshly flashed board has none,
+    # so it gets one.
+    if "config.py" in present and "--replace-config" not in sys.argv and _board_has_config(port):
+        present.remove("config.py")
+        print("  Keeping this node's own config.py (its settings stay as they are).")
+        print("  To replace it with the one in the firmware folder: --replace-config,")
+        print("  or run the wizard and answer yes to the config wizard.")
+
     if missing:
         print(f"  Note: {len(missing)} expected file(s) not found here, skipping: {', '.join(missing)}")
 
@@ -2220,6 +2234,15 @@ def upload_stump_app(port, app_dir=None):
             install_tools_on_node(port)
 
     return all_ok
+
+
+def _board_has_config(port):
+    """True if the board already has a config.py (a node set up before),
+    or if that can't be told -- keeping a config is the safe mistake."""
+    ok, out = run(["mpremote", "connect", port, "exec",
+                   "import os\ntry:\n os.stat('config.py')\n print('CONFIG:yes')\n"
+                   "except OSError:\n print('CONFIG:no')\n"], timeout=25)
+    return not (ok and "CONFIG:no" in out)
 
 
 def _build_firmware_zip(dest_path, source_dir):
@@ -3830,7 +3853,7 @@ def main():
     elif "--upload-app" in args:
         idx = args.index("--upload-app")
         if idx + 1 >= len(args):
-            print("Usage: provisioner.py --upload-app PORT")
+            print("Usage: provisioner.py --upload-app PORT [--replace-config]")
             sys.exit(1)
         port = args[idx + 1]
         if upload_stump_app(port):

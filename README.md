@@ -103,7 +103,7 @@ word itself — find it with `--scan` (on a Mac it looks like
 ```bash
 python3 provisioner.py --check-tools      # verify esptool/mpremote/rnodeconf
 python3 provisioner.py --scan             # list connected boards and their ports
-python3 provisioner.py --upload-app PORT  # update the CAM's code only, no erase
+python3 provisioner.py --upload-app PORT  # update the CAM's code only, no erase; keeps its config.py
 python3 provisioner.py --get-ip PORT      # query LAN + hotspot addresses
 python3 provisioner.py --diag PORT        # serial, SD and radio checks
 python3 provisioner.py --wipe-sd PORT     # reformat a problem SD card
@@ -118,10 +118,14 @@ identity — it comes back with a **new LXMF address**, and mesh clients
 (the Android app, Sideband) must pick it again from its next announce.
 To update without that, use `--upload-app`: it copies the new files
 only, keeping the identity, and the billboard and shared files on the
-SD card. It also copies the firmware folder's `config.py` onto the
-board, so check that file holds this node's settings first — or, after
-uploading, run the wizard, answer **no** to "Flash firmware" and
-**yes** to the config wizard.
+SD card. **It keeps the node's own `config.py`** — its name, Wi-Fi,
+passwords, theme and every other setting stay as they are; settings
+added by the new version take their defaults. To replace it with the
+`config.py` in the firmware folder, add `--replace-config`, or run the
+wizard, answer **no** to "Flash firmware" and **yes** to the config
+wizard. (Up to 1.0.0-beta.2, `--upload-app` copied the folder's
+`config.py` over the node's — a node's theme changing after an update
+was the visible sign.)
 
 `--diag` automates the serial, SD card and radio checks. Network
 reachability is confirmed by hand at the end (it prints how): power-

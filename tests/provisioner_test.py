@@ -40,9 +40,11 @@ check('tamper + lint noticed', any('changed since' in x for x in w) and any('tim
 P.describe_pack(t, 1)
 # fake mpremote for install + upload
 calls = []
+BOARD_CONFIG = ['CONFIG:yes']
 def fake_run(cmd, timeout=None, **kw):
     calls.append(cmd)
     if 'exec' in cmd and any('SHA:' in str(c) for c in cmd): return True, 'SHA:none'
+    if 'exec' in cmd and any('CONFIG:yes' in str(c) for c in cmd): return True, BOARD_CONFIG[0]
     if cmd[-2:] == ['cat', ':themes.json']: return True, '{"old": {"label": "Old", "colors": {"--bg": "#000"}}}'
     if 'exec' in cmd and any('def walk' in str(c) for c in cmd):
         sizes = {}
@@ -78,6 +80,14 @@ dests = [c[-1] for c in calls if 'cp' in c]
 check('upload has core', ':plugins.py' in dests and ':rrc.py' in dests)
 check('upload has builtin plugins', ':stumpid/strings.py' in dests and ':fservbot/templates.py' in dests and ':fservbot/plugin.json' not in dests and ':fservbot/README.md' not in dests, [d for d in dests if 'fserv' in d or 'stumpid' in d])
 check('upload ok', ok)
+check('update keeps the node config', ':config.py' not in dests, [d for d in dests if 'config' in d])
+calls.clear(); BOARD_CONFIG[0] = 'CONFIG:no'
+P.upload_stump_app('/dev/fake')
+check('fresh board gets a config', ':config.py' in [c[-1] for c in calls if 'cp' in c])
+calls.clear(); BOARD_CONFIG[0] = 'CONFIG:yes'; sys.argv.append('--replace-config')
+P.upload_stump_app('/dev/fake')
+check('--replace-config replaces it', ':config.py' in [c[-1] for c in calls if 'cp' in c])
+sys.argv.remove('--replace-config')
 # remove_plugin refuses core
 check('remove refuses urns', P.remove_plugin('/dev/fake', 'urns') is False)
 print('FAILURES', FAIL)
