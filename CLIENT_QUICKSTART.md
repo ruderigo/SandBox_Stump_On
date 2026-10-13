@@ -20,6 +20,10 @@ was removed or reworded:
 - The `stump.node` beacon: read its first four elements and ignore any
   more (see *Telling Stumps from people*).
 
+**After beta.2, on `main` for the next release:** `GET /node.json`, the
+node's name, LXMF address, release, hotspot address, chain role and
+features, without joining the chat — for discovery. See *Addresses*.
+
 Already in beta.1, if you're coming from an older build: plugins
 (`!word` commands, `/p/<plugin>/` pages, `GET /plugins.json`), voice
 notes, the propagation node, HTTPS, and JSON answers for billboard
@@ -321,6 +325,25 @@ A node answers on two IPs with different guarantees:
 
 Over LoRa there are no IPs: the node is its LXMF `lxmf.delivery`
 address, taken from its announces.
+
+**`GET /node.json`** — who the node is, without joining anything
+(polling `/rrc/poll` puts you in the chat, and others see you arrive).
+Use it to probe and label nodes:
+
+```json
+{"name": "LaBuche", "lxmf": "53d91d2f…48e4", "version": "Beta A",
+ "release": "1.0.0-beta.2", "ap_ip": "192.168.4.1", "chain": null,
+ "features": ["chat", "billboard", "files", "about"]}
+```
+
+`lxmf` is the same address as `node.lxmf` in `/rrc/poll`. `version` is
+a label for people; `release` is the firmware release. `ap_ip` is the
+node's own hotspot address. `chain` is `null` unless the node is
+chained, and then the same object as `GET /chain.json`. `features` is
+what the node offers (see the next section). Always answers, whatever
+features are on; ignore keys you don't know. New after 1.0.0-beta.2:
+an older node answers it with its home page (HTML, not JSON), so treat
+a non-JSON answer as "older node" and fall back to showing the address.
 
 ## Features a node may not offer
 

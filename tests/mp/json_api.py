@@ -32,3 +32,16 @@ st, ct, b = req('/tools.json'); print("  ", st, ct); d = json.loads(b)
 for a in d["apps"]: print("   app:", a)
 print("   files:", d["files"])
 fserv.sd_ok = False; print("  no card ->", req('/tools.json')[2])
+import rrc, features
+print("== GET /node.json")
+rrc.NODE = {"name": "TestStump", "lxmf": "53d91d2f00000000000000000000e48e"}
+rrc.NODE_INFO = {"version": "Beta A", "release": "1.0.0-beta.2"}
+before = len(rrc._users)
+st, ct, b = req('/node.json'); d = json.loads(b)
+print("  ", st, ct)
+print("   keys:", sorted(d))
+print("   ", d["name"], d["lxmf"], d["version"], d["release"], d["ap_ip"], d["chain"], d["features"])
+print("   joined the chat:", len(rrc._users) != before)
+real = features._CONFIGURED; features._CONFIGURED = ["billboard"]
+print("   chat off ->", req('/node.json')[0], json.loads(req('/node.json')[2])["features"])
+features._CONFIGURED = real

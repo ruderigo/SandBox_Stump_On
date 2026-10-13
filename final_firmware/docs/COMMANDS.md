@@ -476,6 +476,7 @@ accepts the certificate (it fetches `/tls-ok` first).
 | GET | `/tools` | Apps and technician tools |
 | GET | `/tools.json` | The same as JSON: `{"sd", "apps": [{"app","file","version","size","url"}], "files": [{"name","size","url"}]}` |
 | GET | `/tool?f=` | Download a tool file |
+| GET | `/node.json` | Who this node is, without joining the chat: `{"name", "lxmf", "version", "release", "ap_ip", "chain", "features"}`; `chain` is `null` or the `/chain.json` object (see `CLIENT_QUICKSTART.md`) |
 | GET | `/chain.json` | This Stump's place in a chain over Wi-Fi: `{"enabled", "role", "ap_ip", "channel", "secret", "uplink", "below"}` (see `CHAIN.md`) |
 | GET | `/plugins.json` | What the plugins add: `{"api", "trigger", "plugins": [{"name","version","commands","pages"}]}` (see `PLUGINS.md`) |
 | GET, POST | `/p/<plugin>/…` | A plugin's own pages. Any address under `/p/` that no running plugin answers shows the home page, like any unknown address |

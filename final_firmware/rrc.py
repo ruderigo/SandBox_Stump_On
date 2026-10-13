@@ -259,6 +259,7 @@ def find_dm(client_id, dm_id):
 # and need to see it's the same one: {"name": ..., "lxmf": <hex>}. Set by
 # example_node once its LXMF destination exists; reported in /rrc/poll.
 NODE = {}
+NODE_INFO = {}       # version and release, for /node.json (set at boot)
 
 
 def names_line(room, names):

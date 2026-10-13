@@ -2399,6 +2399,18 @@ async def _handle(reader, writer, secure=False):
             await _send(writer, "200 OK", json.dumps({"sd": fserv.sd_ok, "apps": app_list, "files": files}),
                         "application/json")
 
+        elif method == "GET" and path.startswith("/node.json"):
+            # Who this node is, for discovery: answers without touching
+            # the chat (polling /rrc/poll joins you to a room).
+            import chain
+            info = {"name": rrc.NODE.get("name"), "lxmf": rrc.NODE.get("lxmf")}
+            info.update(rrc.NODE_INFO)
+            info["ap_ip"] = chain.ap_ip()
+            st = chain.status()
+            info["chain"] = st if st.get("enabled") else None
+            info["features"] = [f for f in features.ALL if features.enabled(f)]
+            await _send(writer, "200 OK", json.dumps(info), "application/json")
+
         elif method == "GET" and path.startswith("/chain.json"):
             # This Stump's place in a chain over Wi-Fi (chain.py): role,
             # addresses, the Stump above it and who's linked below.

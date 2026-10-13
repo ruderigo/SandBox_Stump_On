@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+- **`GET /node.json`**: name, LXMF address, version and release,
+  hotspot address, chain role and features, without joining the chat
+  (asked for by the Android team, for discovering nodes).
+
 ## 1.0.0-beta.2
 - **Chained Stumps over Wi-Fi** (`docs/CHAIN.md`): each Stump serves its
   own Wi-Fi on its own range (`192.168.<n>.1`) and joins the one before

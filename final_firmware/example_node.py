@@ -416,6 +416,7 @@ def main():
     try:
         import rrc
         rrc.NODE = {"name": NODE_NAME, "lxmf": dest.hexhash}
+        rrc.NODE_INFO = {"version": STUMP_VERSION, "release": STUMP_RELEASE}
     except Exception:
         pass
     gc.collect()
