@@ -262,7 +262,8 @@ class Transport:
 
     @staticmethod
     def _cache_packet_hash(packet):
-        packet_hash = packet.get_hash()
+        # unpack() already computed it; hashing again cost ~1 ms on a CAM.
+        packet_hash = getattr(packet, "packet_hash", None) or packet.get_hash()
         if (packet_hash in Transport.packet_hashlist
                 or packet_hash in Transport.packet_hashlist_prev):
             return
@@ -685,12 +686,64 @@ class Transport:
         if out_if is None:
             return False   # not our turn / hop mismatch
         Transport._cache_packet_hash(packet)   # NOW remember — it's ours to relay
-        new_raw = packet.raw[0:1] + bytes([packet.hops]) + packet.raw[2:]
+        new_raw = packet.raw[0:1] + bytes([packet.hops]) + memoryview(packet.raw)[2:]
         Transport.transmit(out_if, new_raw)
         entry[const.IDX_LT_TIMESTAMP] = time.time()
         Transport.relayed_links += 1
-        log("Relay link " + packet.destination_hash.hex()[:8]
-            + " -> " + str(out_if), LOG_NOTICE)
+        if sl(LOG_NOTICE):
+            log("Relay link " + packet.destination_hash.hex()[:8]
+                + " -> " + str(out_if), LOG_NOTICE)
+        return True
+
+    # Link contexts that legitimately repeat: packet_filter() never
+    # deduplicates them and _should_remember() never records them, so
+    # relaying them needs neither the Packet object nor its hash.
+    _FAST_CONTEXTS = (const.CTX_RESOURCE, const.CTX_RESOURCE_REQ, const.CTX_RESOURCE_PRF,
+                      const.CTX_KEEPALIVE, const.CTX_CHANNEL, const.CTX_CACHE_REQUEST)
+
+    @staticmethod
+    def _relay_fast(raw, interface):
+        """_transit_link for the packets that make up a file transfer, from
+        the raw bytes: same link-table lookup, same hop-count direction
+        checks, same output, without building a Packet or hashing it (the
+        packets it handles are never deduplicated). Anything it isn't sure
+        of -- another header or context, no table entry, a hop mismatch --
+        returns False and takes the general path unchanged."""
+        if len(raw) < 19:
+            return False
+        f = raw[0]
+        # HDR_1, destination type LINK, not an announce or link request.
+        if f & 0x40 or (f >> 2) & 0x03 != const.DEST_LINK:
+            return False
+        if f & 0x03 in (const.PKT_ANNOUNCE, const.PKT_LINKREQUEST):
+            return False
+        if raw[18] not in Transport._FAST_CONTEXTS:
+            return False
+        entry = Transport.link_table.get(raw[2:18])
+        if entry is None:
+            return False
+        hops = raw[1] + 1
+        if hops > 255:
+            return False
+        nh_if = entry[const.IDX_LT_NH_IF]
+        recv_if = entry[const.IDX_LT_RECV_IF]
+        out_if = None
+        if nh_if is recv_if:
+            if hops == entry[const.IDX_LT_REM_HOPS] or hops == entry[const.IDX_LT_HOPS]:
+                out_if = nh_if
+        elif interface is nh_if:
+            if hops == entry[const.IDX_LT_REM_HOPS]:
+                out_if = recv_if
+        elif interface is recv_if:
+            if hops == entry[const.IDX_LT_HOPS]:
+                out_if = nh_if
+        if out_if is None:
+            return False
+        Transport.transmit(out_if, raw[0:1] + bytes((hops,)) + memoryview(raw)[2:])
+        entry[const.IDX_LT_TIMESTAMP] = time.time()
+        Transport.relayed_links += 1
+        if sl(LOG_NOTICE):
+            log("Relay link " + raw[2:6].hex() + " -> " + str(out_if), LOG_NOTICE)
         return True
 
     @staticmethod
@@ -875,7 +928,8 @@ class Transport:
             if len(raw) < 2:
                 return
 
-            log("Inbound: " + str(len(raw)) + " bytes, flags=0x" + ("%02x" % raw[0]), LOG_EXTREME)
+            if sl(LOG_EXTREME):   # the string alone costs ~0.5 ms a packet on a CAM
+                log("Inbound: " + str(len(raw)) + " bytes, flags=0x" + ("%02x" % raw[0]), LOG_EXTREME)
 
             # IFAC validation (strips access-code, returns clean raw or None)
             raw = Transport._ifac_validate(raw, interface)
@@ -883,6 +937,13 @@ class Transport:
                 return
 
             if Transport.identity is None:
+                return
+
+            # Fast relay path for file and channel traffic inside a link we
+            # carry (see _relay_fast). Measured on a CAM: forwarding one
+            # 483-byte file packet took 6.8 ms through the general path
+            # (two SHA-256s and half a dozen 480-byte copies in PSRAM).
+            if Transport.link_table and Transport._relay_fast(raw, interface):
                 return
 
             packet = Packet(destination=None, data=raw)

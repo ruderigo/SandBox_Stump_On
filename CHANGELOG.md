@@ -1,6 +1,16 @@
 # Changelog
 
 ## Unreleased
+- **Faster relaying**, measured on a CAM first (`bench/`): file and
+  channel packets inside a link the Stump carries are forwarded from
+  their raw bytes, without building a Packet or hashing it (the general
+  path took 6.8 ms a packet); a packet's hash is computed once, not
+  twice; per-packet debug strings are only built when they'll be
+  printed; HMAC pads are XORed in C instead of byte by byte (~1.3 ms
+  saved per HMAC: link encryption, HKDF, propagation stamps).
+  `tests/mp/relay_fastpath.py` checks the fast path forwards exactly
+  what the general path does.
+- `bench/`: relay, profiling and Wi-Fi benchmarks for chaining Stumps.
 - The release zip also carries `docs/RELEASE.md`, the public signing
   key and `scripts/sign_release.py`, to check a release offline.
 - Docs: the field-test checklist and the README's quick start start

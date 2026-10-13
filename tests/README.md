@@ -18,6 +18,7 @@ on the board. Each firmware test runs in a fresh copy of
 | `safe_mode` | Boots after a crash while starting, and while running |
 | `fservbot_storage` | Data moved to `/sd/plugins/`, the timer notice |
 | `packs_chat`, `packs_web` | The tavern and rnfs packs, chat and pages |
+| `relay_fastpath` | The relay fast path forwards exactly what the general path does: every packet type, context, direction and hop count |
 | `json_api`, `latin1_names` | JSON answers; accented, Latin-1 and emoji file names |
 | `config.py` | The fixed configuration every firmware test runs with (not the repository's own `final_firmware/config.py`, which is a real node's) |
 | `provisioner` | CPython: the manifest is current, plugins and packs verify, a pack install and an upload against a simulated board |

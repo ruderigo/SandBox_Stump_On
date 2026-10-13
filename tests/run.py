@@ -38,6 +38,7 @@ TESTS = [
     ("fservbot_storage", "snapshot", []),
     ("packs_chat", "assert", PACK_PLUGINS),
     ("packs_web", "snapshot", PACK_PLUGINS),
+    ("relay_fastpath", "assert", []),
     ("json_api", "snapshot", []),
     ("latin1_names", "snapshot", []),
 ]
