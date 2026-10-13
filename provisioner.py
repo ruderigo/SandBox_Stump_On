@@ -204,7 +204,7 @@ DEFAULT_CREDIT_WEIGHTS = {"video": 3, "music": 2, "document": 1, "other": 1}
 #   [print(f'    {str(f.relative_to(\"final_firmware\"))!r}: {hashlib.sha256(f.read_bytes()).hexdigest()[:16]!r},')
 #    for f in sorted(Path('final_firmware').rglob('*')) if f.is_file()]"
 EXPECTED_FILE_HASHES = {
-    "barkeep.py": "5bb1ea1d730c2d59",
+    "barkeep.py": "19c443aa7122288a",
     "billboard.py": "23b3263eb7fddcf3",
     "boot_common.py": "d1f60dd4434752bf",
     "captive_portal.py": "35cb3a279ecc42db",
@@ -238,10 +238,10 @@ EXPECTED_FILE_HASHES = {
     "radio.py": "feb621dfb9d1e95b",
     "rrc.py": "edda82c4b71b7915",
     "rrc_mesh.py": "42aa4bb1417ce208",
-    "rrc_ui.py": "8cb58930f02ac5e3",
+    "rrc_ui.py": "105729267c111bb6",
     "stump_tls.py": "f096a27c3cbfdae8",
     "stumpid/plugin.json": "68cc159374a5c102",
-    "theme.py": "e90ba4b7b9a875ba",
+    "theme.py": "dfc65e16f93175f0",
     "third_party/codec2/COPYING": "9ebb6f82b7380a62",
     "third_party/codec2/build_codec2_wasm.sh": "11aafe7aca8e7a71",
     "third_party/codec2/generated/codebook.c": "be54d9b8e15504d8",

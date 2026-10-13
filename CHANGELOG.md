@@ -15,6 +15,9 @@
   visitor gets (built-in or pack themes), applied at once, saved on the
   board; *As set up* goes back to `config.py`'s. The old theme buttons
   there are now labelled for what they always were: this browser only.
+  Applying a theme for everyone drops any browser's own older pick
+  (which used to beat the site's theme forever), and pages are sent
+  with `Cache-Control: no-cache`, so no browser shows an old copy.
 - **Delete tools from `/admin`:** a whole section of the Tools page, or
   single files, off the SD card.
 - Fixed: **`--upload-app` replaced the node's `config.py`** with the one

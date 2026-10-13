@@ -41,11 +41,20 @@ s, ct, b = req('/admin/theme', b'admin_pass=pw&theme=nonsense')
 check("unknown theme not saved", theme.site_theme() == other)
 s, ct, b = req('/admin/theme', b'admin_pass=pw&theme=')
 check("back to as set up", theme.site_theme() == setup and theme.admin_choice() is None and page_theme() == setup)
-try:
-    os.stat(theme.SITE_THEME_FILE); gone = False
-except OSError:
-    gone = True
-check("its file removed", gone)
+theme._ADMIN_CHOICE, theme._STAMP = theme._load_admin_file()
+check("as set up survives a restart", theme.admin_choice() is None and theme.site_theme() == setup)
+st0 = theme.site_stamp()
+req('/admin/theme', b'admin_pass=pw&theme=paper')
+check("each change for everyone moves the stamp", int(theme.site_stamp()) == int(st0) + 1)
+b = req('/about')[2]
+check("pages drop browser picks older than the stamp",
+      "localStorage.getItem('stump_theme_stamp') !== '" + theme.site_stamp() + "'" in b)
+b = req('/admin', b'admin_pass=pw')[2]
+check("browser picks are saved with the stamp", "setItem('stump_theme_stamp', \"" + theme.site_stamp() + "\")" in b
+      or "setItem('stump_theme_stamp', '" + theme.site_stamp() + "')" in b, b[b.find('stump_theme_stamp'):][:120])
+w = Wr(); asyncio.run(barkeep._handle(Rd([b'GET /about HTTP/1.1\r\n', b'\r\n']), w))
+check("pages aren't reused from the browser's cache", b"Cache-Control: no-cache" in b''.join(w.w)[:400])
+req('/admin/theme', b'admin_pass=pw&theme=')
 
 # Tools
 T = fserv.TOOLS_DIR

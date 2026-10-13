@@ -858,7 +858,7 @@ def render_page(room, nick, lang=None):
         "<!DOCTYPE html>" + theme.html_open() + "<head><meta charset='utf-8'>"
         "<meta name='viewport' content='width=device-width, initial-scale=1'>"
         "<title>RRC — Stump</title><style>" + theme.CSS + STYLE + "</style>"
-        "<script>" + theme.STARTUP_SCRIPT + "</script></head><body>"
+        "<script>" + theme.startup_script() + "</script></head><body>"
         "<header><b>RRC</b><span id='topic'></span>"
         "<span class='me'>" + i18n.t("rrc_you_are", lang) + " <span id='me'>" + _esc(nick) + "</span></span>"
         + _nav_links(lang) + "</header>"

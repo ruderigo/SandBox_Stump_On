@@ -878,7 +878,9 @@ stump-cross-section mark can be replaced with, hidden, or restored.
 what *that one browser* sees, not what anyone else sees; *Site theme*
 and *Reset palette* both return that browser to the node's theme. To
 change the theme for everyone, use *Theme for everyone* just above
-them. The custom palette and the logo are still per-browser only.
+them: it also drops every browser's own pick made before it, so
+everyone really sees it (each page compares the browser's pick with a
+counter the node bumps at every change for everyone). The custom palette and the logo are still per-browser only.
 
 An admin visiting `/admin` sees their own current custom colors and
 saved SVG pre-filled in the controls (read back from their own

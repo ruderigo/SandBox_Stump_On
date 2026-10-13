@@ -83,17 +83,28 @@ except ImportError:
 SITE_THEME_FILE = "/site_theme.json"
 
 
-def _load_admin_choice():
+def _load_admin_file():
     try:
         import json
         with open(SITE_THEME_FILE) as f:
-            t = json.load(f).get("theme")
-        return t if t in THEMES else None
+            d = json.load(f)
+        t = d.get("theme")
+        return (t if t in THEMES else None), int(d.get("stamp", 1))
     except Exception:
-        return None
+        return None, 0
 
 
-_ADMIN_CHOICE = _load_admin_choice()
+def _load_admin_choice():
+    return _load_admin_file()[0]
+
+
+# _STAMP counts the admin's "for everyone" changes. A browser's own pick
+# (the per-browser buttons in /admin) is saved with the stamp it was made
+# under; once the admin changes the theme for everyone, the stamp moves
+# on and every browser drops its older pick (STARTUP_SCRIPT), so "for
+# everyone" means everyone -- it used to lose, forever, to any browser
+# that had once clicked a per-browser button.
+_ADMIN_CHOICE, _STAMP = _load_admin_file()
 
 
 def _valid(t):
@@ -116,24 +127,26 @@ def admin_choice():
 def set_site_theme(name):
     """Saves an admin's choice for everyone (None: back to config.py's).
     Returns True if it was saved."""
-    global _ADMIN_CHOICE
-    import os, json
-    if name is None:
-        try:
-            os.remove(SITE_THEME_FILE)
-        except OSError:
-            pass
-        _ADMIN_CHOICE = None
-        return True
-    if name not in THEMES:
+    global _ADMIN_CHOICE, _STAMP
+    import json
+    if name is not None and name not in THEMES:
         return False
     try:
         with open(SITE_THEME_FILE, "w") as f:
-            json.dump({"theme": name}, f)
+            json.dump({"theme": name, "stamp": _STAMP + 1}, f)
     except OSError:
         return False
-    _ADMIN_CHOICE = name
+    _ADMIN_CHOICE, _STAMP = name, _STAMP + 1
     return True
+
+
+def site_stamp():
+    return str(_STAMP)
+
+
+def startup_script():
+    """STARTUP_SCRIPT with the current stamp, for each page's <head>."""
+    return STARTUP_SCRIPT.replace("STUMP_SITE_STAMP", "'" + str(_STAMP) + "'")
 
 
 def site_theme():
@@ -199,6 +212,12 @@ STARTUP_SCRIPT = """
 (function(){
   try {
     var t = localStorage.getItem('stump_theme');
+    if (t && localStorage.getItem('stump_theme_stamp') !== STUMP_SITE_STAMP) {
+      // Picked before the admin last set the theme for everyone: drop it.
+      localStorage.removeItem('stump_theme');
+      localStorage.removeItem('stump_theme_stamp');
+      t = null;
+    }
     if (t === 'custom') {
       var c = JSON.parse(localStorage.getItem('stump_custom_colors') || '{}');
       for (var k in c) document.documentElement.style.setProperty(k, c[k]);

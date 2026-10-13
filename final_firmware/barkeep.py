@@ -426,7 +426,7 @@ def _page(body):
     return ("<!DOCTYPE html>" + theme.html_open() + "<head><meta name='viewport' "
              "content='width=device-width, initial-scale=1'>"
              "<style>" + STYLE + "</style>"
-             "<script>" + theme.STARTUP_SCRIPT + "</script>"
+             "<script>" + theme.startup_script() + "</script>"
              "</head><body>" + body + "</body></html>")
 
 
@@ -1182,7 +1182,8 @@ def _render_admin_settings_section(lang):
         "<script>" + _ADMIN_SETTINGS_SCRIPT.replace(
             "I18N_LOGO_RESET_NOTICE",
             json.dumps(i18n.t("admin_logo_reset_notice", lang)).replace("</", "<\\/")
-        ).replace("STUMP_SITE_THEME", json.dumps(theme.site_theme())) + "</script>"
+        ).replace("STUMP_SITE_THEME", json.dumps(theme.site_theme())
+        ).replace("STUMP_SITE_STAMP", json.dumps(theme.site_stamp())) + "</script>"
     )
 
 
@@ -1212,6 +1213,7 @@ function stumpSetTheme(t){
       document.documentElement.setAttribute('data-theme', STUMP_SITE_THEME);
     } else {
       localStorage.setItem('stump_theme', t);
+      localStorage.setItem('stump_theme_stamp', STUMP_SITE_STAMP);
       document.documentElement.setAttribute('data-theme', t);
     }
   } catch (e) {}
@@ -1244,6 +1246,7 @@ function stumpSaveCustomPalette(){
     colors['--ember-bright'] = colors['--ember'];
     localStorage.setItem('stump_custom_colors', JSON.stringify(colors));
     localStorage.setItem('stump_theme', 'custom');
+    localStorage.setItem('stump_theme_stamp', STUMP_SITE_STAMP);
     document.documentElement.removeAttribute('data-theme');
     for (var k in colors) document.documentElement.style.setProperty(k, colors[k]);
   } catch (e) {}
@@ -1708,6 +1711,9 @@ async def _send(writer, status, body, content_type="text/html"):
         body = body.encode()
     if "charset" not in content_type:
         content_type = content_type + "; charset=utf-8"
+    # Pages carry the theme (and live state): a browser must ask again
+    # rather than show a copy from before the admin changed it.
+    no_cache = content_type.startswith("text/html")
     # Connection: close matters here. The server closes after every
     # response, but HTTP/1.1 defaults to keep-alive -- so without this
     # the browser holds the socket open expecting to reuse it, then has
@@ -1715,6 +1721,7 @@ async def _send(writer, status, body, content_type="text/html"):
     # shows up as pages that feel sluggish or hang on the first click.
     resp = ("HTTP/1.1 " + status + "\r\nContent-Type: " + content_type +
              "\r\nContent-Length: " + str(len(body)) +
+             ("\r\nCache-Control: no-cache" if no_cache else "") +
              "\r\nConnection: close\r\n\r\n")
     await writer.awrite(resp)
     await writer.awrite(body)
