@@ -19,7 +19,7 @@ lab tests could not settle — they need the real board, radio and phones.
       minutes the first time; later runs skip what's unchanged). The
       rnfs pack's tools are another ~1 MB (~17 minutes the first time).
 - [ ] With a card reader, onto the SD card:
-  - `tools/FireFly-Android-0.2.11.apk` (rename `app-debug.apk`)
+  - `tools/firefly/FireFly-Android-0.2.11.apk` (rename `app-debug.apk`)
   - `home/` — your branding, if testing it (see `HOME_BRANDING.md`)
 - [ ] `/admin` → Radio: set TX power (e.g. 17 dBm). The page says whether
       it reached the Heltec now or will at its next connection.
@@ -69,7 +69,11 @@ lab tests could not settle — they need the real board, radio and phones.
 - [ ] Apps: "Download from this Stump" shows version and size.
       **(hardware)** On an Android phone: download the APK over the
       node's Wi-Fi (~50 MB — note how long it takes) and install it.
-- [ ] `/tools`: apps first, then the technician files.
+- [ ] `/tools`: apps first, then a section per tool (Provisioner,
+      Browser flasher, rnfs…), each with its summary and a **Read me**
+      that folds out. A card set up by beta.2 or older: its loose tools
+      were moved into their folders at boot (boot log: `[fserv] tools:
+      moved N file(s)`).
 - [ ] Files page: upload a file with an accented name (`thé.jpg`) and one
       in another script or with an emoji; both appear under their real
       names.
@@ -141,8 +145,8 @@ Tavern theme and "Tavernier" as the bot's name.
 - [ ] From FireFly: `!roll` and `!vote 1` work over LoRa and answer in
       one line; `/help` ends with one `extras:` line.
 - [ ] Six quick lines in 10 s from one phone: `⧗ — …`.
-- [ ] rnfs: the Tools page has three wheels, `rnfs-install.sh`,
-      `rnfs-install.bat` and `rnfs-INSTALL.txt`. Paste
+- [ ] rnfs: the Tools page's rnfs section has three wheels,
+      `rnfs-install.sh` and `rnfs-install.bat`, and its Read me. Paste
       `rnfs:bagaibqabciqkq6rth6jhr2vkh7c2ip7p6bsmdxmslbia47rjbmwpcz6wwu6veya`
       in chat: a hint follows, and the link is on the **rnfs shelf**
       page. `!shelf add <that cid> Manifesto`, then `!shelf`.

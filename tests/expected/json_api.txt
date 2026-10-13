@@ -18,8 +18,8 @@
    200 OK application/json; charset=utf-8
    app: {'file': 'FireFly-Android-0.2.11.apk', 'size': 4000, 'app': 'android', 'url': '/tool?f=FireFly-Android-0.2.11.apk', 'version': '0.2.11'}
    app: {'file': 'FireFly-RK3326-0.6.2.zip', 'size': 2000, 'app': 'rk3326', 'url': '/tool?f=FireFly-RK3326-0.6.2.zip', 'version': '0.6.2'}
-   files: [{'size': 300, 'name': 'provisioner.py', 'url': '/tool?f=provisioner.py'}]
-  no card -> {"sd": false, "files": [], "apps": []}
+   files: [{'size': 300, 'section': '', 'name': 'provisioner.py', 'url': '/tool?f=provisioner.py'}]
+  no card -> {"files": [], "sections": [], "sd": false, "apps": []}
 == GET /node.json
    200 OK application/json; charset=utf-8
    keys: ['ap_ip', 'chain', 'features', 'lxmf', 'name', 'release', 'version']

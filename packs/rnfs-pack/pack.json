@@ -12,10 +12,10 @@
   "tools": true,
   "home": false,
   "hashes": {
+    "tools/README.md": "7eadf4dbf1b9bae2",
     "tools/lxmf-1.2.0-py3-none-any.whl": "805f053e61082f58",
     "tools/reticulum-LICENSE.txt": "851a55a19e4367da",
     "tools/rnfs-0.1.1-py3-none-any.whl": "4dacc2dd6219de55",
-    "tools/rnfs-INSTALL.txt": "ceaab0ae27c1d714",
     "tools/rnfs-LICENSE.txt": "266d943536a4c09a",
     "tools/rnfs-install.bat": "6b0ff9d4fa94c1b9",
     "tools/rnfs-install.sh": "dded8c6935843016",

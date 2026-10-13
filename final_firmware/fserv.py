@@ -129,6 +129,7 @@ def mount_sd():
                 pass  # already exists
         sd_ok = True
         print("[fserv] SD mounted at", SD_MOUNT)
+        migrate_tools()
     except Exception as e:
         print("[fserv] SD mount FAILED:", e)
         sd_ok = False
@@ -328,14 +329,164 @@ def list_fw():
         return []
 
 
-def list_tools():
-    """Technician tools available for download from this node."""
+def _is_dir(path):
+    try:
+        return os.stat(path)[0] & 0x4000 != 0
+    except OSError:
+        return False
+
+
+def list_tools(section=""):
+    """The files in tools/ (section "") or in one of its folders."""
+    if not sd_ok:
+        return []
+    d = TOOLS_DIR + ("/" + section if section else "")
+    try:
+        return sorted(n for n in os.listdir(d) if not _is_dir(d + "/" + n))
+    except OSError:
+        return []
+
+
+# The Tools page is sectioned: each tool in its own folder of tools/,
+# with a README.md that says what it is (its first "# " line is the
+# section's title, the first paragraph under it the summary). Loose files
+# in tools/ itself are still offered, under "Other files".
+README = "README.md"
+README_MAX = 8192            # shown on the page up to this size
+
+
+def tool_sections():
+    """[{"dir", "title", "summary", "readme", "files": [(name, size)]}],
+    folders in name order, then the loose files (dir "") if any. "readme"
+    is the README's text (up to README_MAX) or None; README.md itself
+    isn't in "files"."""
     if not sd_ok:
         return []
     try:
-        return sorted(os.listdir(TOOLS_DIR))
+        names = sorted(os.listdir(TOOLS_DIR))
     except OSError:
         return []
+    out = []
+    for d in [n for n in names if _is_dir(TOOLS_DIR + "/" + n)] + [""]:
+        base = TOOLS_DIR + ("/" + d if d else "")
+        files = []
+        for n in list_tools(d):
+            if d and n == README:
+                continue
+            try:
+                files.append((n, os.stat(base + "/" + n)[6]))
+            except OSError:
+                pass
+        text = _read_readme(base + "/" + README) if d else None
+        if not files and not text:
+            continue
+        title, summary = _readme_head(text) if text else (None, "")
+        out.append({"dir": d, "title": title or d, "summary": summary,
+                    "readme": text, "files": files})
+    return out
+
+
+def _read_readme(path):
+    try:
+        with open(path, "rb") as f:
+            raw = f.read(README_MAX)
+        return raw.decode("utf-8", "ignore") if hasattr(raw, "decode") else raw
+    except OSError:
+        return None
+
+
+def _readme_head(text):
+    """(title, summary): the first "# " line, and the first paragraph of
+    plain text after it."""
+    title, para, seen_title = None, [], False
+    for line in text.split("\n"):
+        t = line.strip()
+        if title is None and t.startswith("# "):
+            title, seen_title = t[2:].strip(), True
+            continue
+        if not t:
+            if para:
+                break
+            continue
+        if t.startswith(("#", "```", "|", "-", "*", ">")) or t[0].isdigit() and t[1:2] == ".":
+            if para:
+                break
+            continue
+        if seen_title or title is None:
+            para.append(t)
+    return title, " ".join(para)
+
+
+# Cards provisioned before the Tools page had sections keep every tool
+# loose in tools/. At mount they're moved into their folders (a rename,
+# nothing copied), so the page is tidy and the Provisioner finds them in
+# place instead of copying them again at ~1 KB/s.
+_MIGRATE = (
+    ("provisioner", ("provisioner.py", "LICENSE", "Stump_Beta_A.zip"), ()),
+    ("flasher", ("esptool-bundle.js", "esptool-js-LICENSE.txt"), ()),
+    ("firefly", (), ("FireFly-",)),
+    ("rnfs", ("reticulum-LICENSE.txt",), ("rnfs-", "rnfs_", "lxmf-", "rnspure-")),
+)
+_MIGRATE_RENAME = {"README.md": ("provisioner", "Stump-README.md"),
+                   "rnfs-INSTALL.txt": ("rnfs", README)}
+
+
+def migrate_tools():
+    """Moves the old, loose tools into their folders. Returns how many."""
+    try:
+        names = [n for n in os.listdir(TOOLS_DIR) if not _is_dir(TOOLS_DIR + "/" + n)]
+    except OSError:
+        return 0
+    moved = 0
+    for n in names:
+        dest = _MIGRATE_RENAME.get(n)
+        if dest is None:
+            for d, exact, prefixes in _MIGRATE:
+                if n in exact or any(n.startswith(p) for p in prefixes):
+                    dest = (d, n)
+                    break
+        if dest is None:
+            continue
+        d, new = dest
+        try:
+            os.mkdir(TOOLS_DIR + "/" + d)
+        except OSError:
+            pass
+        src, dst = TOOLS_DIR + "/" + n, TOOLS_DIR + "/" + d + "/" + new
+        try:
+            try:
+                os.stat(dst)
+                os.remove(src)        # the folder already has its own copy
+            except OSError:
+                os.rename(src, dst)
+            moved += 1
+        except OSError as e:
+            print("[fserv] tools: couldn't move", n, e)
+    if moved:
+        print("[fserv] tools: moved %d file(s) into their folders" % moved)
+    return moved
+
+
+def tool_path(rel):
+    """The card path for a tools-relative name ("rnfs/x.whl" or "x"), or
+    None if it isn't one: at most one folder deep, no "..". A name not
+    found in its folder is looked for loose in tools/ (a card the
+    migration hasn't reached)."""
+    parts = rel.split("/")
+    if len(parts) > 2 or any(p in ("", ".", "..") for p in parts):
+        return None
+    path = TOOLS_DIR + "/" + rel
+    if len(parts) == 2:
+        try:
+            os.stat(path)
+        except OSError:
+            alt = TOOLS_DIR + "/" + parts[1]
+            try:
+                os.stat(alt)
+                return alt
+            except OSError:
+                pass
+    return path
 
 
 # The FireFly apps a node can hand out, found in TOOLS_DIR by name so a
@@ -360,23 +511,22 @@ def find_apps():
     apps present -- the highest version of each, compared as numbers
     (0.2.11 beats 0.2.9)."""
     found = {}
-    for name in list_tools():
-        for key, prefix, suffix in APPS:
-            if name.startswith(prefix) and name.endswith(suffix):
-                version = name[len(prefix):-len(suffix)]
-                if not version:
-                    continue
-                best = found.get(key)
-                if best is None or _version_key(version) > _version_key(best["version"]):
-                    try:
-                        size = os.stat(TOOLS_DIR + "/" + name)[6]
-                    except OSError:
+    for sec in tool_sections():
+        for name, size in sec["files"]:
+            for key, prefix, suffix in APPS:
+                if name.startswith(prefix) and name.endswith(suffix):
+                    version = name[len(prefix):-len(suffix)]
+                    if not version:
                         continue
-                    found[key] = {"file": name, "version": version, "size": size}
+                    best = found.get(key)
+                    if best is None or _version_key(version) > _version_key(best["version"]):
+                        found[key] = {"file": (sec["dir"] + "/" if sec["dir"] else "") + name,
+                                      "name": name, "version": version, "size": size}
     return found
 
 
 def is_app_file(name):
+    name = name.rsplit("/", 1)[-1]
     return any(name.startswith(p) and name.endswith(s) for _, p, s in APPS)
 
 

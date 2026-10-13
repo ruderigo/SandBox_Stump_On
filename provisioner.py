@@ -204,27 +204,27 @@ DEFAULT_CREDIT_WEIGHTS = {"video": 3, "music": 2, "document": 1, "other": 1}
 #   [print(f'    {str(f.relative_to(\"final_firmware\"))!r}: {hashlib.sha256(f.read_bytes()).hexdigest()[:16]!r},')
 #    for f in sorted(Path('final_firmware').rglob('*')) if f.is_file()]"
 EXPECTED_FILE_HASHES = {
-    "barkeep.py": "ecf3031d6de9de57",
+    "barkeep.py": "ecf5ffb58c8f6edb",
     "billboard.py": "23b3263eb7fddcf3",
     "boot_common.py": "d1f60dd4434752bf",
     "captive_portal.py": "35cb3a279ecc42db",
     "chain.py": "d2546292a0ac3f47",
     "config.py": "4b546033fac3572a",
     "docs/CHAIN.md": "c16a45a09ee64ca0",
-    "docs/CLIENT_QUICKSTART.md": "c454f825e66ad597",
-    "docs/COMMANDS.md": "d7abae2738f39c0a",
-    "docs/FIELD_TEST.md": "cc3f7b035028baca",
+    "docs/CLIENT_QUICKSTART.md": "7da377c205209b1c",
+    "docs/COMMANDS.md": "ae7d0a6127be12fa",
+    "docs/FIELD_TEST.md": "27bfc2130635dfdb",
     "docs/HIDDEN_FEATURES.md": "053479ae239e0891",
-    "docs/HOME_BRANDING.md": "9200d8191366cb09",
+    "docs/HOME_BRANDING.md": "e1a1a9cf854dcdce",
     "docs/HTTPS_SETUP.md": "30171f88d7a75712",
-    "docs/PACKS.md": "5a4112d207cac719",
+    "docs/PACKS.md": "003d26a9eb40570c",
     "docs/PLUGINS.md": "3f5b4a5ee6844305",
     "example_node.py": "b3dda61339f0699e",
     "features.py": "7fca96873d59d2d3",
-    "flasher_ui.py": "f0af338707d46d25",
-    "fserv.py": "c3091ea9d29f6dc3",
+    "flasher_ui.py": "1d3035b1132bc87e",
+    "fserv.py": "828d6b716adb2e7d",
     "fservbot/plugin.json": "fecf7cbfff4e7d97",
-    "i18n.py": "00c0c2dce1556aa3",
+    "i18n.py": "96dcd76d58d3b0dd",
     "lib/bz2_fast_xtensawin.mpy": "ac55d9eda2126432",
     "lib/ed25519_fast_xtensawin.mpy": "96e74dac45f91687",
     "lib/ed25519_iram.mpy": "96e74dac45f91687",
@@ -365,10 +365,13 @@ EXPECTED_FILE_HASHES = {
     "third_party/opus/build_opus_wasm.sh": "e42a07ee5e114e14",
     "third_party/opus/stump_opus.c": "833eb43c52d6c1b2",
     "tools_payload/apps/FireFly-RK3326-0.6.2.zip": "8d0277ddec4d715b",
+    "tools_payload/apps/README.md": "2e0f5a7aa18abdaf",
+    "tools_payload/flasher/README.md": "b5d9f0f3808bf523",
     "tools_payload/flasher/catalog.json": "8dc38061d6bf49a3",
     "tools_payload/flasher/esptool-bundle.js": "ef7d5a237d3f273e",
     "tools_payload/flasher/esptool-js-LICENSE.txt": "1c25f29242785d63",
     "tools_payload/images/README.txt": "10dbf1ed3e3eee26",
+    "tools_payload/provisioner/README.md": "dbf678077919e6c2",
     "urns/__init__.py": "4a83ee3f5cd42ca4",
     "urns/buffer.py": "b1da1d0723340421",
     "urns/bz2dec.py": "8149a39deee822c2",
@@ -994,18 +997,33 @@ def install_packs(port, packs):
         print(f"  {spec['name']} {spec['version']}")
         for name in spec.get("plugins", []):
             ok_all = upload_plugin_folder(port, d / name) and ok_all
+        # A pack's tools/ become its own section of the Tools page,
+        # tools/<pack name>/ (tools/<folder>/ for files the pack keeps in
+        # a folder of tools/); home/ goes to home/ as it is.
+        made = set()
         for rel in _pack_files(d, spec):
             sub, fname = rel.split("/", 1)
+            if sub == "tools":
+                if "/" in fname:
+                    sec, fname = fname.split("/", 1)
+                    fname = fname.replace("/", "_")
+                else:
+                    sec = spec["name"]
+                sub = "tools/" + sec
             size = (d / rel).stat().st_size
             if size > APP_USB_MAX:
                 # ~1 KB/s over USB: a 30 MB installer would take hours.
                 print(f"    {rel} ({size // 1000000} MB): too big for USB -- copy it to the card's")
                 print(f"      {sub}/ folder with a card reader")
                 continue
-            print(f"    {rel} -> SD card ...", end=" ", flush=True)
-            run(["mpremote", "connect", port, "exec",
-                 "import fserv\nfserv.mount_sd()\nimport os\ntry:\n os.mkdir('/sd/%s')\nexcept OSError:\n pass\n" % sub],
-                timeout=25)
+            print(f"    {rel} -> SD card {sub}/ ...", end=" ", flush=True)
+            if sub not in made:
+                run(["mpremote", "connect", port, "exec",
+                     "import fserv\nfserv.mount_sd()\nimport os\n"
+                     "for d in %r:\n try:\n  os.mkdir(d)\n except OSError:\n  pass\n"
+                     % (["/sd/tools", "/sd/" + sub] if sub.startswith("tools/") else ["/sd/" + sub],)],
+                    timeout=25)
+                made.add(sub)
             ok, out = _sd_push(port, d / rel, f":/sd/{sub}/{fname}")
             print("ok" if ok else "FAILED: " + str(out).strip()[-70:])
             ok_all = ok_all and ok
@@ -2351,7 +2369,12 @@ def _install_tools_on_node(port):
             print("  (%s)" % detail.strip().splitlines()[-1][:90])
         return False
 
-    for d in (":/sd/tools", ":/sd/fw"):
+    # The Tools page has a section per folder of tools/, each with its
+    # own README.md. Mounting the card also moves tools left loose by
+    # older Provisioners into their folders (fserv.migrate_tools), so
+    # they're found in place below rather than copied again.
+    for d in (":/sd/tools", ":/sd/fw", ":/sd/tools/provisioner", ":/sd/tools/flasher",
+              ":/sd/tools/firefly"):
         run(["mpremote", "connect", port, "exec", MOUNT, "fs", "mkdir", d], timeout=25)
 
     installed, failed, by_card = [], [], []
@@ -2394,7 +2417,7 @@ def _install_tools_on_node(port):
             failed.append((label, reason))
 
     if me.is_file():
-        push(me, ":/sd/tools/provisioner.py", "provisioner.py")
+        push(me, ":/sd/tools/provisioner/provisioner.py", "provisioner.py")
 
     # Same reasoning as provisioner.py itself: the node hands back
     # exactly the reference doc it was provisioned with, rather than a
@@ -2405,7 +2428,7 @@ def _install_tools_on_node(port):
     # proceed normally.
     readme = here / "README.md"
     if readme.is_file():
-        push(readme, ":/sd/tools/README.md", "README.md")
+        push(readme, ":/sd/tools/provisioner/Stump-README.md", "Stump-README.md")
 
     # Same reasoning again: whoever ends up with a copy of this build
     # off the node gets the actual license it ships under, not just the
@@ -2415,7 +2438,7 @@ def _install_tools_on_node(port):
     # LICENSE.txt.
     license_file = here / "LICENSE"
     if license_file.is_file():
-        push(license_file, ":/sd/tools/LICENSE", "LICENSE")
+        push(license_file, ":/sd/tools/provisioner/LICENSE", "LICENSE")
 
     # The full firmware source, built fresh rather than copied from
     # wherever the technician's original download happened to land --
@@ -2439,7 +2462,7 @@ def _install_tools_on_node(port):
                 # since a silent multi-minute wait reads as a hang
                 # otherwise -- the other pushes are fast enough that
                 # nobody's watched the clock on them before now.
-                push(zip_path, ":/sd/tools/Stump_Beta_A.zip", "Stump_Beta_A.zip")
+                push(zip_path, ":/sd/tools/provisioner/Stump_Beta_A.zip", "Stump_Beta_A.zip")
         except Exception as e:
             failed.append(("Stump_Beta_A.zip", str(e)[:70]))
 
@@ -2447,9 +2470,12 @@ def _install_tools_on_node(port):
     if not payload.is_dir():
         payload = here / "tools_payload"
     if payload.is_dir():
+        # Each section's README.md (what the Tools page shows about it).
+        for src, sec in (("provisioner", "provisioner"), ("flasher", "flasher"), ("apps", "firefly")):
+            push(payload / src / "README.md", ":/sd/tools/%s/README.md" % sec, sec + "/README.md")
         fl = payload / "flasher"
-        push(fl / "esptool-bundle.js", ":/sd/tools/esptool-bundle.js", "esptool-bundle.js")
-        push(fl / "esptool-js-LICENSE.txt", ":/sd/tools/esptool-js-LICENSE.txt", "licence")
+        push(fl / "esptool-bundle.js", ":/sd/tools/flasher/esptool-bundle.js", "esptool-bundle.js")
+        push(fl / "esptool-js-LICENSE.txt", ":/sd/tools/flasher/esptool-js-LICENSE.txt", "licence")
         push(fl / "catalog.json", ":/sd/fw/catalog.json", "catalog.json")
         img_dir = payload / "images"
         if img_dir.is_dir():
@@ -2462,15 +2488,18 @@ def _install_tools_on_node(port):
         apps_dir = payload / "apps"
         if apps_dir.is_dir():
             for app in sorted(apps_dir.iterdir()):
-                if not app.is_file():
+                if not app.is_file() or app.name == "README.md":
                     continue
                 if app.stat().st_size > APP_USB_MAX:
                     print("    %s (%d MB): too big to copy over USB -- put it on the SD card"
                           % (app.name, app.stat().st_size // 1000000))
-                    print("      with a card reader, in the 'tools' folder at the card's top level.")
-                    by_card.append("tools/" + app.name)
+                    print("      with a card reader, in tools/firefly/ on the card.")
+                    by_card.append("tools/firefly/" + app.name)
                     continue
-                push(app, ":/sd/tools/" + app.name, app.name)
+                push(app, ":/sd/tools/firefly/" + app.name, app.name)
+    else:
+        print("  (no tools_payload folder found next to the firmware --")
+        print("   the browser flasher won't be available on this node)")
     # Home-page branding (docs/HOME_BRANDING.md): a "home" folder next to
     # this provisioner goes to home/ on the card, like the tools. The node
     # creates that folder on the card when it mounts it (fserv.mount_sd).
@@ -2486,9 +2515,6 @@ def _install_tools_on_node(port):
                 by_card.append("home/" + f.name)
                 continue
             push(f, ":/sd/home/" + f.name, "home/" + f.name)
-    else:
-        print("  (no tools_payload folder found next to the firmware --")
-        print("   the browser flasher won't be available on this node)")
 
     if installed:
         print("  Installed: " + ", ".join(installed))

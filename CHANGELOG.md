@@ -4,6 +4,15 @@
 - **`GET /node.json`**: name, LXMF address, version and release,
   hotspot address, chain role and features, without joining the chat
   (asked for by the Android team, for discovering nodes).
+- **Tools page in sections:** each tool in its own folder on the SD
+  card (`tools/provisioner/`, `flasher/`, `firefly/`, one per pack) with
+  its own `README.md`, which gives the section its title and summary and
+  folds out on the page. Cards set up before are tidied at boot (files
+  moved, not copied). `/tools.json` adds `sections` and each file's
+  `section`; `/tool?f=` takes `folder/name`. The rnfs pack's
+  `rnfs-INSTALL.txt` is now its section's `README.md`.
+- Fixed: the Provisioner printed "no tools_payload folder found" on
+  every run without a `home/` folder.
 
 ## 1.0.0-beta.2
 - **Chained Stumps over Wi-Fi** (`docs/CHAIN.md`): each Stump serves its

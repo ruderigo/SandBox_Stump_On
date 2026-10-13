@@ -116,6 +116,9 @@ ul.files a{
 }
 ul.files a span{overflow-wrap:break-word; word-break:break-word;}
 ul.files small{flex-shrink:0; padding-left:8px; text-align:right;}
+details.readme{margin-top:8px;}
+details.readme summary{cursor:pointer; color:var(--muted);}
+details.readme pre{white-space:pre-wrap; overflow-wrap:anywhere; font-size:.85em; margin:8px 0 0;}
 
 /* Two destination tiles. Grid so they stay equal width and stack
    sensibly on a narrow phone, which is the common case here. */
@@ -1359,30 +1362,40 @@ def _render_tools_page(lang):
         if a:
             app_items.append(
                 "<li><a href='/tool?f=" + _url_encode(a["file"]) + "'>"
-                + _ICON_DOWNLOAD + "<span>" + billboard._esc(a["file"]) + "</span></a>"
+                + _ICON_DOWNLOAD + "<span>" + billboard._esc(a["name"]) + "</span></a>"
                 "<small>" + _human_size(a["size"]) + " · " + i18n.t(title, lang) + "</small></li>"
             )
-    tools = [t for t in fserv.list_tools() if not fserv.is_app_file(t)]
-    items = []
-    for t in tools:
-        try:
-            size = _human_size(os.stat(fserv.TOOLS_DIR + "/" + t)[6])
-        except Exception:
-            size = ""
-        items.append(
-            "<li><a href='/tool?f=" + _url_encode(t) + "'>"
-            + _ICON_DOWNLOAD + "<span>" + billboard._esc(t) + "</span>"
-            "</a><small>" + size + "</small></li>"
-        )
-    if items:
-        listing = "<div class='panel'><ul class='files'>" + "".join(items) + "</ul></div>"
+    # One section per folder of tools/ (fserv.tool_sections): its title
+    # and summary from its README.md, its files, and the README itself
+    # folded underneath. The FireFly apps are listed above instead.
+    sections = []
+    for sec in fserv.tool_sections():
+        files = [(n, size) for n, size in sec["files"] if not fserv.is_app_file(n)]
+        if not files:
+            continue
+        prefix = sec["dir"] + "/" if sec["dir"] else ""
+        items = "".join(
+            "<li><a href='/tool?f=" + _url_encode(prefix + n) + "'>"
+            + _ICON_DOWNLOAD + "<span>" + billboard._esc(n) + "</span>"
+            "</a><small>" + _human_size(size) + "</small></li>"
+            for n, size in files)
+        head = billboard._esc(sec["title"]) if sec["dir"] else i18n.t("tools_other_h2", lang)
+        readme = ""
+        if sec["readme"]:
+            readme = ("<details class='readme'><summary>" + i18n.t("tools_readme", lang)
+                      + "</summary><pre>" + billboard._esc(sec["readme"]) + "</pre></details>")
+        sections.append(
+            "<h2>" + head + "</h2>"
+            + ("<p class='sub'>" + billboard._esc(sec["summary"]) + "</p>" if sec["summary"] else "")
+            + "<div class='panel'><ul class='files'>" + items + "</ul>" + readme + "</div>")
+    if sections:
+        listing = "".join(sections)
     else:
         listing = "<div class='panel'><p class='sub'>" + i18n.t("tools_none_installed", lang) + "</p></div>"
 
     apps_listing = (
         "<h2>" + i18n.t("tools_apps_h2", lang) + "</h2>"
         "<div class='panel'><ul class='files'>" + "".join(app_items) + "</ul></div>"
-        "<h2>" + i18n.t("tools_tech_h2", lang) + "</h2>"
     ) if app_items else ""
     return (
         "<h1>" + i18n.t("tools_header", lang) + "</h1>"
@@ -2384,19 +2397,28 @@ async def _handle(reader, writer, secure=False):
             # this, /tools.json matched "/tools" and returned the HTML page
             # with a 200, which an app would have taken for an answer.
             apps = fserv.find_apps()
-            app_list = [{"app": k, "file": a["file"], "version": a["version"], "size": a["size"],
+            app_list = [{"app": k, "file": a["name"], "version": a["version"], "size": a["size"],
                          "url": "/tool?f=" + _url_encode(a["file"])}
                         for k, a in sorted(apps.items())]
-            files = []
-            for t in fserv.list_tools():
-                if fserv.is_app_file(t):
-                    continue
-                try:
-                    size = os.stat(fserv.TOOLS_DIR + "/" + t)[6]
-                except OSError:
-                    size = None
-                files.append({"name": t, "size": size, "url": "/tool?f=" + _url_encode(t)})
-            await _send(writer, "200 OK", json.dumps({"sd": fserv.sd_ok, "apps": app_list, "files": files}),
+            # "files": every other file, flat, as before ("section" says
+            # which folder); "sections": the same grouped as on the page.
+            files, sections = [], []
+            for sec in fserv.tool_sections():
+                prefix = sec["dir"] + "/" if sec["dir"] else ""
+                sfiles = [{"name": n, "size": size, "section": sec["dir"],
+                           "url": "/tool?f=" + _url_encode(prefix + n)}
+                          for n, size in sec["files"] if not fserv.is_app_file(n)]
+                files.extend(sfiles)
+                if sec["dir"] and sfiles:
+                    sections.append({"dir": sec["dir"], "title": sec["title"], "summary": sec["summary"],
+                                     "readme": ("/tool?f=" + _url_encode(prefix + fserv.README))
+                                     if sec["readme"] else None,
+                                     "files": sfiles})
+                elif sfiles:
+                    sections.append({"dir": "", "title": None, "summary": "", "readme": None,
+                                     "files": sfiles})
+            await _send(writer, "200 OK", json.dumps({"sd": fserv.sd_ok, "apps": app_list, "files": files,
+                                                      "sections": sections}),
                         "application/json")
 
         elif method == "GET" and path.startswith("/node.json"):
@@ -2437,9 +2459,14 @@ async def _handle(reader, writer, secure=False):
                 await _send(writer, "404 Not Found", "no such file", "text/plain")
 
         elif method == "GET" and path.startswith("/tool"):
+            # f= is a file in tools/ or one folder down ("rnfs/x.whl"):
+            # each part goes through the same name guard, and
+            # fserv.tool_path refuses anything deeper or with "..".
             raw_f = path.split("f=", 1)[-1] if "f=" in path else ""
-            tname = _clean_filename(billboard._url_decode(raw_f))
-            tpath = fserv.TOOLS_DIR + "/" + tname
+            parts = billboard._url_decode(raw_f).split("/")
+            tname = _clean_filename(parts[-1])
+            rel = "/".join([_clean_filename(p) for p in parts[:-1]] + [tname])
+            tpath = fserv.tool_path(rel) or ""
             try:
                 # Deliberately NOT the /download route: tools carry no
                 # credit cost and must not be charged for, and keeping

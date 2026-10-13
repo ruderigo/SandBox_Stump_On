@@ -22,7 +22,9 @@ was removed or reworded:
 
 **After beta.2, on `main` for the next release:** `GET /node.json`, the
 node's name, LXMF address, release, hotspot address, chain role and
-features, without joining the chat — for discovery. See *Addresses*.
+features, without joining the chat — for discovery (see *Addresses*);
+and `/tools.json` gains `sections` and each file's `section`, with app
+URLs that name their folder (see *Apps and tools*).
 
 Already in beta.1, if you're coming from an older build: plugins
 (`!word` commands, `/p/<plugin>/` pages, `GET /plugins.json`), voice
@@ -909,11 +911,27 @@ shared pool, marked fulfilled only once the bytes are on disk. Omit
 ```json
 {"sd": true,
  "apps": [{"app": "android", "file": "FireFly-Android-0.2.11.apk", "version": "0.2.11",
-           "size": 49712049, "url": "/tool?f=FireFly-Android-0.2.11.apk"},
+           "size": 49712049, "url": "/tool?f=firefly%2FFireFly-Android-0.2.11.apk"},
           {"app": "rk3326", "file": "FireFly-RK3326-0.6.2.zip", "version": "0.6.2",
-           "size": 97653, "url": "/tool?f=FireFly-RK3326-0.6.2.zip"}],
- "files": [{"name": "provisioner.py", "size": 156584, "url": "/tool?f=provisioner.py"}]}
+           "size": 97653, "url": "/tool?f=firefly%2FFireFly-RK3326-0.6.2.zip"}],
+ "files": [{"name": "provisioner.py", "size": 156584, "section": "provisioner",
+            "url": "/tool?f=provisioner%2Fprovisioner.py"}],
+ "sections": [{"dir": "provisioner", "title": "Provisioner",
+               "summary": "The tool that sets up and updates Stump nodes…",
+               "readme": "/tool?f=provisioner%2FREADME.md",
+               "files": [{"name": "provisioner.py", "size": 156584, "section": "provisioner",
+                          "url": "/tool?f=provisioner%2Fprovisioner.py"}]}]}
 ```
+
+The Tools page has a section per tool, each a folder on the node's
+card with a `README.md`. `files` lists every file flat, as before, with
+the `section` it's in (`""` for a loose file); `sections` groups them
+as the page does, with each one's title, summary and README address
+(`readme` is `null` without one; a section of loose files has
+`"dir": ""` and no title). The FireFly apps are only under `apps`.
+Always download with the `url` as given: since the sections, it names
+the folder. (Sections and `section` are new after 1.0.0-beta.2; `file`
+in `apps` is still the bare file name.)
 
 `apps` holds the newest of each FireFly app on the node's card (versions
 compared as numbers); an app the node doesn't carry is simply absent. A

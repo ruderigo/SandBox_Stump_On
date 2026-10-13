@@ -8,7 +8,7 @@ hands it out and speaks its link format.
 
 | | |
 |---|---|
-| **Tools page** | Everything for an **offline** install on any computer with Python 3.11+: `rnfs-0.1.1` (built from the `v0.1.1` source tag, commit `24ec47b`), `lxmf-1.2.0` and `rnspure-1.5.7` (Reticulum with its own built-in cryptography, so nothing needs compiling or downloading), the installers `rnfs-install.sh` (macOS, Linux) and `rnfs-install.bat` (Windows), `rnfs-INSTALL.txt`, and the licences |
+| **Tools page** | Everything for an **offline** install on any computer with Python 3.11+: `rnfs-0.1.1` (built from the `v0.1.1` source tag, commit `24ec47b`), `lxmf-1.2.0` and `rnspure-1.5.7` (Reticulum with its own built-in cryptography, so nothing needs compiling or downloading), the installers `rnfs-install.sh` (macOS, Linux) and `rnfs-install.bat` (Windows), the licences, and a `README.md` the Tools page shows as the rnfs section |
 | **Link spotter** | Recognises `rnfs:<cid>`, `rnfs:name/<32 hex>/…` and bare CIDs in room lines, from the web and from LoRa. Each is collected on `/p/rnfs/`, and for a CID the room gets a short "fetch with `rnfs get …`" hint — at most once every 10 minutes per room (`RNFS_HINTS = False` turns the hint off) |
 | **`!shelf`** | The place's own index: `!shelf` (the count and the last 5), `!shelf 3`, `!shelf add <cid> <title>`, `!shelf find <word>`, `!shelf rm <n>` (whoever added it) |
 | **`!rnfs`** | What rnfs is, and where to get it |

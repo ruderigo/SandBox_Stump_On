@@ -10,7 +10,8 @@ tavern-pack/
   pack.json        name, version, author, licence, what's inside, hashes
   README.md        for people
   tavern/          a plugin: install.py, strings.py, plugin.json, ...
-  tools/           optional: files for the node's Tools page (SD card)
+  tools/           optional: the pack's section of the Tools page (SD card),
+                   with a README.md
   home/            optional: a home-page section (SD card, HOME_BRANDING.md)
 ```
 
@@ -58,6 +59,11 @@ Other commands:
 | `python3 provisioner.py --remove-plugin PORT tavern` | Takes a plugin off the node (its data in `/sd/plugins/tavern/` stays) |
 | `/admin <password> plugin off tavern` | Switches it off without a laptop (`/admin` → **Plugins** too) |
 
+**A pack's tools section** gets its title and summary from a
+`README.md` in `tools/`: its first `# ` line, and the paragraph under
+it. The whole README folds out on the page under the files. Without
+one, the section is titled with the pack's name.
+
 Files in `tools/` or `home/` over 1 MB aren't copied over USB (about
 1 KB/s): the Provisioner says which, for a card reader.
 
@@ -92,7 +98,7 @@ Files in `tools/` or `home/` over 1 MB aren't copied over USB (about
 | `plugins` | The plugin folders inside |
 | `theme` | A palette offered beside amber, phosphor, oled and paper. `name`: lowercase letters, digits, `-`. `colors`: any of `--bg --panel --panel-2 --line --text --muted --dim --border --ember --ember-bright --action --dm --dm-nick --err`, as `#rgb` or `#rrggbb`; any you leave out stay amber's. Anything else is ignored |
 | `persona` | `bot_name`, `mesh_greeting`: offered as defaults in the wizard |
-| `tools`, `home` | `false` to leave out a `tools/` or `home/` folder that's there; copied to the SD card's `tools/` and `home/` otherwise |
+| `tools`, `home` | `false` to leave out a `tools/` or `home/` folder that's there. Otherwise `tools/` becomes the pack's own section of the Tools page, `tools/<name>/` on the SD card (a folder inside `tools/` becomes a section of that name instead), and `home/` goes to the card's `home/` |
 
 ### Each plugin's `plugin.json`
 

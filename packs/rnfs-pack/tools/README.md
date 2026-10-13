@@ -1,7 +1,8 @@
-rnfs -- Reticulum Network File System
-https://github.com/afit21/rnfs   (MIT licence, see rnfs-LICENSE.txt)
+# rnfs — Reticulum Network File System
 
-Files on the Reticulum network (LoRa included), fetched by content ID:
+Files on the Reticulum network (LoRa included), fetched by content ID. Everything here installs it on any computer with Python 3.11 or newer, with no internet.
+
+https://github.com/afit21/rnfs   (MIT licence, see rnfs-LICENSE.txt)
 
     rnfs add holiday.jpg          -> prints a CID
     rnfs get <cid> -o holiday.jpg
@@ -9,11 +10,11 @@ Files on the Reticulum network (LoRa included), fetched by content ID:
 Run "rnfs daemon" first and leave it running; every other command talks
 to it.
 
-INSTALLING FROM THIS STUMP -- NO INTERNET NEEDED
-------------------------------------------------
+## Installing from this Stump
+
 You need Python 3.11 or newer (python.org on Windows and macOS; most
-Linux systems already have it). Download these files from this Tools
-page into ONE folder (your Downloads folder is fine):
+Linux systems already have it). Download these files from this section
+of the Tools page into ONE folder (your Downloads folder is fine):
 
     rnfs-0.1.1-py3-none-any.whl      rnfs itself
     lxmf-1.2.0-py3-none-any.whl      LXMF messaging
@@ -43,8 +44,8 @@ By hand, without the script:
 
 ("pip check" then says rns isn't installed: expected, rnspure provides it.)
 
-STANDALONE INSTALLERS
----------------------
+## Standalone installers
+
 The project's own releases also have one-file installers, with the
 fast Reticulum built in:
 
@@ -54,10 +55,11 @@ fast Reticulum built in:
     OS 64-bit
 
 They're tens of MB: if this Stump has them, the technician copied them
-onto its SD card with a card reader, and they're on this page too.
+onto its SD card (in tools/rnfs/) with a card reader, and they're
+listed here too.
 
-ON THIS STUMP
--------------
+## On this Stump
+
 In the chat: !shelf lists the files people here recommend, !shelf add
 <cid> <title> adds one, and rnfs links shared in the chat are collected
 on the page /p/rnfs/.

@@ -783,6 +783,16 @@ STRINGS = {
         "en": "Apps",
         "es": "Aplicaciones",
     },
+    "tools_other_h2": {
+        "fr": "Autres fichiers",
+        "en": "Other files",
+        "es": "Otros archivos",
+    },
+    "tools_readme": {
+        "fr": "Lisez-moi",
+        "en": "Read me",
+        "es": "Léeme",
+    },
     "tools_tech_h2": {
         "fr": "Outils du technicien",
         "en": "Technician tools",

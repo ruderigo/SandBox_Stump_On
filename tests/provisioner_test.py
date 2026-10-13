@@ -65,7 +65,7 @@ ok = P.install_packs('/dev/fake', packs)
 cps = [c for c in calls if 'cp' in c]
 dests = [c[-1] for c in cps]
 check('plugin files to flash', ':tavern/install.py' in dests and ':rnfs/strings.py' in dests and ':tavern/plugin.json' not in dests, dests)
-check('tools to SD', ':/sd/tools/rnfs-0.1.1-py3-none-any.whl' in dests and ':/sd/tools/rnfs-INSTALL.txt' in dests, dests)
+check('tools to SD', ':/sd/tools/rnfs/rnfs-0.1.1-py3-none-any.whl' in dests and ':/sd/tools/rnfs/README.md' in dests, dests)
 check('themes merged', set(pushed_theme) == {'old', 'tavern'} and pushed_theme['tavern']['colors']['--bg'] == '#1a120b', pushed_theme)
 check('install ok', ok)
 # upload_stump_app includes built-in plugins

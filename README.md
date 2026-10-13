@@ -226,7 +226,7 @@ a system message explaining why. See [Access control](#access-control).
 
 **The FireFly Android APK has to go on the SD card with a card reader.**
 At ~50 MB it would take about 14 hours over USB, so the provisioner
-refuses it and says where it goes (`tools/` on the card). Until it's
+refuses it and says where it goes (`tools/firefly/` on the card). Until it's
 there, the About page's Android card says "Not on this Stump yet".
 
 ---
@@ -447,12 +447,34 @@ detection depends on probe requests getting a real HTTP response.
 `provisioner.py`'s `install_tools_on_node()` pushes a few things onto
 the node's own SD card during provisioning, so a technician can walk
 up with nothing but a laptop and pull down what they need over HTTP
-instead of carrying a USB stick:
+instead of carrying a USB stick.
+
+**Each tool has its own folder, with its own `README.md`**, and the
+`/tools` page shows one section per folder: the README's first `# `
+line is the section's title, the paragraph under it the summary, and
+the whole README folds out under the files. The READMEs ship in
+`tools_payload/<folder>/README.md`; a pack's `tools/` folder becomes
+its own section (`tools/<pack name>/`, see `docs/PACKS.md`).
+
+```
+SD card
+└── tools/
+    ├── provisioner/   provisioner.py, Stump_Beta_A.zip, Stump-README.md, LICENSE
+    ├── flasher/       esptool-bundle.js and its licence (for /flash)
+    ├── firefly/       the FireFly apps (listed under Apps instead)
+    ├── rnfs/          the rnfs pack's offline installer
+    └── (loose files)  shown as "Other files"
+```
+
+Cards set up by an older Provisioner had everything loose in `tools/`:
+the node moves those files into their folders when it mounts the card
+(a rename, nothing copied), so the Provisioner finds them in place and
+doesn't copy them again over USB.
 
 - **`provisioner.py` itself** — the node hands back the exact version
   it was provisioned with, so there's never doubt about whether a copy
   pulled off the node matches what's actually running.
-- **`README.md`** — same reasoning, right next to it: the setup steps a
+- **`Stump-README.md`** (this file) — same reasoning, right next to it: the setup steps a
   technician needs (`--check-tools`, the standalone Heltec transport
   commands, everything else in this document) live in this file now,
   pushed to the node instead of being duplicated as a shorter,
@@ -487,7 +509,8 @@ instead of carrying a USB stick:
   `LICENSE` pushed alongside it provides that; see the warning in
   `tools_payload/images/README.txt` for what staging a real binary
   there would actually require.
-- **The FireFly apps** (`tools_payload/apps/`) — found on the card by
+- **The FireFly apps** (`tools_payload/apps/`, `tools/firefly/` on the
+  card) — found on the card by
   name (`FireFly-Android-<version>.apk`, `FireFly-RK3326-<version>.zip`)
   and offered on the About page and `/tools`. The handheld package goes
   over USB; anything over 1 MB — the ~50 MB Android APK — is left for a
@@ -1648,8 +1671,8 @@ Android APK does not travel over USB**: FireFly 0.2.11's debug APK is
 49.7 MB — about 14 hours at the ~1 KB/s the SD card takes over USB — so
 the tools step refuses anything over 1 MB and says to copy it with a
 card reader (seconds). To install it: rename `app-debug.apk` to
-`FireFly-Android-0.2.11.apk` and copy it into `tools/` at the top of the
-node's SD card. (A release build for arm64 only would be far smaller,
+`FireFly-Android-0.2.11.apk` and copy it into `tools/firefly/` on the
+node's SD card (a copy left loose in `tools/` is moved there at boot). (A release build for arm64 only would be far smaller,
 and its release signature avoids the uninstall a debug-signed install
 forces later.) Installing the handheld package still needs internet on
 the handheld — FireFly's `install.sh` uses `apt-get` — and the page says

@@ -473,9 +473,9 @@ accepts the certificate (it fetches `/tls-ok` first).
 | POST | `/admin/propagation` | Propagation node: `action=on`/`off`, or `action=leave` with `to=` and `text=` to leave a message for an LXMF address |
 | POST | `/admin/plugins` | Plugin off switch: `action=on`/`off` and `name=`; saved across restarts (`stumpid` can't be switched off) |
 | GET | `/about` | About page |
-| GET | `/tools` | Apps and technician tools |
-| GET | `/tools.json` | The same as JSON: `{"sd", "apps": [{"app","file","version","size","url"}], "files": [{"name","size","url"}]}` |
-| GET | `/tool?f=` | Download a tool file |
+| GET | `/tools` | Apps, then a section per tool folder (title, summary and Read me from its `README.md`) |
+| GET | `/tools.json` | The same as JSON: `{"sd", "apps": [{"app","file","version","size","url"}], "files": [{"name","size","section","url"}], "sections": [{"dir","title","summary","readme","files"}]}` |
+| GET | `/tool?f=` | Download a tool file: `name`, or `folder/name` one folder down |
 | GET | `/node.json` | Who this node is, without joining the chat: `{"name", "lxmf", "version", "release", "ap_ip", "chain", "features"}`; `chain` is `null` or the `/chain.json` object (see `CLIENT_QUICKSTART.md`) |
 | GET | `/chain.json` | This Stump's place in a chain over Wi-Fi: `{"enabled", "role", "ap_ip", "channel", "secret", "uplink", "below"}` (see `CHAIN.md`) |
 | GET | `/plugins.json` | What the plugins add: `{"api", "trigger", "plugins": [{"name","version","commands","pages"}]}` (see `PLUGINS.md`) |

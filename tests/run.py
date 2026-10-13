@@ -43,6 +43,7 @@ TESTS = [
     ("chain_config", "assert", []),
     ("json_api", "snapshot", []),
     ("latin1_names", "snapshot", []),
+    ("tools_sections", "assert", []),
 ]
 
 _NORM = [
