@@ -69,6 +69,11 @@ lab tests could not settle — they need the real board, radio and phones.
 - [ ] Apps: "Download from this Stump" shows version and size.
       **(hardware)** On an Android phone: download the APK over the
       node's Wi-Fi (~50 MB — note how long it takes) and install it.
+- [ ] `/admin` → **Theme for everyone**: pick another theme. Every page
+      changes at once, on a second phone too; restart the node, it stays.
+      *As set up* brings back the Provisioner's choice.
+- [ ] `/admin` → **Tools page**: tick one file and one whole section,
+      delete; both are gone from `/tools`.
 - [ ] `/tools`: apps first, then a section per tool (Provisioner,
       Browser flasher, rnfs…), each with its summary and a **Read me**
       that folds out. A card set up by beta.2 or older: its loose tools

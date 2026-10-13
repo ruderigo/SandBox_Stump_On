@@ -11,6 +11,12 @@
   moved, not copied). `/tools.json` adds `sections` and each file's
   `section`; `/tool?f=` takes `folder/name`. The rnfs pack's
   `rnfs-INSTALL.txt` is now its section's `README.md`.
+- **Theme for everyone from `/admin`:** an admin picks the theme every
+  visitor gets (built-in or pack themes), applied at once, saved on the
+  board; *As set up* goes back to `config.py`'s. The old theme buttons
+  there are now labelled for what they always were: this browser only.
+- **Delete tools from `/admin`:** a whole section of the Tools page, or
+  single files, off the SD card.
 - Fixed: **`--upload-app` replaced the node's `config.py`** with the one
   in the firmware folder, so an update could change a node's name,
   Wi-Fi, passwords or theme (the theme was what showed). It now keeps

@@ -465,12 +465,14 @@ accepts the certificate (it fetches `/tls-ok` first).
 | POST | `/upload` | `X-Filename` header (percent-encoded UTF-8 with `X-Filename-Encoding: url`, or raw), raw body; `507` if the card is over capacity even after evicting the oldest shared files. With `Accept: application/json`: the result as data (`name`, `size`, `balance`, or an `error` token) |
 | GET | `/download?f=` | Streamed file download (name percent-encoded as UTF-8) |
 | GET | `/admin` | Password-only login; no link anywhere points here |
-| POST | `/admin` | Validates the password; shows files, billboard moderation, radio, propagation node, and theme settings |
+| POST | `/admin` | Validates the password; shows files, billboard moderation, the Tools page's files, radio, propagation node, plugins, the theme for everyone and this browser's own theme |
 | POST | `/admin/delete` | Batch-deletes checked files, re-validates the password |
 | POST | `/admin/delete_post` | Deletes checked billboard posts, re-validates the password |
 | POST | `/admin/radio` | Heltec Bridge radio settings (TX power, frequency, bandwidth, SF, CR); saved, and sent to the Heltec at once if connected |
 | POST | `/admin/home` | Home page section: `place` (top/bottom/left/right), `height` (80–1200), `show=1` to show it; saves `home/home.json` |
 | POST | `/admin/propagation` | Propagation node: `action=on`/`off`, or `action=leave` with `to=` and `text=` to leave a message for an LXMF address |
+| POST | `/admin/theme` | The theme for everyone: `theme=` a built-in or pack theme, or empty to go back to `config.py`'s `THEME`; applied at once, saved on the board (`/site_theme.json`) |
+| POST | `/admin/tools` | Deletes from the card's `tools/`: `d=<section>` (a whole folder) and `f=<file>` or `f=<section>/<file>`, repeated; re-validates the password |
 | POST | `/admin/plugins` | Plugin off switch: `action=on`/`off` and `name=`; saved across restarts (`stumpid` can't be switched off) |
 | GET | `/about` | About page |
 | GET | `/tools` | Apps, then a section per tool folder (title, summary and Read me from its `README.md`) |

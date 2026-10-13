@@ -840,11 +840,16 @@ value is saved and held for its next connection. (Doing this surfaced
 that the older MicroPython 1.22 Unix build used earlier for tests lacks
 `socket.sendall`; the ESP32 port and current MicroPython have it.)
 
-**Theme — site-wide, chosen at provisioning.** The node has one theme
-for every visitor, on every page including the chat: Amber (the
-original look), Phosphor, OLED or Paper. The technician picks it in
-the provisioner's config wizard, and it's stored as `THEME` in
-`config.py`; the server writes it into each page's
+**Theme — site-wide, chosen at provisioning or from `/admin`.** The
+node has one theme for every visitor, on every page including the
+chat: Amber (the original look), Phosphor, OLED, Paper, or a pack's
+theme. The technician picks it in the provisioner's config wizard
+(`THEME` in `config.py`), and **an admin can change it from `/admin` →
+Theme for everyone**, no laptop needed: it applies at once, to every
+page, and is saved on the board's own memory (`/site_theme.json`), so
+it survives restarts and updates. The admin's choice wins over
+`config.py` until they pick *As set up*, which goes back to it. The
+server writes it into each page's
 `<html data-theme='…'>`, so it applies on first paint, with or without
 JavaScript. An unknown value falls back to Amber. All colours live in
 one shared module, `theme.py`, used by both `barkeep.py` and the chat
@@ -856,6 +861,12 @@ pair the pages use; Paper's secondary text was darkened slightly
 (`#7a7264` → `#6b6355`, 4.25:1 → 5.3:1) to clear the 4.5:1 guideline
 for readable text.
 
+**Tools page, behind `/admin` too.** *Tools page* lists every section
+and file of the card's `tools/` folder with a box to tick: a whole
+section, or single files, deleted from the SD card. The Provisioner
+puts its own tools (Provisioner, flasher, FireFly apps) back at its
+next `--upload-app`, unless run with `--skip-tools`.
+
 **Per-browser overrides and logo, behind `/admin`.** The same login
 unlocks a per-browser theme (*Site theme* to follow the node, or
 Amber / Phosphor / OLED / Paper), a five-colour custom palette
@@ -866,8 +877,8 @@ stump-cross-section mark can be replaced with, hidden, or restored.
 **These overrides are `localStorage`, not server-side.** They change
 what *that one browser* sees, not what anyone else sees; *Site theme*
 and *Reset palette* both return that browser to the node's theme. To
-change the theme for everyone, re-run the provisioner's config wizard.
-The logo is still per-browser only.
+change the theme for everyone, use *Theme for everyone* just above
+them. The custom palette and the logo are still per-browser only.
 
 An admin visiting `/admin` sees their own current custom colors and
 saved SVG pre-filled in the controls (read back from their own

@@ -802,13 +802,80 @@ def _render_admin_file_list_page(lang, names, pw):
         "<h1>" + i18n.t("admin_header", lang) + "</h1>"
         + files_part
         + board_part
+        + _render_admin_tools_section(lang, pw)
         + _render_admin_tls_line(lang)
         + _render_admin_home_section(lang, pw)
         + _render_admin_radio_section(lang, pw)
         + _render_admin_pn_section(lang, pw)
         + _render_admin_chain_section(lang)
         + _render_admin_plugins_section(lang, pw)
+        + _render_admin_site_theme_section(lang, pw)
         + _render_admin_settings_section(lang)
+    )
+
+
+def _theme_label(name, lang):
+    """A theme's name for people (plain text: escape it for HTML)."""
+    if name in theme.EXTRA:
+        return theme.label(name, lang)
+    return i18n.t("admin_theme_" + name, lang)
+
+
+def _render_admin_site_theme_section(lang, pw):
+    """The theme everyone gets, chosen here by an admin (theme.py saves it
+    on the board's own memory): every built-in and pack theme, and "as
+    set up", which goes back to config.py's THEME."""
+    current = theme.admin_choice()
+    opts = ["<label class='opt'><input type='radio' name='theme' value=''"
+            + (" checked" if current is None else "") + "> "
+            + billboard._esc(i18n.t("admin_site_theme_setup", lang,
+                                    name=_theme_label(theme.configured_theme(), lang)))
+            + "</label>"]
+    for n in theme.THEMES:
+        opts.append("<label class='opt'><input type='radio' name='theme' value='" + _attr_esc(n) + "'"
+                    + (" checked" if current == n else "") + "> " + billboard._esc(_theme_label(n, lang)) + "</label>")
+    return (
+        "<h2 class='sub'>" + i18n.t("admin_site_theme_header", lang) + "</h2>"
+        "<p class='sub'>" + i18n.t("admin_site_theme_intro", lang) + "</p>"
+        "<form method='POST' action='/admin/theme' class='post-form' autocomplete='off'>"
+        "<input type='hidden' name='admin_pass' value='" + billboard._esc(pw) + "'>"
+        "<div class='panel'>" + "".join(opts) + "</div>"
+        "<button type='submit'>" + i18n.t("admin_site_theme_save", lang) + "</button>"
+        "</form>"
+    )
+
+
+def _render_admin_tools_section(lang, pw):
+    """The Tools page's files, by section, each with a box to tick: a
+    whole section, or single files. Deleted from the SD card."""
+    if not fserv.sd_ok:
+        return ""
+    out = "<h2 class='sub'>" + i18n.t("admin_tools_header", lang) + "</h2>"
+    secs = fserv.tool_sections()
+    if not secs:
+        return out + "<p class='sub'>" + i18n.t("admin_tools_none", lang) + "</p>"
+    rows = []
+    for sec in secs:
+        d = sec["dir"]
+        prefix = d + "/" if d else ""
+        if d:
+            rows.append("<li><label><input type='checkbox' name='d' value='" + _attr_esc(d) + "'> <b>"
+                        + billboard._esc(sec["title"]) + "</b> — "
+                        + i18n.t("admin_tools_whole", lang, n=len(sec["files"])) + "</label></li>")
+        else:
+            rows.append("<li><b>" + i18n.t("tools_other_h2", lang) + "</b></li>")
+        for n, size in sec["files"]:
+            rows.append("<li><label>&nbsp;&nbsp;&nbsp;<input type='checkbox' name='f' value='"
+                        + _attr_esc(prefix + n) + "'> " + billboard._esc(n)
+                        + "</label><small>" + _human_size(size) + "</small></li>")
+    return out + (
+        "<p class='sub'>" + i18n.t("admin_tools_intro", lang) + "</p>"
+        "<form method='POST' action='/admin/tools' autocomplete='off' onsubmit=\"return confirm("
+        + _attr_esc(json.dumps(i18n.t("admin_tools_confirm", lang))) + ")\">"
+        "<input type='hidden' name='admin_pass' value='" + billboard._esc(pw) + "'>"
+        "<div class='panel'><ul class='files'>" + "".join(rows) + "</ul></div>"
+        "<button type='submit'>" + i18n.t("admin_delete_selected", lang) + "</button>"
+        "</form>"
     )
 
 
@@ -1074,6 +1141,7 @@ def _render_admin_settings_section(lang):
     """
     return (
         "<h2 class='sub'>" + i18n.t("admin_theme_header", lang) + "</h2>"
+        "<p class='sub'>" + i18n.t("admin_theme_browser_intro", lang) + "</p>"
         "<div class='panel'>"
         "<div class='row'>"
         "<button type='button' onclick=\"stumpSetTheme('site')\">" + i18n.t("admin_theme_site", lang)
@@ -2097,6 +2165,60 @@ async def _handle(reader, writer, secure=False):
                         msg = i18n.t("admin_radio_none", lang)
                 names = fserv._list_files() if fserv.sd_ok else []
                 notice = "<p class='sub'>" + billboard._esc(msg) + "</p>"
+                await _send(writer, "200 OK", _page(notice + _render_admin_file_list_page(lang, names, pw)))
+
+        elif method == "POST" and (path.startswith("/admin/theme") or path.startswith("/admin/tools")):
+            # The theme for everyone, and deleting tools: like the other
+            # /admin forms, the password comes back as a hidden field and
+            # is checked again here.
+            length = int(headers.get("content-length", "0"))
+            body = await _read_small_body(reader, length)
+            fields, ticked, sections = {}, [], []
+            for kv in body.decode().split("&"):
+                parts = kv.split("=", 1)
+                if len(parts) != 2:
+                    continue
+                val = billboard._url_decode(parts[1])
+                if parts[0] == "f":
+                    ticked.append(val)
+                elif parts[0] == "d":
+                    sections.append(val)
+                else:
+                    fields[parts[0]] = val
+            pw = fields.get("admin_pass", "")
+            if not _check_admin_pw(pw):
+                await _send(writer, "403 Forbidden", "Invalid admin password", "text/plain")
+            else:
+                lang = i18n.get_lang(identifier)
+                extra = ""
+                if path.startswith("/admin/theme"):
+                    choice = fields.get("theme", "").strip().lower() or None
+                    if choice is not None and choice not in theme.THEMES:
+                        msg = i18n.t("admin_site_theme_not_saved", lang)
+                    elif theme.set_site_theme(choice):
+                        msg = i18n.t("admin_site_theme_saved", lang,
+                                     name=_theme_label(theme.site_theme(), lang))
+                        # This browser may have its own theme from the
+                        # buttons below, which would hide the change:
+                        # drop it, and show the new one now.
+                        extra = ("<script>try{localStorage.removeItem('stump_theme');}catch(e){}"
+                                 "document.documentElement.removeAttribute('style');"
+                                 "document.documentElement.setAttribute('data-theme',"
+                                 + json.dumps(theme.site_theme()) + ");</script>")
+                    else:
+                        msg = i18n.t("admin_site_theme_not_saved", lang)
+                else:
+                    gone = 0
+                    for d in sections:
+                        gone += fserv.delete_tool_section(d)
+                    for rel in ticked:
+                        if rel.split("/", 1)[0] in sections:
+                            continue           # went with its section
+                        if fserv.delete_tool(rel):
+                            gone += 1
+                    msg = i18n.t("admin_deleted_notice", lang, n=gone)
+                names = fserv._list_files() if fserv.sd_ok else []
+                notice = "<p class='sub'>" + billboard._esc(msg) + "</p>" + extra
                 await _send(writer, "200 OK", _page(notice + _render_admin_file_list_page(lang, names, pw)))
 
         elif method == "POST" and path.startswith("/admin/plugins"):

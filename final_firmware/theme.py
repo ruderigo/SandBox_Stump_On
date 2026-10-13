@@ -76,14 +76,72 @@ except ImportError:
     _CONFIGURED = "amber"
 
 
-def site_theme():
-    """The node's theme, validated. "default" is accepted as amber (the
-    original look), and anything unrecognised falls back to amber rather
-    than leaving pages half-styled."""
-    t = (_CONFIGURED or "amber").strip().lower()
+# The theme an admin chose for everyone from /admin, saved on the board's
+# own memory (so it works without an SD card, and an update that keeps
+# config.py keeps it too). It wins over config.py's THEME until the admin
+# goes back to "as set up", which deletes the file.
+SITE_THEME_FILE = "/site_theme.json"
+
+
+def _load_admin_choice():
+    try:
+        import json
+        with open(SITE_THEME_FILE) as f:
+            t = json.load(f).get("theme")
+        return t if t in THEMES else None
+    except Exception:
+        return None
+
+
+_ADMIN_CHOICE = _load_admin_choice()
+
+
+def _valid(t):
+    t = (t or "amber").strip().lower()
     if t == "default":
         return "amber"
     return t if t in THEMES else "amber"
+
+
+def configured_theme():
+    """config.py's THEME (what the Provisioner set up), validated."""
+    return _valid(_CONFIGURED)
+
+
+def admin_choice():
+    """The theme an admin chose for everyone, or None."""
+    return _ADMIN_CHOICE
+
+
+def set_site_theme(name):
+    """Saves an admin's choice for everyone (None: back to config.py's).
+    Returns True if it was saved."""
+    global _ADMIN_CHOICE
+    import os, json
+    if name is None:
+        try:
+            os.remove(SITE_THEME_FILE)
+        except OSError:
+            pass
+        _ADMIN_CHOICE = None
+        return True
+    if name not in THEMES:
+        return False
+    try:
+        with open(SITE_THEME_FILE, "w") as f:
+            json.dump({"theme": name}, f)
+    except OSError:
+        return False
+    _ADMIN_CHOICE = name
+    return True
+
+
+def site_theme():
+    """The node's theme, validated: an admin's choice from /admin, else
+    config.py's. "default" is accepted as amber (the original look), and
+    anything unrecognised falls back to amber rather than leaving pages
+    half-styled."""
+    return _ADMIN_CHOICE or _valid(_CONFIGURED)
 
 
 def html_open():

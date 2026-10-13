@@ -44,6 +44,7 @@ TESTS = [
     ("json_api", "snapshot", []),
     ("latin1_names", "snapshot", []),
     ("tools_sections", "assert", []),
+    ("admin_theme_tools", "assert", []),
 ]
 
 _NORM = [

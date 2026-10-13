@@ -947,7 +947,47 @@ STRINGS = {
         "es": "Tablón",
     },
 
-    "admin_theme_header": {"fr": "Thème", "en": "Theme", "es": "Tema"},
+    "admin_theme_header": {"fr": "Thème de ce navigateur", "en": "Theme on this browser", "es": "Tema de este navegador"},
+    "admin_theme_browser_intro": {
+        "fr": "Seulement pour ce navigateur-ci : les visiteurs ne voient rien de ces boutons. Pour tout le monde, c'est la section au-dessus.",
+        "en": "For this browser only: visitors don't see what these buttons do. For everyone, use the section above.",
+        "es": "Solo para este navegador: los visitantes no ven lo que hacen estos botones. Para todos, usa la sección de arriba.",
+    },
+    "admin_site_theme_header": {"fr": "Thème pour tout le monde", "en": "Theme for everyone", "es": "Tema para todos"},
+    "admin_site_theme_intro": {
+        "fr": "L'apparence que voit chaque visiteur, sur chaque page. Elle change tout de suite, sans redémarrer.",
+        "en": "The look every visitor gets, on every page. It changes right away, no restart.",
+        "es": "El aspecto que ve cada visitante, en cada página. Cambia enseguida, sin reiniciar.",
+    },
+    "admin_site_theme_setup": {
+        "fr": "Comme à l'installation ({name})",
+        "en": "As set up ({name})",
+        "es": "Como en la instalación ({name})",
+    },
+    "admin_site_theme_save": {"fr": "Appliquer pour tout le monde", "en": "Apply for everyone", "es": "Aplicar para todos"},
+    "admin_site_theme_saved": {"fr": "Thème pour tout le monde : {name}.", "en": "Theme for everyone: {name}.", "es": "Tema para todos: {name}."},
+    "admin_site_theme_not_saved": {
+        "fr": "Le thème n'a pas pu être enregistré.",
+        "en": "The theme couldn't be saved.",
+        "es": "No se pudo guardar el tema.",
+    },
+    "admin_tools_header": {"fr": "Page Outils", "en": "Tools page", "es": "Página de herramientas"},
+    "admin_tools_intro": {
+        "fr": "Coche ce qu'il faut retirer de la page Outils ; c'est effacé de la carte SD. Le Provisioner remet ses propres outils (Provisioner, flasheur, applis FireFly) à la prochaine mise à jour, sauf avec --skip-tools.",
+        "en": "Tick what to take off the Tools page; it's deleted from the SD card. The Provisioner puts its own tools (Provisioner, flasher, FireFly apps) back at its next update, unless run with --skip-tools.",
+        "es": "Marca lo que quieras quitar de la página de herramientas; se borra de la tarjeta SD. El Provisioner vuelve a poner sus propias herramientas (Provisioner, flasheador, apps FireFly) en su próxima actualización, salvo con --skip-tools.",
+    },
+    "admin_tools_whole": {
+        "fr": "toute la section ({n} fichiers)",
+        "en": "the whole section ({n} files)",
+        "es": "toda la sección ({n} archivos)",
+    },
+    "admin_tools_none": {"fr": "Aucun outil sur la carte.", "en": "No tools on the card.", "es": "No hay herramientas en la tarjeta."},
+    "admin_tools_confirm": {
+        "fr": "Effacer de la carte SD les outils cochés ?",
+        "en": "Delete the ticked tools from the SD card?",
+        "es": "¿Borrar de la tarjeta SD las herramientas marcadas?",
+    },
     "admin_theme_site": {"fr": "Thème du site", "en": "Site theme", "es": "Tema del sitio"},
     "admin_theme_amber": {"fr": "Ambre", "en": "Amber", "es": "Ámbar"},
     "admin_theme_phosphor": {"fr": "Phosphore", "en": "Phosphor", "es": "Fósforo"},

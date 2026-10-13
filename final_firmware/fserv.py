@@ -467,6 +467,48 @@ def migrate_tools():
     return moved
 
 
+def _tool_rel_ok(rel):
+    parts = rel.split("/")
+    return 1 <= len(parts) <= 2 and not any(p in ("", ".", "..") for p in parts)
+
+
+def delete_tool(rel):
+    """Deletes one file from tools/ ("name" or "folder/name"), from
+    /admin. Strict: exactly that path, no fallback. True if deleted."""
+    if not sd_ok or not _tool_rel_ok(rel):
+        return False
+    path = TOOLS_DIR + "/" + rel
+    if _is_dir(path):
+        return False
+    try:
+        os.remove(path)
+        return True
+    except OSError:
+        return False
+
+
+def delete_tool_section(name):
+    """Deletes a whole section, its folder and every file in it (one
+    level: sections don't nest). Returns how many files went."""
+    if not sd_ok or not name or "/" in name or name in (".", ".."):
+        return 0
+    d = TOOLS_DIR + "/" + name
+    if not _is_dir(d):
+        return 0
+    n = 0
+    try:
+        for f in os.listdir(d):
+            try:
+                os.remove(d + "/" + f)
+                n += 1
+            except OSError:
+                pass
+        os.rmdir(d)
+    except OSError:
+        pass
+    return n
+
+
 def tool_path(rel):
     """The card path for a tools-relative name ("rnfs/x.whl" or "x"), or
     None if it isn't one: at most one folder deep, no "..". A name not
