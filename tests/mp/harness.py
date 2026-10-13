@@ -56,5 +56,29 @@ def req(path, body=b'', headers=(), method=None, declared=None):
     w = Wr(); asyncio.run(barkeep._handle(Rd(hl, body), w))
     raw = b''.join(w.w); head, _, out = raw.partition(b'\r\n\r\n')
     head = head.decode()
+    LAST_HEAD[0] = head
     ct = [l.split(': ', 1)[1] for l in head.split('\r\n') if l.lower().startswith('content-type')]
     return head.split('\r\n')[0][9:], (ct[0] if ct else '-'), out.decode('utf-8', 'replace')
+
+
+LAST_HEAD = ['']
+
+
+def header(name, head=None):
+    for l in (head or LAST_HEAD[0]).split('\r\n'):
+        if l.lower().startswith(name.lower() + ':'):
+            return l.split(':', 1)[1].strip()
+    return None
+
+
+def login(pw='pw'):
+    """Logs in to /admin: the session cookie value, or None."""
+    req('/admin', ('admin_pass=' + pw).encode())
+    c = header('Set-Cookie')
+    return c.split(';')[0].split('=', 1)[1] if c else None
+
+
+def admin_page(pw='pw'):
+    """Logs in and opens /admin, as a browser does: (status, ct, body)."""
+    tok = login(pw)
+    return req('/admin', headers=('Cookie: stump_admin=' + (tok or ''),))

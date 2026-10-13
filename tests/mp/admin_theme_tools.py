@@ -20,7 +20,7 @@ def page_theme():
     i = b.find("data-theme='")
     return b[i + 12:b.find("'", i + 12)]
 
-s, ct, b = req('/admin', b'admin_pass=pw')
+s, ct, b = admin_page()
 check("admin: theme for everyone", "action='/admin/theme'" in b and "name='theme' value='oled'" in b, b[:200])
 check("admin: as set up is ticked", "name='theme' value='' checked" in b)
 check("admin: browser-only section says so", b.find("action='/admin/theme'") < b.find("stumpSetTheme('amber')"))
@@ -34,7 +34,7 @@ check("this response shows it, and clears this browser's own", "localStorage.rem
       and "data-theme='" + other + "'" in b)
 check("every page has it", page_theme() == other, page_theme())
 check("saved on the board", open(theme.SITE_THEME_FILE).read().find(other) > 0)
-check("ticked on the form now", ("name='theme' value='" + other + "' checked") in req('/admin', b'admin_pass=pw')[2])
+check("ticked on the form now", ("name='theme' value='" + other + "' checked") in admin_page()[2])
 theme._ADMIN_CHOICE = theme._load_admin_choice()
 check("survives a restart", theme.site_theme() == other)
 s, ct, b = req('/admin/theme', b'admin_pass=pw&theme=nonsense')
@@ -49,7 +49,7 @@ check("each change for everyone moves the stamp", int(theme.site_stamp()) == int
 b = req('/about')[2]
 check("pages drop browser picks older than the stamp",
       "localStorage.getItem('stump_theme_stamp') !== '" + theme.site_stamp() + "'" in b)
-b = req('/admin', b'admin_pass=pw')[2]
+b = admin_page()[2]
 check("browser picks are saved with the stamp", "setItem('stump_theme_stamp', \"" + theme.site_stamp() + "\")" in b
       or "setItem('stump_theme_stamp', '" + theme.site_stamp() + "')" in b, b[b.find('stump_theme_stamp'):][:120])
 w = Wr(); asyncio.run(barkeep._handle(Rd([b'GET /about HTTP/1.1\r\n', b'\r\n']), w))
@@ -63,7 +63,7 @@ for d in ('rnfs', 'flasher'):
 for rel in ('rnfs/a.whl', 'rnfs/README.md', 'flasher/esptool-bundle.js', 'flasher/esptool-js-LICENSE.txt', 'loose.txt'):
     open(T + '/' + rel, 'w').write('x')
 open(ROOT + '/secret.txt', 'w').write('keep')
-s, ct, b = req('/admin', b'admin_pass=pw')
+s, ct, b = admin_page()
 check("admin: tools listed", "action='/admin/tools'" in b and "name='d' value='rnfs'" in b
       and "name='f' value='flasher/esptool-bundle.js'" in b and "name='f' value='loose.txt'" in b, b[b.find('/admin/tools'):][:600])
 s, ct, b = req('/admin/tools', b'admin_pass=wrong&d=rnfs')

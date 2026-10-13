@@ -21,6 +21,7 @@ import rrc
 import rrc_ui
 import plugins
 import theme
+import layout
 import features
 import radio
 import propagation
@@ -116,6 +117,31 @@ ul.files a{
 }
 ul.files a span{overflow-wrap:break-word; word-break:break-word;}
 ul.files small{flex-shrink:0; padding-left:8px; text-align:right;}
+/* /admin */
+.admin-head{display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;}
+.admin-head h1{margin:0;}
+form.logout{margin:16px 0;}
+.admin-head form.logout{margin:0;}
+ul.plist li{display:grid; grid-template-columns:minmax(0,1fr) auto; gap:4px 14px;
+  align-items:center; padding:10px 0;}
+ul.plist .pname{font-weight:bold; word-break:normal; overflow-wrap:normal;}
+ul.plist .pstate{color:var(--muted); font-size:.9em;}
+ul.plist .pmeta, ul.plist .pcmds{display:block; font-size:.9em; color:var(--muted); margin-top:2px;}
+ul.plist .pcmds{color:var(--text); overflow-wrap:anywhere;}
+ul.plist .perr{display:block; color:var(--err); font-size:.9em; margin-top:2px;}
+ul.plist form{margin:0;}
+ul.plist button{white-space:nowrap;}
+ol.reorder{list-style:none; padding:0; margin:0;}
+ol.reorder li{display:flex; align-items:center; gap:10px; padding:6px 4px;
+  border-bottom:1px solid var(--border); cursor:grab; user-select:none; -webkit-user-select:none;}
+ol.reorder li:last-child{border-bottom:none;}
+ol.reorder li.dragging{opacity:.4;}
+ol.reorder li.over{border-top:2px solid var(--ember);}
+ol.reorder svg{width:22px; height:22px; flex-shrink:0;}
+ol.reorder .rname{flex:1; min-width:0;}
+ol.reorder .grip{color:var(--muted);}
+ol.reorder button{padding:6px 10px; font-size:.9rem;}
+@media (max-width:420px){ ul.plist li{grid-template-columns:1fr;} ul.plist form{justify-self:start;} }
 details.readme{margin-top:8px;}
 details.readme summary{cursor:pointer; color:var(--muted);}
 details.readme pre{white-space:pre-wrap; overflow-wrap:anywhere; font-size:.85em; margin:8px 0 0;}
@@ -395,31 +421,44 @@ def _home_tiles(lang):
     same thing -- no reason to translate one concept two different ways
     just because the original English text happened to say it twice."""
     # One card per row, icon on the left and the name and subtitle beside
-    # it: five cards squeezed into a grid were too compact to read.
-    return (
-        "<div class='tiles home'>"
-        + "".join(
-            "<a class='tile' href='" + href + "'>" + icon +
-            "<div class='tile-text'><span>" + i18n.t(label, lang) + "</span>"
-            "<small>" + i18n.t(sub, lang) + "</small></div></a>"
-            for feat, href, icon, label, sub in (
-                ("chat", "/rrc", _ICON_CHAT, "nav_chat", "tile_chat_sub"),
-                ("billboard", "/billboard", _ICON_BOARD, "nav_board", "tile_board_sub"),
-                ("files", "/files", _ICON_FILES, "nav_files", "tile_files_sub"),
-                (None, "/tools", _ICON_TOOLS, "nav_tools", "tile_tools_sub"),
-                ("about", "/about", _ICON_ABOUT, "nav_about", "tile_about_sub"),
-            )
-            if feat is None or features.enabled(feat)
-        ) +
-        "".join(
-            # Cards plugins asked for (stump.page(..., nav="Polls")).
-            "<a class='tile' href='" + _attr_esc(c["href"]) + "'>" + _ICON_PLUGIN +
-            "<div class='tile-text'><span>" + billboard._esc(c["label"]) + "</span>"
-            "<small>" + billboard._esc(c["sub"]) + "</small></div></a>"
-            for c in plugins.home_cards(lang)
-        ) +
-        "</div>"
-    )
+    # it: five cards squeezed into a grid were too compact to read. In
+    # the order an admin set in /admin (layout.py).
+    cards = home_tile_items(lang)
+    return ("<div class='tiles home'>"
+            + "".join(c[2] for c in cards) + "</div>")
+
+
+_HOME_TILES = (
+    ("chat", "chat", "/rrc", _ICON_CHAT, "nav_chat", "tile_chat_sub"),
+    ("board", "billboard", "/billboard", _ICON_BOARD, "nav_board", "tile_board_sub"),
+    ("files", "files", "/files", _ICON_FILES, "nav_files", "tile_files_sub"),
+    ("tools", None, "/tools", _ICON_TOOLS, "nav_tools", "tile_tools_sub"),
+    ("about", "about", "/about", _ICON_ABOUT, "nav_about", "tile_about_sub"),
+)
+
+
+def home_tile_items(lang):
+    """[(key, label, html)] for the home page's tiles, in layout order:
+    the built-in ones this node offers, then plugin cards (key "p:" +
+    their address)."""
+    items = {}
+    keys = []
+    for key, feat, href, icon, label, sub in _HOME_TILES:
+        if feat is not None and not features.enabled(feat):
+            continue
+        name = i18n.t(label, lang)
+        items[key] = (key, name, "<a class='tile' href='" + href + "'>" + icon +
+                      "<div class='tile-text'><span>" + name + "</span>"
+                      "<small>" + i18n.t(sub, lang) + "</small></div></a>")
+        keys.append(key)
+    for c in plugins.home_cards(lang):
+        # Cards plugins asked for (stump.page(..., nav="Polls")).
+        key = "p:" + c["href"]
+        items[key] = (key, c["label"], "<a class='tile' href='" + _attr_esc(c["href"]) + "'>" + _ICON_PLUGIN +
+                      "<div class='tile-text'><span>" + billboard._esc(c["label"]) + "</span>"
+                      "<small>" + billboard._esc(c["sub"]) + "</small></div></a>")
+        keys.append(key)
+    return [items[k] for k in layout.tiles(keys)]
 
 
 def _page(body):
@@ -662,12 +701,13 @@ _DESTINATIONS = {
 
 # Every page's navigation row is this list minus the page itself -- one
 # rule, one order, so no page can drift (four of them had: home, the
-# billboard, tools and about were each missing a destination).
-NAV_ORDER = ("chat", "board", "files", "tools", "about", "home")
+# billboard, tools and about were each missing a destination). The order
+# is the admin's, from /admin (layout.py); home first by default.
+NAV_ORDER = layout.NAV_DEFAULT
 
 
 def _nav_except(lang, current):
-    return _nav(lang, *[k for k in NAV_ORDER if k != current])
+    return _nav(lang, *[k for k in layout.nav() if k != current])
 
 
 # Nav keys that belong to a switchable feature (see features.py).
@@ -740,6 +780,68 @@ def _check_admin_pw(pw):
         return False
 
 
+# Admin sessions. Logging in with the password gives the browser a
+# random session token, in a cookie for /admin and in the page's forms
+# (instead of the password, which never comes back in a page). The login
+# answers with a redirect, so the browser's history holds a plain
+# GET /admin, never the form with the password: going Back after Log out
+# shows the password prompt, not the admin page, and can't resend the
+# password. Sessions end on Log out, after SESSION_IDLE_S without use,
+# and at restart (they're only in memory).
+SESSION_IDLE_S = 1800
+SESSION_MAX = 8
+_sessions = {}          # token -> last used (time.time())
+ADMIN_COOKIE = "stump_admin"
+
+
+def _new_session():
+    import os, time, ubinascii
+    now = time.time()
+    for t in [t for t, seen in _sessions.items() if now - seen > SESSION_IDLE_S]:
+        del _sessions[t]
+    while len(_sessions) >= SESSION_MAX:
+        del _sessions[min(_sessions, key=lambda t: _sessions[t])]
+    tok = ubinascii.hexlify(os.urandom(16)).decode()
+    _sessions[tok] = now
+    return tok
+
+
+def _session_ok(tok):
+    import time
+    if not tok or tok not in _sessions:
+        return False
+    now = time.time()
+    if now - _sessions[tok] > SESSION_IDLE_S:
+        del _sessions[tok]
+        return False
+    _sessions[tok] = now
+    return True
+
+
+def _end_session(tok):
+    _sessions.pop(tok, None)
+
+
+def _admin_ok(pw):
+    """A form from an admin page: a live session token (what pages carry
+    now), or the password itself."""
+    return _session_ok(pw) or _check_admin_pw(pw)
+
+
+def _cookie(headers, name):
+    for part in headers.get("cookie", "").split(";"):
+        k, _, v = part.strip().partition("=")
+        if k == name:
+            return v
+    return ""
+
+
+def _admin_logout_form(lang, tok):
+    return ("<form method='POST' action='/admin/logout' class='logout' autocomplete='off'>"
+            "<input type='hidden' name='admin_pass' value='" + billboard._esc(tok) + "'>"
+            "<button type='submit'>" + i18n.t("admin_logout", lang) + "</button></form>")
+
+
 def _render_admin_login_page(lang, error=False):
     """The ONLY way to reach file deletion now -- no link, no nav tile,
     no button anywhere in the visible UI points here. Reachable only by
@@ -799,7 +901,8 @@ def _render_admin_file_list_page(lang, names, pw):
                   if features.enabled("files") else "")
     board_part = _render_admin_billboard_section(lang, pw) if features.enabled("billboard") else ""
     return (
-        "<h1>" + i18n.t("admin_header", lang) + "</h1>"
+        "<div class='admin-head'><h1>" + i18n.t("admin_header", lang) + "</h1>"
+        + _admin_logout_form(lang, pw) + "</div>"
         + files_part
         + board_part
         + _render_admin_tools_section(lang, pw)
@@ -810,7 +913,9 @@ def _render_admin_file_list_page(lang, names, pw):
         + _render_admin_chain_section(lang)
         + _render_admin_plugins_section(lang, pw)
         + _render_admin_site_theme_section(lang, pw)
+        + _render_admin_layout_section(lang, pw)
         + _render_admin_settings_section(lang)
+        + _admin_logout_form(lang, pw)
     )
 
 
@@ -843,6 +948,101 @@ def _render_admin_site_theme_section(lang, pw):
         "<button type='submit'>" + i18n.t("admin_site_theme_save", lang) + "</button>"
         "</form>"
     )
+
+
+def _nav_items(lang):
+    """[(key, label, icon)] for the navigation row, in layout order:
+    the destinations this node offers."""
+    out = []
+    for k in layout.nav():
+        if k not in _DESTINATIONS:
+            continue
+        feat = _NAV_FEATURE.get(k)
+        if feat is not None and not features.enabled(feat):
+            continue
+        href, icon, label = _DESTINATIONS[k]
+        out.append((k, i18n.t(label, lang), icon))
+    return out
+
+
+def _render_admin_layout_section(lang, pw):
+    """The order of the navigation buttons and of the home page's tiles:
+    drag them (or use the arrows, on a phone), then save. layout.py."""
+    def lst(field, items):
+        return ("<ol class='reorder' data-field='" + field + "'>"
+                + "".join("<li draggable='true' data-key='" + _attr_esc(k) + "'>"
+                          "<span class='grip' aria-hidden='true'>⠿</span>" + icon
+                          + "<span class='rname'>" + billboard._esc(name) + "</span>"
+                          "<button type='button' class='up' aria-label='↑'>▲</button>"
+                          "<button type='button' class='dn' aria-label='↓'>▼</button></li>"
+                          for k, name, icon in items)
+                + "</ol>")
+    tiles = []
+    icons = {k: icon for k, f, h, icon, l, sub in _HOME_TILES}
+    for k, name, html in home_tile_items(lang):
+        tiles.append((k, name, icons.get(k, _ICON_PLUGIN)))
+    return (
+        "<h2 class='sub'>" + i18n.t("admin_layout_header", lang) + "</h2>"
+        "<p class='sub'>" + i18n.t("admin_layout_intro", lang) + "</p>"
+        "<form method='POST' action='/admin/layout' autocomplete='off' id='layout-form'>"
+        "<input type='hidden' name='admin_pass' value='" + billboard._esc(pw) + "'>"
+        "<input type='hidden' name='nav' value=''><input type='hidden' name='tiles' value=''>"
+        "<div class='panel'><b>" + i18n.t("admin_layout_nav", lang) + "</b>" + lst("nav", _nav_items(lang)) + "</div>"
+        "<div class='panel'><b>" + i18n.t("admin_layout_tiles", lang) + "</b>" + lst("tiles", tiles) + "</div>"
+        "<div class='row'><button type='submit'>" + i18n.t("admin_layout_save", lang) + "</button>"
+        "<button type='submit' name='reset' value='1'>" + i18n.t("admin_layout_reset", lang) + "</button></div>"
+        "</form><script>" + _LAYOUT_SCRIPT + "</script>"
+    )
+
+
+# Drag and drop for the lists above, with arrows for touch screens
+# (HTML5 drag and drop doesn't work on most phones). On submit, each
+# list's order goes into its hidden field, comma-separated.
+_LAYOUT_SCRIPT = """
+(function(){
+  var f = document.getElementById('layout-form'); if (!f) return;
+  var drag = null;
+  f.querySelectorAll('ol.reorder').forEach(function(ol){
+    ol.addEventListener('dragstart', function(e){
+      drag = e.target.closest('li'); if (!drag) return;
+      drag.classList.add('dragging');
+      try { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', drag.dataset.key); } catch (x) {}
+    });
+    ol.addEventListener('dragend', function(){
+      if (drag) drag.classList.remove('dragging'); drag = null;
+      ol.querySelectorAll('.over').forEach(function(x){ x.classList.remove('over'); });
+    });
+    ol.addEventListener('dragover', function(e){
+      if (!drag || drag.parentNode !== ol) return;
+      e.preventDefault();
+      var li = e.target.closest('li');
+      ol.querySelectorAll('.over').forEach(function(x){ x.classList.remove('over'); });
+      if (li && li !== drag) li.classList.add('over');
+    });
+    ol.addEventListener('drop', function(e){
+      if (!drag || drag.parentNode !== ol) return;
+      e.preventDefault();
+      var li = e.target.closest('li');
+      if (li && li !== drag) {
+        var r = li.getBoundingClientRect();
+        ol.insertBefore(drag, (e.clientY > r.top + r.height / 2) ? li.nextSibling : li);
+      }
+    });
+    ol.addEventListener('click', function(e){
+      var b = e.target.closest('button'); if (!b) return;
+      var li = b.closest('li');
+      if (b.classList.contains('up') && li.previousElementSibling) ol.insertBefore(li, li.previousElementSibling);
+      if (b.classList.contains('dn') && li.nextElementSibling) ol.insertBefore(li.nextElementSibling, li);
+    });
+  });
+  f.addEventListener('submit', function(){
+    f.querySelectorAll('ol.reorder').forEach(function(ol){
+      var keys = []; ol.querySelectorAll('li').forEach(function(li){ keys.push(li.dataset.key); });
+      f.elements[ol.dataset.field].value = keys.join(',');
+    });
+  });
+})();
+"""
 
 
 def _render_admin_tools_section(lang, pw):
@@ -956,25 +1156,28 @@ def _render_admin_plugins_section(lang, pw):
     rows = []
     for p in items:
         on = p["state"] == "on"
-        bits = [i18n.t("admin_plugins_state_" + p["state"].replace("-", "_"), lang)]
+        meta = []
         if p["version"]:
-            bits.append("v" + billboard._esc(str(p["version"])))
+            meta.append("v" + billboard._esc(str(p["version"])))
         if p["mem"] is not None:
-            bits.append(_human_size(p["mem"]) + " RAM")
-        if p["commands"]:
-            bits.append(" ".join("/" + c for c in p["commands"]))
-        line = "<b>" + billboard._esc(p["name"]) + "</b> — " + " · ".join(bits)
-        if p["error"]:
-            line += "<br><small>" + billboard._esc(p["error"]) + "</small>"
+            meta.append(_human_size(p["mem"]) + " RAM")
+        line = ("<div><span class='pname'>" + billboard._esc(p["name"]) + "</span> "
+                "<span class='pstate'>— " + i18n.t("admin_plugins_state_" + p["state"].replace("-", "_"), lang)
+                + "</span>"
+                + ("<span class='pmeta'>" + " · ".join(meta) + "</span>" if meta else "")
+                + ("<span class='pcmds'>" + " ".join("/" + c for c in p["commands"]) + "</span>"
+                   if p["commands"] else "")
+                + ("<span class='perr'>" + billboard._esc(p["error"]) + "</span>" if p["error"] else "")
+                + "</div>")
         button = ""
         if not (on and p["name"] in plugins.PROTECTED):
-            button = ("<form method='POST' action='/admin/plugins' autocomplete='off' style='display:inline'>" + hid +
+            button = ("<form method='POST' action='/admin/plugins' autocomplete='off'>" + hid +
                       "<input type='hidden' name='name' value='" + _attr_esc(p["name"]) + "'>"
                       "<input type='hidden' name='action' value='" + ("off" if on else "on") + "'>"
                       "<button type='submit'>" + i18n.t("admin_plugins_off" if on else "admin_plugins_on", lang)
                       + "</button></form>")
-        rows.append("<li>" + line + " " + button + "</li>")
-    return out + "<div class='panel'><ul class='files'>" + "".join(rows) + "</ul></div>"
+        rows.append("<li>" + line + button + "</li>")
+    return out + "<div class='panel'><ul class='plist'>" + "".join(rows) + "</ul></div>"
 
 
 def _render_admin_home_section(lang, pw):
@@ -1714,6 +1917,8 @@ async def _send(writer, status, body, content_type="text/html"):
     # Pages carry the theme (and live state): a browser must ask again
     # rather than show a copy from before the admin changed it.
     no_cache = content_type.startswith("text/html")
+    # Admin pages: not kept at all, so Back can't show one from memory.
+    no_store = getattr(writer, "_stump_no_store", False)
     # Connection: close matters here. The server closes after every
     # response, but HTTP/1.1 defaults to keep-alive -- so without this
     # the browser holds the socket open expecting to reuse it, then has
@@ -1721,7 +1926,8 @@ async def _send(writer, status, body, content_type="text/html"):
     # shows up as pages that feel sluggish or hang on the first click.
     resp = ("HTTP/1.1 " + status + "\r\nContent-Type: " + content_type +
              "\r\nContent-Length: " + str(len(body)) +
-             ("\r\nCache-Control: no-cache" if no_cache else "") +
+             ("\r\nCache-Control: no-store" if no_store else
+              "\r\nCache-Control: no-cache" if no_cache else "") +
              "\r\nConnection: close\r\n\r\n")
     await writer.awrite(resp)
     await writer.awrite(body)
@@ -1967,6 +2173,11 @@ async def _handle(reader, writer, secure=False):
             await _send(writer, "400 Bad Request", "Malformed request.", "text/plain")
             return
         method, path = parts[0], parts[1]
+        if path.startswith("/admin"):
+            try:
+                writer._stump_no_store = True      # see _send
+            except AttributeError:
+                pass
 
         headers = {}
         header_count = 0
@@ -2075,8 +2286,15 @@ async def _handle(reader, writer, secure=False):
 
         elif method == "GET" and path.startswith("/admin"):
             # No link anywhere points here on purpose -- see
-            # _render_admin_login_page's own docstring.
-            await _send(writer, "200 OK", _page(_render_admin_login_page(i18n.get_lang(identifier))))
+            # _render_admin_login_page's own docstring. With a live
+            # session (the cookie set at login), the admin page itself.
+            lang = i18n.get_lang(identifier)
+            tok = _cookie(headers, ADMIN_COOKIE)
+            if _session_ok(tok):
+                names = fserv._list_files() if fserv.sd_ok else []
+                await _send(writer, "200 OK", _page(_render_admin_file_list_page(lang, names, tok)))
+            else:
+                await _send(writer, "200 OK", _page(_render_admin_login_page(lang)))
 
         elif method == "POST" and path.startswith("/admin/home"):
             # Before the generic POST /admin (login) branch, like the others.
@@ -2088,7 +2306,7 @@ async def _handle(reader, writer, secure=False):
                 if len(parts) == 2:
                     fields[parts[0]] = billboard._url_decode(parts[1])
             pw = fields.get("admin_pass", "")
-            if not _check_admin_pw(pw):
+            if not _admin_ok(pw):
                 await _send(writer, "403 Forbidden", "Invalid admin password", "text/plain")
             else:
                 lang = i18n.get_lang(identifier)
@@ -2113,7 +2331,7 @@ async def _handle(reader, writer, secure=False):
                 if len(parts) == 2:
                     fields[parts[0]] = billboard._url_decode(parts[1])
             pw = fields.get("admin_pass", "")
-            if not _check_admin_pw(pw):
+            if not _admin_ok(pw):
                 await _send(writer, "403 Forbidden", "Invalid admin password", "text/plain")
             else:
                 lang = i18n.get_lang(identifier)
@@ -2150,7 +2368,7 @@ async def _handle(reader, writer, secure=False):
                 if len(parts) == 2:
                     fields[parts[0]] = billboard._url_decode(parts[1])
             pw = fields.get("admin_pass", "")
-            if not _check_admin_pw(pw):
+            if not _admin_ok(pw):
                 await _send(writer, "403 Forbidden", "Invalid admin password", "text/plain")
             else:
                 lang = i18n.get_lang(identifier)
@@ -2174,6 +2392,32 @@ async def _handle(reader, writer, secure=False):
                 notice = "<p class='sub'>" + billboard._esc(msg) + "</p>"
                 await _send(writer, "200 OK", _page(notice + _render_admin_file_list_page(lang, names, pw)))
 
+        elif method == "POST" and path.startswith("/admin/layout"):
+            length = int(headers.get("content-length", "0"))
+            body = await _read_small_body(reader, length)
+            fields = {}
+            for kv in body.decode().split("&"):
+                parts = kv.split("=", 1)
+                if len(parts) == 2:
+                    fields[parts[0]] = billboard._url_decode(parts[1])
+            pw = fields.get("admin_pass", "")
+            if not _admin_ok(pw):
+                await _send(writer, "403 Forbidden", "Invalid admin password", "text/plain")
+            else:
+                lang = i18n.get_lang(identifier)
+                if fields.get("reset"):
+                    ok = layout.save("nav", None) and layout.save("tiles", None)
+                else:
+                    nav_ok = set(_DESTINATIONS)
+                    tile_ok = set(k for k, n, h in home_tile_items(lang))
+                    nav = [k for k in fields.get("nav", "").split(",") if k in nav_ok]
+                    tiles = [k for k in fields.get("tiles", "").split(",") if k in tile_ok]
+                    ok = (not nav or layout.save("nav", nav)) and (not tiles or layout.save("tiles", tiles))
+                msg = i18n.t("admin_layout_saved" if ok else "admin_layout_not_saved", lang)
+                names = fserv._list_files() if fserv.sd_ok else []
+                await _send(writer, "200 OK", _page("<p class='sub'>" + billboard._esc(msg) + "</p>"
+                                                    + _render_admin_file_list_page(lang, names, pw)))
+
         elif method == "POST" and (path.startswith("/admin/theme") or path.startswith("/admin/tools")):
             # The theme for everyone, and deleting tools: like the other
             # /admin forms, the password comes back as a hidden field and
@@ -2193,7 +2437,7 @@ async def _handle(reader, writer, secure=False):
                 else:
                     fields[parts[0]] = val
             pw = fields.get("admin_pass", "")
-            if not _check_admin_pw(pw):
+            if not _admin_ok(pw):
                 await _send(writer, "403 Forbidden", "Invalid admin password", "text/plain")
             else:
                 lang = i18n.get_lang(identifier)
@@ -2238,7 +2482,7 @@ async def _handle(reader, writer, secure=False):
                 if len(parts) == 2:
                     fields[parts[0]] = billboard._url_decode(parts[1])
             pw = fields.get("admin_pass", "")
-            if not _check_admin_pw(pw):
+            if not _admin_ok(pw):
                 await _send(writer, "403 Forbidden", "Invalid admin password", "text/plain")
             else:
                 lang = i18n.get_lang(identifier)
@@ -2247,7 +2491,21 @@ async def _handle(reader, writer, secure=False):
                 notice = "<p class='sub'>" + billboard._esc(msg) + "</p>"
                 await _send(writer, "200 OK", _page(notice + _render_admin_file_list_page(lang, names, pw)))
 
+        elif method == "POST" and path.startswith("/admin/logout"):
+            length = int(headers.get("content-length", "0"))
+            body = await _read_small_body(reader, length)
+            for kv in body.decode().split("&"):
+                if kv.startswith("admin_pass="):
+                    _end_session(billboard._url_decode(kv[11:]))
+            _end_session(_cookie(headers, ADMIN_COOKIE))
+            await writer.awrite("HTTP/1.1 303 See Other\r\nLocation: /admin\r\n"
+                                "Set-Cookie: " + ADMIN_COOKIE + "=; Path=/admin; Max-Age=0; HttpOnly; SameSite=Strict\r\n"
+                                "Cache-Control: no-store\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
+
         elif method == "POST" and path.startswith("/admin") and not path.startswith("/admin/delete"):
+            # The login. A right password starts a session and redirects
+            # to GET /admin (see SESSION_IDLE_S above), so this POST --
+            # with the password in it -- never sits in the history.
             length = int(headers.get("content-length", "0"))
             body = await _read_small_body(reader, length)
             pw = ""
@@ -2258,8 +2516,11 @@ async def _handle(reader, writer, secure=False):
             if not _check_admin_pw(pw):
                 await _send(writer, "403 Forbidden", _page(_render_admin_login_page(lang, error=True)))
             else:
-                names = fserv._list_files() if fserv.sd_ok else []
-                await _send(writer, "200 OK", _page(_render_admin_file_list_page(lang, names, pw)))
+                tok = _new_session()
+                await writer.awrite("HTTP/1.1 303 See Other\r\nLocation: /admin\r\n"
+                                    "Set-Cookie: " + ADMIN_COOKIE + "=" + tok
+                                    + "; Path=/admin; HttpOnly; SameSite=Strict\r\n"
+                                    "Cache-Control: no-store\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
 
         elif method == "POST" and path.startswith("/admin/delete_post"):
             # Must come BEFORE the /admin/delete branch below --
@@ -2288,7 +2549,7 @@ async def _handle(reader, writer, secure=False):
                     timestamps.append(billboard._url_decode(kv[3:]))
                 elif kv.startswith("admin_pass="):
                     pw = billboard._url_decode(kv[11:])
-            if not _check_admin_pw(pw):
+            if not _admin_ok(pw):
                 await _send(writer, "403 Forbidden", "Invalid admin password", "text/plain")
             else:
                 deleted_titles = []
@@ -2327,7 +2588,7 @@ async def _handle(reader, writer, secure=False):
                     fnames.append(_clean_filename(billboard._url_decode(kv[2:])))
                 elif kv.startswith("admin_pass="):
                     pw = billboard._url_decode(kv[11:])
-            if not _check_admin_pw(pw):
+            if not _admin_ok(pw):
                 await _send(writer, "403 Forbidden", "Invalid admin password", "text/plain")
             else:
                 deleted_count = 0

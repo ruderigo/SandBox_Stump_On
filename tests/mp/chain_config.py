@@ -13,7 +13,7 @@ def check(n, c, i=''):
 
 
 check("off by default", chain.settings() is None and chain.status() == {"enabled": False})
-s, ct, b = req('/admin', b'admin_pass=pw')
+s, ct, b = admin_page()
 check("no chain section when off", "Stump chain" not in b and "Chaîne de Stumps" not in b)
 
 config.CHAIN_ENABLED = True
@@ -37,7 +37,7 @@ import ujson as json
 d = json.loads(b)
 check("/chain.json member", ct.startswith("application/json") and d["role"] == "member"
       and d["uplink"]["ssid"] == "Unit 3B" and d["below"] == [] and d["secret"] is True, d)
-s, ct, b = req('/admin', b'admin_pass=pw')
+s, ct, b = admin_page()
 check("admin: trying to join", "Trying to join" in b or "rejoindre" in b, b[b.find('chain'):][:300])
 
 config.CHAIN_UPLINK_SSID = ""
@@ -45,7 +45,7 @@ config.CHAIN_SECRET = ""
 config.CHAIN_SUBNET = 999
 st = chain.settings()
 check("root, bad subnet falls back to 4", chain.is_root(st) and st["subnet"] == 4)
-s, ct, b = req('/admin', b'admin_pass=pw')
+s, ct, b = admin_page()
 check("admin: root line and the no-secret warning",
       ("Premier Stump" in b or "First Stump" in b) and "CHAIN_SECRET" in b, b[b.find('chain'):][:400])
 print('FAILURES:', FAIL)

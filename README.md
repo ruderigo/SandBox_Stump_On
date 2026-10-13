@@ -861,6 +861,19 @@ pair the pages use; Paper's secondary text was darkened slightly
 (`#7a7264` → `#6b6355`, 4.25:1 → 5.3:1) to clear the 4.5:1 guideline
 for readable text.
 
+**Logging in to `/admin`** starts a session: the browser gets a
+cookie, the page's forms carry the session instead of the password, and
+the login answers with a redirect, so the browser's history never holds
+the password. **Log out** (top and bottom of the page) ends it; Back
+then shows the password prompt, and a form resent from history is
+refused. A session also ends after 30 minutes unused, and at restart.
+
+**Order of the buttons, behind `/admin`.** Drag the navigation row's
+buttons and the home page's tiles into order (arrows on a phone), and
+save: for everyone, at once, saved on the board (`/layout.json`). Home
+is first by default. Something new (a plugin's card, a feature switched
+back on) goes at the end.
+
 **Tools page, behind `/admin` too.** *Tools page* lists every section
 and file of the card's `tools/` folder with a box to tick: a whole
 section, or single files, deleted from the SD card. The Provisioner

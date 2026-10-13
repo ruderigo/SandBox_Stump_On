@@ -790,13 +790,16 @@ def _nav_links(lang):
     # Only features this node offers (features.py); home and tools always.
     # The same order as every other page's row (barkeep.NAV_ORDER: chat,
     # billboard, files, tools, about, home), minus chat itself.
-    items = (
-        ("billboard", "/billboard", "Billboard", _NAV_BOARD, "nav_board"),
-        ("files", "/files", "Files", _NAV_FILES, "nav_files"),
-        (None, "/tools", "Tools", _NAV_TOOLS, "nav_tools"),
-        ("about", "/about", "About", _NAV_ABOUT, "nav_about"),
-        (None, "/", "Home", _NAV_HOME, "nav_home"),
-    )
+    import layout
+    by_key = {
+        "board": ("billboard", "/billboard", "Billboard", _NAV_BOARD, "nav_board"),
+        "files": ("files", "/files", "Files", _NAV_FILES, "nav_files"),
+        "tools": (None, "/tools", "Tools", _NAV_TOOLS, "nav_tools"),
+        "about": ("about", "/about", "About", _NAV_ABOUT, "nav_about"),
+        "home": (None, "/", "Home", _NAV_HOME, "nav_home"),
+    }
+    # In the admin's order (layout.py), like every other page's row.
+    items = [by_key[k] for k in layout.nav() if k in by_key]
     return (
         "<nav class='nav'>"
         + "".join(
