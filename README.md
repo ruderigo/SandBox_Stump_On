@@ -2033,7 +2033,8 @@ to it, never from a different Wi-Fi network, even one in the same
 building. This isn't configurable or fixable in firmware — it's what a
 private, router-assigned address is, the same reason two houses' own
 `192.168.1.1` routers can't see each other. The CAM's own hotspot
-(`SSID_NAME` below, fixed at `192.168.4.1`) has no such dependency: it
+(`SSID_NAME` below, at `192.168.4.1`, or `192.168.<n>.1` on a
+chained Stump) has no such dependency: it
 comes up regardless of whether this upstream connection exists at all,
 which is why it's the reliable way to reach the device — join it
 directly rather than relying on whatever network happens to also have

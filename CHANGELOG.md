@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.0.0-beta.2 — 2026-10-13
 - **Chained Stumps over Wi-Fi** (`docs/CHAIN.md`): each Stump serves its
   own Wi-Fi on its own range (`192.168.<n>.1`) and joins the one before
   it; they relay Reticulum for each other, so files cross the chain over
@@ -27,6 +27,9 @@
 - `bench/`: relay, profiling and Wi-Fi benchmarks for chaining Stumps.
 - The release zip also carries `docs/RELEASE.md`, the public signing
   key and `scripts/sign_release.py`, to check a release offline.
+- **Client docs** (`CLIENT_QUICKSTART.md`): what changed for clients
+  since beta.1, chained Stumps' addresses (use the gateway, not a fixed
+  `192.168.4.1`), the `stump.node` beacon's forward compatibility.
 - Docs: the field-test checklist and the README's quick start start
   from the release download; the README lists the pack commands.
 

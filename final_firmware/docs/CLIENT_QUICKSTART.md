@@ -8,6 +8,23 @@ you hit `AUTH-CHALLENGE` cold and start reverse-engineering source.
 you're looking at (a forwarded zip, an older doc, a snippet someone
 pasted into chat) disagrees with what's there, the repo wins.
 
+**This page matches firmware 1.0.0-beta.2.** What changed for clients
+since 1.0.0-beta.1 — additions only; nothing a beta.1 client relies on
+was removed or reworded:
+
+- **Chained Stumps:** a Stump's Wi-Fi may be `192.168.5.1`,
+  `192.168.6.1`… instead of `192.168.4.1` — use the phone's gateway
+  address. `GET /chain.json` is new. See *Chained Stumps* below.
+- **Large relayed transfers onto LoRa** stop after 48 KB per link every
+  10 minutes; voice notes and propagation syncs (16 KB) are untouched.
+- The `stump.node` beacon: read its first four elements and ignore any
+  more (see *Telling Stumps from people*).
+
+Already in beta.1, if you're coming from an older build: plugins
+(`!word` commands, `/p/<plugin>/` pages, `GET /plugins.json`), voice
+notes, the propagation node, HTTPS, and JSON answers for billboard
+posts, uploads and `/tools.json`.
+
 ---
 
 ## Radio settings
@@ -284,15 +301,20 @@ formats: every endpoint, payload and limit a client touches.
 # Reference for client builders
 
 Everything the client teams have been given, in one place. Checked
-against the current `barkeep.py`, `rrc.py`, `rrc_mesh.py`,
-`billboard.py` and `fserv.py` source.
+against the 1.0.0-beta.2 `barkeep.py`, `rrc.py`, `rrc_mesh.py`,
+`billboard.py`, `fserv.py`, `plugins.py`, `chain.py` and
+`example_node.py` source; the JSON shapes below are the ones the
+firmware's own tests (`tests/`) check.
 
 ## Addresses
 
 A node answers on two IPs with different guarantees:
 
-- **`http://192.168.4.1/`** — its own WiFi hotspot. Always there, for
-  any device that joins it directly. When in doubt, use this one.
+- **Its own WiFi hotspot** — always there, for any device that joins
+  it directly. That's `http://192.168.4.1/` on a lone Stump, but a
+  chained Stump uses `192.168.<n>.1` (see *Chained Stumps*), so take
+  the address from the network you joined — its gateway — rather than
+  hard-coding `192.168.4.1`. When in doubt, use this one.
 - **Its LAN IP** — only if the node also joined a router. Reachable
   only from that router's network, and it can change whenever the node
   or the router reboots, unless the router reserves it.
@@ -569,6 +591,10 @@ Its announce data is a msgpack list:
 ["stump", <firmware version>, <node name>, <16-byte LXMF delivery hash>]
 ```
 
+The version is a free-text label (`"Beta A"` today), for showing, not
+parsing. Read the first four elements and ignore any more: later
+firmware may append fields.
+
 So any LXMF address that has a `stump.node` announce on the same
 identity is a Stump; everything else is a person (or another app).
 Stumps use this themselves: over HTTP, `GET /rrc/poll` already tells
@@ -585,7 +611,7 @@ import RNS, RNS.vendor.umsgpack as msgpack
 class StumpBeacons:
     aspect_filter = "stump.node"
     def received_announce(self, destination_hash, announced_identity, app_data):
-        kind, version, name, lxmf_hash = msgpack.unpackb(app_data)
+        kind, version, name, lxmf_hash = msgpack.unpackb(app_data)[:4]
         mark_as_stump(lxmf_hash, name, version)   # your code
 
 RNS.Transport.register_announce_handler(StumpBeacons())

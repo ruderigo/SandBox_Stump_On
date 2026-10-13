@@ -1,4 +1,4 @@
-# Field test — Stump 1.0.0-beta.1 (Beta A)
+# Field test — Stump 1.0.0-beta.2 (Beta A)
 
 What's new since the last field test, in the order you'd check it on
 site, and what to send back. Items marked **(hardware)** are things the
@@ -6,7 +6,7 @@ lab tests could not settle — they need the real board, radio and phones.
 
 ## Before you go
 
-- [ ] Download `Stump-1.0.0-beta.1.zip` and `SHA256SUMS` from the
+- [ ] Download `Stump-1.0.0-beta.2.zip` and `SHA256SUMS` from the
       [release](https://github.com/ruderigo/SandBox_Stump_On/releases),
       check them (`shasum -a 256 -c SHA256SUMS` on a Mac; see
       `docs/RELEASE.md` for the signatures), unzip, and work from that
@@ -183,7 +183,7 @@ Two or three CAMs; one with a Heltec as the first Stump. See `CHAIN.md`.
 ## What to send back
 
 - The boot log (from power-on to `Announced as`); its first line names
-  the release (`Project Stump -- Beta A (1.0.0-beta.1)`).
+  the release (`Project Stump -- Beta A (1.0.0-beta.2)`).
 - Screenshots of `/admin` (radio, propagation status) and the home page
   with branding, phone and laptop.
 - The iPhone ♪ answer, the APK download time, the 15 s Opus note time
