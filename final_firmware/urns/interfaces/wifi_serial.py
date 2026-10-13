@@ -116,6 +116,7 @@ class WiFiSerialInterface(Interface):
     def __init__(self, config):
         name = config.get("name", "WiFi Serial")
         super().__init__(name)
+        self.bulk_ok = False      # a radio: big transfers stay off it
 
         self.target_host = config.get("target_host", None)
         self.target_port = config.get("target_port", 7633)

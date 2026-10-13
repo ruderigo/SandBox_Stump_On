@@ -157,6 +157,29 @@ Tavern theme and "Tavernier" as the bot's name.
       the third boot says `SAFE MODE` and `/admin` explains it; the boot
       after that is normal.
 
+## 10. A chain of Stumps (when the new CAMs arrive)
+
+Two or three CAMs; one with a Heltec as the first Stump. See `CHAIN.md`.
+
+- [ ] Before placing them: `bench/wifi_bench.py` where each will sit;
+      pick the quietest channel for the first Stump.
+- [ ] Provision the first (chain: yes, first; note the secret) and the
+      others (the Wi-Fi name of the one before, numbers 5, 6…, same
+      secret, Heltec: no).
+- [ ] Boot logs: `[chain] root on 192.168.4.1, channel 11` and
+      `[chain] uplink: … via 192.168.4.1 (signal … dBm)`.
+- [ ] `/admin` → Stump chain on each: the one above answered recently;
+      the ones below are listed. `/chain.json` says the same.
+- [ ] Phones on the last Stump's Wi-Fi get `192.168.6.x`, and its pages
+      work as usual.
+- [ ] FireFly over LoRa reaches a Stump with no Heltec, through the chain
+      (chat, DM).
+- [ ] **(hardware)** A PC on each end (`CHAIN.md` → A PC on the chain):
+      `rnfs add` a 50–100 MB file on one, `rnfs get` it on the other.
+      Note the time, and where the Stumps were (walls, floors).
+- [ ] **(hardware)** Restart the middle Stump: the last one links up again
+      by itself.
+
 ## What to send back
 
 - The boot log (from power-on to `Announced as`); its first line names

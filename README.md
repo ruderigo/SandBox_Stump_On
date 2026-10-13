@@ -1957,6 +1957,14 @@ the public site", below.
 
 ---
 
+## Chained Stumps
+
+Stumps can be linked to each other over Wi-Fi — one per apartment, each
+joining the Wi-Fi of the one before it — so messages and files cross
+the chain over Wi-Fi and big transfers never touch LoRa. Only the
+Stumps with a Heltec use the radio. Set up in the Provisioner wizard;
+everything else is in [`docs/CHAIN.md`](final_firmware/docs/CHAIN.md).
+
 ## Plugins and packs
 
 A plugin is a folder with an `install.py`; the node loads every one at

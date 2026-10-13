@@ -685,6 +685,8 @@ class Transport:
                     out_if = nh_if
         if out_if is None:
             return False   # not our turn / hop mismatch
+        if not Transport._bulk_allowed(packet.destination_hash, out_if, packet.context, len(packet.raw)):
+            return True            # dropped: a big transfer stays off the radio
         Transport._cache_packet_hash(packet)   # NOW remember — it's ours to relay
         new_raw = packet.raw[0:1] + bytes([packet.hops]) + memoryview(packet.raw)[2:]
         Transport.transmit(out_if, new_raw)
@@ -693,6 +695,38 @@ class Transport:
         if sl(LOG_NOTICE):
             log("Relay link " + packet.destination_hash.hex()[:8]
                 + " -> " + str(out_if), LOG_NOTICE)
+        return True
+
+    # How much file-transfer data (resource parts) one link may relay onto
+    # a radio interface (bulk_ok False) per window. Enough for a voice
+    # note or a propagation-node sync (16 KB each); a big file is refused
+    # once it passes this, so transfers between Stumps chained over Wi-Fi
+    # never spill onto the shared LoRa channel. Set from config
+    # "bulk_radio_bytes" / "bulk_radio_window" (Reticulum.setup_interfaces).
+    BULK_RADIO_BYTES = 48000
+    BULK_RADIO_WINDOW = 600
+    _bulk = {}        # link_id -> [window_start, bytes, refused_logged]
+    bulk_refused = 0
+
+    @staticmethod
+    def _bulk_allowed(link_id, out_if, ctx, n):
+        if ctx != const.CTX_RESOURCE or getattr(out_if, "bulk_ok", True):
+            return True
+        now = time.time()
+        b = Transport._bulk.get(link_id)
+        if b is None or now - b[0] > Transport.BULK_RADIO_WINDOW:
+            if len(Transport._bulk) > 64:
+                Transport._bulk = {}
+            b = Transport._bulk[link_id] = [now, 0, False]
+        if b[1] + n > Transport.BULK_RADIO_BYTES:
+            Transport.bulk_refused += 1
+            if not b[2]:
+                b[2] = True
+                log("Not relaying a large transfer onto " + str(out_if) + " (link "
+                    + bytes(link_id[:4]).hex() + "): over " + str(Transport.BULK_RADIO_BYTES)
+                    + " bytes in " + str(Transport.BULK_RADIO_WINDOW) + " s", LOG_NOTICE)
+            return False
+        b[1] += n
         return True
 
     # Link contexts that legitimately repeat: packet_filter() never
@@ -739,6 +773,8 @@ class Transport:
                 out_if = nh_if
         if out_if is None:
             return False
+        if not Transport._bulk_allowed(raw[2:18], out_if, raw[18], len(raw)):
+            return True            # dropped: a big transfer stays off the radio
         Transport.transmit(out_if, raw[0:1] + bytes((hops,)) + memoryview(raw)[2:])
         entry[const.IDX_LT_TIMESTAMP] = time.time()
         Transport.relayed_links += 1

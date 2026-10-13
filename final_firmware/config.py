@@ -141,6 +141,15 @@ CONFIG = {
     ],
 }
 
+# ---- Chain: Stumps linked to each other over Wi-Fi (docs/CHAIN.md) ----
+# Big transfers between chained Stumps go over Wi-Fi, never LoRa.
+CHAIN_ENABLED = False
+CHAIN_UPLINK_SSID = ""     # the Wi-Fi name of the Stump before this one; "" = this is the first (root)
+CHAIN_UPLINK_PASS = ""
+CHAIN_SUBNET = 4           # this Stump's own Wi-Fi is 192.168.<this>.1: a different number on each Stump
+CHAIN_CHANNEL = 11         # first Stump only: the Wi-Fi channel the whole chain uses
+CHAIN_SECRET = ""          # the same on every Stump of the chain, so visitors can't join it
+
 # ---- Sensor Network config ----
 SENSOR_HUB = ""
 

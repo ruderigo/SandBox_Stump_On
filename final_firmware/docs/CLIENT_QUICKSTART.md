@@ -900,6 +900,21 @@ stumpid (`/auth`, `/whoami`, `/admin`, `/invite`) are listed too; their
 commands are slash only, since some carry a password. Nothing about
 `/auth` changed: same replies, byte for byte.
 
+## Chained Stumps
+
+Stumps can be chained over Wi-Fi (`CHAIN.md`). Nothing changes for a
+client: chained Stumps relay Reticulum for each other, so a Stump two
+apartments away is just a destination a few hops off, reached over
+Wi-Fi rather than LoRa. Two things worth knowing:
+
+- **A Stump's Wi-Fi may not be `192.168.4.1`.** In a chain each one has
+  its own range (`192.168.5.1`, `192.168.6.1`…). Use the address the
+  phone was given (its gateway), never a hard-coded one.
+- **Big transfers relayed onto LoRa are cut off** after 48 KB per link
+  every 10 minutes. Over the chain there's no limit.
+
+`GET /chain.json` shows the Stump's place in a chain.
+
 ## Android: RNode over a local TCP bridge
 
 If your app bridges an RNode (USB or BLE) to Reticulum through a local

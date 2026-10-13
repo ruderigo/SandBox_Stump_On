@@ -16,7 +16,7 @@ writes into the source tree. Two kinds:
             --update rewrites those files: review the diff before
             committing it.
 """
-import os, re, shutil, subprocess, sys, tempfile
+import os, re, shutil, subprocess, sys, tempfile, time
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -39,6 +39,8 @@ TESTS = [
     ("packs_chat", "assert", PACK_PLUGINS),
     ("packs_web", "snapshot", PACK_PLUGINS),
     ("relay_fastpath", "assert", []),
+    ("chain", "chain", []),
+    ("chain_config", "assert", []),
     ("json_api", "snapshot", []),
     ("latin1_names", "snapshot", []),
 ]
@@ -89,6 +91,40 @@ def main():
             continue
         cwd = tree(extra)
         try:
+            if kind == "chain":
+                # Four MicroPython processes: a three-Stump chain plus an intruder.
+                logs = {}
+                procs = {}
+                for r in ("A", "B", "C", "E"):
+                    procs[r] = subprocess.Popen([MP, "-X", "heapsize=16M", str(HERE / "mp" / "chain_node.py"),
+                                                 str(HERE / "mp"), r, str(cwd)], cwd=cwd,
+                                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+                    time.sleep(0.5)
+                # A PC joining B with the chain secret, and one with the wrong one.
+                time.sleep(3)
+                pc_ok = subprocess.run([sys.executable, str(ROOT / "scripts" / "chain_hello.py"), "127.0.5.1",
+                                        "chain-test-secret", "--bind=127.0.8.2", "--once"],
+                                       capture_output=True, text=True, timeout=30)
+                pc_bad = subprocess.run([sys.executable, str(ROOT / "scripts" / "chain_hello.py"), "127.0.5.1",
+                                         "wrong", "--bind=127.0.9.2", "--once"],
+                                        capture_output=True, text=True, timeout=30)
+                for r, p in procs.items():
+                    try:
+                        logs[r] = p.communicate(timeout=200)[0]
+                    except subprocess.TimeoutExpired:
+                        p.kill()
+                        logs[r] = p.communicate()[0] + "\nTIMEOUT"
+                out = "\n".join(logs[r] for r in ("A", "B", "C", "E"))
+                out += "\nPC with the secret: %s\nPC without: %s" % (pc_ok.stdout.strip(), pc_bad.stdout.strip())
+                ok = ("A DONE file arrived intact" in out and "C DONE sent" in out
+                      and "children: 127.0.6.2, 127.0.8.2\n" in out + "\n" and "FAIL" not in out
+                      and "Traceback" not in out and pc_ok.returncode == 0 and pc_bad.returncode == 1)
+                detail = "\n".join(l for l in out.splitlines() if not l.startswith("[")) [:3000]
+                print(("ok    " if ok else "FAIL  ") + name)
+                if not ok:
+                    print(detail)
+                    failed.append(name)
+                continue
             if kind == "safe":
                 seq = ["reset", "culprit", "normal", "reset", "running", "normal"]
                 out = "".join("== %s\n" % m + "\n".join(l for l in run_mp(name + ".py", cwd, m).splitlines()

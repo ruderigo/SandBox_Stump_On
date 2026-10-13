@@ -204,25 +204,27 @@ DEFAULT_CREDIT_WEIGHTS = {"video": 3, "music": 2, "document": 1, "other": 1}
 #   [print(f'    {str(f.relative_to(\"final_firmware\"))!r}: {hashlib.sha256(f.read_bytes()).hexdigest()[:16]!r},')
 #    for f in sorted(Path('final_firmware').rglob('*')) if f.is_file()]"
 EXPECTED_FILE_HASHES = {
-    "barkeep.py": "668e873ed97a7a99",
+    "barkeep.py": "01fa1af5ef7e111f",
     "billboard.py": "23b3263eb7fddcf3",
     "boot_common.py": "d1f60dd4434752bf",
-    "captive_portal.py": "8c2a0ee90cdc1e04",
-    "config.py": "2f436be4cabf4a41",
-    "docs/CLIENT_QUICKSTART.md": "2267bce4d87fd86e",
-    "docs/COMMANDS.md": "4838f146c8a044ee",
-    "docs/FIELD_TEST.md": "7ddc4a4c3697243b",
+    "captive_portal.py": "35cb3a279ecc42db",
+    "chain.py": "d2546292a0ac3f47",
+    "config.py": "4b546033fac3572a",
+    "docs/CHAIN.md": "c16a45a09ee64ca0",
+    "docs/CLIENT_QUICKSTART.md": "72332d8ff7870abb",
+    "docs/COMMANDS.md": "57e28ede9cfb558e",
+    "docs/FIELD_TEST.md": "eab601c2420c0ce2",
     "docs/HIDDEN_FEATURES.md": "053479ae239e0891",
     "docs/HOME_BRANDING.md": "9200d8191366cb09",
     "docs/HTTPS_SETUP.md": "30171f88d7a75712",
     "docs/PACKS.md": "5a4112d207cac719",
     "docs/PLUGINS.md": "3f5b4a5ee6844305",
-    "example_node.py": "f6ab283d3be1701d",
+    "example_node.py": "24487353db2d1790",
     "features.py": "7fca96873d59d2d3",
     "flasher_ui.py": "f0af338707d46d25",
     "fserv.py": "c3091ea9d29f6dc3",
     "fservbot/plugin.json": "fecf7cbfff4e7d97",
-    "i18n.py": "e83ffbccd1c347ac",
+    "i18n.py": "00c0c2dce1556aa3",
     "lib/bz2_fast_xtensawin.mpy": "ac55d9eda2126432",
     "lib/ed25519_fast_xtensawin.mpy": "96e74dac45f91687",
     "lib/ed25519_iram.mpy": "96e74dac45f91687",
@@ -237,7 +239,7 @@ EXPECTED_FILE_HASHES = {
     "rrc.py": "9a3c232b7830359b",
     "rrc_mesh.py": "42aa4bb1417ce208",
     "rrc_ui.py": "8cb58930f02ac5e3",
-    "stump_tls.py": "992fd3b60d87ce85",
+    "stump_tls.py": "f096a27c3cbfdae8",
     "stumpid/plugin.json": "68cc159374a5c102",
     "theme.py": "b77a5d94c97cf405",
     "third_party/codec2/COPYING": "9ebb6f82b7380a62",
@@ -389,20 +391,21 @@ EXPECTED_FILE_HASHES = {
     "urns/crypto/x25519.py": "62998f40d4e0976f",
     "urns/destination.py": "29eadd36dbfe9e3e",
     "urns/identity.py": "1d5cb6c98a9b8fe0",
-    "urns/interfaces/__init__.py": "e95b13adb0414a0c",
-    "urns/interfaces/e32.py": "c5cbc68e04a2c30a",
-    "urns/interfaces/lora.py": "47a36c7c61d712b9",
-    "urns/interfaces/serial.py": "4c31a883a20f54c8",
+    "urns/interfaces/__init__.py": "f058f69c73c34294",
+    "urns/interfaces/chain.py": "af4ecd9868a9aae5",
+    "urns/interfaces/e32.py": "4cc3c2994c2d7972",
+    "urns/interfaces/lora.py": "34ce816fe69c0b43",
+    "urns/interfaces/serial.py": "3c7dda5e4ffb5dec",
     "urns/interfaces/tcp.py": "a29d90caa017764a",
-    "urns/interfaces/udp.py": "1de3688c42ad0eb1",
-    "urns/interfaces/wifi_serial.py": "fdb89bf39095a2fe",
+    "urns/interfaces/udp.py": "cc5e30ddc0861737",
+    "urns/interfaces/wifi_serial.py": "6ebabe69b9e1a861",
     "urns/link.py": "3cb7d2dafe5bdbb6",
     "urns/log.py": "4b5576693991c7a6",
     "urns/lxmf.py": "0d0c1d4bb42449c2",
     "urns/packet.py": "f29d9a1a8ebedc0e",
     "urns/resource.py": "97b1fa47b676a517",
-    "urns/reticulum.py": "43d0722fde6cb715",
-    "urns/transport.py": "31f6c2b45474680a",
+    "urns/reticulum.py": "97d863c502f80453",
+    "urns/transport.py": "a7953742ea0ca57c",
     "urns/umsgpack.py": "7df3983d6abcf149",
     "web/codec2.js": "2caf391c54505c61",
     "web/codec2.wasm": "342264605478d63f",
@@ -2712,6 +2715,63 @@ def config_wizard(board_type):
                 "Include the AP's IP address in the hotspot name?", True)
             profile["ssid_name"] = ask("Custom hotspot name", node_name)
 
+        # ---- Chain of Stumps over Wi-Fi (docs/CHAIN.md) ----
+        print("\nStumps can be chained over Wi-Fi -- e.g. one per apartment, each")
+        print("joining the Wi-Fi of the one before it -- so files move between them")
+        print("over Wi-Fi and never over LoRa.")
+        chain_cfg = None
+        if ask_yes_no("Is this Stump part of a chain?", False):
+            first = ask_choice("Its place in the chain", [
+                "The first Stump (the others join it)",
+                "Joins another Stump's Wi-Fi",
+            ]).startswith("The first")
+            chain_cfg = {"enabled": True, "uplink_ssid": "", "uplink_pass": ""}
+            if first:
+                print("  The whole chain shares one Wi-Fi channel, set here. Pick the quietest:")
+                print("  bench/wifi_bench.py lists the channels in use around a CAM (1, 6 and 11")
+                print("  don't overlap).")
+                while True:
+                    try:
+                        chain_cfg["channel"] = int(ask("  Wi-Fi channel (1-13)", "11"))
+                        if 1 <= chain_cfg["channel"] <= 13:
+                            break
+                    except ValueError:
+                        pass
+                    print("    A number from 1 to 13.")
+                chain_cfg["subnet"] = 4
+                import secrets as _secrets
+                suggested = _secrets.token_hex(8)
+                print("  A chain secret keeps visitors on any Stump's Wi-Fi out of the chain.")
+                print("  Every Stump in the chain needs the same one: note it down.")
+                chain_cfg["secret"] = ask("  Chain secret", suggested) or ""
+            else:
+                chain_cfg["uplink_ssid"] = ask("  Wi-Fi name of the Stump this one joins", "")
+                chain_cfg["uplink_pass"] = ask("  Its Wi-Fi password (blank if open)", "") or ""
+                print("  Each Stump's own Wi-Fi uses its own address range, 192.168.<n>.1:")
+                print("  the first Stump is 4; give every other one a different number.")
+                while True:
+                    try:
+                        chain_cfg["subnet"] = int(ask("  This Stump's number (5-254)", "5"))
+                        if 5 <= chain_cfg["subnet"] <= 254:
+                            break
+                    except ValueError:
+                        pass
+                    print("    A number from 5 to 254.")
+                chain_cfg["secret"] = ask("  Chain secret (the same as on the first Stump)", "") or ""
+                chain_cfg["channel"] = 0
+            if not chain_cfg["secret"]:
+                print("  " + yellow("No secret: anyone on a Stump's Wi-Fi could join the chain."))
+        profile["chain"] = chain_cfg
+
+        has_heltec = True
+        if chain_cfg:
+            has_heltec = ask_yes_no("Does this Stump have its own Heltec (LoRa radio)?",
+                                    not chain_cfg["uplink_ssid"])
+        profile["heltec_enabled"] = has_heltec
+        if not has_heltec:
+            profile["heltec_host"], profile["heltec_port"] = "192.168.4.2", 7633
+            print("  No Heltec: this Stump reaches the LoRa mesh through the chain.")
+
         # Same explicit pairing question as the Heltec's own wizard branch
         # above, and for the identical reason: this CAM's own hotspot is a
         # real, joinable network the Heltec can connect to directly
@@ -2719,36 +2779,37 @@ def config_wizard(board_type):
         # different range from this prompt's old default -- asking
         # outright, rather than letting the two boards' provisioning runs
         # silently assume different networks, is the actual fix.
-        print("\nIs the Heltec reaching this CAM through an existing WiFi network (a")
-        print("router), or connected directly to THIS CAM's own hotspot (a")
-        print("standalone pair, no router involved)?")
-        pairing = ask_choice(
-            "Heltec Bridge network setup",
-            ["Existing WiFi network (a router)",
-             "This CAM's own hotspot (standalone pair, no router)"],
-        )
-        standalone_pair = pairing.startswith("This CAM's")
-        default_bridge_ip = "192.168.4.2" if standalone_pair else "192.168.0.222"
-        if standalone_pair:
-            print("\nWhen you provision the Heltec, join it to THIS CAM's own hotspot name")
-            print("(its Node name / custom SSID -- open network, no password), with a")
-            print(f"static IP in the 192.168.4.x range. This CAM is always 192.168.4.1,")
-            print(f"so the Heltec needs a different address here -- suggested: {default_bridge_ip}")
+        if has_heltec:
+            print("\nIs the Heltec reaching this CAM through an existing WiFi network (a")
+            print("router), or connected directly to THIS CAM's own hotspot (a")
+            print("standalone pair, no router involved)?")
+            pairing = ask_choice(
+                "Heltec Bridge network setup",
+                ["Existing WiFi network (a router)",
+                 "This CAM's own hotspot (standalone pair, no router)"],
+            )
+            standalone_pair = pairing.startswith("This CAM's")
+            default_bridge_ip = "192.168.4.2" if standalone_pair else "192.168.0.222"
+            if standalone_pair:
+                print("\nWhen you provision the Heltec, join it to THIS CAM's own hotspot name")
+                print("(its Node name / custom SSID -- open network, no password), with a")
+                print(f"static IP in the 192.168.4.x range. This CAM is always 192.168.4.1,")
+                print(f"so the Heltec needs a different address here -- suggested: {default_bridge_ip}")
 
-        heltec_host = ask(
-            "Heltec Bridge IP (the static IP set on the Heltec via\n"
-            "  'rnodeconf <port> -w STATION --ip ...')", default_bridge_ip
-        )
-        heltec_port = ask(
-            "Heltec Bridge port (fixed by Reticulum's own protocol --\n"
-            "  leave as-is unless you know otherwise)", "7633"
-        )
-        profile["heltec_host"] = heltec_host
-        try:
-            profile["heltec_port"] = int(heltec_port)
-        except ValueError:
-            print(f"  '{heltec_port}' isn't a number -- keeping the default 7633.")
-            profile["heltec_port"] = 7633
+            heltec_host = ask(
+                "Heltec Bridge IP (the static IP set on the Heltec via\n"
+                "  'rnodeconf <port> -w STATION --ip ...')", default_bridge_ip
+            )
+            heltec_port = ask(
+                "Heltec Bridge port (fixed by Reticulum's own protocol --\n"
+                "  leave as-is unless you know otherwise)", "7633"
+            )
+            profile["heltec_host"] = heltec_host
+            try:
+                profile["heltec_port"] = int(heltec_port)
+            except ValueError:
+                print(f"  '{heltec_port}' isn't a number -- keeping the default 7633.")
+                profile["heltec_port"] = 7633
 
         # ---- Packs ----
         # Asked before the persona and the theme: a pack can bring both.
@@ -3016,6 +3077,8 @@ def push_config_to_board(port, board_type, profile):
             theme=profile.get("theme"),
             features=profile.get("features"),
             propagation_node=profile.get("propagation_node"),
+            chain=profile.get("chain") or ({"enabled": False} if "chain" in profile else None),
+            heltec_enabled=profile.get("heltec_enabled"),
         )
     except Exception as e:
         print(f"FAILED to generate config.py: {e}")
@@ -3037,7 +3100,8 @@ def push_config_to_board(port, board_type, profile):
 def _generate_config_py(local_config_path, node_name, wifi_ssid, wifi_pass, heltec_host, heltec_port,
                          credits_enabled=None, credit_weights=None, bot_name=None,
                          mesh_greeting=None, plugin_config=None, ssid_include_ip=None,
-                         ssid_name=_UNSET, theme=None, features=None, propagation_node=None):
+                         ssid_name=_UNSET, theme=None, features=None, propagation_node=None,
+                         chain=None, heltec_enabled=None):
     """
     Substitutes WIFI_SSID/WIFI_PASS/NODE_NAME and the Heltec Bridge
     interface's target_host/target_port into the existing config.py
@@ -3112,6 +3176,10 @@ def _generate_config_py(local_config_path, node_name, wifi_ssid, wifi_pass, helt
             continue
         if "Heltec Bridge" in line:
             in_heltec_block = True
+        if in_heltec_block and heltec_enabled is not None and '"enabled"' in line:
+            indent = line[:len(line) - len(line.lstrip())]
+            out.append("%s\"enabled\": %r,\n" % (indent, bool(heltec_enabled)))
+            continue
         if in_heltec_block and '"target_host"' in line:
             indent = line[:len(line) - len(line.lstrip())]
             out.append("%s\"target_host\": %r,\n" % (indent, heltec_host))
@@ -3150,6 +3218,30 @@ def _generate_config_py(local_config_path, node_name, wifi_ssid, wifi_pass, helt
             for k, v in sorted(remaining.items()):
                 out.append("%s = %r\n" % (k, v))
 
+    if chain is not None:
+        # CHAIN_* (chain.py): replaced in place, or appended as a block.
+        want = {
+            "CHAIN_ENABLED": bool(chain.get("enabled")),
+            "CHAIN_UPLINK_SSID": chain.get("uplink_ssid", ""),
+            "CHAIN_UPLINK_PASS": chain.get("uplink_pass", ""),
+            "CHAIN_SUBNET": int(chain.get("subnet", 4)),
+            "CHAIN_CHANNEL": int(chain.get("channel", 0) or 0),
+            "CHAIN_SECRET": chain.get("secret", ""),
+        }
+        rebuilt = []
+        for line in out:
+            key = line.split("=", 1)[0].strip()
+            if key in want and "=" in line and not line.lstrip().startswith("#"):
+                rebuilt.append("%s = %r\n" % (key, want.pop(key)))
+            else:
+                rebuilt.append(line)
+        out = rebuilt
+        if want:
+            out.append("\n# ---- Chain: Stumps linked over Wi-Fi, docs/CHAIN.md (added by the Provisioner) ----\n")
+            for k in ("CHAIN_ENABLED", "CHAIN_UPLINK_SSID", "CHAIN_UPLINK_PASS", "CHAIN_SUBNET",
+                      "CHAIN_CHANNEL", "CHAIN_SECRET"):
+                if k in want:
+                    out.append("%s = %r\n" % (k, want[k]))
     if mesh_greeting is not None and not saw_greeting:
         out.append("\n# ---- Mesh auto-reply (added by the Provisioner) ----\n")
         out.append("MESH_GREETING = %r\n" % mesh_greeting)

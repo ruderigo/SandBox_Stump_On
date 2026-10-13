@@ -132,6 +132,8 @@ class Reticulum:
         "LoRaInterface":      "lora",
         "TCPClientInterface": "tcp",
         "WiFiSerialInterface": "wifi_serial",  # custom addition -- the Heltec Bridge
+        "ChainUplinkInterface": "chain",       # Stump-to-Stump over Wi-Fi (chain.py)
+        "ChainHubInterface":    "chain",
     }
 
     def _resolve_board(self, iface_config):
@@ -157,6 +159,8 @@ class Reticulum:
         """Initialize network interfaces from config. Call after WiFi is connected.
         Only the modules for configured interfaces are imported."""
         Transport.transport_enabled = self.config.get("enable_transport", False)
+        Transport.BULK_RADIO_BYTES = int(self.config.get("bulk_radio_bytes", Transport.BULK_RADIO_BYTES))
+        Transport.BULK_RADIO_WINDOW = int(self.config.get("bulk_radio_window", Transport.BULK_RADIO_WINDOW))
         if Transport.transport_enabled:
             log("Transport mode enabled", LOG_NOTICE)
 

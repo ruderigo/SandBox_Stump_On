@@ -315,7 +315,17 @@ def main():
     print("=" * 46)
 
     ip = None
-    if needs_wifi(CONFIG):
+    # A chain of Stumps over Wi-Fi (chain.py, docs/CHAIN.md): a member
+    # Stump's station joins the Stump before it instead of WIFI_SSID.
+    import chain
+    CHAIN = chain.settings()
+    chain_sta_ip = chain_parent_ip = None
+    if CHAIN and CHAIN["uplink_ssid"]:
+        try:
+            chain_sta_ip, chain_parent_ip = chain.connect_uplink(CHAIN)
+        except Exception as e:
+            print("[chain] uplink not joined (" + str(e) + "); will keep trying")
+    elif needs_wifi(CONFIG):
         # Degrade, don't die. An unreachable upstream network (router
         # down, wrong password, or simply no WiFi where this is
         # deployed) used to raise straight out of main(), which main.py
@@ -342,7 +352,12 @@ def main():
     # The LAN address is still printed by connect_wifi() above, so a
     # technician on the serial console can read it -- it just isn't
     # broadcast in the network name any more.
-    ap_ip = captive_portal.setup_ap(SSID_NAME, include_ip=SSID_INCLUDE_IP)
+    ap_ip = captive_portal.setup_ap(
+        SSID_NAME, include_ip=SSID_INCLUDE_IP,
+        ap_ip=chain.ap_ip(CHAIN) if CHAIN else None,
+        # The root sets the chain's channel; a member's access point
+        # follows its uplink's channel whatever it's told.
+        channel=CHAIN["channel"] if CHAIN and chain.is_root(CHAIN) else None)
     import barkeep
     import fserv
     # After rrc/barkeep exist (plugins may wrap them) and before the
@@ -413,7 +428,17 @@ def main():
         radio.overlay(rns.config)
     except Exception as e:
         print("[radio] saved settings not applied:", e)
+    if CHAIN:
+        # Chain links, and transport on: a Stump in a chain relays for the
+        # Stumps and PCs on either side of it.
+        rns.config["interfaces"] = list(rns.config.get("interfaces", [])) + \
+            chain.interfaces(CHAIN, chain_sta_ip, chain_parent_ip, ap_ip)
+        rns.config["enable_transport"] = True
+        print("[chain] %s on %s%s" % ("root" if chain.is_root(CHAIN) else "member", ap_ip,
+                                      ", channel %d" % CHAIN["channel"] if CHAIN["channel"] and chain.is_root(CHAIN) else ""))
     rns.setup_interfaces()
+    if CHAIN:
+        chain.attach(rns)
     gc.collect()
 
     if DEBUG >= 1:
@@ -537,6 +562,8 @@ def main():
             print("[pn] tasks not started:", e)
         asyncio.create_task(serial_input_loop(router))
         asyncio.create_task(barkeep.run_barkeep_server())
+        if CHAIN:
+            asyncio.create_task(chain.watch_loop(rns))
         try:
             import plugins
             # Plugin timers, and the minute after which this boot counts

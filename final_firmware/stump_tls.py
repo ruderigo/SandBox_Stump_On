@@ -33,7 +33,17 @@ TLS_DIR = "/tls"
 CERT_FILE = TLS_DIR + "/fullchain.pem"
 KEY_FILE = TLS_DIR + "/privkey.pem"
 INFO_FILE = TLS_DIR + "/info.json"      # {"host", "not_after"} written at install
-AP_PREFIX = "192.168.4."                # the Stump's own Wi-Fi
+AP_PREFIX = "192.168.4."                # the Stump's own Wi-Fi (chain.py may move it)
+
+
+def _ap_prefix():
+    try:
+        import chain
+        if chain.settings():
+            return chain.ap_prefix()
+    except Exception:
+        pass
+    return AP_PREFIX
 
 _state = {"active": False, "reason": "no certificate installed", "host": None, "not_after": None}
 
@@ -79,7 +89,7 @@ def https_redirect(peer_ip, path):
     visitors on the Stump's own Wi-Fi, where the hostname resolves here."""
     if not _state["active"] or not _state["host"]:
         return None
-    if not (peer_ip or "").startswith(AP_PREFIX):
+    if not (peer_ip or "").startswith(_ap_prefix()):
         return None
     return "https://" + _state["host"] + (path if path.startswith("/") else "/")
 

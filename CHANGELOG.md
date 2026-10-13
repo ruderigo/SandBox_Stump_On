@@ -1,6 +1,20 @@
 # Changelog
 
 ## Unreleased
+- **Chained Stumps over Wi-Fi** (`docs/CHAIN.md`): each Stump serves its
+  own Wi-Fi on its own range (`192.168.<n>.1`) and joins the one before
+  it; they relay Reticulum for each other, so files cross the chain over
+  Wi-Fi. A chain secret keeps visitors out (HMAC hellos). PCs join with
+  a plain UDP interface (`scripts/chain_hello.py` with a secret). The
+  Provisioner asks about the chain, and whether the Stump has a Heltec
+  at all. `/admin` → Stump chain, `GET /chain.json`.
+- **Big transfers stay off LoRa:** a Stump relays at most 48 KB of file
+  data per link every 10 minutes onto a radio interface.
+- **UDP interfaces drain their socket** in batches instead of one packet
+  per 10 ms with a full garbage collection each (which capped them at
+  well under 100 packets a second).
+- Tests: a three-Stump chain on loopback (with an intruder and two PCs),
+  the radio cap, chain settings.
 - **Faster relaying**, measured on a CAM first (`bench/`): file and
   channel packets inside a link the Stump carries are forwarded from
   their raw bytes, without building a Packet or hashing it (the general

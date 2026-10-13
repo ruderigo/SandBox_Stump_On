@@ -76,4 +76,27 @@ raw = bytes([flags, 0]) + L1 + bytes([const.CTX_RESOURCE]) + bytes(400)
 Transport._relay_fast = fast
 B.sent = []
 check("file packet A->B forwarded with hops 1", fast(raw, A) and B.sent and B.sent[0][1] == 1 and B.sent[0][2:] == raw[2:])
+# Big transfers stay off radio interfaces (bulk_ok False): a link may relay
+# only BULK_RADIO_BYTES of file data onto one per window; requests, proofs
+# and everything else still pass, and Wi-Fi interfaces have no cap.
+R = Sink("radio")
+R.bulk_ok = False
+L3, L4 = bytes(range(2, 18)), bytes(range(3, 19))
+Transport._add_link(L3, bytes(16), R, 1, A, 1, bytes(16))
+Transport._add_link(L4, bytes(16), B, 1, A, 1, bytes(16))
+Transport._bulk = {}
+for link, sink in ((L3, R), (L4, B)):
+    sink.sent = []
+    for i in range(150):
+        raw = bytes([flags, 0]) + link + bytes([const.CTX_RESOURCE]) + bytes(464)
+        Transport.inbound(raw, A)
+    if sink is R:
+        want = Transport.BULK_RADIO_BYTES // len(raw)
+        check("radio: only %d of 150 file packets relayed" % want, len(sink.sent) == want, len(sink.sent))
+        sink.sent = []
+        Transport.inbound(bytes([flags, 0]) + link + bytes([const.CTX_RESOURCE_REQ]) + bytes(40), A)
+        Transport.inbound(bytes([flags, 0]) + link + bytes([const.CTX_NONE]) + bytes(60), A)
+        check("radio: requests and ordinary link packets still relayed", len(sink.sent) == 2, len(sink.sent))
+    else:
+        check("Wi-Fi: all 150 file packets relayed", len(sink.sent) == 150, len(sink.sent))
 print('FAILURES:', FAIL)

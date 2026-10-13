@@ -803,6 +803,7 @@ def _render_admin_file_list_page(lang, names, pw):
         + _render_admin_home_section(lang, pw)
         + _render_admin_radio_section(lang, pw)
         + _render_admin_pn_section(lang, pw)
+        + _render_admin_chain_section(lang)
         + _render_admin_plugins_section(lang, pw)
         + _render_admin_settings_section(lang)
     )
@@ -837,6 +838,35 @@ def _render_admin_tls_line(lang):
     if days is not None and days < 21:
         line = "<b>" + line + " — " + i18n.t("admin_tls_renew", lang) + "</b>"
     return head + "<p class='sub'>" + line + "</p>"
+
+
+def _render_admin_chain_section(lang):
+    """A chain of Stumps over Wi-Fi (chain.py): this Stump's place in it.
+    Shown only on a Stump in a chain."""
+    import chain
+    st = chain.status()
+    if not st["enabled"]:
+        return ""
+    e = billboard._esc
+    lines = []
+    if st["role"] == "root":
+        lines.append(i18n.t("admin_chain_root", lang, ip=st["ap_ip"],
+                            channel=(" · Wi-Fi %d" % st["channel"]) if st["channel"] else ""))
+    else:
+        up = st["uplink"]
+        if up["ip"]:
+            heard = (i18n.t("admin_chain_heard", lang, s=up["parent_heard_s"])
+                     if up["parent_heard_s"] is not None else "")
+            lines.append(i18n.t("admin_chain_member", lang, ssid=e(up["ssid"]), ip=up["ip"],
+                                parent=up["parent"], heard=heard))
+        else:
+            lines.append(i18n.t("admin_chain_trying", lang, ssid=e(up["ssid"])))
+    lines.append(i18n.t("admin_chain_below", lang, list=", ".join(st["below"])) if st["below"]
+                 else i18n.t("admin_chain_none_below", lang))
+    if not st["secret"]:
+        lines.append("<b>" + i18n.t("admin_chain_nosecret", lang) + "</b>")
+    return ("<h2 class='sub'>" + i18n.t("admin_chain_header", lang) + "</h2>"
+            "<p class='sub'>" + "<br>".join(lines) + "</p>")
 
 
 def _render_admin_plugins_section(lang, pw):
@@ -1772,7 +1802,7 @@ async def _read_small_body(reader, length, chunk=1024, cap=None):
 # these would break a page still open over HTTP, since the browser
 # refuses a cross-origin redirect for them.
 _NO_REDIRECT = ("/home-file", "/tls-ok", "/rrc/poll", "/rrc/voice", "/rrc/send", "/download", "/codec2", "/opus.", "/billboard.json",
-                "/files.json", "/plugins.json", "/fw", "/tool?", "/lang", "/upload", "/post", "/chat")
+                "/files.json", "/plugins.json", "/chain.json", "/fw", "/tool?", "/lang", "/upload", "/post", "/chat")
 
 
 def _https_upgrade_page(target, path):
@@ -2368,6 +2398,12 @@ async def _handle(reader, writer, secure=False):
                 files.append({"name": t, "size": size, "url": "/tool?f=" + _url_encode(t)})
             await _send(writer, "200 OK", json.dumps({"sd": fserv.sd_ok, "apps": app_list, "files": files}),
                         "application/json")
+
+        elif method == "GET" and path.startswith("/chain.json"):
+            # This Stump's place in a chain over Wi-Fi (chain.py): role,
+            # addresses, the Stump above it and who's linked below.
+            import chain
+            await _send(writer, "200 OK", json.dumps(chain.status()), "application/json")
 
         elif method == "GET" and path.startswith("/plugins.json"):
             # What the plugins add, for clients: their commands (to offer
