@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.0.0-beta.2 — 2026-10-13
+## 1.0.0-beta.2
 - **Chained Stumps over Wi-Fi** (`docs/CHAIN.md`): each Stump serves its
   own Wi-Fi on its own range (`192.168.<n>.1`) and joins the one before
   it; they relay Reticulum for each other, so files cross the chain over
