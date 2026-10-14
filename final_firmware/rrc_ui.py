@@ -236,6 +236,19 @@ function updateVoiceButton(){ vbtn.style.display = viewingDM ? '' : 'none'; }
 function liveMic(){
   return !!(window.isSecureContext && navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder);
 }
+// With a certificate, the chat stays on plain HTTP (its polls are free
+// there) and the microphone opens in a small HTTPS window, /rrc/rec, that
+// records and hands the audio back here (postMessage). Only if this phone
+// accepts the certificate: checked once, quietly, like the old upgrade.
+var REC_URL=REC_URL_INIT, recOrigin=REC_URL ? REC_URL.split('/').slice(0,3).join('/') : '', recOk=false, recTo=null;
+if(REC_URL && !window.isSecureContext){
+  fetch(recOrigin+'/tls-ok',{mode:'no-cors',cache:'no-store'}).then(function(){ recOk=true; }, function(){});
+}
+window.addEventListener('message', function(e){
+  if(!recOrigin || e.origin!==recOrigin || !e.data || !e.data.stumpVoice || !recTo) return;
+  var to=recTo; recTo=null;
+  sendVoiceFrom(e.data.stumpVoice, to);
+});
 function voiceState(busy){
   voiceBusy=busy; vbtn.disabled=busy; vbtn.textContent = busy ? '\u22ef' : '\u266a';
 }
@@ -293,8 +306,8 @@ function prepVoice(ab, rate){
   for(k=0;k<outN;k++){ var z=Math.max(-1, Math.min(1, y[k]*gain)); out[k]=Math.round(z*32767); }
   return out;
 }
-function sendVoiceFrom(buf){
-  var to=viewingDM;
+function sendVoiceFrom(buf, toNick){
+  var to=toNick||viewingDM;
   if(!to) return;
   voiceState(true);
   var decoded=decodeAny(buf).then(null, function(){ throw 'unreadable'; });
@@ -326,7 +339,15 @@ function voiceFailed(){ line(esc(VOICE.unreadable),'err'); voiceState(false); }
 vbtn.onclick=function(){
   if(voiceRec){ voiceRec.stop(); return; }
   if(voiceBusy) return;
-  if(!liveMic()){ vfile.click(); return; }
+  if(!liveMic()){
+    if(recOk){
+      recTo=viewingDM;
+      var w=window.open(REC_URL+'?o='+encodeURIComponent(location.origin), 'stumprec', 'width=380,height=440');
+      if(w) return;
+      recTo=null;               // pop-up blocked: the recorder app instead
+    }
+    vfile.click(); return;
+  }
   navigator.mediaDevices.getUserMedia({audio:true}).then(function(stream){
     voiceChunks=[]; voiceRec=new MediaRecorder(stream);
     voiceRec.ondataavailable=function(e){ if(e.data && e.data.size) voiceChunks.push(e.data); };
@@ -827,7 +848,7 @@ def _esc(s):
              .replace(">", "&gt;").replace('"', "&quot;").replace("'", "&#39;"))
 
 
-def render_page(room, nick, lang=None):
+def render_page(room, nick, lang=None, rec_url=None):
     """The whole client, one self-contained page.
 
     room/nick go through json.dumps, not hand-written quotes: clean_nick
@@ -842,6 +863,7 @@ def render_page(room, nick, lang=None):
     if lang is None:
         lang = i18n.DEFAULT_LANG
     script = (SCRIPT
+              .replace("REC_URL_INIT", _js(rec_url or ""))
               .replace("ROOM_INIT", _js(room))
               .replace("NICK_INIT", _js(nick))
               .replace("I18N_MESSAGE_SOMEONE", _js(i18n.t("rrc_message_someone", lang)))
@@ -879,5 +901,63 @@ def render_page(room, nick, lang=None):
         "<script src='/codec2.js'></script>"
         "<script src='/opus.js'></script>"
         "<script>" + script + "</script>"
+        "</body></html>"
+    )
+
+
+REC_SCRIPT = r"""
+var T=REC_TEXT, MAX_S=15, rec=null, chunks=[], timer=null, left=0, tick=null;
+var q=location.search.match(/[?&]o=([^&]*)/), back=q ? decodeURIComponent(q[1]) : '';
+var b=document.getElementById('rec'), say=document.getElementById('say');
+function msg(t){ say.textContent=t; }
+// Only the chat on this same Stump (its address or its name) gets the audio back.
+var ok=!!(window.opener && REC_ORIGINS.indexOf(back)>=0);
+if(!ok){ b.disabled=true; msg(T.no_opener); }
+b.onclick=function(){
+  if(rec){ rec.stop(); return; }
+  navigator.mediaDevices.getUserMedia({audio:true}).then(function(stream){
+    chunks=[]; rec=new MediaRecorder(stream);
+    rec.ondataavailable=function(e){ if(e.data && e.data.size) chunks.push(e.data); };
+    rec.onstop=function(){
+      stream.getTracks().forEach(function(t){ t.stop(); });
+      clearTimeout(timer); clearInterval(tick); rec=null;
+      b.textContent='\u266a'; b.className=''; msg(T.sending);
+      var blob=new Blob(chunks);
+      (blob.arrayBuffer ? blob.arrayBuffer() : new Promise(function(res, rej){
+        var r=new FileReader(); r.onload=function(){ res(r.result); }; r.onerror=rej; r.readAsArrayBuffer(blob);
+      })).then(function(buf){
+        window.opener.postMessage({stumpVoice:buf}, back, [buf]);
+        window.close();
+      });
+    };
+    rec.start(); b.textContent='\u25a0'; b.className='rec';
+    left=MAX_S; msg(T.recording+' '+left+' s');
+    tick=setInterval(function(){ left--; msg(T.recording+' '+left+' s'); }, 1000);
+    timer=setTimeout(function(){ if(rec) rec.stop(); }, MAX_S*1000);
+  }, function(){ msg(T.refused); });
+};
+"""
+
+
+def render_recorder(lang=None, origins=()):
+    """/rrc/rec: the voice recorder, opened by the chat over HTTPS. One
+    button; the audio goes back to the chat window, which sends it."""
+    if lang is None:
+        lang = i18n.DEFAULT_LANG
+    text = {"recording": i18n.t("voice_recording", lang), "sending": i18n.t("rec_sending", lang),
+            "refused": i18n.t("rec_refused", lang), "no_opener": i18n.t("rec_no_opener", lang)}
+    return (
+        "<!DOCTYPE html>" + theme.html_open() + "<head><meta charset='utf-8'>"
+        "<meta name='viewport' content='width=device-width, initial-scale=1'>"
+        "<title>" + _esc(i18n.t("voice_record", lang)) + " — Stump</title><style>" + theme.CSS +
+        "body{display:flex;flex-direction:column;align-items:center;justify-content:center;"
+        "min-height:90vh;text-align:center;gap:1em}"
+        "#rec{font-size:3em;width:2.2em;height:2.2em;border-radius:50%}"
+        "#rec.rec{background:var(--ember-bright,#e33);color:#fff}"
+        "</style><script>" + theme.startup_script() + "</script></head><body>"
+        "<p>" + _esc(i18n.t("rec_hint", lang)) + "</p>"
+        "<button id='rec' aria-label='" + _attr(i18n.t("voice_record", lang)) + "'>\u266a</button>"
+        "<p id='say'></p>"
+        "<script>" + REC_SCRIPT.replace("REC_TEXT", _js(text)).replace("REC_ORIGINS", _js(list(origins))) + "</script>"
         "</body></html>"
     )

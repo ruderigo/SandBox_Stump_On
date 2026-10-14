@@ -47,6 +47,7 @@ TESTS = [
     ("admin_theme_tools", "assert", []),
     ("admin_session_layout", "assert", []),
     ("hardening", "assert", []),
+    ("https_voice", "assert", []),
 ]
 
 _NORM = [

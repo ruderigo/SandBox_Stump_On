@@ -46,14 +46,14 @@ class Wr:
     async def wait_closed(s): pass
 
 
-def req(path, body=b'', headers=(), method=None, declared=None):
+def req(path, body=b'', headers=(), method=None, declared=None, secure=False):
     """-> (status, content_type, body_text)"""
     method = method or ('POST' if body or declared is not None else 'GET')
     hl = [('%s %s HTTP/1.1\r\n' % (method, path)).encode()]
     if method == 'POST':
         hl.append(('Content-Length: %d\r\n' % (len(body) if declared is None else declared)).encode())
     hl += [(h + '\r\n').encode() for h in headers] + [b'\r\n']
-    w = Wr(); asyncio.run(barkeep._handle(Rd(hl, body), w))
+    w = Wr(); asyncio.run(barkeep._handle(Rd(hl, body), w, secure=secure))
     raw = b''.join(w.w); head, _, out = raw.partition(b'\r\n\r\n')
     head = head.decode()
     LAST_HEAD[0] = head

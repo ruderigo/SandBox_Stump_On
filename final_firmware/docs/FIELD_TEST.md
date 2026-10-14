@@ -215,6 +215,27 @@ See `PC.md`. A Mac or a Windows PC, and a Heltec.
 - [ ] Log out, restart the computer: the Stump comes back by itself.
 - [ ] `git pull` and `--pc` again: settings kept, the Stump restarts.
 
+## 12. Hardening (October 2026)
+
+- [ ] Six chat lines sent fast from one phone: the fourth comes back
+      `⧗ — you're typing too fast`; a few seconds later it works again.
+      The same from FireFly over LoRa.
+- [ ] Five wrong passwords on `/admin`: the sixth try, even the right
+      one, says `too many wrong passwords — try again in 30 s`. Another
+      phone can still log in.
+- [ ] Four billboard posts in a minute: the fourth is refused.
+- [ ] `/admin <pw> room vip minted` while a phone sits in `#vip`: the
+      phone lands in `#main` with a `⊘ #vip minted` private message.
+- [ ] `/admin <pw> mode hybrid`, then pull the power: after the restart
+      `/admin <pw> mode` still says `hybrid`; `/admin <pw> reset-access`
+      puts it back.
+- [ ] **(with a certificate)** `mpremote connect PORT run bench/tls_probe.py`
+      and the curl lines of `HTTPS_SETUP.md` step 0: send back the
+      summary. Then, on the Stump's Wi-Fi, the chat page is plain HTTP
+      (no padlock); in a private message ♪ opens a small window with a
+      padlock; record, ■: the window closes and the note arrives.
+      `/admin` has the padlock.
+
 ## What to send back
 
 - The boot log (from power-on to `Announced as`); its first line names
@@ -224,5 +245,6 @@ See `PC.md`. A Mac or a Windows PC, and a Heltec.
 - The iPhone ♪ answer, the APK download time, the 15 s Opus note time
   over LoRa, and the stamp-check time.
 - The RAM figures from `/admin` → Plugins.
+- The `tls_probe.py` summary (section 12), if the CAM has a certificate.
 - Anything that looked stuck: the last line on screen, or the last lines
   of the boot log.

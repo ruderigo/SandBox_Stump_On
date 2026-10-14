@@ -1,6 +1,14 @@
 # Changelog
 
 ## Unreleased
+- **HTTPS only where it's needed (H-01).** With a certificate, the chat
+  and the other pages now stay on plain HTTP: the chat polls every 2 s,
+  and over HTTPS each poll was a new secure handshake for the CAM. Voice
+  notes record in a small HTTPS window (`/rrc/rec`) that hands the
+  recording back to the chat; `/admin` still moves to HTTPS (a password
+  is typed there). The chat opened over HTTPS goes back to HTTP.
+  `bench/tls_probe.py`, which `docs/HTTPS_SETUP.md` step 0 runs, is in
+  the repo now.
 - **Hardening (October 2026 review, H-02 to H-08).**
   - **Forged LXMF messages are dropped.** A message whose signature
     doesn't match its sender never reaches the chat or the propagation

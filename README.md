@@ -1531,43 +1531,37 @@ Encrypt — **step-by-step with Firebase Hosting in
 `docs/HTTPS_SETUP.md`**), installed with
 `provisioner.py --install-cert PORT fullchain.pem privkey.pem`, the node
 also serves HTTPS on 443 (`stump_tls.py`; certificate in `/tls/` on
-internal flash). The captive DNS already answers every name with the
-node's address, so on its Wi-Fi that name reaches the node with a
-normal padlock, offline too. There is **no server-side redirect**: a
-page opened over plain HTTP on the Stump's Wi-Fi is a tiny page that
-asks the browser to fetch `https://<name>/tls-ok` and moves to HTTPS
-only if that works — so the *phone* checks the certificate against its
-own clock, and with an expired certificate, a wrong phone clock or no
-answer in 3 s the visitor just stays on HTTP, with no warning page. (A
-first version redirected from the server, which would have sent everyone
-into a warning once a certificate lapsed; an outside review caught it.)
-That also leaves captive-portal detection exactly as before. Background
-requests (polls, uploads, audio, downloads) are never touched; visitors
-on the router's LAN never try (there the name resolves to the internet).
-The guide recommends an ordinary TLD (`.org`, `.net`, `.com`): `.app` and
-`.dev` are HSTS-preloaded, so a lapsed certificate there would be an
-unbypassable error for anyone typing the name. `/admin` shows HTTPS status, the expiry
-date, and the days left (bold under 21) when the node's clock is set. With no certificate, or a MicroPython that
-can't serve TLS, nothing changes. `--install-cert` checks the key
-matches, the expiry, that the chain includes the intermediate, and the
-key type, before copying anything. `tls_probe.py` checks a board's TLS
-support and handshake time. The module is `stump_tls`, not `tls`:
-recent MicroPython has a built-in `tls` that would shadow it.
+internal flash). The captive DNS answers every name with the node's
+address, so on its Wi-Fi that name reaches the node with a normal
+padlock, offline too.
 
-*Status:* the real web server under MicroPython served HTTPS that a
-client verified like a browser (test CA, hostname `stump.labuche.app`,
-ECDHE-ECDSA-AES256-GCM); a plain-HTTP page on the Stump's Wi-Fi got the
-upgrade page (no redirect), `plain=1` the normal page, `/tls-ok` answered
-over HTTPS, polls and LAN visitors untouched; a wrong hostname refused.
-The upgrade page in a browser engine: valid certificate → HTTPS; failed
-fetch → stays on HTTP; no answer → HTTP after 3 s; a late answer can't
-cause a second jump. `--install-cert` checks tested
-on valid, mismatched, expired, near-expiry, intermediate-less, RSA and
-wildcard certificates. Not yet measured: handshake time and memory on
-the ESP32 itself, which matter more than usual because the Stump closes
-each connection after one request — on HTTPS, every chat poll (every
-2 s, per visitor) is a fresh handshake. `tls_probe.py` and the burst and
-parallel tests in `HTTPS_SETUP.md` step 0 measure exactly that.
+- **Only two things use it:** the voice recorder, a small window the
+  chat opens at `/rrc/rec` that records and hands the audio back to the
+  chat, and `/admin`, where a password is typed. The chat and the other
+  pages stay on plain HTTP: its 2-second polls would each be a new TLS
+  handshake for the CAM. The chat opened over HTTPS goes back to HTTP.
+- **The phone decides, never a warning page:** before using HTTPS the
+  browser fetches `https://<name>/tls-ok`; with an expired certificate,
+  a wrong phone clock or no answer, ♪ uses the phone's recorder app and
+  `/admin` stays on HTTP. Captive-portal detection is untouched, and
+  visitors on the router's LAN never try (there the name is the
+  internet's).
+- **Checks:** `--install-cert` checks the key matches, the expiry, the
+  intermediate and the key type before copying anything;
+  `bench/tls_probe.py` checks a board's TLS support and times its
+  handshakes. `/admin` shows the status, expiry and days left. The guide
+  recommends an ordinary TLD (`.app` and `.dev` are HSTS-preloaded: a
+  lapsed certificate there is an error nobody can click through).
+- The module is `stump_tls`, not `tls` (MicroPython has a built-in `tls`).
+
+*Status:* served under MicroPython to a client that verified it like a
+browser (test CA, ECDHE-ECDSA-AES256-GCM); the recorder window's hand-off
+tested in a browser engine with a fake microphone (record, hand back,
+encode to Opus, send; a recorder opened by another site refuses).
+`--install-cert` checks tested on valid, mismatched, expired,
+near-expiry, intermediate-less, RSA and wildcard certificates. Not yet
+measured on the ESP32 itself: handshake time and memory
+(`bench/tls_probe.py`, `HTTPS_SETUP.md` step 0).
 
 **Next field test:** `docs/FIELD_TEST.md` is the checklist for this
 build — what's new, in the order to check it on site, with the questions
@@ -1793,10 +1787,11 @@ Sideband unchanged:
   most 4× gain, capped at 15 s, refused under 0.6 s, then encoded at
   1200 and posted as raw frames to `POST /rrc/voice?to=&mode=`. Playback
   fetches `GET /rrc/voice?id=` (the recipient's own notes only).
-- **Two ways to record, one pipeline.** On a secure (HTTPS) page — a
-  node with a certificate, see `docs/HTTPS_SETUP.md` — ♪ records the
-  microphone live (`getUserMedia` + `MediaRecorder`) and ■ sends. On plain
-  HTTP, or if the visitor refuses microphone access, ♪ uses **HTML Media
+- **Two ways to record, one pipeline.** On a node with a certificate
+  (`docs/HTTPS_SETUP.md`), ♪ opens a small HTTPS window that records the
+  microphone live (`getUserMedia` + `MediaRecorder`), ■ hands it back to
+  the chat. Without one, if the phone refuses the certificate or the
+  window, or if the visitor refuses microphone access, ♪ uses **HTML Media
   Capture** (`<input type="file" accept="audio/*" capture>`): the device's
   own recorder makes the recording and hands back a file — no HTTPS
   needed. On iPhone, Safari may offer a file picker instead of a

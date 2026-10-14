@@ -16,12 +16,14 @@ How it fits together:
     with the Stump's address, so https://stump.example.app reaches the
     Stump, and the certificate is valid for that name -- no warning,
     even with no internet (phones already trust the issuing CA).
-  - Visitors who open a page over plain HTTP on the Stump's Wi-Fi get a
-    tiny page that asks their browser to fetch https://<hostname>/tls-ok;
-    only if that succeeds (certificate valid by the PHONE's clock) does it
-    move to HTTPS. Expired certificate, wrong clock, no answer: they stay
-    on HTTP, with no warning. Visitors on the router's LAN never try:
-    there the hostname resolves to the public internet, not this node.
+  - Only the voice recorder (/rrc/rec, a small window the chat opens)
+    and /admin use HTTPS; the chat and the other pages stay on plain HTTP,
+    where its 2-second polls cost no handshake. Before either, the
+    visitor's browser fetches https://<hostname>/tls-ok; only if that
+    succeeds (certificate valid by the PHONE's clock) is HTTPS used.
+    Expired certificate, wrong clock, no answer: plain HTTP and the
+    phone's recorder app, with no warning. Visitors on the router's LAN
+    never try: there the hostname resolves to the public internet.
 
 With no certificate installed, or a MicroPython without TLS server
 support, nothing changes: the node serves plain HTTP as before.

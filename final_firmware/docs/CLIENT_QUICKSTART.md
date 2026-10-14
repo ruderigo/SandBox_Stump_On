@@ -362,9 +362,12 @@ it aren't answered — though its `stump.node` beacon still announces.
 A node with a certificate installed (see `HTTPS_SETUP.md`) also serves
 HTTPS on 443 under its name, e.g. `https://stump.labuche.app`, reachable
 **on the node's own Wi-Fi** (its DNS answers every name with the node's
-address). Same API, same paths. A page opened over plain HTTP on the node's Wi-Fi first asks the
-browser to fetch `https://<name>/tls-ok` and moves to HTTPS only if that
-works; API requests are never redirected.
+address). Same API, same paths, but use plain HTTP for everything except
+what needs it: each HTTPS request is a full TLS handshake for the CAM
+(it closes every connection after one request), so polling over HTTPS
+every 2 s keeps it busy. The node's own web pages use HTTPS only for
+`/admin` and the voice recorder (`/rrc/rec`); `GET /rrc` over HTTPS
+answers `302` back to HTTP. API requests are never redirected.
 
 ## Identity model (WiFi/HTTP)
 

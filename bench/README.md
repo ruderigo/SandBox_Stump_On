@@ -7,6 +7,7 @@ Wi-Fi (leaving LoRa alone) fast enough:
 |---|---|---|
 | `relay_bench.py` | one CAM | How many file packets per second a Stump in the middle of a chain can forward (its CPU work), what encryption costs at the two ends, and MicroPython's socket overhead |
 | `profile_bench.py` | one CAM | Where the forwarding time goes: each step, garbage collection, and the parts of link encryption |
+| `tls_probe.py` | one CAM and a laptop | Whether the CAM can serve HTTPS, and how long each handshake takes and what it costs in memory (docs/HTTPS_SETUP.md, step 0) |
 | `wifi_bench.py` + `wifi_bench_host.py` | one CAM and a laptop | Real Wi-Fi speed from where the CAM sits (TCP and 483-byte UDP packets, both ways, with losses), and which channels are crowded around it |
 
 From the repository folder, with the CAM plugged in:

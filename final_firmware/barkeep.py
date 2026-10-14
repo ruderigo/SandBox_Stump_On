@@ -2134,6 +2134,15 @@ _NO_REDIRECT = ("/home-file", "/tls-ok", "/rrc/poll", "/rrc/voice", "/rrc/send",
                 "/files.json", "/plugins.json", "/chain.json", "/fw", "/tool?", "/lang", "/upload", "/post", "/chat")
 
 
+def _own_ap_ip():
+    """This Stump's address on its own Wi-Fi."""
+    try:
+        import chain
+        return chain.ap_ip()
+    except Exception:
+        return "192.168.4.1"
+
+
 def _https_upgrade_page(target, path):
     """A tiny page that tries HTTPS first. If the browser can fetch
     https://<host>/tls-ok -- certificate valid, by the phone's own clock --
@@ -2244,20 +2253,27 @@ async def _handle(reader, writer, secure=False):
         peer = writer.get_extra_info("peername")
         identifier = billboard._extract_ip(peer)
 
-        # With HTTPS set up (stump_tls.py), a page opened over plain HTTP on
-        # the Stump's own Wi-Fi moves to https://<hostname>/ -- a secure
-        # page, which is what lets browsers open the microphone -- but only
-        # if the BROWSER finds the certificate valid. A server-side redirect
-        # used to send visitors into a full-page warning once a certificate
-        # lapsed (or on a phone with a wrong clock). Now the phone checks,
-        # against its own clock, and stays on HTTP silently if anything is
-        # off. No redirect also leaves captive-portal detection as it was.
-        if not secure and method == "GET" and "plain=1" not in path \
-                and not any(path.startswith(p) for p in _NO_REDIRECT):
+        # HTTPS (stump_tls.py) is used for two things only: /admin, where a
+        # password is typed, and the voice recorder (/rrc/rec), because
+        # browsers only open the microphone on a secure page. Everything
+        # else stays on plain HTTP: the chat polls every 2 s, and on HTTPS
+        # each poll was a new secure handshake for the CAM -- a few people
+        # chatting kept it busy doing nothing else (review H-01).
+        # /admin over plain HTTP gets a tiny page that tries HTTPS first:
+        # only if the BROWSER finds the certificate valid (by the phone's own
+        # clock) does it move; otherwise it stays on HTTP, with no warning.
+        if not secure and method == "GET" and "plain=1" not in path and path.startswith("/admin"):
             target = tls.https_redirect(identifier, path)
             if target:
                 await _send(writer, "200 OK", _https_upgrade_page(target, path))
                 return
+        if secure and method == "GET" and (path == "/rrc" or path.startswith("/rrc?")):
+            # The chat itself, opened over HTTPS (an old bookmark, a link):
+            # back to plain HTTP, where its polls cost nothing.
+            host = headers.get("host", "").split(":")[0] or tls.status().get("host") or ""
+            await writer.awrite("HTTP/1.1 302 Found\r\nLocation: http://" + host + "/rrc\r\n"
+                                "Content-Length: 0\r\nConnection: close\r\n\r\n")
+            return
 
         if method == "GET" and path.startswith("/tls-ok"):
             # What the upgrade page fetches over HTTPS: reaching it at all
@@ -2797,9 +2813,20 @@ async def _handle(reader, writer, secure=False):
                          json.dumps({"replies": replies, "room": new_room}),
                          "application/json")
 
+        elif method == "GET" and path.startswith("/rrc/rec"):
+            # The voice recorder, opened by the chat in a small window over
+            # HTTPS (the only way a browser opens the microphone). It
+            # records and hands the audio back to the chat, which encodes
+            # and sends it as before.
+            origins = ["http://" + h for h in (tls.status().get("host"), _own_ap_ip(),
+                                                headers.get("host", "").split(":")[0]) if h]
+            await _send(writer, "200 OK", rrc_ui.render_recorder(i18n.get_lang(identifier), origins))
+
         elif method == "GET" and path.startswith("/rrc"):
             user = rrc.touch_user(identifier)
-            await _send(writer, "200 OK", rrc_ui.render_page(user["room"], user["nick"], i18n.get_lang(identifier)))
+            rec = None if secure else tls.https_redirect(identifier, "/rrc/rec")
+            await _send(writer, "200 OK", rrc_ui.render_page(user["room"], user["nick"],
+                                                             i18n.get_lang(identifier), rec_url=rec))
 
         elif method == "GET" and path.startswith("/flash"):
             # Pass the address the client actually used, so the Chrome
