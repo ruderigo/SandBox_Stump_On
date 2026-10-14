@@ -18,10 +18,17 @@ FEND, FESC, TFEND, TFESC = 0xC0, 0xDB, 0xDC, 0xDD
 FAIL = []
 
 
+def annotate(text):
+    """On GitHub Actions, a failure shows as an annotation (readable without the log)."""
+    if os.environ.get("GITHUB_ACTIONS"):
+        print("::error::" + text.replace("%", "%25").replace("\r", "").replace("\n", "%0A"))
+
+
 def check(name, cond, info=""):
     print(("PASS " if cond else "FAIL ") + name + ("" if cond else "  " + repr(info)[:300]))
     if not cond:
         FAIL.append(name)
+        annotate(name + ": " + repr(info)[:1500])
 
 
 def frames(raw):

@@ -27,10 +27,17 @@ SECRET = "pc-chain-secret"
 FAIL = []
 
 
+def annotate(text):
+    """On GitHub Actions, a failure shows as an annotation (readable without the log)."""
+    if os.environ.get("GITHUB_ACTIONS"):
+        print("::error::" + text.replace("%", "%25").replace("\r", "").replace("\n", "%0A"))
+
+
 def check(name, cond, info=""):
     print(("PASS " if cond else "FAIL ") + name + ("" if cond else "  " + repr(info)[:300]))
     if not cond:
         FAIL.append(name)
+        annotate(name + ": " + repr(info)[:1500])
 
 
 def get(path, data=None):
@@ -75,6 +82,11 @@ while time.time() - t0 < 60:
     except Exception:
         time.sleep(1)
 check("the computer Stump starts and serves /node.json", bool(lxmf))
+early_log = None
+if not lxmf:
+    node.kill()
+    early_log = node.communicate()[0]
+    annotate("computer Stump log: " + early_log[-3000:])
 if lxmf:
     for path in ("/", "/tools", "/rrc", "/admin", "/p/tavern/", "/p/rnfs/"):
         s, body = get(path)
@@ -109,13 +121,16 @@ if lxmf and HAVE_MP:
     out = cam.communicate()[0]
     check("the CAM's hello was answered", "uplink answered" in out, out[-500:])
 
-node.terminate()
-try:
-    log = node.communicate(timeout=20)[0]
-except subprocess.TimeoutExpired:
-    node.kill()
-    log = node.communicate()[0]
-check("no tracebacks in the computer Stump's log", "Traceback" not in log, log[log.find("Traceback"):][:800])
+if early_log is not None:
+    log = early_log
+else:
+    node.terminate()
+    try:
+        log = node.communicate(timeout=20)[0]
+    except subprocess.TimeoutExpired:
+        node.kill()
+        log = node.communicate()[0]
+check("no tracebacks in the computer Stump's log", "Traceback" not in log, log[log.find("Traceback"):][:1500])
 shutil.rmtree(work, ignore_errors=True)
 print("FAILURES", FAIL)
 sys.exit(1 if FAIL else 0)
