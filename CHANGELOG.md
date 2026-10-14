@@ -1,22 +1,22 @@
 # Changelog
 
 ## Unreleased
-- **#chained works when the Stumps start at different times.** A Stump
+- **#mesh works when the Stumps start at different times.** A Stump
   knew another one as a Stump only from its beacon, sent at boot and
   then every half hour: the one started second never heard the first's,
-  so nothing crossed in #chained and a DM to the other Stump landed in
+  so nothing crossed in #mesh and a DM to the other Stump landed in
   #lora. Now a new chain link makes both ends announce themselves right
   away, a Stump is also recognised by what it sends, and anyone reached
-  over the chain lands in #chained, never #lora.
-- **DMs between people on different Stumps.** People seen in #chained
+  over the chain lands in #mesh, never #lora.
+- **DMs between people on different Stumps.** People seen in #mesh
   on another Stump are DM contacts as `rod@LaBuche`; `/msg rod@LaBuche
   ...` reaches rod privately, who answers the same way. A DM to a Stump
-  itself shows in that Stump's #chained, addressed to it (`@LaBuche ...`).
-- **`#chained`: the Stumps of a chain talk among themselves, `#lora`
-  stays for LoRa.** On a Stump in a chain, the other Stumps are taken
-  into `#chained` as soon as their beacon is heard over the chain --
+  itself shows in that Stump's #mesh, addressed to it (`@LaBuche ...`).
+- **`#mesh`: the Stumps of a chain talk among themselves, `#lora`
+  stays for LoRa.** (One word, the same in every language.) On a Stump in a chain, the other Stumps are taken
+  into `#mesh` as soon as their beacon is heard over the chain --
   no one has to message them first -- and anyone on any Stump can
-  `/join chained`. Only chat lines cross between Stumps: each Stump
+  `/join mesh`. Only chat lines cross between Stumps: each Stump
   sends its own people's lines, shown as `<nick@thatstump>` on the
   others, never relayed twice, without the joins, parts and renames
   that used to arrive glued together on one line (and the doubled

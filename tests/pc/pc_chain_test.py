@@ -4,7 +4,7 @@
 #   2. stump_pc.py started from it, as the first Stump of a chain;
 #   3. a CAM -- the real MicroPython chain and LXMF code -- joins it with
 #      the chain secret and sends a chat line;
-#   4. checked over HTTP: pages, the Tools page, the chain, the line in #chained.
+#   4. checked over HTTP: pages, the Tools page, the chain, the line in #mesh.
 # Needs: the cryptography package, and MICROPYTHON (a MicroPython unix port).
 # Run: MICROPYTHON=micropython python3 tests/pc/pc_chain_test.py
 import json, os, shutil, subprocess, sys, tempfile, time, urllib.request
@@ -119,12 +119,12 @@ if lxmf and HAVE_MP:
                            cwd=fw, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     arrived = False
     t0 = time.time()
-    get("/rrc/send", b"/join chained")
+    get("/rrc/send", b"/join mesh")
     while time.time() - t0 < 90 and not arrived:
         time.sleep(3)
-        poll = json.loads(get("/rrc/poll?room=chained&since=0")[1])
+        poll = json.loads(get("/rrc/poll?room=mesh&since=0")[1])
         arrived = any(m["body"] == "hello from the CAM" and m["nick"] == "camtest" for m in poll["messages"])
-    check("a CAM joins it over the chain, and its chat line arrives in #chained (not #lora)", arrived)
+    check("a CAM joins it over the chain, and its chat line arrives in #mesh (not #lora)", arrived)
     below = json.loads(get("/chain.json")[1])["below"]
     check("the CAM is listed below the computer", "127.0.5.2" in below, below)
     cam.kill()

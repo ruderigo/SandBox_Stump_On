@@ -629,7 +629,7 @@ class LXMRouter:
             log("LXMF link packet: " + str(len(lxmf_data)) + "B", LOG_DEBUG)
 
             message = LXMessage.unpack_from_bytes(lxmf_data)
-            message.receiving_interface = getattr(packet, "receiving_interface", None)   # which link it came in on (rrc_mesh: #chained)
+            message.receiving_interface = getattr(packet, "receiving_interface", None)   # which link it came in on (rrc_mesh: #mesh)
             message.transport_encrypted = True
             message.transport_encryption = "Curve25519"
 
@@ -685,7 +685,7 @@ class LXMRouter:
             log("LXMF resource unpacking: " + str(len(lxmf_data)) + "B", LOG_DEBUG)
 
             message = LXMessage.unpack_from_bytes(lxmf_data)
-            message.receiving_interface = getattr(getattr(resource, "link", None), "attached_interface", None)   # which link it came in on (rrc_mesh: #chained)
+            message.receiving_interface = getattr(getattr(resource, "link", None), "attached_interface", None)   # which link it came in on (rrc_mesh: #mesh)
             message.transport_encrypted = True
             message.transport_encryption = "Curve25519"
 
@@ -735,7 +735,7 @@ class LXMRouter:
 
             log("LXMF unpacking: " + str(len(lxmf_data)) + "B total", LOG_DEBUG)
             message = LXMessage.unpack_from_bytes(lxmf_data)
-            message.receiving_interface = getattr(packet, "receiving_interface", None)   # which link it came in on (rrc_mesh: #chained)
+            message.receiving_interface = getattr(packet, "receiving_interface", None)   # which link it came in on (rrc_mesh: #mesh)
 
             if message.signature_validated:
                 log("LXMF message from " + message.source_hash.hex()[:8] +

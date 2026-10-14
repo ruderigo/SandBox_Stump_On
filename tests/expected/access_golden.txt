@@ -11,7 +11,7 @@
 >> 51 /me waves -> ['auth required for that -- send /auth to verify your identity'] None
 >> 51 /topic -> ['#main topic: General. Be decent.'] None
 >> 51 /topic t -> ['auth required for that -- send /auth to verify your identity'] None
->> 51 /rooms -> ['#main ·3  General. Be decent.', '#lora ·0  Mesh/LoRa traffic lands here by default.'] None
+>> 51 /rooms -> ['#main ·3  General. Be decent.', '#lora ·0  LoRa (radio) traffic lands here by default.'] None
 >> 51 /names -> ['#main: alice, bob, carol'] None
 >> 51 /whoami -> ['not verified this session -- /auth to prove an identity'] None
 >> 51 /whoami x -> ['? /whoami — unknown command: /whoami  (try /help)'] None
@@ -45,7 +45,7 @@
 >> 50 /admin pw mode open -> ['mode set to open'] None
 >> 50 /admin pw room vip minted -> ['#vip is now minted'] None
 >> 50 /admin pw room club hybrid -> ['#club is now hybrid'] None
->> 51 /rooms -> ['#main ·3  General. Be decent.', '#club ·0  [hybrid]', '#lora ·0  Mesh/LoRa traffic lands here by default.', '#vip ·0  [minted]'] None
+>> 51 /rooms -> ['#main ·3  General. Be decent.', '#club ·0  [hybrid]', '#lora ·0  LoRa (radio) traffic lands here by default.', '#vip ·0  [minted]'] None
 >> 51 /join vip -> ['⊘ #vip minted — that room requires a verified identity -- send /auth first'] None
 >> 51 /join club -> ['⊘ #club hybrid — that room is invite-only for unverified visitors -- ask someone already inside to /invite you'] None
 >> 52 /auth -> ['AUTH-CHALLENGE <nonce>'] None

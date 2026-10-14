@@ -1,5 +1,5 @@
-# #lora (once #lxmf) and #chained: the other Stumps of a chain land in
-# #chained, are taken in from their beacon alone, and only chat lines go
+# #lora (once #lxmf) and #mesh: the other Stumps of a chain land in
+# #mesh, are taken in from their beacon alone, and only chat lines go
 # between Stumps -- each Stump's own people's, as "<nick@stump>" on the
 # other side, never relayed twice, never joins and parts.
 import sys
@@ -24,13 +24,14 @@ i18n.set_lang(W, 'en')
 rrc.touch_user(W, nick='bob', room='main')
 r, room = rrc.handle_input(W, 'main', '/join lxmf')
 check("/join lxmf lands in #lora", room == "lora", (r, room))
-check("no #chained outside a chain", not rrc.room_exists("chained"))
+check("no #mesh outside a chain", not rrc.room_exists("mesh"))
 rrc.post("lxmf", "bob", "hi")
 check("a line to #lxmf is in #lora", rrc.since("lora", 0)[-1]["body"] == "hi")
 
 # a chain
 rrc.open_chain_room()
-check("#chained once in a chain", rrc.room_exists("chained") and "Stumps" in rrc.topic("chained", "en"))
+check("#chained (its first name) still reaches #mesh", rrc.room_exists("mesh") and rrc.clean_room("chained") == "mesh")
+check("#mesh once in a chain", rrc.room_exists("mesh") and "Stumps" in rrc.topic("mesh", "en"))
 
 
 class ChainHubInterface:
@@ -72,23 +73,23 @@ class Router:
 R = Router()
 rrc_mesh._take_in_chain_stumps(R)
 p = rrc_mesh._peers.get(LAPTOP)
-check("a Stump on the chain is taken in from its beacon, into #chained", p and p["room"] == "chained"
+check("a Stump on the chain is taken in from its beacon, into #mesh", p and p["room"] == "mesh"
       and p["stump"] and p["nick"] == "Laptop", p)
-check("its arrival shows in #chained", any("~Laptop" in m["body"] for m in rrc.since("chained", 0)))
+check("its arrival shows in #mesh", any("~Laptop" in m["body"] for m in rrc.since("mesh", 0)))
 check("a Stump heard over LoRa only isn't", FAR not in rrc_mesh._peers)
 check("a phone isn't a Stump: not taken in", PHONE not in rrc_mesh._peers)
 
 # out: only local chat lines
-rrc.touch_user(W, nick='bob', room='chained')
-rrc.post("chained", "bob", "hello chain")
-rrc.post("chained", "bob", "waves", kind="action")
-rrc.system("chained", rrc.ev_join("carol"))
+rrc.touch_user(W, nick='bob', room='mesh')
+rrc.post("mesh", "bob", "hello chain")
+rrc.post("mesh", "bob", "waves", kind="action")
+rrc.system("mesh", rrc.ev_join("carol"))
 rrc_mesh._flush_to_peer(R, LAPTOP, p)
 batch = rrc_mesh._send_queue[-1]
 text = batch[2]
 check("to the other Stump: the chat lines", "<bob> hello chain" in text and "* bob waves" in text, text)
 check("... not the notices", "✓" not in text and "carol" not in text, text)
-check("... titled #chained", batch[3] == "#chained", batch)
+check("... titled #mesh", batch[3] == "#mesh", batch)
 del rrc_mesh._send_queue[:]
 
 
@@ -108,9 +109,9 @@ class Msg:
         return getattr(self, "title", "")
 
 
-before = len(rrc.since("chained", 0))
+before = len(rrc.since("mesh", 0))
 rrc_mesh.on_message(R, Msg("<macOS> hello\n✓ ~LaBuche\n* macOS smiles\n✎ guest-b57d → macOS"))
-new = rrc.since("chained", 0)[before:]
+new = rrc.since("mesh", 0)[before:]
 check("each line on its own, as nick@stump", [(m["nick"], m["body"], m["kind"]) for m in new]
       == [("macOS@Laptop", "hello", "msg"), ("macOS@Laptop", "smiles", "action")], new)
 check("no greeting or 'moved' sent back to a Stump", rrc_mesh._send_queue == [], rrc_mesh._send_queue)
@@ -124,7 +125,7 @@ path(OTHER, ChainHubInterface())
 rrc.mark_stump(OTHER)
 rrc_mesh._take_in_chain_stumps(R)
 q = rrc_mesh._peers[OTHER]
-rrc.post("chained", "bob", "to everyone")
+rrc.post("mesh", "bob", "to everyone")
 rrc_mesh._flush_to_peer(R, OTHER, q)
 text = rrc_mesh._send_queue[-1][2] if rrc_mesh._send_queue else ""
 check("another Stump: local lines only", "<bob> to everyone" in text and "macOS" not in text, text)
@@ -135,35 +136,35 @@ del Transport.path_table[bytes.fromhex(PHONE)]
 peer = rrc_mesh._get_peer(PHONE, "Rod")
 check("a LoRa user lands in #lora", peer["room"] == "lora" and not peer["stump"], peer)
 
-# a Stump that talked before its path was known moves to #chained
+# a Stump that talked before its path was known moves to #mesh
 LATE = '34' * 16
 peer = rrc_mesh._get_peer(LATE, "Late")
 check("unknown yet: #lora", peer["room"] == "lora")
 rrc.mark_stump(LATE)
 path(LATE, ChainHubInterface())
 rrc_mesh._take_in_chain_stumps(R)
-check("then moved to #chained", rrc_mesh._peers[LATE]["room"] == "chained" and rrc_mesh._peers[LATE]["stump"])
+check("then moved to #mesh", rrc_mesh._peers[LATE]["room"] == "mesh" and rrc_mesh._peers[LATE]["stump"])
 
 # A Stump whose beacon wasn't heard (it comes every half hour): known by
-# what it sends -- a room batch titled "#chained" -- and moved there.
+# what it sends -- a room batch titled "#mesh" -- and moved there.
 NEW = '56' * 16
 path(NEW, ChainHubInterface())
 m = Msg("<ann> hi all")
 m.source_hash = bytes.fromhex(NEW)
-m.title = "#chained"
+m.title = "#mesh"
 rrc_mesh.on_message(R, m)
-check("no beacon: a chain Stump is known by its #chained batch", rrc_mesh._peers[NEW]["stump"]
-      and rrc_mesh._peers[NEW]["room"] == "chained" and rrc.is_stump(NEW), rrc_mesh._peers[NEW])
+check("no beacon: a chain Stump is known by its #mesh batch", rrc_mesh._peers[NEW]["stump"]
+      and rrc_mesh._peers[NEW]["room"] == "mesh" and rrc.is_stump(NEW), rrc_mesh._peers[NEW])
 check("... and its line shows as ann@<it>", any(x["body"] == "hi all" and x["nick"].startswith("ann@")
-                                                for x in rrc.since("chained", 0)))
+                                                for x in rrc.since("mesh", 0)))
 check("... not in #lora", not any("hi all" in x["body"] for x in rrc.since("lora", 0)))
 del rrc_mesh._send_queue[:]
 
-# Someone on the chain who isn't a Stump (Sideband over the chain): #chained too
+# Someone on the chain who isn't a Stump (Sideband over the chain): #mesh too
 PERSON = '78' * 16
 path(PERSON, ChainHubInterface())
 peer = rrc_mesh._get_peer(PERSON, "Sid")
-check("a person over the chain lands in #chained, not #lora", peer["room"] == "chained" and not peer["stump"], peer)
+check("a person over the chain lands in #mesh, not #lora", peer["room"] == "mesh" and not peer["stump"], peer)
 del rrc_mesh._send_queue[:]
 
 # DMs between people on two Stumps
@@ -171,12 +172,12 @@ rrc.NODE = {"name": "LaBuche", "lxmf": "00" * 16}
 rrc_mesh.on_message(R, Msg("<rod> anyone?"))
 check("people on the other Stump become DM contacts as rod@Laptop", "rod@Laptop" in rrc.reachable_nicks(),
       rrc.reachable_nicks())
-r, _ = rrc.handle_input(W, 'chained', '/msg rod@Laptop see you at 6')
+r, _ = rrc.handle_input(W, 'mesh', '/msg rod@Laptop see you at 6')
 p = rrc_mesh._peers[LAPTOP]
 rrc_mesh._flush_to_peer(R, LAPTOP, p)
 text = rrc_mesh._send_queue[-1][2] if rrc_mesh._send_queue else ""
 check("/msg rod@Laptop goes to the laptop Stump as a DM line", "[DM>rod] <bob> see you at 6" in text, (r, text))
-check("... and not into #chained", not any("see you" in x["body"] for x in rrc.since("chained", 0)))
+check("... and not into #mesh", not any("see you" in x["body"] for x in rrc.since("mesh", 0)))
 del rrc_mesh._send_queue[:]
 rrc_mesh._flush_to_peer(R, LAPTOP, p)
 check("... once", rrc_mesh._send_queue == [], rrc_mesh._send_queue)
@@ -184,14 +185,14 @@ rrc_mesh.on_message(R, Msg("[DM>bob] <rod> ok, 6 it is"))
 got = rrc.dms_since(W, 0)
 check("a DM from rod on the laptop reaches bob here, from rod@Laptop", any(d["nick"] == "rod@Laptop" and d["body"] == "ok, 6 it is"
                                                                        for d in got), got)
-check("... privately: not in #chained", not any("6 it is" in x["body"] for x in rrc.since("chained", 0)))
+check("... privately: not in #mesh", not any("6 it is" in x["body"] for x in rrc.since("mesh", 0)))
 rrc_mesh.on_message(R, Msg("[DM>nobody] <rod> hello?"))
 q = rrc_mesh._send_queue[-1][2] if rrc_mesh._send_queue else ""
 check("a DM to no one here: the sender is told", q == "[DM>rod] <LaBuche> ⊖ nobody", rrc_mesh._send_queue)
 del rrc_mesh._send_queue[:]
 rrc_mesh.on_message(R, Msg("[DM] <rod>: hey LaBuche"))
-check("a DM to this Stump itself shows in #chained, addressed to it", any(x["nick"] == "rod@Laptop" and x["body"] == "@LaBuche hey LaBuche"
-                                                                         for x in rrc.since("chained", 0)))
+check("a DM to this Stump itself shows in #mesh, addressed to it", any(x["nick"] == "rod@Laptop" and x["body"] == "@LaBuche hey LaBuche"
+                                                                         for x in rrc.since("mesh", 0)))
 check("... never in #lora", not any("hey LaBuche" in x["body"] for x in rrc.since("lora", 0)))
 
 # No announce heard yet (no path): the link the message came in on decides
@@ -200,7 +201,7 @@ m = Msg("hello?")
 m.source_hash = bytes.fromhex(EARLY)
 m.receiving_interface = ChainHubInterface()
 rrc_mesh.on_message(R, m)
-check("no path yet: a message that came over the chain lands in #chained", rrc_mesh._peers[EARLY]["room"] == "chained",
+check("no path yet: a message that came over the chain lands in #mesh", rrc_mesh._peers[EARLY]["room"] == "mesh",
       rrc_mesh._peers[EARLY])
 LORA = 'bc' * 16
 m = Msg("hi from the radio")

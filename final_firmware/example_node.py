@@ -452,7 +452,7 @@ def main():
     if CHAIN:
         chain.attach(rns)
         import rrc as _rrc
-        _rrc.open_chain_room()     # #chained: the other Stumps of the chain
+        _rrc.open_chain_room()     # #mesh: the other Stumps of the chain
     gc.collect()
 
     if DEBUG >= 1:
@@ -525,7 +525,7 @@ def main():
             gc.collect()
             # Until the next beacon -- or sooner, when a new chain link
             # comes up: the Stump at the other end has to hear this
-            # beacon (and the LXMF announce) to put us in #chained.
+            # beacon (and the LXMF announce) to put us in #mesh.
             waited = 0
             while waited < STUMP_ANNOUNCE_INTERVAL:
                 await asyncio.sleep(5)

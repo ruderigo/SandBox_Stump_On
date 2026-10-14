@@ -148,7 +148,7 @@ def _remote_dm_lines(h):
 
 
 def _take_in_chain_stumps(router):
-    """Each cycle: Stumps on the chain become peers in #chained, and stay
+    """Each cycle: Stumps on the chain become peers in #mesh, and stay
     while their path is over the chain."""
     now = time.time()
     for h in list(rrc._stumps):
@@ -175,10 +175,10 @@ def _take_in_chain_stumps(router):
 
 
 def _from_stump(dest_hash_hex, peer, text, router=None):
-    """Lines from another Stump of the chain: "<nick> text" into #chained
+    """Lines from another Stump of the chain: "<nick> text" into #mesh
     as nick@thatstump, "* nick text" as an action, "[DM>rod] <nick> text"
     as a DM to rod here from nick@thatstump, "[DM] <nick>: text" (a DM to
-    this Stump itself) into #chained, addressed to it. Marked as relayed,
+    this Stump itself) into #mesh, addressed to it. Marked as relayed,
     so they go no further."""
     who = peer["nick"]
     me = (rrc.NODE or {}).get("name") or "?"
@@ -270,7 +270,7 @@ def _get_peer(dest_hash_hex, display_name, message=None):
         ident = plugins.service_lookup("identity")
         stump = _chain_stump(dest_hash_hex)
         if stump or _on_chain(dest_hash_hex, message):
-            # Over the chain: #chained, not #lora (which is for LoRa).
+            # Over the chain: #mesh, not #lora (which is for LoRa).
             room = rrc.CHAIN_ROOM
         elif ident is not None:
             room, allowed, redirect_reason = ident.mesh_landing_room(dest_hash_hex)

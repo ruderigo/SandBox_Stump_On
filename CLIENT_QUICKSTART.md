@@ -29,7 +29,7 @@ client relies on was removed or reworded:
 - LXMF messages with a bad signature are dropped, never shown.
 
 **After beta.3, on `main` for the next release:** `#lxmf` is renamed
-`#lora` (the old name still works; replies say `lora`); `#chained` on a
+`#lora` (the old name still works; replies say `lora`); `#mesh` on a
 Stump in a chain, with lines from other Stumps' people as
 `nick@thatstump` (see *The two rooms that always exist*); `/chain.json`
 gains `lan_ip`, where the first Stump also takes chain links on the
@@ -217,7 +217,7 @@ there instead (see `COMMANDS.md` for the tier system). Don't hardcode
 `#main` as the universal "go home" target in a mesh client — track the
 room the peer actually landed in first, or read the server's reply.
 
-**`#chained`, on a Stump in a chain** (`/chain.json` has `"enabled":
+**`#mesh`, on a Stump in a chain** (`/chain.json` has `"enabled":
 true`). The other Stumps of the chain are in it, taken in as soon as
 their beacon is heard over the chain, and so are the people on every
 Stump who join it. Lines from another Stump's people show as
@@ -226,7 +226,7 @@ lines cross between Stumps, not joins and parts. Anyone reached over
 the chain lands there, not in `#lora`. People seen on another Stump are
 DM contacts as `nick@thatstump` (in `users`); `/msg rod@LaBuche text`
 reaches rod privately, and rod's answer arrives as a DM from
-`you@yourstump`. A DM to a Stump itself shows in its `#chained` as
+`you@yourstump`. A DM to a Stump itself shows in its `#mesh` as
 `@ThatStump text`.
 
 ---

@@ -76,7 +76,7 @@ assuming you know what "turn on hybrid" does.
 - [BarKeep, the librarian](#barkeep-the-librarian)
 - [HTTPS](#https)
 - [Internationalization](#internationalization)
-- [Chained Stumps](#chained-stumps)
+- [Chained Stumps](#mesh-stumps)
 - [Stump on a computer](#stump-on-a-computer)
 - [Plugins and packs](#plugins-and-packs)
 - [Configuration](#configuration)
@@ -631,7 +631,7 @@ error token. Moderation is on `/admin`. History:
 ## Chat and direct messages
 
 Rooms: `#main`, `#lora` (where the mesh arrives; `#lxmf` before
-1.0.0-beta.4, and the old name still works), `#chained` on a Stump in a
+1.0.0-beta.4, and the old name still works), `#mesh` on a Stump in a
 chain (the other Stumps and their people: lines show as
 `nick@thatstump`) and any made with `/join`. Every command and reply is in
 [`docs/COMMANDS.md`](final_firmware/docs/COMMANDS.md).

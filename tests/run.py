@@ -49,7 +49,7 @@ TESTS = [
     ("hardening", "assert", []),
     ("https_voice", "assert", []),
     ("librarian", "assert", []),
-    ("chained_room", "assert", []),
+    ("mesh_room", "assert", []),
 ]
 
 _NORM = [

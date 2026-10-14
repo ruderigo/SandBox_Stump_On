@@ -53,9 +53,10 @@ MESH_ROOM = "lora"
 # The other Stumps of a chain (chain.py) and the people on them talk in
 # CHAIN_ROOM, so #lora is left to the mesh -- LoRa phones and handhelds.
 # It exists only on a Stump that's in a chain (open_chain_room()).
-CHAIN_ROOM = "chained"
-# Old names still reach the room: #lxmf (before 1.0.0-beta.4) is #lora.
-ROOM_ALIASES = {"lxmf": MESH_ROOM}
+CHAIN_ROOM = "mesh"
+# Old names still reach the room: #lxmf (before 1.0.0-beta.4) is #lora,
+# #chained (on main for an afternoon) is #mesh.
+ROOM_ALIASES = {"lxmf": MESH_ROOM, "chained": CHAIN_ROOM}
 
 
 def canon(room):
@@ -70,7 +71,7 @@ _rooms = {DEFAULT_ROOM: [], MESH_ROOM: []}
 # a real one (which then shows as written, for everyone).
 _topics = {}
 _DEFAULT_TOPIC_KEYS = {DEFAULT_ROOM: "topic_default_main", MESH_ROOM: "topic_default_lora",
-                       CHAIN_ROOM: "topic_default_chained"}
+                       CHAIN_ROOM: "topic_default_mesh"}
 
 
 def open_chain_room():

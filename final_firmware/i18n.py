@@ -459,11 +459,11 @@ STRINGS = {
         "es": "General. Sé respetuoso.",
     },
     "topic_default_lora": {
-        "fr": "Le trafic du maillage (LoRa) arrive ici par défaut.",
-        "en": "Mesh/LoRa traffic lands here by default.",
-        "es": "El tráfico de la malla (LoRa) llega aquí por defecto.",
+        "fr": "Le trafic LoRa (radio) arrive ici par défaut.",
+        "en": "LoRa (radio) traffic lands here by default.",
+        "es": "El tráfico LoRa (radio) llega aquí por defecto.",
     },
-    "topic_default_chained": {
+    "topic_default_mesh": {
         "fr": "Les Stumps de la chaîne (Wi-Fi) et leurs gens se parlent ici.",
         "en": "The Stumps of the chain (Wi-Fi) and their people talk here.",
         "es": "Los Stumps de la cadena (Wi-Fi) y su gente hablan aquí.",
