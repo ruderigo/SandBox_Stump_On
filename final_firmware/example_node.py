@@ -412,6 +412,14 @@ def main():
     rns.config = CONFIG
 
     dest, router = setup_node(rns, NODE_NAME)
+    # Before any interface is up: announces heard in the first seconds
+    # (another Stump's beacon, on a chain) would otherwise be missed until
+    # its next re-announce, many minutes later.
+    try:
+        import rrc_mesh
+        rrc_mesh.install_announce_handler(router)
+    except Exception as e:
+        print("[rrc_mesh] announce handler not installed:", e)
     # Reported in /rrc/poll as "node", so a client can tell the Wi-Fi
     # session and the LXMF address are the same node.
     try:
@@ -443,6 +451,8 @@ def main():
     rns.setup_interfaces()
     if CHAIN:
         chain.attach(rns)
+        import rrc as _rrc
+        _rrc.open_chain_room()     # #chained: the other Stumps of the chain
     gc.collect()
 
     if DEBUG >= 1:

@@ -458,10 +458,15 @@ STRINGS = {
         "en": "General. Be decent.",
         "es": "General. Sé respetuoso.",
     },
-    "topic_default_lxmf": {
+    "topic_default_lora": {
         "fr": "Le trafic du maillage (LoRa) arrive ici par défaut.",
         "en": "Mesh/LoRa traffic lands here by default.",
         "es": "El tráfico de la malla (LoRa) llega aquí por defecto.",
+    },
+    "topic_default_chained": {
+        "fr": "Les Stumps de la chaîne (Wi-Fi) et leurs gens se parlent ici.",
+        "en": "The Stumps of the chain (Wi-Fi) and their people talk here.",
+        "es": "Los Stumps de la cadena (Wi-Fi) y su gente hablan aquí.",
     },
     # The key to the symbols used for room activity and DMs (rrc.ev_*).
     "plugin_error": {"fr": "{plugin} a eu un problème — ce n'est pas ta faute, réessaie plus tard", "en": "{plugin} had a problem — not your fault, try again later", "es": "{plugin} tuvo un problema — no es tu culpa, inténtalo más tarde"},

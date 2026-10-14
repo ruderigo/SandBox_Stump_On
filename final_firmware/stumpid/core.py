@@ -438,7 +438,7 @@ def load_state():
         AUTH_MODE = mode
     for room, tier in (data.get("rooms") or {}).items():
         if tier in VALID_TIERS and tier != "open":
-            _room_policy[room] = {"tier": tier, "invited": set()}
+            _room_policy[_canon(room)] = {"tier": tier, "invited": set()}
     return True
 
 
@@ -461,7 +461,7 @@ def reset_access():
 
 def mesh_landing_room(client_id):
     """The room a mesh peer should land in on first contact: rrc.MESH_ROOM
-    ("#lxmf"), always -- not a name this module chooses or configures.
+    ("#lora", once "#lxmf"), always -- not a name this module chooses or configures.
     That room exists unconditionally now (seeded in rrc.py exactly like
     #main), so there is nothing to set up first; a fresh, unconfigured
     node already has it. Auth is secondary to this, not a precondition
@@ -519,9 +519,18 @@ _room_policy = {}
 VALID_TIERS = ("open", "minted", "hybrid")
 
 
+def _canon(room):
+    """A room's current name (#lxmf became #lora)."""
+    try:
+        import rrc as _r
+        return _r.canon(room)
+    except Exception:
+        return room
+
+
 def room_tier(room):
     """'open' unless a stricter tier was explicitly set."""
-    pol = _room_policy.get(room)
+    pol = _room_policy.get(_canon(room))
     return pol["tier"] if pol else "open"
 
 
@@ -536,6 +545,7 @@ def set_room_tier(room, tier):
     """
     if tier not in VALID_TIERS:
         return False
+    room = _canon(room)
     if tier == "open":
         _room_policy.pop(room, None)
     else:
@@ -561,7 +571,7 @@ def invite_to_room(room, target_client_id):
     room is a no-op (invites don't apply there -- only a verified
     identity ever qualifies). Returns (ok, reason_if_not).
     """
-    pol = _room_policy.get(room)
+    pol = _room_policy.get(_canon(room))
     if pol is None or pol["tier"] != "hybrid":
         # A plain internal marker, NOT user-facing text: this function
         # only has target_client_id in scope, but the reply goes to
@@ -613,7 +623,7 @@ def can_join_room(client_id, room):
         return False, "needs_verified"
 
     # tier == "hybrid"
-    pol = _room_policy.get(room)
+    pol = _room_policy.get(_canon(room))
     if pol and client_id in pol.get("invited", ()):
         return True, None
     return False, "invite_only"

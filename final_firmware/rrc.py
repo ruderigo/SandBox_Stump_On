@@ -49,7 +49,18 @@ DEFAULT_ROOM = "main"
 # decide whether it exists or what it's called. That split is the
 # actual point: the room itself is core RRC/mesh-bridge behaviour, not
 # a feature of the identity plugin.
-MESH_ROOM = "lxmf"
+MESH_ROOM = "lora"
+# The other Stumps of a chain (chain.py) and the people on them talk in
+# CHAIN_ROOM, so #lora is left to the mesh -- LoRa phones and handhelds.
+# It exists only on a Stump that's in a chain (open_chain_room()).
+CHAIN_ROOM = "chained"
+# Old names still reach the room: #lxmf (before 1.0.0-beta.4) is #lora.
+ROOM_ALIASES = {"lxmf": MESH_ROOM}
+
+
+def canon(room):
+    """The room's current name for an old one (lxmf -> lora)."""
+    return ROOM_ALIASES.get(room, room)
 
 # room -> list of {"id", "ts", "nick", "body", "kind"}
 # kind: "msg" (normal), "action" (/me), "system" (joins, parts, topic)
@@ -58,7 +69,13 @@ _rooms = {DEFAULT_ROOM: [], MESH_ROOM: []}
 # stored: topic() shows them in the reader's language until someone sets
 # a real one (which then shows as written, for everyone).
 _topics = {}
-_DEFAULT_TOPIC_KEYS = {DEFAULT_ROOM: "topic_default_main", MESH_ROOM: "topic_default_lxmf"}
+_DEFAULT_TOPIC_KEYS = {DEFAULT_ROOM: "topic_default_main", MESH_ROOM: "topic_default_lora",
+                       CHAIN_ROOM: "topic_default_chained"}
+
+
+def open_chain_room():
+    """Called at boot on a Stump in a chain."""
+    _rooms.setdefault(CHAIN_ROOM, [])
 
 
 # Room activity and DM lines are symbols, not sentences: every reader
@@ -321,6 +338,10 @@ _stumps = set()
 MAX_STUMPS = 64
 
 
+def is_stump(client_id):
+    return client_id in _stumps
+
+
 def mark_stump(client_id):
     if client_id in _stumps:
         return
@@ -383,7 +404,7 @@ def clean_room(name):
     slug = "".join(out)
     while "--" in slug:
         slug = slug.replace("--", "-")
-    return slug.strip("-")
+    return canon(slug.strip("-"))
 
 
 def default_nick(client_id):
@@ -462,6 +483,7 @@ def nick_taken(nick, by_client):
 
 def users_in_room(room):
     _prune_users()
+    room = canon(room)
     return sorted(u["nick"] for u in _users.values() if u["room"] == room)
 
 
@@ -477,10 +499,11 @@ def room_names():
 
 
 def room_exists(room):
-    return room in _rooms
+    return canon(room) in _rooms
 
 
 def topic(room, lang=None):
+    room = canon(room)
     if room in _topics:
         return _topics[room]
     key = _DEFAULT_TOPIC_KEYS.get(room)
@@ -488,6 +511,7 @@ def topic(room, lang=None):
 
 
 def set_topic(room, text):
+    room = canon(room)
     if room not in _rooms:
         return False
     _topics[room] = _clean(text, 120)
@@ -510,13 +534,14 @@ def create_room(name):
     return slug, None
 
 
-def post(room, nick, body, kind="msg"):
+def post(room, nick, body, kind="msg", via=None):
     """Adds a line to a room. Returns the message, or None if rejected.
 
     Oldest messages are dropped past MAX_MESSAGES_PER_ROOM rather than
     refusing new ones -- a room that stops accepting messages when it
     fills up would be broken; one that forgets its oldest lines is just
     a scrollback limit, which is what every chat client has anyway."""
+    room = canon(room)
     if room not in _rooms:
         return None
     body = _clean(body, MAX_MESSAGE_LEN)
@@ -524,6 +549,10 @@ def post(room, nick, body, kind="msg"):
         return None
     msg = {"id": _next_id[0], "ts": time.time(), "nick": nick,
            "body": body, "kind": kind}
+    if via:
+        # Relayed from another Stump of the chain (rrc_mesh): never sent
+        # on to other Stumps, which hear the original themselves.
+        msg["via"] = via
     _next_id[0] += 1
     msgs = _rooms[room]
     msgs.append(msg)
@@ -540,6 +569,7 @@ def since(room, last_id):
     """Messages newer than last_id. The client polls with the highest id
     it has seen, so it only ever receives what it is actually missing --
     the whole room isn't re-sent on every poll."""
+    room = canon(room)
     if room not in _rooms:
         return []
     return [m for m in _rooms[room] if m["id"] > last_id]

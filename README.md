@@ -71,7 +71,7 @@ assuming you know what "turn on hybrid" does.
 - [Billboard](#billboard)
 - [Chat and direct messages](#chat-and-direct-messages)
 - [Voice notes](#voice-notes)
-- [LXMF propagation node](#lxmf-propagation-node)
+- [LXMF propagation node](#lora-propagation-node)
 - [Home page, navigation, About and Tools](#home-page-navigation-about-and-tools)
 - [BarKeep, the librarian](#barkeep-the-librarian)
 - [HTTPS](#https)
@@ -547,11 +547,11 @@ global mode above, not field-hardened.**
 
 ### 3. The mesh room
 
-A mesh user who messages the node lands in **`#lxmf`**, always there
-and seeded like `#main`, and is told so (`→ #lxmf`). If `#lxmf` has been
-given a tier (`/admin <password> room lxmf minted`) and they don't
+A mesh user who messages the node lands in **`#lora`**, always there
+and seeded like `#main`, and is told so (`→ #lora`). If `#lora` has been
+given a tier (`/admin <password> room lora minted`) and they don't
 qualify, they land in `#main` instead, told why. `/admin <password>
-meshroom` shows `#lxmf`'s current tier.
+meshroom` shows `#lora`'s current tier.
 
 **Status: tested across all three global modes; not yet exercised
 against a real mesh peer on real hardware.**
@@ -630,8 +630,10 @@ error token. Moderation is on `/admin`. History:
 
 ## Chat and direct messages
 
-Rooms: `#main`, `#lxmf` (where the mesh arrives) and any made with
-`/join`. Every command and reply is in
+Rooms: `#main`, `#lora` (where the mesh arrives; `#lxmf` before
+1.0.0-beta.4, and the old name still works), `#chained` on a Stump in a
+chain (the other Stumps and their people: lines show as
+`nick@thatstump`) and any made with `/join`. Every command and reply is in
 [`docs/COMMANDS.md`](final_firmware/docs/COMMANDS.md).
 
 - **Direct messages:** `/msg <nick> text`, or a name in *Message

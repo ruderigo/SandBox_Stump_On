@@ -67,6 +67,85 @@ def notify(dest_hash_hex, text):
     del _notices[:-20]
 
 
+# ── Stumps of the chain ───────────────────────────────────────────────
+# Another Stump reached over the chain (chain.py: Wi-Fi) is a peer like a
+# LoRa user, but lands in rrc.CHAIN_ROOM, not #lora, and is taken in as
+# soon as its beacon is heard -- no one has to message it first. Between
+# Stumps only chat lines travel, each Stump sending its own people's
+# lines (never what it relays, never joins and parts), and each line
+# shows as "<nick@thatstump>" on the other side.
+
+def _via_chain(dest_hash_bytes):
+    """True if the path to this destination comes in over a chain link."""
+    try:
+        from urns.transport import Transport
+        from urns import const
+        e = Transport.path_table.get(bytes(dest_hash_bytes))
+        return e is not None and type(e[const.IDX_PT_RECV_IF]).__name__.startswith("Chain")
+    except Exception:
+        return False
+
+
+def _chain_stump(dest_hash_hex):
+    """A Stump (heard by its beacon) on this Stump's chain."""
+    if not rrc.room_exists(rrc.CHAIN_ROOM) or not rrc.is_stump(dest_hash_hex):
+        return False
+    try:
+        return _via_chain(bytes.fromhex(dest_hash_hex))
+    except Exception:
+        return False
+
+
+def _take_in_chain_stumps(router):
+    """Each cycle: Stumps on the chain become peers in #chained, and stay
+    while their path is over the chain."""
+    now = time.time()
+    for h in list(rrc._stumps):
+        if not _chain_stump(h):
+            continue
+        p = _peers.get(h)
+        if p is not None:
+            p["last_seen"] = now
+            if not p.get("stump"):
+                # Talked to us before it was known as a chain Stump.
+                rrc.system(p["room"], rrc.ev_leave("~" + p["nick"]))
+                p["stump"], p["room"], p["home_room"] = True, rrc.CHAIN_ROOM, rrc.CHAIN_ROOM
+                p["last_sent_id"] = rrc.since(rrc.CHAIN_ROOM, 0)[-1]["id"] if rrc.since(rrc.CHAIN_ROOM, 0) else 0
+                rrc.system(rrc.CHAIN_ROOM, rrc.ev_join("~" + p["nick"]))
+                rrc.touch_user(h, nick=p["nick"], room=rrc.CHAIN_ROOM)
+            continue
+        name = None
+        try:
+            entry = router.peers.get(bytes.fromhex(h))
+            name = entry.get("name") if entry else None
+        except Exception:
+            pass
+        _get_peer(h, name)
+
+
+def _from_stump(dest_hash_hex, peer, text):
+    """Lines from another Stump of the chain into #chained: "<nick> text"
+    as nick@thatstump, "* nick text" as an action, anything else (a DM to
+    this node) as that Stump's. Marked as relayed, so they go no further."""
+    who = peer["nick"]
+    for line in text.split("\n"):
+        line = line.strip()
+        if not line:
+            continue
+        if line.startswith("<") and "> " in line:
+            nick, body = line[1:].split("> ", 1)
+            if nick and " " not in nick:
+                rrc.post(rrc.CHAIN_ROOM, nick + "@" + who, body, via=dest_hash_hex)
+                continue
+        if line.startswith("* ") and " " in line[2:]:
+            nick, body = line[2:].split(" ", 1)
+            rrc.post(rrc.CHAIN_ROOM, nick + "@" + who, body, kind="action", via=dest_hash_hex)
+            continue
+        if line[:1] in ("✓", "✗", "✎", "→", "⊖", "⊘", "⧗"):
+            continue           # an older Stump's room notices: not chat
+        rrc.post(rrc.CHAIN_ROOM, who, line, via=dest_hash_hex)
+
+
 # ── Peer state ────────────────────────────────────────────────────────
 
 def _prune_peers(now):
@@ -94,7 +173,8 @@ def _get_peer(dest_hash_hex, display_name):
         # Someone already reachable by DM keeps the exact nick people have
         # been using for them, instead of re-deriving it.
         nick = _reach[dest_hash_hex]["nick"] if dest_hash_hex in _reach else _make_nick(display_name, dest_hash_hex)
-        # Lands in rrc.MESH_ROOM ("#lxmf") unconditionally -- that room
+        # Lands in rrc.MESH_ROOM ("#lora", once "#lxmf") unconditionally
+        # (a Stump of this node's chain lands in rrc.CHAIN_ROOM instead) -- that room
         # is always present (seeded in rrc.py exactly like #main), so
         # this needs no configuration and no stumpid dependency to do
         # the basic triaging. Auth is secondary to this, not a
@@ -118,7 +198,10 @@ def _get_peer(dest_hash_hex, display_name):
         redirected = False
         redirect_reason = None
         ident = plugins.service_lookup("identity")
-        if ident is not None:
+        stump = _chain_stump(dest_hash_hex)
+        if stump:
+            room = rrc.CHAIN_ROOM
+        elif ident is not None:
             room, allowed, redirect_reason = ident.mesh_landing_room(dest_hash_hex)
             redirected = not allowed
         else:
@@ -136,6 +219,7 @@ def _get_peer(dest_hash_hex, display_name):
             # it's just "wherever mesh_landing_room() actually decided,"
             # not an assumption about what that should have been.
             "home_room": room,
+            "stump": stump,
             "last_seen": now,
             "last_sent_id": 0,
             # DMs get their own delivery marker, separate from the room
@@ -378,6 +462,11 @@ def on_message(router, message):
         # Greet once, on first contact only. _get_peer() can't do this
         # itself -- it has no router to send with, and it is also called
         # from prune paths where sending would be wrong.
+        if peer.get("stump"):
+            text = (message.content_as_string() or "").strip()
+            if text:
+                _from_stump(dest_hash_hex, peer, text)
+            return
         if first_contact:
             # Landing -- first time, or again after going quiet past
             # PEER_TIMEOUT, or redirected by a tiered #lxmf -- puts this
@@ -601,6 +690,7 @@ def _flush_to_peer(router, dest_hash_hex, peer):
         msgs = msgs[-POLL_LIMIT:]
 
     nick  = peer["nick"]
+    stump = peer.get("stump")
     lines = []
     for m in msgs:
         # Advance the marker for EVERY message examined, including the
@@ -610,6 +700,9 @@ def _flush_to_peer(router, dest_hash_hex, peer):
         # poll cycle, forever.
         peer["last_sent_id"] = m["id"]
         if m["nick"] == nick:
+            continue
+        if stump and (m["kind"] == "system" or m.get("via")):
+            # To another Stump: its own people's lines only, no notices.
             continue
         if m["kind"] == "system":
             lines.append(m["body"])
@@ -713,6 +806,10 @@ async def poll_loop(router):
             # present for PEER_TIMEOUT after their last transmission,
             # and exactly as reachable by /msg as they are live on the
             # mesh, no more and no less.
+            try:
+                _take_in_chain_stumps(router)
+            except Exception as e:
+                print("[rrc_mesh] chain peers:", e)
             now = time.time()
             _prune_peers(now)
             _prune_reach(now)

@@ -1,6 +1,21 @@
 # Changelog
 
 ## Unreleased
+- **`#chained`: the Stumps of a chain talk among themselves, `#lora`
+  stays for LoRa.** On a Stump in a chain, the other Stumps are taken
+  into `#chained` as soon as their beacon is heard over the chain --
+  no one has to message them first -- and anyone on any Stump can
+  `/join chained`. Only chat lines cross between Stumps: each Stump
+  sends its own people's lines, shown as `<nick@thatstump>` on the
+  others, never relayed twice, without the joins, parts and renames
+  that used to arrive glued together on one line (and the doubled
+  `<macOS> <macOS> hello`). Mesh users (phones, handhelds) still land
+  in the mesh room. Fixed on the way: announces heard in a Stump's
+  first seconds were missed by the chat bridge until the next
+  re-announce.
+- **`#lxmf` is now `#lora`.** The old name still works (`/join lxmf`,
+  `#lxmf text`, `/admin <pw> room lxmf hybrid`, `?room=lxmf`, a saved
+  tier); replies use the new one. (Room names are lowercase.)
 - **A computer joins the chain without leaving its Wi-Fi.** The first
   Stump of a chain, with a chain secret, also takes chain links on the
   Wi-Fi it joined (`WIFI_SSID`): a computer on that same network (home,
