@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.0.0-beta.3
 - **The Provisioner no longer edits your checkout.** A CAM's generated
   `config.py` used to be written into `final_firmware/config.py`, which
   made every later `git pull` refuse ("Your local changes ... would be

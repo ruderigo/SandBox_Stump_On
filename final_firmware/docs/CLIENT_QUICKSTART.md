@@ -8,24 +8,31 @@ you hit `AUTH-CHALLENGE` cold and start reverse-engineering source.
 you're looking at (a forwarded zip, an older doc, a snippet someone
 pasted into chat) disagrees with what's there, the repo wins.
 
-**This page matches firmware 1.0.0-beta.2.** What changed for clients
-since 1.0.0-beta.1 — additions only; nothing a beta.1 client relies on
-was removed or reworded:
+**This page matches firmware 1.0.0-beta.3.** What changed for clients
+since 1.0.0-beta.2 — additions, plus two limits; nothing a beta.2
+client relies on was removed or reworded:
 
-- **Chained Stumps:** a Stump's Wi-Fi may be `192.168.5.1`,
-  `192.168.6.1`… instead of `192.168.4.1` — use the phone's gateway
-  address. `GET /chain.json` is new. See *Chained Stumps* below.
-- **Large relayed transfers onto LoRa** stop after 48 KB per link every
-  10 minutes; voice notes and propagation syncs (16 KB) are untouched.
-- The `stump.node` beacon: read its first four elements and ignore any
-  more (see *Telling Stumps from people*).
+- **Stumps on a computer** (see *Stumps on a computer*), and
+  `GET /node.json`: the node's name, LXMF address, release, hotspot
+  address, chain role and features, without joining the chat — for
+  discovery (see *Addresses*).
+- `/tools.json` gains `sections` and each file's `section`, with app
+  URLs that name their folder (see *Apps and tools*).
+- **Search and sort as data:** `/files.json` rows carry `cat` and
+  `mtime` and take `?q=`, `?cat=`, `?sort=`; `/billboard.json` takes
+  `?q=` and `?sort=`. `POST /chat` with `Accept: application/json`
+  answers BarKeep the librarian's findings as data.
+- **Limits:** chat lines faster than 3 at once, then one every 2 s, get
+  `⧗ — …`; more than 3 billboard posts a minute per visitor get `429`.
+- **HTTPS only for `/admin` and the voice recorder (`/rrc/rec`)**;
+  `GET /rrc` over HTTPS answers `302` to HTTP.
+- LXMF messages with a bad signature are dropped, never shown.
 
-**After beta.2, on `main` for the next release:** Stumps on a computer
-(see *Stumps on a computer*); `GET /node.json`, the
-node's name, LXMF address, release, hotspot address, chain role and
-features, without joining the chat — for discovery (see *Addresses*);
-and `/tools.json` gains `sections` and each file's `section`, with app
-URLs that name their folder (see *Apps and tools*).
+Since 1.0.0-beta.1: chained Stumps (a Stump's Wi-Fi may be
+`192.168.5.1`, `192.168.6.1`… — use the phone's gateway address;
+`GET /chain.json`); large relayed transfers onto LoRa stop after 48 KB
+per link every 10 minutes; the `stump.node` beacon: read its first four
+elements and ignore any more.
 
 Already in beta.1, if you're coming from an older build: plugins
 (`!word` commands, `/p/<plugin>/` pages, `GET /plugins.json`), voice
@@ -308,7 +315,7 @@ formats: every endpoint, payload and limit a client touches.
 # Reference for client builders
 
 Everything the client teams have been given, in one place. Checked
-against the 1.0.0-beta.2 `barkeep.py`, `rrc.py`, `rrc_mesh.py`,
+against the 1.0.0-beta.3 `barkeep.py`, `rrc.py`, `rrc_mesh.py`,
 `billboard.py`, `fserv.py`, `plugins.py`, `chain.py` and
 `example_node.py` source; the JSON shapes below are the ones the
 firmware's own tests (`tests/`) check.
@@ -335,7 +342,7 @@ Use it to probe and label nodes:
 
 ```json
 {"name": "LaBuche", "lxmf": "53d91d2f…48e4", "version": "Beta A",
- "release": "1.0.0-beta.2", "ap_ip": "192.168.4.1", "chain": null,
+ "release": "1.0.0-beta.3", "ap_ip": "192.168.4.1", "chain": null,
  "features": ["chat", "billboard", "files", "about"]}
 ```
 
