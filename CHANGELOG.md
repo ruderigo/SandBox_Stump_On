@@ -1,6 +1,11 @@
 # Changelog
 
 ## Unreleased
+- **A shorter README (H-09).** From about 2,400 lines to about 1,100:
+  each feature is a short reference now, and the bug stories and test
+  write-ups it had collected moved, word for word, to
+  `docs/ENGINEERING_NOTES.md`. Out-of-date passages fixed on the way
+  (the mesh landing room, the LXMF signature warning).
 - **HTTPS only where it's needed (H-01).** With a certificate, the chat
   and the other pages now stay on plain HTTP: the chat polls every 2 s,
   and over HTTPS each poll was a new secure handshake for the CAM. Voice

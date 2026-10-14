@@ -216,6 +216,7 @@ EXPECTED_FILE_HASHES = {
     "docs/CHAIN.md": "83adce093766b03c",
     "docs/CLIENT_QUICKSTART.md": "2be207a1d7ebd7bf",
     "docs/COMMANDS.md": "a667cf1d3ba9e75c",
+    "docs/ENGINEERING_NOTES.md": "526b3ea96bc44873",
     "docs/FIELD_TEST.md": "9b00deca6e27e53f",
     "docs/HIDDEN_FEATURES.md": "053479ae239e0891",
     "docs/HOME_BRANDING.md": "e1a1a9cf854dcdce",
