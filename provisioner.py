@@ -311,9 +311,9 @@ EXPECTED_FILE_HASHES = {
     "billboard.py": "a7d1f3df668997ab",
     "boot_common.py": "d1f60dd4434752bf",
     "captive_portal.py": "35cb3a279ecc42db",
-    "chain.py": "346632abeeaba698",
-    "config.py": "5b92c320cb3fb3d7",
-    "docs/CHAIN.md": "83adce093766b03c",
+    "chain.py": "258cf375759f01d4",
+    "config.py": "ed7b475134824fb3",
+    "docs/CHAIN.md": "3e14fc8ce03d7171",
     "docs/CLIENT_QUICKSTART.md": "922d7ea7c5030597",
     "docs/COMMANDS.md": "af8d6dc391915325",
     "docs/ENGINEERING_NOTES.md": "526b3ea96bc44873",
@@ -322,9 +322,9 @@ EXPECTED_FILE_HASHES = {
     "docs/HOME_BRANDING.md": "e1a1a9cf854dcdce",
     "docs/HTTPS_SETUP.md": "12cbbf2de7c38810",
     "docs/PACKS.md": "2e89e3c28d80d72d",
-    "docs/PC.md": "692583bf55478f46",
+    "docs/PC.md": "d414f749a4a12b9f",
     "docs/PLUGINS.md": "3f5b4a5ee6844305",
-    "example_node.py": "5a39cc6c9cd4bec5",
+    "example_node.py": "bf438fa967018444",
     "features.py": "7fca96873d59d2d3",
     "flasher_ui.py": "1d3035b1132bc87e",
     "fserv.py": "50cebb82fdd6dce3",
@@ -3499,12 +3499,27 @@ def config_wizard(board_type):
                     print("  chain needs the same one: note it down.")
                     chain_cfg["secret"] = ask("  Chain secret", _secrets.token_hex(8)) or ""
                 else:
-                    print("  Join the other Stump's Wi-Fi from this computer's Wi-Fi settings.")
-                    chain_cfg["uplink_ssid"] = ask_wifi("  Wi-Fi name of the Stump this one joins", "LaBuche-Stump.web.app")
-                    print("  Its address is the \"Router\" in this computer's Wi-Fi details once it's")
-                    print("  joined (a CAM: 192.168.4.1) -- not this computer's own \"IP address\".")
+                    same = ask_choice("  How does this computer reach that Stump?", [
+                        "On the Wi-Fi it's on now (home, office): the Stump joined it too",
+                        "By joining the Stump's own Wi-Fi",
+                    ]).startswith("On the Wi-Fi")
+                    if same:
+                        print("  This computer stays on its Wi-Fi (and its internet). The Stump takes chain")
+                        print("  links there when it's the first Stump and has a chain secret. Its address")
+                        print("  is the \"On the Wi-Fi\" one in its setup summary (or: --get-ip PORT).")
+                        chain_cfg["uplink_ssid"] = "(this computer's Wi-Fi)"
+                        default_ip = ""
+                    else:
+                        print("  Join the other Stump's Wi-Fi from this computer's Wi-Fi settings.")
+                        chain_cfg["uplink_ssid"] = ask_wifi("  Wi-Fi name of the Stump this one joins",
+                                                            "LaBuche-Stump.web.app")
+                        print("  Its address is the \"Router\" in this computer's Wi-Fi details once it's")
+                        print("  joined (a CAM: 192.168.4.1) -- not this computer's own \"IP address\".")
+                        default_ip = "192.168.4.1"
                     while True:
-                        chain_cfg["parent_ip"] = ask("  That Stump's address", "192.168.4.1")
+                        chain_cfg["parent_ip"] = ask("  That Stump's address", default_ip)
+                        if not chain_cfg["parent_ip"]:
+                            continue
                         if _route_ip(chain_cfg["parent_ip"]) != chain_cfg["parent_ip"]:
                             break
                         print(yellow("  That's this computer's own address. The Stump it joins is the Router"
@@ -4514,6 +4529,10 @@ def _cam_after_board(r, port, app_dir):
                    "joins '%s'" % chain["uplink_ssid"])
             if chain.get("secret"):
                 r.note("Chain secret", chain["secret"])
+            if not chain.get("uplink_ssid") and chain.get("secret") and profile.get("wifi_ssid"):
+                r.note("Computers join", "on its own Wi-Fi at %s, or on '%s' at %s" % (
+                    (addrs or {}).get("ap") or "192.168.4.1", profile["wifi_ssid"],
+                    (addrs or {}).get("sta") or "its address there (--get-ip)"))
         r.end("done" if ok else "fail")
 
     # ── Verify
@@ -5188,7 +5207,8 @@ def chain_preflight(parent_ip, secret, ssid="", hello=chain_hello, get=_get_json
     whose web server refuses is usually still starting (a CAM takes about
     a minute after power-on): that's retried for up to `wait` seconds."""
     out = []
-    where = "'%s'" % ssid if ssid else "that Stump's Wi-Fi"
+    where = "'%s'" % ssid if ssid and not ssid.startswith("(") else \
+        "the network that Stump is on" if ssid else "that Stump's Wi-Fi"
     prefix = parent_ip.rsplit(".", 1)[0] + "."
     mine = route(parent_ip)
     if not mine or not mine.startswith(prefix):
@@ -5258,6 +5278,16 @@ def chain_preflight(parent_ip, secret, ssid="", hello=chain_hello, get=_get_json
                     "(or run its wizard: chain > 'The first Stump'), then restart it."))
         return out
     out.append((True, "That Stump is in a chain (%s)" % chain.get("role"), ""))
+    if chain.get("ap_ip") and parent_ip != chain["ap_ip"] and chain.get("lan_ip") != parent_ip:
+        # Reached on a shared network (home Wi-Fi), not on its own Wi-Fi.
+        why = ("it's not the first Stump" if chain.get("role") != "root" else
+               "it has no chain secret" if not chain.get("secret") else
+               "its firmware is older than 1.0.0-beta.4, or CHAIN_LAN = False in its config.py")
+        out.append((False, "That Stump takes chain links on this network",
+                    "It takes them on its own Wi-Fi only (%s): %s. Either join its Wi-Fi and use "
+                    "%s, or fix that (update it: provisioner.py, Check or fix > Re-upload the Stump "
+                    "files)." % (chain["ap_ip"], why, chain["ap_ip"])))
+        return out
     if chain.get("secret") and not secret:
         out.append((False, "The same chain secret on both",
                     "That Stump has a chain secret and this one has none. Run --pc --reconfigure "

@@ -1,6 +1,15 @@
 # Changelog
 
 ## Unreleased
+- **A computer joins the chain without leaving its Wi-Fi.** The first
+  Stump of a chain, with a chain secret, also takes chain links on the
+  Wi-Fi it joined (`WIFI_SSID`): a computer on that same network (home,
+  office) joins at the Stump's address there and keeps its internet.
+  The Provisioner asks which way ("On the Wi-Fi it's on now" or "By
+  joining the Stump's own Wi-Fi"), a CAM's summary says where computers
+  join, and the chain check says when a Stump doesn't take links on that
+  network and why. `CHAIN_LAN = False` turns it off; `/chain.json` gains
+  `lan_ip`.
 - **A computer joining a CAM: the right address.** The wizard says the
   Stump's address is the *Router* in the computer's Wi-Fi details, and
   refuses the computer's own address; the chain check, given its own

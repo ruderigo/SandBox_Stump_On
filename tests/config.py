@@ -157,6 +157,7 @@ CHAIN_UPLINK_PASS = ""
 CHAIN_SUBNET = 4           # this Stump's own Wi-Fi is 192.168.<this>.1: a different number on each Stump
 CHAIN_CHANNEL = 11         # first Stump only: the Wi-Fi channel the whole chain uses
 CHAIN_SECRET = ""          # the same on every Stump of the chain, so visitors can't join it
+CHAIN_LAN = True           # first Stump, with a secret: computers on the Wi-Fi it joined (WIFI_SSID) join there too
 
 # ---- Sensor Network config ----
 SENSOR_HUB = ""

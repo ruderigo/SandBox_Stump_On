@@ -20,6 +20,7 @@ import provisioner as P
 MP = os.environ.get("MICROPYTHON") or "micropython"
 HAVE_MP = shutil.which(MP) is not None or os.path.isfile(MP)
 CAM, PC, PORT, SECRET = "127.0.4.1", "127.0.5.2", 8095, "pc-chain-secret"
+CAM_LAN = "127.0.6.1"              # the CAM on the home Wi-Fi the computer stays on
 FAIL = []
 
 
@@ -103,6 +104,17 @@ r = P.chain_preflight(CAM, SECRET, route=on, hello=lambda *a: False,
                       get=fake_get({"/chain.json": {"enabled": True, "role": "root", "secret": True}}))
 check("hello refused: says the secrets differ, or the firewall", not last(r)[0] and "wrong chain secret" in last(r)[2]
       and "firewall" in last(r)[2], r)
+root_on_lan = {"enabled": True, "role": "root", "secret": True, "ap_ip": "192.168.4.1", "lan_ip": "192.168.0.161"}
+r = P.chain_preflight("192.168.0.161", SECRET, "(this computer's Wi-Fi)", route=lambda ip: "192.168.0.172",
+                      get=fake_get({"/chain.json": root_on_lan}), hello=lambda *a: True)
+check("on the home Wi-Fi with the CAM: every check passes", all(ok for ok, _, _ in r), r)
+old_cam = dict(root_on_lan, lan_ip=None)
+r = P.chain_preflight("192.168.0.161", SECRET, route=lambda ip: "192.168.0.172",
+                      get=fake_get({"/chain.json": old_cam}), hello=lambda *a: True)
+check("a CAM that doesn't take links on the home Wi-Fi: says why, and the other way", not last(r)[0]
+      and "own Wi-Fi only" in last(r)[2] and "192.168.4.1" in last(r)[2], r)
+r = P.chain_preflight("192.168.0.161", SECRET, route=lambda ip: "192.168.4.3")
+check("not on the CAM's network, home-Wi-Fi way: no made-up SSID", "(this" not in last(r)[2], r)
 r = P.check_remote_chain("192.168.5.1", get=fake_get({"/chain.json": {"enabled": True, "role": "member",
                          "uplink": {"ssid": "Stump 4", "ip": None}}}))
 check("a CAM member that hasn't joined: says what to check", not last(r)[0] and "CHAIN_UPLINK_SSID" in last(r)[2], r)
@@ -127,9 +139,12 @@ cam = subprocess.Popen([MP, os.path.join(ROOT, "tests", "mp", "pc_chain_cam_root
                        cwd=fw, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
 time.sleep(6)
 check("a wrong secret isn't let in", P.chain_hello(CAM, "not-the-secret", ME) is False)
-cam_chain = {"/chain.json": {"enabled": True, "role": "root", "secret": True}}
+check("a wrong secret isn't let in on the home Wi-Fi either", P.chain_hello(CAM_LAN, "not-the-secret", "127.0.6.9") is False)
+cam_chain = {"/chain.json": {"enabled": True, "role": "root", "secret": True, "ap_ip": CAM, "lan_ip": CAM_LAN}}
 r = P.chain_preflight(CAM, SECRET, "CAM", route=on, get=fake_get(cam_chain))
-check("the right secret is let in: every check passes", all(ok for ok, _, _ in r), r)
+check("the right secret is let in on its own Wi-Fi: every check passes", all(ok for ok, _, _ in r), r)
+r = P.chain_preflight(CAM_LAN, SECRET, "(this computer's Wi-Fi)", route=lambda ip: "127.0.6.9", get=fake_get(cam_chain))
+check("... and on the home Wi-Fi", all(ok for ok, _, _ in r), r)
 
 # 3. the computer Stump joins it
 folder = os.path.join(work, "Stump")
@@ -137,7 +152,7 @@ os.makedirs(folder)
 P._pc_copy_firmware(fw, folder)
 cfg = open(os.path.join(ROOT, "tests", "config.py"), encoding="utf-8").read()
 cfg += P._pc_config_block({"pc_hotspot_name": "CAM", "pc_heltec": "none",
-                           "chain": {"enabled": True, "uplink_ssid": "CAM", "parent_ip": CAM}})
+                           "chain": {"enabled": True, "uplink_ssid": "(this computer's Wi-Fi)", "parent_ip": CAM_LAN}})
 cfg += "\nPC_HTTP_PORT = %d\nPC_HOTSPOT_IP = %r\nCHAIN_ENABLED = True\nCHAIN_UPLINK_SSID = 'CAM'\nCHAIN_SECRET = %r\n" % (
     PORT, PC, SECRET)
 open(os.path.join(folder, "config.py"), "w", encoding="utf-8").write(cfg)
@@ -151,7 +166,7 @@ def get(path, data=None):
 
 
 real_and_cam = lambda url, timeout=4: P._get_json(url, timeout) if "127.0.0.1" in url else {"below": [PC]}
-r = P.chain_live(folder, CAM, wait=90, get=real_and_cam)
+r = P.chain_live(folder, CAM_LAN, wait=90, get=real_and_cam)
 check("live check: running, a member, answered by the CAM, listed below", all(ok for ok, _, _ in r) and len(r) == 3, r)
 lxmf = json.loads(get("/node.json"))["lxmf"]
 open(lxmf_file, "w").write(lxmf)

@@ -107,6 +107,14 @@ python3 scripts/chain_hello.py 192.168.5.1 <chain secret>
 
 It prints `in the chain` once the Stump has let it in.
 
+**On a shared network instead.** The first Stump of a chain, with a
+chain secret, also takes chain links on the Wi-Fi it joined itself
+(`WIFI_SSID`, e.g. home): a PC on that network points at the Stump's
+address there (`192.168.0.161`, say) instead of joining its Wi-Fi, and
+keeps its internet. Only with a secret, since anyone on that network
+could reach it; `CHAIN_LAN = False` turns it off. `GET /chain.json`
+shows the address as `lan_ip`.
+
 ## Checking it
 
 - **From a computer:** `python3 provisioner.py --check-chain 192.168.<n>.1`,

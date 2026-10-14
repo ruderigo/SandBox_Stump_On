@@ -1,7 +1,8 @@
 # A CAM Stump as the FIRST Stump of a chain, with a Stump on a computer
 # joining it (docs/PC.md, "The computer joining a CAM"): the real
-# MicroPython chain and LXMF code, on loopback. The CAM's hub is on
-# 127.0.4.1; the computer joins from 127.0.5.2. Once the test writes the
+# MicroPython chain and LXMF code, on loopback. The CAM's hubs are on
+# 127.0.4.1 (its Wi-Fi) and 127.0.6.1 (the home Wi-Fi); the computer
+# joins the second from 127.0.5.2, staying on its own network. Once the test writes the
 # computer's LXMF address to the file named on the command line, the CAM
 # sends it a chat line, and prints any message the computer sends back.
 # tests/pc/pc_joins_cam_test.py runs it.
@@ -17,8 +18,12 @@ import uasyncio as asyncio
 from node_common import setup_node
 
 rns = Reticulum(config_path=work + "/cam/config.json", loglevel=LOG_NONE)
+# Its own Wi-Fi (127.0.4.1), and the home Wi-Fi it joined (127.0.6.1):
+# the first Stump with a chain secret takes chain links on both (chain.py).
 rns.config = {"enable_transport": True, "interfaces": [
-    {"type": "ChainHubInterface", "listen_ip": "127.0.4.1", "listen_port": 4242,
+    {"type": "ChainHubInterface", "name": "Chain down", "listen_ip": "127.0.4.1", "listen_port": 4242,
+     "secret": "pc-chain-secret"},
+    {"type": "ChainHubInterface", "name": "Chain LAN", "listen_ip": "127.0.6.1", "listen_port": 4242,
      "secret": "pc-chain-secret"}]}
 dest, router = setup_node(rns, "camroot")
 
@@ -38,11 +43,11 @@ print("CAM lxmf", bytes(dest.hash).hex())
 
 
 async def main():
-    hub = rns.interfaces[0]
+    lan = rns.interfaces[1]
     t0 = time.time()
-    while not hub.peers and time.time() - t0 < 60:
+    while not lan.peers and time.time() - t0 < 60:
         await asyncio.sleep(0.5)
-    print("CAM", "computer joined below" if hub.peers else "FAIL nobody joined")
+    print("CAM", "computer joined below, on the home Wi-Fi" if lan.peers else "FAIL nobody joined")
     target = None
     while target is None:
         try:

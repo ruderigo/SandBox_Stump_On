@@ -105,7 +105,14 @@ first Stump", and note the chain secret. On each CAM, the wizard's
 same secret, and its own number. The computer lists who joined it in
 `/admin` → Stump chain and `GET /chain.json`.
 
-**The computer joining a CAM:** join the CAM's Wi-Fi from the
+**The computer and the CAM on the same Wi-Fi** (home, office): the
+computer stays on it, with its internet. In the wizard, "Joins another
+Stump's Wi-Fi", then "On the Wi-Fi it's on now", with the CAM's address
+there (its setup summary's *On the Wi-Fi*, e.g. `192.168.0.161`). The
+CAM must be the first Stump of the chain, have a chain secret, and run
+1.0.0-beta.4 or newer (`CHAIN_LAN = True`, the default).
+
+**The computer joining a CAM's own Wi-Fi:** join the CAM's Wi-Fi from the
 computer's Wi-Fi settings, and in the wizard choose "Joins another
 Stump's Wi-Fi" with the CAM's address (`192.168.<its number>.1`). With
 one Wi-Fi radio the computer can't also run a hotspot, so its visitors

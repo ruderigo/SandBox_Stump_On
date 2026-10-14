@@ -325,7 +325,8 @@ def main():
             chain_sta_ip, chain_parent_ip = chain.connect_uplink(CHAIN)
         except Exception as e:
             print("[chain] uplink not joined (" + str(e) + "); will keep trying")
-    elif needs_wifi(CONFIG):
+    elif needs_wifi(CONFIG) or (CHAIN and CHAIN["lan"] and CHAIN["secret"] and WIFI_SSID):
+        # (the first Stump of a chain also takes chain links there: chain.py)
         # Degrade, don't die. An unreachable upstream network (router
         # down, wrong password, or simply no WiFi where this is
         # deployed) used to raise straight out of main(), which main.py
@@ -433,10 +434,12 @@ def main():
         # Chain links, and transport on: a Stump in a chain relays for the
         # Stumps and PCs on either side of it.
         rns.config["interfaces"] = list(rns.config.get("interfaces", [])) + \
-            chain.interfaces(CHAIN, chain_sta_ip, chain_parent_ip, ap_ip)
+            chain.interfaces(CHAIN, chain_sta_ip, chain_parent_ip, ap_ip, lan_ip=ip)
         rns.config["enable_transport"] = True
-        print("[chain] %s on %s%s" % ("root" if chain.is_root(CHAIN) else "member", ap_ip,
-                                      ", channel %d" % CHAIN["channel"] if CHAIN["channel"] and chain.is_root(CHAIN) else ""))
+        print("[chain] %s on %s%s%s" % ("root" if chain.is_root(CHAIN) else "member", ap_ip,
+                                        ", channel %d" % CHAIN["channel"] if CHAIN["channel"] and chain.is_root(CHAIN) else "",
+                                        " and on %s (the Wi-Fi it joined)" % chain._state["lan_ip"]
+                                        if chain._state["lan_ip"] else ""))
     rns.setup_interfaces()
     if CHAIN:
         chain.attach(rns)

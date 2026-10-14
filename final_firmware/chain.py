@@ -22,13 +22,17 @@
 #   CHAIN_CHANNEL     = 11      # root only: the Wi-Fi channel the whole chain uses
 #   CHAIN_SECRET      = ""      # the same on every Stump of the chain (strongly advised)
 #   CHAIN_PORT        = 4242
+#   CHAIN_LAN         = True    # root only, with a secret: also take chain links on
+#                               # the Wi-Fi it joined (WIFI_SSID), so a computer on
+#                               # the same home network joins without switching Wi-Fi
 
 import time
 
 DEFAULT_SUBNET = 4
 DEFAULT_PORT = 4242
 
-_state = {"sta_ip": None, "parent_ip": None, "ap_ip": None, "uplink": None, "hub": None}
+_state = {"sta_ip": None, "parent_ip": None, "ap_ip": None, "uplink": None, "hub": None,
+          "hubs": [], "lan_ip": None}
 
 
 def settings():
@@ -56,6 +60,7 @@ def settings():
         "channel": channel if 1 <= channel <= 13 else 0,
         "secret": getattr(c, "CHAIN_SECRET", "") or "",
         "port": int(getattr(c, "CHAIN_PORT", DEFAULT_PORT) or DEFAULT_PORT),
+        "lan": bool(getattr(c, "CHAIN_LAN", True)),
     }
 
 
@@ -114,8 +119,13 @@ def connect_uplink(s, timeout=20):
     return ip, gw
 
 
-def interfaces(s, sta_ip, parent_ip, own_ap_ip):
-    """The Reticulum interface configs for this Stump's place in the chain."""
+def interfaces(s, sta_ip, parent_ip, own_ap_ip, lan_ip=None):
+    """The Reticulum interface configs for this Stump's place in the chain.
+    lan_ip: the first Stump's address on the Wi-Fi it joined (WIFI_SSID),
+    where it also takes chain links when it has a chain secret -- a
+    computer on that same network (home, office) then joins the chain
+    without leaving it. Never without a secret: anyone on that network
+    could sit on the chain."""
     out = []
     # A Stump on a computer with one Wi-Fi radio joins its parent and serves
     # visitors on that same network: no separate side below it.
@@ -128,16 +138,28 @@ def interfaces(s, sta_ip, parent_ip, own_ap_ip):
                     "listen_ip": sta_ip, "listen_port": s["port"],
                     "forward_ip": parent_ip, "forward_port": s["port"],
                     "secret": s["secret"], "gravity": 10})
+    _state["lan_ip"] = None
+    if is_root(s) and lan_ip and lan_ip != own_ap_ip and s.get("lan", True):
+        if s["secret"]:
+            out.append({"type": "ChainHubInterface", "name": "Chain LAN", "enabled": True,
+                        "listen_ip": lan_ip, "listen_port": s["port"], "secret": s["secret"],
+                        "gravity": 10})
+            _state["lan_ip"] = lan_ip
+        else:
+            print("[chain] not taking chain links on %s: that needs a CHAIN_SECRET" % lan_ip)
     _state["ap_ip"] = own_ap_ip
     return out
 
 
 def attach(rns):
     """Called after Reticulum set up its interfaces: remembers the chain's."""
+    _state["hubs"] = []
     for i in rns.interfaces:
         n = i.__class__.__name__
         if n == "ChainHubInterface":
-            _state["hub"] = i
+            _state["hubs"].append(i)
+            if _state["hub"] is None or getattr(i, "listen_ip", None) == _state["ap_ip"]:
+                _state["hub"] = i
         elif n == "ChainUplinkInterface":
             _state["uplink"] = i
 
@@ -209,5 +231,6 @@ def status():
             "parent": up.forward_ip if up else None,
             "parent_heard_s": int(now - up.parent_seen) if up and up.parent_seen else None,
         },
-        "below": sorted(hub.peers) if hub else [],
+        "lan_ip": _state["lan_ip"],
+        "below": sorted(set(ip for h in (_state["hubs"] or ([hub] if hub else [])) for ip in h.peers)),
     }
