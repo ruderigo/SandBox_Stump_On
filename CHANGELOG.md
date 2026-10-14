@@ -1,22 +1,30 @@
 # Changelog
 
 ## Unreleased
-- **#mesh works when the Stumps start at different times.** A Stump
+- **Chat column you can widen.** Drag the bar between the room list
+  and the chat to make room for long names (kept on that device;
+  double-click puts it back); a cut-off name shows whole on hover.
+  The other Stumps of the chain are grouped at the bottom of the column
+  under *Stumps* (*Buches* in French), each with a 🪵.
+- **Scroll bars out of sight until used**, on every page: the bar shows
+  while something scrolls and fades back right after.
+- **#wifi-mesh works when the Stumps start at different times.** A Stump
   knew another one as a Stump only from its beacon, sent at boot and
   then every half hour: the one started second never heard the first's,
-  so nothing crossed in #mesh and a DM to the other Stump landed in
-  #lora. Now a new chain link makes both ends announce themselves right
+  so nothing crossed in #wifi-mesh and a DM to the other Stump landed in
+  #lora-mesh. Now a new chain link makes both ends announce themselves right
   away, a Stump is also recognised by what it sends, and anyone reached
-  over the chain lands in #mesh, never #lora.
-- **DMs between people on different Stumps.** People seen in #mesh
+  over the chain lands in #wifi-mesh, never #lora-mesh.
+- **DMs between people on different Stumps.** People seen in #wifi-mesh
   on another Stump are DM contacts as `rod@LaBuche`; `/msg rod@LaBuche
   ...` reaches rod privately, who answers the same way. A DM to a Stump
-  itself shows in that Stump's #mesh, addressed to it (`@LaBuche ...`).
-- **`#mesh`: the Stumps of a chain talk among themselves, `#lora`
-  stays for LoRa.** (One word, the same in every language.) On a Stump in a chain, the other Stumps are taken
-  into `#mesh` as soon as their beacon is heard over the chain --
+  itself shows in that Stump's #wifi-mesh, addressed to it (`@LaBuche ...`).
+- **`#wifi-mesh`: the Stumps of a chain talk among themselves, `#lora-mesh`
+  stays for LoRa.** (Room names that read the same in every language and name the
+  transport, so others can follow.) On a Stump in a chain, the other Stumps are taken
+  into `#wifi-mesh` as soon as their beacon is heard over the chain --
   no one has to message them first -- and anyone on any Stump can
-  `/join mesh`. Only chat lines cross between Stumps: each Stump
+  `/join wifi-mesh`. Only chat lines cross between Stumps: each Stump
   sends its own people's lines, shown as `<nick@thatstump>` on the
   others, never relayed twice, without the joins, parts and renames
   that used to arrive glued together on one line (and the doubled
@@ -24,7 +32,7 @@
   in the mesh room. Fixed on the way: announces heard in a Stump's
   first seconds were missed by the chat bridge until the next
   re-announce.
-- **`#lxmf` is now `#lora`.** The old name still works (`/join lxmf`,
+- **`#lxmf` is now `#lora-mesh`.** The old name still works (`/join lxmf`,
   `#lxmf text`, `/admin <pw> room lxmf hybrid`, `?room=lxmf`, a saved
   tier); replies use the new one. (Room names are lowercase.)
 - **A computer joins the chain without leaving its Wi-Fi.** The first

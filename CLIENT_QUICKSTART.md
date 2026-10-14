@@ -29,7 +29,7 @@ client relies on was removed or reworded:
 - LXMF messages with a bad signature are dropped, never shown.
 
 **After beta.3, on `main` for the next release:** `#lxmf` is renamed
-`#lora` (the old name still works; replies say `lora`); `#mesh` on a
+`#lora-mesh` (the old name still works; replies say `lora`); `#wifi-mesh` on a
 Stump in a chain, with lines from other Stumps' people as
 `nick@thatstump` (see *The two rooms that always exist*); `/chain.json`
 gains `lan_ip`, where the first Stump also takes chain links on the
@@ -200,33 +200,33 @@ until you've done the handshake above once.
 
 ## The two rooms that always exist
 
-**Renamed after 1.0.0-beta.3:** `#lxmf` is now `#lora`. The old name
+**Renamed after 1.0.0-beta.3:** `#lxmf` is now `#lora-mesh`. The old name
 still works everywhere (`/join lxmf`, `#lxmf text`, `?room=lxmf`), but
 the node answers with `lora`: compare against that.
 
-`#main` and `#lora` are both present the moment a node boots — nothing
+`#main` and `#lora-mesh` are both present the moment a node boots — nothing
 to request, nothing to configure. If you're building a mesh-first
-client, **`#lora` is where your users land by default**; expect it, and
+client, **`#lora-mesh` is where your users land by default**; expect it, and
 don't be surprised it exists even on a freshly provisioned node you've
 never touched. `#main` is the general room walk-up WiFi visitors share.
 
 **`/part` depends on the transport.** Over WiFi/HTTP it always returns
 you to `#main`. Over the mesh it returns you to wherever you actually
-landed: `#lora` normally, or `#main` if a tiered `#lora` redirected you
+landed: `#lora-mesh` normally, or `#main` if a tiered `#lora-mesh` redirected you
 there instead (see `COMMANDS.md` for the tier system). Don't hardcode
 `#main` as the universal "go home" target in a mesh client — track the
 room the peer actually landed in first, or read the server's reply.
 
-**`#mesh`, on a Stump in a chain** (`/chain.json` has `"enabled":
+**`#wifi-mesh`, on a Stump in a chain** (`/chain.json` has `"enabled":
 true`). The other Stumps of the chain are in it, taken in as soon as
 their beacon is heard over the chain, and so are the people on every
 Stump who join it. Lines from another Stump's people show as
 `nick@thatstump` (`"nick": "rod@Laptop"` in `/rrc/poll`); only chat
 lines cross between Stumps, not joins and parts. Anyone reached over
-the chain lands there, not in `#lora`. People seen on another Stump are
+the chain lands there, not in `#lora-mesh`. People seen on another Stump are
 DM contacts as `nick@thatstump` (in `users`); `/msg rod@LaBuche text`
 reaches rod privately, and rod's answer arrives as a DM from
-`you@yourstump`. A DM to a Stump itself shows in its `#mesh` as
+`you@yourstump`. A DM to a Stump itself shows in its `#wifi-mesh` as
 `@ThatStump text`.
 
 ---
@@ -422,7 +422,7 @@ is the highest message `id` you already have.
  "room": "main",
  "nick": "guest-a1b2",
  "topic": "",
- "rooms": ["main", "lora"],
+ "rooms": ["main", "lora-mesh"],
  "messages": [ {"id": 42, "ts": 1789700000.1, "nick": "alice", "body": "hey", "kind": "msg"} ],
  "dms": [ {"id": 43, "ts": 1789700001.2, "nick": "bob", "body": "psst", "kind": "dm"} ],
  "users": ["alice", "bob", "guest-a1b2"],
@@ -497,7 +497,7 @@ then ` — ` and a sentence for people:
 
 | Token | Meaning |
 |---|---|
-| `= #lora — …` | you're already in #lora (reply to `/join`, `/part`) |
+| `= #lora-mesh — …` | you're already in #lora-mesh (reply to `/join`, `/part`) |
 | `? /frob — …` | no such command |
 | `⊘ #vip minted — …` | that room's tier (`minted` or `hybrid`) refused you |
 | `⧗ — …` | slow down: lines too fast (3 at once, then one every 2 s, for anything others see), too many voice notes, or too many wrong passwords. The line wasn't sent: offer to resend it |
@@ -546,7 +546,7 @@ another existing room without moving.
 Up to 10 room messages per 5-second cycle; your own room lines are
 never echoed back.
 
-**Each pushed batch names its room in the LXMF message title** — `#lora`,
+**Each pushed batch names its room in the LXMF message title** — `#lora-mesh`,
 `#main` — so lines queued just before a `/join` can't be filed under the
 wrong room. File room lines by the title, not by the room you think
 you're in. A batch with only DMs has no title (each `[DM]` line names
@@ -554,7 +554,7 @@ its author).
 
 **You're told which room you landed in.** Whenever the node puts you in
 a room you didn't ask for — your first message, your first message
-after going quiet past `MESH_PEER_TIMEOUT`, or a tiered `#lora`
+after going quiet past `MESH_PEER_TIMEOUT`, or a tiered `#lora-mesh`
 redirecting you to `#main` — it sends `→ #room` before anything else.
 
 **Room tiers apply over the mesh.** `/join` and the `#room text`
@@ -623,8 +623,8 @@ are fixed encryption and LXMF overhead.
   someone" under your announced display name, and DMs to you are
   delivered over LoRa. The first is preceded by a one-line hint on how
   to reply. No room traffic is sent to you.
-- **Any message to the node → room participant.** You land in `#lora`
-  (or `#main` if a tiered `#lora` redirects you), and room traffic is
+- **Any message to the node → room participant.** You land in `#lora-mesh`
+  (or `#main` if a tiered `#lora-mesh` redirects you), and room traffic is
   pushed to you as well.
 
 Participation lasts `MESH_PEER_TIMEOUT` (default 300 s) after your last

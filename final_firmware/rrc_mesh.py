@@ -69,7 +69,7 @@ def notify(dest_hash_hex, text):
 
 # ── Stumps of the chain ───────────────────────────────────────────────
 # Another Stump reached over the chain (chain.py: Wi-Fi) is a peer like a
-# LoRa user, but lands in rrc.CHAIN_ROOM, not #lora, and is taken in as
+# LoRa user, but lands in rrc.CHAIN_ROOM, not #lora-mesh, and is taken in as
 # soon as its beacon is heard -- no one has to message it first. Between
 # Stumps only chat lines travel, each Stump sending its own people's
 # lines (never what it relays, never joins and parts), and each line
@@ -148,7 +148,7 @@ def _remote_dm_lines(h):
 
 
 def _take_in_chain_stumps(router):
-    """Each cycle: Stumps on the chain become peers in #mesh, and stay
+    """Each cycle: Stumps on the chain become peers in #wifi-mesh, and stay
     while their path is over the chain."""
     now = time.time()
     for h in list(rrc._stumps):
@@ -175,10 +175,10 @@ def _take_in_chain_stumps(router):
 
 
 def _from_stump(dest_hash_hex, peer, text, router=None):
-    """Lines from another Stump of the chain: "<nick> text" into #mesh
+    """Lines from another Stump of the chain: "<nick> text" into #wifi-mesh
     as nick@thatstump, "* nick text" as an action, "[DM>rod] <nick> text"
     as a DM to rod here from nick@thatstump, "[DM] <nick>: text" (a DM to
-    this Stump itself) into #mesh, addressed to it. Marked as relayed,
+    this Stump itself) into #wifi-mesh, addressed to it. Marked as relayed,
     so they go no further."""
     who = peer["nick"]
     me = (rrc.NODE or {}).get("name") or "?"
@@ -243,7 +243,7 @@ def _get_peer(dest_hash_hex, display_name, message=None):
         # Someone already reachable by DM keeps the exact nick people have
         # been using for them, instead of re-deriving it.
         nick = _reach[dest_hash_hex]["nick"] if dest_hash_hex in _reach else _make_nick(display_name, dest_hash_hex)
-        # Lands in rrc.MESH_ROOM ("#lora", once "#lxmf") unconditionally
+        # Lands in rrc.MESH_ROOM ("#lora-mesh", once "#lxmf") unconditionally
         # (a Stump of this node's chain lands in rrc.CHAIN_ROOM instead) -- that room
         # is always present (seeded in rrc.py exactly like #main), so
         # this needs no configuration and no stumpid dependency to do
@@ -270,7 +270,7 @@ def _get_peer(dest_hash_hex, display_name, message=None):
         ident = plugins.service_lookup("identity")
         stump = _chain_stump(dest_hash_hex)
         if stump or _on_chain(dest_hash_hex, message):
-            # Over the chain: #mesh, not #lora (which is for LoRa).
+            # Over the chain: #wifi-mesh, not #lora-mesh (which is for LoRa).
             room = rrc.CHAIN_ROOM
         elif ident is not None:
             room, allowed, redirect_reason = ident.mesh_landing_room(dest_hash_hex)

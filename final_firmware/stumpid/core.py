@@ -461,7 +461,7 @@ def reset_access():
 
 def mesh_landing_room(client_id):
     """The room a mesh peer should land in on first contact: rrc.MESH_ROOM
-    ("#lora", once "#lxmf"), always -- not a name this module chooses or configures.
+    ("#lora-mesh", once "#lxmf"), always -- not a name this module chooses or configures.
     That room exists unconditionally now (seeded in rrc.py exactly like
     #main), so there is nothing to set up first; a fresh, unconfigured
     node already has it. Auth is secondary to this, not a precondition
@@ -520,7 +520,7 @@ VALID_TIERS = ("open", "minted", "hybrid")
 
 
 def _canon(room):
-    """A room's current name (#lxmf became #lora)."""
+    """A room's current name (#lxmf became #lora-mesh)."""
     try:
         import rrc as _r
         return _r.canon(room)

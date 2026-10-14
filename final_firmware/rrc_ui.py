@@ -118,6 +118,12 @@ button{
   padding:9px 16px; font-family:inherit; font-weight:bold; cursor:pointer;
 }
 button:hover{background:var(--ember-bright);}
+/* The bar between the room list and the chat: drag it to widen the list
+   (long names stop being cut), double-click it to put it back. */
+#grip{width:7px; flex-shrink:0; cursor:col-resize; touch-action:none;
+  background:var(--panel-2); border-right:1px solid var(--border);}
+#grip:hover,#grip.drag{background:var(--ember);}
+#rooms .mark{margin-right:5px;}
 @media (max-width:520px){
   #rooms{width:96px;}
   header{font-size:13px;}
@@ -152,6 +158,34 @@ button:hover{background:var(--ember-bright);}
 SCRIPT = """
 var room=ROOM_INIT, lastId=0, nick=NICK_INIT, polling=false, pollAgain=false;
 var log=document.getElementById('log');
+(function(){
+  // Drag the bar to size the room list; remembered on this device.
+  var side=document.getElementById('rooms'), grip=document.getElementById('grip');
+  if(!side || !grip) return;
+  try{ var w=parseInt(localStorage.getItem('rrcSideW'),10); if(w>0) side.style.width=w+'px'; }catch(e){}
+  function clamp(w){ return Math.max(80, Math.min(Math.round(window.innerWidth*0.7), w)); }
+  grip.addEventListener('pointerdown', function(e){
+    e.preventDefault();
+    var x0=e.clientX, w0=side.offsetWidth;
+    grip.classList.add('drag');
+    try{ grip.setPointerCapture(e.pointerId); }catch(err){}
+    function move(ev){ side.style.width=clamp(w0+ev.clientX-x0)+'px'; }
+    function up(){
+      grip.classList.remove('drag');
+      grip.removeEventListener('pointermove', move);
+      grip.removeEventListener('pointerup', up);
+      grip.removeEventListener('pointercancel', up);
+      try{ localStorage.setItem('rrcSideW', side.offsetWidth); }catch(err){}
+    }
+    grip.addEventListener('pointermove', move);
+    grip.addEventListener('pointerup', up);
+    grip.addEventListener('pointercancel', up);
+  });
+  grip.addEventListener('dblclick', function(){
+    side.style.width='';
+    try{ localStorage.removeItem('rrcSideW'); }catch(err){}
+  });
+})();
 // DM thread state -- purely client-side and session-scoped, since the
 // server has no concept of "threads": it just delivers a flat inbox
 // per recipient (rrc.py's _dms). Grouping by sender, tracking unread
@@ -178,13 +212,45 @@ function adoptThread(exact){
   }
 }
 function stumpTag(el, name){
-  // A separate element, never part of the name: the name is what
-  // /msg and openDM use, so it has to stay exactly the nick.
+  // A log in front of another Stump of the chain. A separate element,
+  // never part of the name: the name is what /msg and openDM use, so it
+  // has to stay exactly the nick.
+  el.title=name;               // the whole name, when the column cuts it
   if(!stumps[name]) return;
   var t=document.createElement('span');
-  t.className='tag';
-  t.textContent='stump';
-  el.appendChild(t);
+  t.className='mark';
+  t.textContent='\\ud83e\\udeb5';
+  el.insertBefore(t, el.firstChild);
+}
+var lastUsers=[];
+function renderStumps(){
+  // The other Stumps, together at the bottom of the column (with their
+  // DM threads, if any), after the people.
+  var old=document.getElementById('stump-section');
+  if(old) old.remove();
+  var box=document.getElementById('rooms');
+  if(!box) return;
+  var seen={}, names=[];
+  lastUsers.concat(Object.keys(dmThreads)).forEach(function(u){
+    if(stumps[u] && u!==nick && !seen[u]){ seen[u]=1; names.push(u); }
+  });
+  if(names.length===0) return;
+  var sec=document.createElement('div');
+  sec.id='stump-section';
+  var hdr=document.createElement('div');
+  hdr.className='dm-header';
+  hdr.textContent=I18N_STUMPS;
+  sec.appendChild(hdr);
+  names.sort().forEach(function(u){
+    var unread=dmUnread[u]||0;
+    var d=document.createElement('div');
+    d.className='dm-entry'+(viewingDM===u?' active':'')+(unread>0?' unread':'');
+    d.textContent=u+(unread>0?' ('+unread+')':'');
+    stumpTag(d, u);
+    d.onclick=function(){ openDM(u); };
+    sec.appendChild(d);
+  });
+  box.appendChild(sec);
 }
 var inp=document.getElementById('in');
 // The most recent user list from a poll, in each person's own
@@ -499,7 +565,8 @@ function renderUserList(users){
   // two different actions. Someone you already have a thread with is
   // reachable from that thread already; this list is specifically for
   // starting a NEW one.
-  var others=(users||[]).filter(function(u){ return u!==nick && !dmThreads[u]; });
+  lastUsers=users||[];
+  var others=lastUsers.filter(function(u){ return u!==nick && !dmThreads[u] && !stumps[u]; });
   if(others.length===0) return;
   var sec=document.createElement('div');
   sec.id='user-section';
@@ -527,7 +594,8 @@ function renderDMSidebar(){
   var dmBox=document.getElementById('dm-section');
   if(!dmBox) return;
   dmBox.innerHTML='';
-  var senders=Object.keys(dmThreads);
+  var senders=Object.keys(dmThreads).filter(function(s){ return !stumps[s]; });
+  renderStumps();
   if(senders.length===0) return;
   var hdr=document.createElement('div');
   hdr.className='dm-header';
@@ -868,6 +936,7 @@ def render_page(room, nick, lang=None, rec_url=None):
               .replace("NICK_INIT", _js(nick))
               .replace("I18N_MESSAGE_SOMEONE", _js(i18n.t("rrc_message_someone", lang)))
               .replace("I18N_DIRECT_MESSAGES", _js(i18n.t("rrc_direct_messages", lang)))
+              .replace("I18N_STUMPS", _js(i18n.t("rrc_stumps", lang)))
               .replace("I18N_NOT_SENT", _js(i18n.t("rrc_not_sent", lang)))
               .replace("I18N_VOICE", _js({"record": i18n.t("voice_record", lang),
                   "unreadable": i18n.t("voice_unreadable", lang), "recording": i18n.t("voice_recording", lang),
@@ -888,7 +957,7 @@ def render_page(room, nick, lang=None, rec_url=None):
         "<span class='me'>" + i18n.t("rrc_you_are", lang) + " <span id='me'>" + _esc(nick) + "</span></span>"
         + _nav_links(lang) + "</header>"
         + i18n.switcher_html(lang, "/rrc") +
-        "<main><div id='rooms'></div><div id='log'></div></main>"
+        "<main><div id='rooms'></div><div id='grip' title='\u2194'></div><div id='log'></div></main>"
         "<footer>"
         "<input id='in' maxlength='" + str(rrc.MAX_MESSAGE_LEN) + "' "
         "autocomplete='off' autocapitalize='none' spellcheck='false' "

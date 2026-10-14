@@ -281,11 +281,11 @@ actually expect.
 ```
 **Response** (always, regardless of argument — this command takes none):
 ```
-#lora is always available, mesh peers land there by default -- currently <status>. Change the tier with /admin <password> room lora <open|minted|hybrid>.
+#lora-mesh is always available, mesh peers land there by default -- currently <status>. Change the tier with /admin <password> room lora-mesh <open|minted|hybrid>.
 ```
 where `<status>` is either `open to everyone (default)` or `tiered '<tier>'`.
 
-`#lora` is a **fixed, always-present room** — seeded exactly like
+`#lora-mesh` is a **fixed, always-present room** — seeded exactly like
 `#main`, not something this command creates or names. This is a status
 query only; there is nothing left to set here. See
 [Part 3](#part-3--the-mesh-room) below for the full behavior.
@@ -400,33 +400,33 @@ plugin's state, the RAM it took to start and its last error.
 
 ## Part 3 — The mesh room
 
-`#lora` exists unconditionally from the moment the node boots — seeded
+`#lora-mesh` exists unconditionally from the moment the node boots — seeded
 in `rrc.py` exactly like `#main`, not created by any command, not
 dependent on `stumpid` being installed or active at all.
 
-**A mesh/LoRa peer's first message lands them in `#lora` by default,**
-and the node tells them so: its first reply is `→ #lora` (or `→ #main`
+**A mesh/LoRa peer's first message lands them in `#lora-mesh` by default,**
+and the node tells them so: its first reply is `→ #lora-mesh` (or `→ #main`
 when redirected, below). The same happens after they go quiet past
 `MESH_PEER_TIMEOUT` and write again.
-A web visitor can `/join lora` and `/join main` freely, with zero setup
+A web visitor can `/join lora-mesh` and `/join main` freely, with zero setup
 and zero auth friction under global `open` mode — this is core
 chat-bridge behavior, not an identity-plugin feature. Auth is layered
 on *top* of this, never a precondition for it.
 
-If `stumpid` **is** active and an operator has tiered `#lora` (via the
-same `/admin room lora <tier>` command from Part 1), an unqualified
+If `stumpid` **is** active and an operator has tiered `#lora-mesh` (via the
+same `/admin room lora-mesh <tier>` command from Part 1), an unqualified
 mesh peer is redirected to `#main` instead, with a system message
 explaining why — translated into their own language preference the
 same way a rejected web visitor's message is.
 
 **Test matrix:**
-- [ ] Fresh, unconfigured node: `/rooms` shows both `#main` and `#lora`, with zero admin action taken
-- [ ] A mesh peer's first message lands them in `#lora`, and the first thing they receive is `→ #lora`
-- [ ] A web user joins `#lora` and posts; the message survives and is visible via `/rooms`/polling
-- [ ] `/admin <pw> room lora minted`, then a new (unverified) mesh peer arrives → redirected to `#main`, receives `→ #main`, and a system message explains why
+- [ ] Fresh, unconfigured node: `/rooms` shows both `#main` and `#lora-mesh`, with zero admin action taken
+- [ ] A mesh peer's first message lands them in `#lora-mesh`, and the first thing they receive is `→ #lora-mesh`
+- [ ] A web user joins `#lora-mesh` and posts; the message survives and is visible via `/rooms`/polling
+- [ ] `/admin <pw> room lora-mesh minted`, then a new (unverified) mesh peer arrives → redirected to `#main`, receives `→ #main`, and a system message explains why
 - [ ] An unverified mesh peer sends `/join vip` (a `minted` room) → `⊘ #vip minted — …`, stays put
 - [ ] The same peer sends `#vip hello` → refused the same way, nothing posted in `#vip`
-- [ ] Re-tier `#lora` back to `open` → the *next* new mesh peer lands in `#lora` again (existing peers already placed aren't moved)
+- [ ] Re-tier `#lora-mesh` back to `open` → the *next* new mesh peer lands in `#lora-mesh` again (existing peers already placed aren't moved)
 
 ---
 
@@ -539,6 +539,6 @@ propagation node — see `CLIENT_QUICKSTART.md`.
 1. `/whoami` on a fresh connection → not verified
 2. `/auth` → `/auth <pub> <sig>` → `AUTH-OK`
 3. `/whoami` again → now shows verified, correct hash
-4. `/rooms` → both `#main` and `#lora` visible, no tags (untiered)
+4. `/rooms` → both `#main` and `#lora-mesh` visible, no tags (untiered)
 5. `/admin <pw> mode hybrid` → your own next plain message should **not** be blocked (you're already verified from step 2, and a verified session is fully exempt from the gate, regardless of mode) — if it *is* blocked, something regressed
 6. `/admin <pw> mode open` → back to normal

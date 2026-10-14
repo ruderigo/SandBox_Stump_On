@@ -61,7 +61,7 @@ loaded ['fservbot', 'stumpid']
   replies [] None
   #main <alice> !roll 2d6
 >> 50 /rooms
-  replies ['#main ·2  Général. Reste correct.', '#lora ·0  Le trafic LoRa (radio) arrive ici par défaut.', '#vip ·0  [minted]'] None
+  replies ['#main ·2  Général. Reste correct.', '#lora-mesh ·0  Le trafic LoRa (radio) arrive ici par défaut.', '#vip ·0  [minted]'] None
 >> 50 /names
   replies ['#main: alice, bob'] None
 >> 50 /nope

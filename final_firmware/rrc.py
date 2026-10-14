@@ -49,18 +49,19 @@ DEFAULT_ROOM = "main"
 # decide whether it exists or what it's called. That split is the
 # actual point: the room itself is core RRC/mesh-bridge behaviour, not
 # a feature of the identity plugin.
-MESH_ROOM = "lora"
+MESH_ROOM = "lora-mesh"
 # The other Stumps of a chain (chain.py) and the people on them talk in
-# CHAIN_ROOM, so #lora is left to the mesh -- LoRa phones and handhelds.
+# CHAIN_ROOM, so #lora-mesh is left to the mesh -- LoRa phones and handhelds.
 # It exists only on a Stump that's in a chain (open_chain_room()).
-CHAIN_ROOM = "mesh"
-# Old names still reach the room: #lxmf (before 1.0.0-beta.4) is #lora,
-# #chained (on main for an afternoon) is #mesh.
-ROOM_ALIASES = {"lxmf": MESH_ROOM, "chained": CHAIN_ROOM}
+CHAIN_ROOM = "wifi-mesh"
+# Old names still reach the room: #lxmf (before 1.0.0-beta.4) and #lora
+# are #lora-mesh; #chained and #mesh are #wifi-mesh (names it had on main
+# for an afternoon).
+ROOM_ALIASES = {"lxmf": MESH_ROOM, "lora": MESH_ROOM, "chained": CHAIN_ROOM, "mesh": CHAIN_ROOM}
 
 
 def canon(room):
-    """The room's current name for an old one (lxmf -> lora)."""
+    """The room's current name for an old one (lxmf -> lora-mesh)."""
     return ROOM_ALIASES.get(room, room)
 
 # room -> list of {"id", "ts", "nick", "body", "kind"}

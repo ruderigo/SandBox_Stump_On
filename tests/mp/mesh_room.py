@@ -1,5 +1,5 @@
-# #lora (once #lxmf) and #mesh: the other Stumps of a chain land in
-# #mesh, are taken in from their beacon alone, and only chat lines go
+# #lora-mesh (once #lxmf) and #wifi-mesh: the other Stumps of a chain land in
+# #wifi-mesh, are taken in from their beacon alone, and only chat lines go
 # between Stumps -- each Stump's own people's, as "<nick@stump>" on the
 # other side, never relayed twice, never joins and parts.
 import sys
@@ -16,22 +16,23 @@ def check(n, c, i=''):
 
 # the rename
 rrc.reset()
-check("#lora is the mesh room", rrc.MESH_ROOM == "lora" and rrc.room_exists("lora"))
-check("#lxmf still reaches it", rrc.room_exists("lxmf") and rrc.create_room("#lxmf") == ("lora", None)
-      and rrc.clean_room("LXMF") == "lora")
+check("#lora-mesh is the mesh room", rrc.MESH_ROOM == "lora-mesh" and rrc.room_exists("lora-mesh"))
+check("#lxmf still reaches it", rrc.room_exists("lxmf") and rrc.create_room("#lxmf") == ("lora-mesh", None)
+      and rrc.clean_room("LXMF") == "lora-mesh")
 W = '192.168.4.50'
 i18n.set_lang(W, 'en')
 rrc.touch_user(W, nick='bob', room='main')
 r, room = rrc.handle_input(W, 'main', '/join lxmf')
-check("/join lxmf lands in #lora", room == "lora", (r, room))
-check("no #mesh outside a chain", not rrc.room_exists("mesh"))
+check("/join lxmf lands in #lora-mesh", room == "lora-mesh", (r, room))
+check("no #wifi-mesh outside a chain", not rrc.room_exists("wifi-mesh"))
 rrc.post("lxmf", "bob", "hi")
-check("a line to #lxmf is in #lora", rrc.since("lora", 0)[-1]["body"] == "hi")
+check("a line to #lxmf is in #lora-mesh", rrc.since("lora-mesh", 0)[-1]["body"] == "hi")
 
 # a chain
 rrc.open_chain_room()
-check("#chained (its first name) still reaches #mesh", rrc.room_exists("mesh") and rrc.clean_room("chained") == "mesh")
-check("#mesh once in a chain", rrc.room_exists("mesh") and "Stumps" in rrc.topic("mesh", "en"))
+check("its afternoon names still work: #lora, #mesh", rrc.clean_room("lora") == "lora-mesh" and rrc.clean_room("#mesh") == "wifi-mesh")
+check("#chained (its first name) still reaches #wifi-mesh", rrc.room_exists("wifi-mesh") and rrc.clean_room("chained") == "wifi-mesh")
+check("#wifi-mesh once in a chain", rrc.room_exists("wifi-mesh") and "Stumps" in rrc.topic("wifi-mesh", "en"))
 
 
 class ChainHubInterface:
@@ -73,23 +74,23 @@ class Router:
 R = Router()
 rrc_mesh._take_in_chain_stumps(R)
 p = rrc_mesh._peers.get(LAPTOP)
-check("a Stump on the chain is taken in from its beacon, into #mesh", p and p["room"] == "mesh"
+check("a Stump on the chain is taken in from its beacon, into #wifi-mesh", p and p["room"] == "wifi-mesh"
       and p["stump"] and p["nick"] == "Laptop", p)
-check("its arrival shows in #mesh", any("~Laptop" in m["body"] for m in rrc.since("mesh", 0)))
+check("its arrival shows in #wifi-mesh", any("~Laptop" in m["body"] for m in rrc.since("wifi-mesh", 0)))
 check("a Stump heard over LoRa only isn't", FAR not in rrc_mesh._peers)
 check("a phone isn't a Stump: not taken in", PHONE not in rrc_mesh._peers)
 
 # out: only local chat lines
-rrc.touch_user(W, nick='bob', room='mesh')
-rrc.post("mesh", "bob", "hello chain")
-rrc.post("mesh", "bob", "waves", kind="action")
-rrc.system("mesh", rrc.ev_join("carol"))
+rrc.touch_user(W, nick='bob', room='wifi-mesh')
+rrc.post("wifi-mesh", "bob", "hello chain")
+rrc.post("wifi-mesh", "bob", "waves", kind="action")
+rrc.system("wifi-mesh", rrc.ev_join("carol"))
 rrc_mesh._flush_to_peer(R, LAPTOP, p)
 batch = rrc_mesh._send_queue[-1]
 text = batch[2]
 check("to the other Stump: the chat lines", "<bob> hello chain" in text and "* bob waves" in text, text)
 check("... not the notices", "✓" not in text and "carol" not in text, text)
-check("... titled #mesh", batch[3] == "#mesh", batch)
+check("... titled #wifi-mesh", batch[3] == "#wifi-mesh", batch)
 del rrc_mesh._send_queue[:]
 
 
@@ -109,13 +110,13 @@ class Msg:
         return getattr(self, "title", "")
 
 
-before = len(rrc.since("mesh", 0))
+before = len(rrc.since("wifi-mesh", 0))
 rrc_mesh.on_message(R, Msg("<macOS> hello\n✓ ~LaBuche\n* macOS smiles\n✎ guest-b57d → macOS"))
-new = rrc.since("mesh", 0)[before:]
+new = rrc.since("wifi-mesh", 0)[before:]
 check("each line on its own, as nick@stump", [(m["nick"], m["body"], m["kind"]) for m in new]
       == [("macOS@Laptop", "hello", "msg"), ("macOS@Laptop", "smiles", "action")], new)
 check("no greeting or 'moved' sent back to a Stump", rrc_mesh._send_queue == [], rrc_mesh._send_queue)
-check("#lora stays quiet", not any("macOS" in m["nick"] for m in rrc.since("lora", 0)))
+check("#lora-mesh stays quiet", not any("macOS" in m["nick"] for m in rrc.since("lora-mesh", 0)))
 rrc_mesh._flush_to_peer(R, LAPTOP, p)
 check("relayed lines never go back", rrc_mesh._send_queue == [], rrc_mesh._send_queue)
 
@@ -125,46 +126,46 @@ path(OTHER, ChainHubInterface())
 rrc.mark_stump(OTHER)
 rrc_mesh._take_in_chain_stumps(R)
 q = rrc_mesh._peers[OTHER]
-rrc.post("mesh", "bob", "to everyone")
+rrc.post("wifi-mesh", "bob", "to everyone")
 rrc_mesh._flush_to_peer(R, OTHER, q)
 text = rrc_mesh._send_queue[-1][2] if rrc_mesh._send_queue else ""
 check("another Stump: local lines only", "<bob> to everyone" in text and "macOS" not in text, text)
 del rrc_mesh._send_queue[:]
 
-# a phone on LoRa still lands in #lora, and gets the room's notices
+# a phone on LoRa still lands in #lora-mesh, and gets the room's notices
 del Transport.path_table[bytes.fromhex(PHONE)]
 peer = rrc_mesh._get_peer(PHONE, "Rod")
-check("a LoRa user lands in #lora", peer["room"] == "lora" and not peer["stump"], peer)
+check("a LoRa user lands in #lora-mesh", peer["room"] == "lora-mesh" and not peer["stump"], peer)
 
-# a Stump that talked before its path was known moves to #mesh
+# a Stump that talked before its path was known moves to #wifi-mesh
 LATE = '34' * 16
 peer = rrc_mesh._get_peer(LATE, "Late")
-check("unknown yet: #lora", peer["room"] == "lora")
+check("unknown yet: #lora-mesh", peer["room"] == "lora-mesh")
 rrc.mark_stump(LATE)
 path(LATE, ChainHubInterface())
 rrc_mesh._take_in_chain_stumps(R)
-check("then moved to #mesh", rrc_mesh._peers[LATE]["room"] == "mesh" and rrc_mesh._peers[LATE]["stump"])
+check("then moved to #wifi-mesh", rrc_mesh._peers[LATE]["room"] == "wifi-mesh" and rrc_mesh._peers[LATE]["stump"])
 
 # A Stump whose beacon wasn't heard (it comes every half hour): known by
-# what it sends -- a room batch titled "#mesh" -- and moved there.
+# what it sends -- a room batch titled "#wifi-mesh" -- and moved there.
 NEW = '56' * 16
 path(NEW, ChainHubInterface())
 m = Msg("<ann> hi all")
 m.source_hash = bytes.fromhex(NEW)
-m.title = "#mesh"
+m.title = "#wifi-mesh"
 rrc_mesh.on_message(R, m)
-check("no beacon: a chain Stump is known by its #mesh batch", rrc_mesh._peers[NEW]["stump"]
-      and rrc_mesh._peers[NEW]["room"] == "mesh" and rrc.is_stump(NEW), rrc_mesh._peers[NEW])
+check("no beacon: a chain Stump is known by its #wifi-mesh batch", rrc_mesh._peers[NEW]["stump"]
+      and rrc_mesh._peers[NEW]["room"] == "wifi-mesh" and rrc.is_stump(NEW), rrc_mesh._peers[NEW])
 check("... and its line shows as ann@<it>", any(x["body"] == "hi all" and x["nick"].startswith("ann@")
-                                                for x in rrc.since("mesh", 0)))
-check("... not in #lora", not any("hi all" in x["body"] for x in rrc.since("lora", 0)))
+                                                for x in rrc.since("wifi-mesh", 0)))
+check("... not in #lora-mesh", not any("hi all" in x["body"] for x in rrc.since("lora-mesh", 0)))
 del rrc_mesh._send_queue[:]
 
-# Someone on the chain who isn't a Stump (Sideband over the chain): #mesh too
+# Someone on the chain who isn't a Stump (Sideband over the chain): #wifi-mesh too
 PERSON = '78' * 16
 path(PERSON, ChainHubInterface())
 peer = rrc_mesh._get_peer(PERSON, "Sid")
-check("a person over the chain lands in #mesh, not #lora", peer["room"] == "mesh" and not peer["stump"], peer)
+check("a person over the chain lands in #wifi-mesh, not #lora-mesh", peer["room"] == "wifi-mesh" and not peer["stump"], peer)
 del rrc_mesh._send_queue[:]
 
 # DMs between people on two Stumps
@@ -172,12 +173,12 @@ rrc.NODE = {"name": "LaBuche", "lxmf": "00" * 16}
 rrc_mesh.on_message(R, Msg("<rod> anyone?"))
 check("people on the other Stump become DM contacts as rod@Laptop", "rod@Laptop" in rrc.reachable_nicks(),
       rrc.reachable_nicks())
-r, _ = rrc.handle_input(W, 'mesh', '/msg rod@Laptop see you at 6')
+r, _ = rrc.handle_input(W, 'wifi-mesh', '/msg rod@Laptop see you at 6')
 p = rrc_mesh._peers[LAPTOP]
 rrc_mesh._flush_to_peer(R, LAPTOP, p)
 text = rrc_mesh._send_queue[-1][2] if rrc_mesh._send_queue else ""
 check("/msg rod@Laptop goes to the laptop Stump as a DM line", "[DM>rod] <bob> see you at 6" in text, (r, text))
-check("... and not into #mesh", not any("see you" in x["body"] for x in rrc.since("mesh", 0)))
+check("... and not into #wifi-mesh", not any("see you" in x["body"] for x in rrc.since("wifi-mesh", 0)))
 del rrc_mesh._send_queue[:]
 rrc_mesh._flush_to_peer(R, LAPTOP, p)
 check("... once", rrc_mesh._send_queue == [], rrc_mesh._send_queue)
@@ -185,15 +186,15 @@ rrc_mesh.on_message(R, Msg("[DM>bob] <rod> ok, 6 it is"))
 got = rrc.dms_since(W, 0)
 check("a DM from rod on the laptop reaches bob here, from rod@Laptop", any(d["nick"] == "rod@Laptop" and d["body"] == "ok, 6 it is"
                                                                        for d in got), got)
-check("... privately: not in #mesh", not any("6 it is" in x["body"] for x in rrc.since("mesh", 0)))
+check("... privately: not in #wifi-mesh", not any("6 it is" in x["body"] for x in rrc.since("wifi-mesh", 0)))
 rrc_mesh.on_message(R, Msg("[DM>nobody] <rod> hello?"))
 q = rrc_mesh._send_queue[-1][2] if rrc_mesh._send_queue else ""
 check("a DM to no one here: the sender is told", q == "[DM>rod] <LaBuche> ⊖ nobody", rrc_mesh._send_queue)
 del rrc_mesh._send_queue[:]
 rrc_mesh.on_message(R, Msg("[DM] <rod>: hey LaBuche"))
-check("a DM to this Stump itself shows in #mesh, addressed to it", any(x["nick"] == "rod@Laptop" and x["body"] == "@LaBuche hey LaBuche"
-                                                                         for x in rrc.since("mesh", 0)))
-check("... never in #lora", not any("hey LaBuche" in x["body"] for x in rrc.since("lora", 0)))
+check("a DM to this Stump itself shows in #wifi-mesh, addressed to it", any(x["nick"] == "rod@Laptop" and x["body"] == "@LaBuche hey LaBuche"
+                                                                         for x in rrc.since("wifi-mesh", 0)))
+check("... never in #lora-mesh", not any("hey LaBuche" in x["body"] for x in rrc.since("lora-mesh", 0)))
 
 # No announce heard yet (no path): the link the message came in on decides
 EARLY = '9a' * 16
@@ -201,13 +202,13 @@ m = Msg("hello?")
 m.source_hash = bytes.fromhex(EARLY)
 m.receiving_interface = ChainHubInterface()
 rrc_mesh.on_message(R, m)
-check("no path yet: a message that came over the chain lands in #mesh", rrc_mesh._peers[EARLY]["room"] == "mesh",
+check("no path yet: a message that came over the chain lands in #wifi-mesh", rrc_mesh._peers[EARLY]["room"] == "wifi-mesh",
       rrc_mesh._peers[EARLY])
 LORA = 'bc' * 16
 m = Msg("hi from the radio")
 m.source_hash = bytes.fromhex(LORA)
 m.receiving_interface = LoRaInterface()
 rrc_mesh.on_message(R, m)
-check("... and one that came over LoRa in #lora", rrc_mesh._peers[LORA]["room"] == "lora")
+check("... and one that came over LoRa in #lora-mesh", rrc_mesh._peers[LORA]["room"] == "lora-mesh")
 del rrc_mesh._send_queue[:]
 print('FAILURES:', FAIL)

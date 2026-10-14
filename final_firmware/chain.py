@@ -39,7 +39,7 @@ def link_event():
     """A Stump joined below this one, or the one above answered for the
     first time: this Stump announces itself again soon (example_node's
     beacon_loop), so the newcomer knows it's a Stump without waiting for
-    the half-hourly beacon -- #mesh depends on it."""
+    the half-hourly beacon -- #wifi-mesh depends on it."""
     _state["new_link"] = True
 
 

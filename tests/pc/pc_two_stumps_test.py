@@ -1,9 +1,9 @@
-# Two Stumps of a chain talking in #mesh, end to end: two computer
+# Two Stumps of a chain talking in #wifi-mesh, end to end: two computer
 # Stumps (the real firmware, stump_pc.py), the first one and a second one
 # joining it on the same network, on loopback. Each takes the other in
 # from its beacon -- nobody messages anybody first -- and a line said in
-# #mesh on one shows on the other as "<nick@stump>", once, while
-# #lora stays empty. Linux only: it needs two loopback addresses.
+# #wifi-mesh on one shows on the other as "<nick@stump>", once, while
+# #lora-mesh stays empty. Linux only: it needs two loopback addresses.
 # Run: python3 tests/pc/pc_two_stumps_test.py
 import json, os, shutil, subprocess, sys, tempfile, time, urllib.request
 
@@ -89,47 +89,47 @@ up = wait(lambda: get(FIRST, "/node.json") and get(SECOND, "/node.json"), 90)
 check("both Stumps start", up)
 if up:
     for who in (FIRST, SECOND):
-        get(who, "/rrc/send", b"/join mesh")
-    met = wait(lambda: any("~Secondpc" in m["body"] for m in room(FIRST, "mesh"))
-               and any("~Firstpc" in m["body"] for m in room(SECOND, "mesh")), 150)
-    check("each takes the other into #mesh from its beacon", met,
-          (room(FIRST, "mesh"), room(SECOND, "mesh")))
+        get(who, "/rrc/send", b"/join wifi-mesh")
+    met = wait(lambda: any("~Secondpc" in m["body"] for m in room(FIRST, "wifi-mesh"))
+               and any("~Firstpc" in m["body"] for m in room(SECOND, "wifi-mesh")), 150)
+    check("each takes the other into #wifi-mesh from its beacon", met,
+          (room(FIRST, "wifi-mesh"), room(SECOND, "wifi-mesh")))
     get(SECOND, "/rrc/send", b"hello from the second")
     got = wait(lambda: any(m["body"] == "hello from the second" and m["nick"].endswith("@Secondpc")
-                           for m in room(FIRST, "mesh")), 60)
-    check("a line in #mesh reaches the other Stump, as nick@stump", got, room(FIRST, "mesh"))
+                           for m in room(FIRST, "wifi-mesh")), 60)
+    check("a line in #wifi-mesh reaches the other Stump, as nick@stump", got, room(FIRST, "wifi-mesh"))
     get(FIRST, "/rrc/send", b"hello back")
     got = wait(lambda: any(m["body"] == "hello back" and m["nick"].endswith("@Firstpc")
-                           for m in room(SECOND, "mesh")), 60)
-    check("... and back", got, room(SECOND, "mesh"))
+                           for m in room(SECOND, "wifi-mesh")), 60)
+    check("... and back", got, room(SECOND, "wifi-mesh"))
     # a DM between people on the two Stumps
-    nick2 = json.loads(get(SECOND, "/rrc/poll?room=mesh&since=0"))["nick"]
-    nick1 = json.loads(get(FIRST, "/rrc/poll?room=mesh&since=0"))["nick"]
-    users1 = lambda: json.loads(get(FIRST, "/rrc/poll?room=mesh&since=0"))["users"]
+    nick2 = json.loads(get(SECOND, "/rrc/poll?room=wifi-mesh&since=0"))["nick"]
+    nick1 = json.loads(get(FIRST, "/rrc/poll?room=wifi-mesh&since=0"))["nick"]
+    users1 = lambda: json.loads(get(FIRST, "/rrc/poll?room=wifi-mesh&since=0"))["users"]
     check("people on the other Stump are DM contacts", wait(lambda: nick2 + "@Secondpc" in users1(), 30), users1())
     get(FIRST, "/rrc/send", ("/msg %s@Secondpc psst" % nick2).encode())
-    dms2 = lambda: json.loads(get(SECOND, "/rrc/poll?room=mesh&since=0")).get("dms", [])
+    dms2 = lambda: json.loads(get(SECOND, "/rrc/poll?room=wifi-mesh&since=0")).get("dms", [])
     got = wait(lambda: any(d["body"] == "psst" and d["nick"] == nick1 + "@Firstpc" for d in dms2()), 60)
     check("a DM crosses to the person on the other Stump", got, dms2())
-    check("... privately", not any("psst" in m["body"] for m in room(SECOND, "mesh") + room(FIRST, "mesh")))
+    check("... privately", not any("psst" in m["body"] for m in room(SECOND, "wifi-mesh") + room(FIRST, "wifi-mesh")))
     get(SECOND, "/rrc/send", ("/msg %s@Firstpc got it" % nick1).encode())
-    dms1 = lambda: json.loads(get(FIRST, "/rrc/poll?room=mesh&since=0")).get("dms", [])
+    dms1 = lambda: json.loads(get(FIRST, "/rrc/poll?room=wifi-mesh&since=0")).get("dms", [])
     check("... and the answer comes back", wait(lambda: any(d["body"] == "got it" for d in dms1()), 60), dms1())
     # a DM to the other Stump itself
     get(SECOND, "/rrc/send", b"/msg Firstpc hi node")
-    check("a DM to a Stump shows in its #mesh, never #lora",
-          wait(lambda: any(m["body"] == "@Firstpc hi node" for m in room(FIRST, "mesh")), 60), room(FIRST, "mesh"))
+    check("a DM to a Stump shows in its #wifi-mesh, never #lora-mesh",
+          wait(lambda: any(m["body"] == "@Firstpc hi node" for m in room(FIRST, "wifi-mesh")), 60), room(FIRST, "wifi-mesh"))
     time.sleep(12)
-    second = room(SECOND, "mesh")
+    second = room(SECOND, "wifi-mesh")
     check("said once, never echoed back", sum(m["body"] == "hello from the second" for m in second) == 1
           and sum(m["body"] == "hello back" for m in second) == 1, second)
     check("no notices crossed", not any("@" in m["nick"] and m["kind"] == "system" for m in second)
           and not any(m["body"].startswith(("✓", "✗", "✎")) and "@" in m["nick"] for m in second), second)
     lora = []
     for who in (FIRST, SECOND):
-        get(who, "/rrc/send", b"/join lora")      # the poll answers the room you're in
-        lora += [m for m in room(who, "lora")]
-    check("#lora stays quiet", not any("hello" in m["body"] for m in lora), lora)
+        get(who, "/rrc/send", b"/join lora-mesh")      # the poll answers the room you're in
+        lora += [m for m in room(who, "lora-mesh")]
+    check("#lora-mesh stays quiet", not any("hello" in m["body"] for m in lora), lora)
 for name, proc in nodes.items():
     proc.terminate()
     try:

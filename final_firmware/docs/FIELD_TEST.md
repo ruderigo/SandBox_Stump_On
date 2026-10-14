@@ -99,8 +99,8 @@ lab tests could not settle — they need the real board, radio and phones.
 
 - [ ] Room movements read `✓ name` / `✗ name`; DMs read
       `[DM] <author>: text`.
-- [ ] FireFly's first message lands it in `#lora`, and it receives
-      `→ #lora` first.
+- [ ] FireFly's first message lands it in `#lora-mesh`, and it receives
+      `→ #lora-mesh` first.
 - [ ] Make a room `minted` (in chat: `/admin <password> room vip minted`),
       then from an unverified FireFly: `/join vip` and `#vip hello` are
       both refused with `⊘ #vip minted — …`.

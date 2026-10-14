@@ -188,6 +188,8 @@ STRINGS = {
         "en": "Message someone",
         "es": "Escribir a alguien",
     },
+    # The other Stumps of the chain, at the bottom of the chat's column.
+    "rrc_stumps": {"fr": "Buches", "en": "Stumps", "es": "Stumps"},
     "rrc_direct_messages": {
         "fr": "Messages directs",
         "en": "Direct Messages",

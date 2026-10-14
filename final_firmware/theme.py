@@ -198,6 +198,19 @@ CSS = """
 }
 """
 
+# Scroll bars out of sight until used: the thumb shows while something
+# scrolls (and for a moment after: STARTUP_SCRIPT adds .scrolling), and
+# while the pointer is on it in browsers that style it (Safari, older
+# Chrome). Phones already draw overlay bars of their own.
+CSS += """
+*{scrollbar-width:thin; scrollbar-color:transparent transparent;}
+.scrolling{scrollbar-color:var(--dim) transparent;}
+::-webkit-scrollbar{width:8px; height:8px; background:transparent;}
+::-webkit-scrollbar-track,::-webkit-scrollbar-corner{background:transparent;}
+::-webkit-scrollbar-thumb{background:transparent; border-radius:4px;}
+.scrolling::-webkit-scrollbar-thumb,::-webkit-scrollbar-thumb:hover{background:var(--dim);}
+"""
+
 # Pack themes start from amber (any variable they leave out) and override.
 CSS += "".join("[data-theme='%s']{%s}\n" % (n, " ".join("%s:%s;" % kv for kv in sorted(t["colors"].items())))
                for n, t in sorted(EXTRA.items()))
@@ -209,6 +222,16 @@ CSS += "".join("[data-theme='%s']{%s}\n" % (n, " ".join("%s:%s;" % kv for kv in 
 # wrapped: private browsing can make it throw outright, and a malformed
 # stored value must never take a page down over a cosmetic preference.
 STARTUP_SCRIPT = """
+(function(){
+  // Show a scroll bar only while its box scrolls (see .scrolling in CSS).
+  document.addEventListener('scroll', function(e){
+    var el = (e.target === document) ? document.documentElement : e.target;
+    if (!el || !el.classList) return;
+    el.classList.add('scrolling');
+    clearTimeout(el._stumpScroll);
+    el._stumpScroll = setTimeout(function(){ el.classList.remove('scrolling'); }, 900);
+  }, true);
+})();
 (function(){
   try {
     var t = localStorage.getItem('stump_theme');
