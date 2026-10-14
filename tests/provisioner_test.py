@@ -240,6 +240,21 @@ check('CAM route: nothing is asked after section 3', asked_after == [], asked_af
 check('CAM route: it says the rest runs by itself', "run by themselves now" in out and "step away" in out, out[-1500:])
 check('CAM route: the card says who does what, and why it is slow', "Why so long" in out and "auto = it runs by itself" in out)
 check('CAM route: the summary has the addresses', "http://192.168.4.1/" in out and "Took" in out)
+# The CAM's config.py is saved in ~/.provisioner, never into the firmware
+# folder (a changed file there made `git pull` refuse to run)
+before = (fw / 'config.py').read_bytes()
+P.CONFIG_OUT_DIR = Path(tempfile.mkdtemp()) / 'profiles'
+sent = []
+saved_run, saved_resolve = P.run, P.resolve_path
+P.run = lambda cmd, **k: (sent.append(cmd), (True, ""))[1]
+P.resolve_path = lambda *a, **k: fw
+ok = P.push_config_to_board('/dev/fake', 'cam', {"node_name": "Test Node", "wifi_ssid": "x", "wifi_pass": "y",
+                                                 "heltec_host": "192.168.4.2", "heltec_port": 7633})
+P.run, P.resolve_path = saved_run, saved_resolve
+out_file = P.CONFIG_OUT_DIR / 'Test_Node.config.py'
+check('config push: the firmware folder is left alone', (fw / 'config.py').read_bytes() == before)
+check('config push: saved in the profiles folder and sent from there', ok and out_file.is_file()
+      and "Test Node" in out_file.read_text() and sent and str(out_file) in sent[0], sent)
 # remove_plugin refuses core
 check('remove refuses urns', P.remove_plugin('/dev/fake', 'urns') is False)
 print('FAILURES', FAIL)

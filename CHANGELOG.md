@@ -1,6 +1,16 @@
 # Changelog
 
 ## Unreleased
+- **The Provisioner no longer edits your checkout.** A CAM's generated
+  `config.py` used to be written into `final_firmware/config.py`, which
+  made every later `git pull` refuse ("Your local changes ... would be
+  overwritten") and left the old Provisioner running. It's now saved as
+  `~/.provisioner/profiles/<node>.config.py`. At start, the Provisioner
+  warns if a changed `final_firmware/config.py` would block a pull.
+- **The Tools page copy is a question.** In a CAM's section 3: copy the
+  Tools page's files (firmware bundle, Provisioner) to the card, ~20-25
+  minutes the first time and after each update, since they change with
+  it; no keeps the node working the same. The card says so.
 - **A CAM's setup asks everything first.** Section 3, *Questions*, asks
   them all (flash or not, the wizard, diagnostics at the end); sections
   4-7 then run by themselves, about 25 minutes, and the Provisioner keeps

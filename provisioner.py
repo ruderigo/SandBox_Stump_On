@@ -2850,6 +2850,9 @@ def _node_has_same_file(port, mount, node_path, local_path):
 APP_USB_MAX = 1000000   # app files larger than this go on the card by card reader
 
 
+SKIP_TOOLS = False      # set by the CAM route's questions (or --skip-tools)
+
+
 def install_tools_on_node(port):
     """Copies the technician tools (served on the node's /tools page) to
     its SD card. The slowest part of an upload -- roughly 1 MB at ~1 KB/s
@@ -2857,8 +2860,8 @@ def install_tools_on_node(port):
     card, can be skipped entirely with --skip-tools, and Ctrl+C stops it
     cleanly instead of with a traceback: the app is already installed by
     the time this runs."""
-    if "--skip-tools" in sys.argv:
-        print("\n  Technician tools: skipped (--skip-tools). The node works without them;")
+    if "--skip-tools" in sys.argv or SKIP_TOOLS:
+        print("\n  Technician tools: skipped. The node works without them;")
         print("  only its /tools download page is affected.")
         print("  Its sections' READMEs (a few KB) are brought up to date all the same:")
         refresh_tool_readmes(port)
@@ -3751,9 +3754,12 @@ def push_config_to_board(port, board_type, profile):
     # with hardcoded constants (WIFI_SSID, WIFI_PASS, NODE_NAME) plus a
     # nested interfaces list -- not a separate JSON file loaded at
     # runtime like the old build. So "pushing config" means generating a
-    # customized config.py from the one already in the resolved firmware
-    # folder, saving it back there (so future --upload-app runs already
-    # have it baked in), and pushing that one file.
+    # customized config.py from the one in the resolved firmware folder
+    # (the template), saving it beside the node's profile in
+    # ~/.provisioner/profiles/, and pushing that one file. Never written
+    # back into the firmware folder: it's part of the git checkout, and a
+    # changed config.py there made every later `git pull` refuse to run --
+    # silently leaving the old Provisioner and firmware in place.
     resolved = resolve_path(
         STUMP_APP_DIR, _STUMP_FILES_DESC, remember_key="stump_app_dir", is_dir=True,
         search_roots=[Path.cwd(), Path.cwd().parent, Path(__file__).resolve().parent,
@@ -3787,8 +3793,11 @@ def push_config_to_board(port, board_type, profile):
         print(f"FAILED to generate config.py: {e}")
         return False
 
+    CONFIG_OUT_DIR.mkdir(parents=True, exist_ok=True)
+    safe = "".join(c if (c.isalnum() or c in "-_") else "_" for c in profile["node_name"]) or "node"
+    local_config = CONFIG_OUT_DIR / (safe + ".config.py")
     local_config.write_text(new_content)
-    print(f"config.py updated locally at: {local_config}")
+    print(f"config.py for this node saved at: {local_config}")
 
     ok, out = run(["mpremote", "connect", port, "fs", "cp", str(local_config), ":config.py"], timeout=30)
     if ok:
@@ -4315,6 +4324,11 @@ def _cam_after_board(r, port, app_dir):
                        "broken board, no to keep it and only update)", True)
     upload = bool(app_dir) and (flash or ask_yes_no(
         "Upload the Stump files? (keeps the board's settings)", True))
+    global SKIP_TOOLS
+    SKIP_TOOLS = upload and not ask_yes_no(
+        "Copy the Tools page's files to its SD card too? They're the slow part: ~20-25 min "
+        "the first time and after each update (the firmware bundle and the Provisioner change). "
+        "No: the node works the same; only its /tools downloads stay as they were", True)
     profile = None
     if ask_yes_no("Answer the setup questions? (no: the board keeps its settings)", True):
         profile, _ = config_wizard("cam")
@@ -4423,8 +4437,8 @@ def route_for(role):
             ("Questions", "you", "all of them now: flash or not, name, Wi-Fi, chain, the Heltec, "
                                  "packs, bot, features, look"),
             ("Flash", "auto", "MicroPython onto the board (erases it)"),
-            ("Firmware", "auto", "the Stump files, then the Tools page's files onto its SD card: "
-                                 "the long part"),
+            ("Firmware", "auto", "the Stump files (~5 min), then the Tools page's files onto its "
+                                 "SD card (~20 min, if you say so in section 3)"),
             ("Install", "auto", "the settings and packs; restart; find its address"),
             ("Verify", "auto", "the diagnostic suite"),
         ], needs=["the CAM on USB, with a data cable (not a charge-only one)",
@@ -4433,9 +4447,10 @@ def route_for(role):
                   "a laptop: its lid open (a closed laptop sleeps anyway)"],
             subtitle="Nothing touches the board before you've answered everything.",
             why=["Why so long: the board takes files over USB slowly, about 1 KB/s once they go "
-                 "to its SD card. The Tools page's files (~1 MB: the Provisioner, the firmware "
-                 "bundle, the browser flasher) are most of the wait, and only the first time: a "
-                 "re-run skips what's already on the card.",
+                 "to its SD card. The Tools page's files are most of the wait: the firmware "
+                 "bundle (~900 KB) and the Provisioner, which a technician can download from the "
+                 "node. They change with every update, so they're copied again after each one; "
+                 "section 3 asks whether to. Everything else already on the card is skipped.",
                  "Leave the cable in. This computer is kept awake until the end."])
     if role == "heltec":
         return Route("Setting up a Heltec for a CAM", key="heltec", steps=[
@@ -4543,7 +4558,31 @@ def _ask_radio():
     return radio
 
 
+def checkout_warning():
+    """A git checkout whose final_firmware/config.py was changed (older
+    Provisioners wrote the node's settings there) makes `git pull` refuse
+    to update -- and the old Provisioner then runs as if nothing happened.
+    Says so, with the fix. Silent outside a git checkout."""
+    here = Path(__file__).resolve().parent
+    if not (here / ".git").exists():
+        return False
+    try:
+        r = subprocess.run(["git", "-C", str(here), "status", "--porcelain", "final_firmware/config.py"],
+                           capture_output=True, text=True, timeout=10)
+    except (OSError, subprocess.SubprocessError):
+        return False
+    if not r.stdout.strip():
+        return False
+    print(yellow("Note: final_firmware/config.py has local changes, so `git pull` can't update this"))
+    print(yellow("folder (it stops with \"Your local changes ... would be overwritten\")."))
+    print("Your nodes keep their own settings; to update, put the file back and pull:")
+    print("    git checkout -- final_firmware/config.py && git pull")
+    print("(Newer Provisioners keep each node's settings in ~/.provisioner/profiles/ instead.)\n")
+    return True
+
+
 def interactive_wizard():
+    checkout_warning()
     role = start_menu()
     if role is None:
         print("Nothing done.")
