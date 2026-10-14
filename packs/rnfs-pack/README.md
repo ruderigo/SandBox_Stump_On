@@ -42,3 +42,13 @@ fetches a shelved CID and puts the file on the Stump's file shelf.
 ```
 python3 provisioner.py --install-pack PORT packs/rnfs-pack
 ```
+
+## Credits
+
+**rnfs** is written by **Afi Hogan** ([afit21](https://github.com/afit21)),
+MIT licence: https://github.com/afit21/rnfs. The wheel in `tools/` is
+built unchanged from its `v0.1.1` source tag. **Reticulum** (as rnspure)
+and **LXMF** are by **Mark Qvist** (Reticulum License,
+https://reticulum.network). This pack only hands them out and speaks
+rnfs's link format; the `/p/rnfs/` page, the `!rnfs` reply and the
+Tools page section all credit them, in French, English and Spanish.

@@ -672,18 +672,25 @@ def help_lines(lang, mesh=False):
     """The /help listing, in the requesting client's language. Command
     WORDS and their column alignment stay fixed across all languages
     (a consistent vocabulary, same reasoning as barkeep.py's bot
-    console) -- only the description after each one is translated."""
+    console) -- only the description after each one is translated, and
+    the argument names (<name> is <nom> in French): the column stays
+    aligned whatever their length."""
+    def a(key):
+        return i18n.t("help_arg_" + key, lang)
+
+    def line(cmd, desc):
+        return cmd + " " * max(1, 18 - len(cmd)) + i18n.t(desc, lang)
     return [
-        "/nick <name>      " + i18n.t("help_nick", lang),
-        "/join <room>      " + i18n.t("help_join", lang),
-        "/part             " + i18n.t("help_part", lang),
-        "/rooms            " + i18n.t("help_rooms", lang),
-        "/names            " + i18n.t("help_names", lang),
-        "/topic <text>     " + i18n.t("help_topic", lang),
-        "/msg <who> <text> " + i18n.t("help_msg", lang),
-        "/me <action>      " + i18n.t("help_me", lang),
-        "/clear            " + i18n.t("help_clear", lang),
-        "/help             " + i18n.t("help_help", lang),
+        line("/nick " + a("name"), "help_nick"),
+        line("/join " + a("room"), "help_join"),
+        line("/part", "help_part"),
+        line("/rooms", "help_rooms"),
+        line("/names", "help_names"),
+        line("/topic " + a("text"), "help_topic"),
+        line("/msg " + a("who") + " " + a("text"), "help_msg"),
+        line("/me " + a("action"), "help_me"),
+        line("/clear", "help_clear"),
+        line("/help", "help_help"),
     ] + plugins.help_lines(lang, mesh) + [
         i18n.t("help_legend", lang),
     ]

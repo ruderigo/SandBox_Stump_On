@@ -266,6 +266,11 @@ STRINGS = {
         "en": "'{nick}' is taken in here",
         "es": "«{nick}» ya está en uso aquí",
     },
+    "help_arg_name": {"fr": "<nom>", "en": "<name>", "es": "<nombre>"},
+    "help_arg_room": {"fr": "<salle>", "en": "<room>", "es": "<sala>"},
+    "help_arg_text": {"fr": "<texte>", "en": "<text>", "es": "<texto>"},
+    "help_arg_who": {"fr": "<qui>", "en": "<who>", "es": "<quién>"},
+    "help_arg_action": {"fr": "<action>", "en": "<action>", "es": "<acción>"},
     "join_usage": {
         "fr": "usage\u00a0: /join <salle>",
         "en": "usage: /join <room>",

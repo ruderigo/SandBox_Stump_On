@@ -2374,6 +2374,14 @@ true today, and worth keeping true: see "What ends up in `/sd/tools/`"
 above for the one place that claim would need re-checking if it ever
 changes (staging a real firmware binary for the browser flasher).
 
+The **rnfs pack** (`packs/rnfs-pack/`) hands out
+[rnfs](https://github.com/afit21/rnfs), written by **Afi Hogan**
+([afit21](https://github.com/afit21)), MIT, together with **Reticulum**
+(as rnspure) and **LXMF** by **Mark Qvist**
+([reticulum.network](https://reticulum.network), Reticulum License),
+unchanged, with their licences. The pack's own page, its `!rnfs` reply
+and its Tools page section credit them in all three languages.
+
 See `LICENSE` for this build's own terms and the full third-party list.
 
 ---

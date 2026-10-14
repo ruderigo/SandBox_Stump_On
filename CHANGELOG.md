@@ -38,6 +38,13 @@
 - `--skip-tools` still brings the Tools page's READMEs up to date (a few
   KB, every language, for the sections already on the card, packs'
   included): a translation no longer waits for the slow tools copy.
+- **rnfs pack 1.1 — credits:** rnfs is by Afi Hogan (afit21), MIT;
+  Reticulum and LXMF, shipped with it, by Mark Qvist. Credited on the
+  `/p/rnfs/` page, in the `!rnfs` reply, in its Tools page section
+  (summary and a Credits section) and the pack's README, in all three
+  languages; `pack.json` has a new `credits` field the Provisioner shows
+  before installing. Its shelf list no longer squeezes titles on a phone.
+- `/help`'s argument names are translated (`/nick <nom>`, `/join <sala>`).
 - Fixed: **`--upload-app` replaced the node's `config.py`** with the one
   in the firmware folder, so an update could change a node's name,
   Wi-Fi, passwords or theme (the theme was what showed). It now keeps

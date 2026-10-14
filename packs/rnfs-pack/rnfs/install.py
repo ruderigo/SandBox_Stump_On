@@ -11,7 +11,7 @@ try:
 except ImportError:
     import json
 
-VERSION = "1.0"
+VERSION = "1.1"
 STUMP_API = 1
 
 MAX_SHELF = 200
@@ -208,12 +208,19 @@ def _page(req):
         out.append("<p class='sub'>" + e(t("shelf_empty")) + "</p>")
     else:
         out.append("<div class='panel'><ul class='files'>" + "".join(
-            "<li><b>#%d %s</b> <small>— %s</small><br><code>rnfs get %s</code></li>"
+            "<li><div style='flex:1;min-width:0'><b>#%d %s</b> <small>— %s</small><br>"
+            "<code style='overflow-wrap:anywhere'>rnfs get %s</code></div></li>"
             % (i + 1, e(it[1]), e(it[2]), e(it[0])) for i, it in reversed(list(enumerate(items)))) + "</ul></div>")
     if _state["spotted"]:
         out.append("<h2>" + e(t("page_spotted")) + "</h2><div class='panel'><ul class='files'>" + "".join(
-            "<li><code>%s</code> <small>— %s, #%s</small></li>" % (e(_cmd(sp[0])), e(sp[1]), e(sp[2]))
+            "<li><div style='flex:1;min-width:0'><code style='overflow-wrap:anywhere'>%s</code><br>"
+            "<small>— %s, #%s</small></div></li>" % (e(_cmd(sp[0])), e(sp[1]), e(sp[2]))
             for sp in reversed(_state["spotted"][-20:])) + "</ul></div>")
+    # Credit where it's due: rnfs and the Reticulum stack it ships with.
+    credit = e(t("page_credit", rnfs="\x00R", rns="\x00N"))
+    credit = (credit.replace("\x00R", "<a href='https://github.com/afit21/rnfs'>github.com/afit21/rnfs</a>")
+              .replace("\x00N", "<a href='https://reticulum.network'>reticulum.network</a>"))
+    out.append("<p class='sub'><small>" + credit + "</small></p>")
     return "".join(out)
 
 

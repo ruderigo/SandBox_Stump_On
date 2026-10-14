@@ -1,7 +1,7 @@
 {
   "plugin": "rnfs",
   "title": "rnfs (Reticulum file system links and shelf)",
-  "version": "1.0",
+  "version": "1.1",
   "plugin_api": 1,
   "summary": "Spots rnfs links in chat (web and LoRa) and keeps the place's own shelf of them: !shelf, a page at /p/rnfs/, and rnfs itself on the Tools page.",
   "modifies_core_files": false,
@@ -41,7 +41,7 @@
   ],
   "hashes": {
     "rnfs/__init__.py": "110590c542886bf6",
-    "rnfs/install.py": "b2d07f93fd98401f",
-    "rnfs/strings.py": "c8f7d88c46f44e93"
+    "rnfs/install.py": "333b10cab4986475",
+    "rnfs/strings.py": "4cb8aca5744b3ff5"
   }
 }

@@ -96,6 +96,7 @@ Files in `tools/` or `home/` over 1 MB aren't copied over USB (about
 | `name`, `version`, `author`, `license` | Required |
 | `stump_api` | The plugin API version it needs (1). Firmware with an older one refuses the pack, and the node itself won't start a plugin that asks for more than it has |
 | `description` | Shown before installing |
+| `credits` | Who wrote what the pack hands out (third-party software, art...), with its licence and address; shown before installing. Credit them on the pack's own page too |
 | `ram_kb` | A rough figure, so a technician can plan; `/admin` shows what each plugin really took |
 | `plugins` | The plugin folders inside |
 | `theme` | A palette offered beside amber, phosphor, oled and paper. `name`: lowercase letters, digits, `-`. `colors`: any of `--bg --panel --panel-2 --line --text --muted --dim --border --ember --ember-bright --action --dm --dm-nick --err`, as `#rgb` or `#rrggbb`; any you leave out stay amber's. Anything else is ignored |

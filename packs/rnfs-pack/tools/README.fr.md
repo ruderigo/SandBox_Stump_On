@@ -1,6 +1,6 @@
 # rnfs — système de fichiers Reticulum
 
-Des fichiers sur le réseau Reticulum (LoRa compris), récupérés par leur identifiant de contenu. Tout ce qu'il faut ici pour l'installer sur n'importe quel ordinateur avec Python 3.11 ou plus récent, sans internet.
+Des fichiers sur le réseau Reticulum (LoRa compris), récupérés par leur identifiant de contenu — écrit par Afi Hogan (afit21). Tout ce qu'il faut ici pour l'installer sur n'importe quel ordinateur avec Python 3.11 ou plus récent, sans internet.
 
 https://github.com/afit21/rnfs   (licence MIT, voir rnfs-LICENSE.txt)
 
@@ -72,3 +72,17 @@ Si ce Stump fait tourner un nœud de propagation (messages gardés pour
 les gens hors ligne), les messages LXMF de rnfs peuvent s'en servir :
 mets son adresse dans ~/.rnfs/rnfs.toml sous la forme
 lxmf_propagation_node = "<32 chiffres hexadécimaux>"
+
+## Remerciements
+
+- **rnfs** est écrit par **Afi Hogan** ([afit21](https://github.com/afit21)) :
+  https://github.com/afit21/rnfs — licence MIT, voir rnfs-LICENSE.txt.
+  Le paquet (wheel) d'ici est construit tel quel depuis sa version
+  source v0.1.1.
+- **Reticulum** (ici sous la forme de rnspure, son édition 100 % Python)
+  et **LXMF** sont de **Mark Qvist** : https://reticulum.network —
+  licence Reticulum, voir reticulum-LICENSE.txt.
+
+Ce Stump ne fait que les distribuer, pour qu'on puisse les obtenir sans
+internet. Les questions sur rnfs, les signalements de bogues et les
+remerciements vont à son auteur, sur la page du projet.

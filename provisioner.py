@@ -217,14 +217,14 @@ EXPECTED_FILE_HASHES = {
     "docs/HIDDEN_FEATURES.md": "053479ae239e0891",
     "docs/HOME_BRANDING.md": "e1a1a9cf854dcdce",
     "docs/HTTPS_SETUP.md": "30171f88d7a75712",
-    "docs/PACKS.md": "c4e2681259523698",
+    "docs/PACKS.md": "2e89e3c28d80d72d",
     "docs/PLUGINS.md": "3f5b4a5ee6844305",
     "example_node.py": "b3dda61339f0699e",
     "features.py": "7fca96873d59d2d3",
     "flasher_ui.py": "1d3035b1132bc87e",
     "fserv.py": "e627bfe479d14bb2",
     "fservbot/plugin.json": "fecf7cbfff4e7d97",
-    "i18n.py": "6c7a93b2236d8f3f",
+    "i18n.py": "c2c1a7af6634fdc3",
     "layout.py": "fb82a2d1ed9f00da",
     "lib/bz2_fast_xtensawin.mpy": "ac55d9eda2126432",
     "lib/ed25519_fast_xtensawin.mpy": "96e74dac45f91687",
@@ -237,8 +237,8 @@ EXPECTED_FILE_HASHES = {
     "plugins.py": "7d277aabb19f4291",
     "propagation.py": "0fbf13b1d6167ad3",
     "radio.py": "feb621dfb9d1e95b",
-    "rrc.py": "edda82c4b71b7915",
-    "rrc_mesh.py": "42aa4bb1417ce208",
+    "rrc.py": "b7029967f7fb0496",
+    "rrc_mesh.py": "ea17b8fd9020b1c0",
     "rrc_ui.py": "6f30c2c8c1655093",
     "stump_tls.py": "c4924c237805ae84",
     "stumpid/plugin.json": "68cc159374a5c102",
@@ -873,6 +873,9 @@ def describe_pack(pack, fw_api):
     print(f"  {bold(spec['name'])} {spec['version']}  —  by {spec['author']}, {spec['license']} licence")
     if spec.get("description"):
         for line in _wrap(spec["description"], 68):
+            print(f"    {line}")
+    if spec.get("credits"):
+        for i, line in enumerate(_wrap("Credits: " + spec["credits"], 68)):
             print(f"    {line}")
     bits = []
     if spec.get("plugins"):

@@ -1,6 +1,6 @@
 # rnfs — Reticulum Network File System
 
-Files on the Reticulum network (LoRa included), fetched by content ID. Everything here installs it on any computer with Python 3.11 or newer, with no internet.
+Files on the Reticulum network (LoRa included), fetched by content ID — written by Afi Hogan (afit21). Everything here installs it on any computer with Python 3.11 or newer, with no internet.
 
 https://github.com/afit21/rnfs   (MIT licence, see rnfs-LICENSE.txt)
 
@@ -67,3 +67,16 @@ on the page /p/rnfs/.
 If this Stump runs a propagation node (store-and-forward for offline
 messages), rnfs's own LXMF messages can use it: put its address in
 ~/.rnfs/rnfs.toml as  lxmf_propagation_node = "<32 hex digits>"
+
+## Credits
+
+- **rnfs** is written by **Afi Hogan** ([afit21](https://github.com/afit21)):
+  https://github.com/afit21/rnfs — MIT licence, see rnfs-LICENSE.txt.
+  The wheel here is built unchanged from its v0.1.1 source tag.
+- **Reticulum** (here as rnspure, its pure-Python edition) and **LXMF**
+  are by **Mark Qvist**: https://reticulum.network — Reticulum License,
+  see reticulum-LICENSE.txt.
+
+This Stump only hands them out, so that people can get them without
+internet. Questions about rnfs itself, bug reports and thanks go to its
+author, on the project's page.

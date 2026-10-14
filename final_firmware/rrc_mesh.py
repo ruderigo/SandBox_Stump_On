@@ -533,7 +533,8 @@ def _handle(dest_hash_hex, peer, text):
     if text.lower() in ("/help", "/?"):
         # The chat's own help (same wording as the web, in this user's
         # language, ending with the symbol key) plus the one mesh-only form.
-        return (["#<room> <text>    " + i18n.t("help_room_prefix", lang)]
+        first = "#" + i18n.t("help_arg_room", lang) + " " + i18n.t("help_arg_text", lang)
+        return ([first + " " * max(1, 18 - len(first)) + i18n.t("help_room_prefix", lang)]
                 + rrc.help_lines(lang, mesh=True)), None
 
     rrc.touch_user(dest_hash_hex, nick=nick, room=room)
