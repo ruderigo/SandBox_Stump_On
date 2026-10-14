@@ -5188,7 +5188,10 @@ def chain_preflight(parent_ip, secret, ssid="", hello=chain_hello, get=_get_json
     if not mine or not mine.startswith(prefix):
         out.append((False, "This computer is on %s's network" % parent_ip,
                     "It isn't (its address is %s). Join %s from this computer's Wi-Fi menu, "
-                    "then check again." % (mine or "unknown", where)))
+                    "then check again. Joined it and still see this? The computer went back to its "
+                    "usual Wi-Fi, since a Stump's has no internet: turn off Auto-Join for the usual "
+                    "one while you set up (macOS: System Settings > Wi-Fi > its ... button)."
+                    % (mine or "unknown", where)))
         return out
     out.append((True, "This computer is on %s's network (as %s)" % (parent_ip, mine), ""))
     try:
