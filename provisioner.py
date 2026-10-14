@@ -872,8 +872,10 @@ def check_pack(pack, fw_api):
     return None, warnings
 
 
-def describe_pack(pack, fw_api):
-    """Prints what a technician should see before installing a pack."""
+def describe_pack(pack, fw_api, files_listed=True):
+    """Prints what a technician should see before installing a pack.
+    files_listed=False (the wizard) says whether the files match the
+    pack's hashes instead of listing each one (--list-packs does)."""
     spec, d = pack["spec"], pack["dir"]
     print(f"  {bold(spec['name'])} {spec['version']}  —  by {spec['author']}, {spec['license']} licence")
     if spec.get("description"):
@@ -900,10 +902,14 @@ def describe_pack(pack, fw_api):
     files = []
     for name in spec.get("plugins", []):
         files += [f for f in plugin_files(d / name) if _belongs_on_board(f)]
-    for rel in files:
-        print(f"      {rel}  {_sha16(d / rel)}")
-    for rel in extra:
-        print(f"      {rel}  {_sha16(d / rel)}  (SD card)")
+    if files_listed:
+        for rel in files:
+            print(f"      {rel}  {_sha16(d / rel)}")
+        for rel in extra:
+            print(f"      {rel}  {_sha16(d / rel)}  (SD card)")
+    elif not any("changed since" in w for w in warnings):
+        print("    " + green(_glyphs()["done"]) + " its %d file(s) match the pack's hashes"
+              " (--list-packs lists them)" % (len(files) + len(extra)))
     if refusal:
         print("    " + yellow("CAN'T INSTALL: " + refusal))
     for w in warnings:
@@ -924,7 +930,7 @@ def choose_packs(fw_dir, packs=None):
     print("full access to the node: install only packs from people you trust.\n")
     chosen = []
     for pack in packs:
-        refusal, warnings = describe_pack(pack, fw_api)
+        refusal, warnings = describe_pack(pack, fw_api, files_listed=False)
         if refusal:
             print()
             continue
@@ -1116,10 +1122,221 @@ def preview_ssid(node_name, ap_ip=DEFAULT_AP_IP):
 # Small utilities
 # ---------------------------------------------------------------------------
 
+# ── The terminal layout ──────────────────────────────────────────────
+# Every run follows a ROUTE: numbered sections shown up front on a card
+# (what each does, what it needs), then each section opens with a header
+# and a breadcrumb of where you are, and the run ends on a summary of
+# what happened and what to remember. Inside a section, banner() is a
+# sub-heading; outside one, a heading of its own.
+
+def _width():
+    try:
+        cols = shutil.get_terminal_size((80, 24)).columns
+    except Exception:
+        cols = 80
+    return max(50, min(76, cols - 2))
+
+
+def _glyphs():
+    if _fancy():
+        return {"tl": "╭", "tr": "╮", "bl": "╰", "br": "╯", "h": "─", "v": "│", "H": "━",
+                "done": "✓", "fail": "✗", "skip": "–", "now": "●", "todo": "○", "sep": "  "}
+    return {"tl": "+", "tr": "+", "bl": "+", "br": "+", "h": "-", "v": "|", "H": "=",
+            "done": "+", "fail": "X", "skip": "-", "now": "*", "todo": "o", "sep": "  "}
+
+
+def _visible_len(text):
+    import re
+    return len(re.sub(r"\033\[[0-9;]*m", "", text))
+
+
+def box(title, lines):
+    """A rounded box with a title, the lines wrapped to the width."""
+    g, w = _glyphs(), _width()
+    inner = w - 4
+    head = g["h"] + " " + title + " "
+    print("\n" + g["tl"] + bold(head) + g["h"] * max(0, w - 2 - len(head)) + g["tr"])
+    for line in lines:
+        lead = line[:len(line) - len(line.lstrip())]
+        parts = [line]
+        if _visible_len(line) > inner and "\033" not in line:
+            wrapped = _wrap(line, inner - len(lead) - 2)
+            parts = [lead + wrapped[0]] + [lead + "  " + w for w in wrapped[1:]]
+        for part in parts:
+            print(g["v"] + " " + part + " " * max(0, inner - _visible_len(part)) + " " + g["v"])
+    print(g["bl"] + g["h"] * (w - 2) + g["br"])
+
+
+class _Indented:
+    """sys.stdout while a route runs: everything printed inside a section
+    is indented under its header, so each section reads as one block."""
+
+    def __init__(self, real):
+        self.real, self.on, self.bol = real, False, True
+
+    def write(self, text):
+        if self.on and text:
+            out = []
+            for part in text.splitlines(True):
+                if self.bol and part != "\n":
+                    out.append("  ")
+                out.append(part)
+                self.bol = part.endswith("\n")
+            self.real.write("".join(out))
+        else:
+            self.real.write(text)
+            if text:
+                self.bol = text.endswith("\n")
+        return len(text)
+
+    def __getattr__(self, name):
+        return getattr(self.real, name)
+
+
+def _indent(on):
+    if not isinstance(sys.stdout, _Indented):
+        sys.stdout = _Indented(sys.stdout)
+    sys.stdout.on = on
+
+
+def _in(prompt):
+    """input(), indented like the rest of the section. (A terminal prints
+    the prompt itself, past sys.stdout, so the indent is added here.)"""
+    out = sys.stdout
+    if isinstance(out, _Indented) and out.on and out.bol:
+        try:
+            direct = out.real.isatty() and sys.stdin.isatty()
+        except Exception:
+            direct = False
+        if direct:
+            prompt = "  " + prompt
+    return input(prompt)
+
+
+class Route:
+    """The numbered sections of one run (see the comment above)."""
+    current = None
+
+    def __init__(self, title, steps, needs=(), subtitle=""):
+        self.title, self.subtitle = title, subtitle
+        self.steps = list(steps)              # [(name, what)]
+        self.needs = list(needs)
+        self.state = ["todo"] * len(self.steps)
+        self.notes = []                       # [(label, value)] for the summary
+        self.index = -1
+
+    def show(self):
+        g = _glyphs()
+        lines = [self.subtitle, ""] if self.subtitle else []
+        width = max(len(n) for n, _ in self.steps)
+        room = _width() - 4 - (width + 6)
+        for i, (name, what) in enumerate(self.steps, 1):
+            parts = _wrap(what, room) or [""]
+            lines.append("%2d  %s  %s" % (i, bold(name.ljust(width)), parts[0]))
+            lines += [" " * (width + 6) + p for p in parts[1:]]
+        if self.needs:
+            lines += ["", "You'll need:"] + ["  " + g["now"] + " " + n for n in self.needs]
+        _indent(False)
+        box(self.title, lines)
+        Route.current = self
+
+    def _crumbs(self):
+        g = _glyphs()
+        marks = {"done": green(g["done"]), "fail": red(g["fail"]), "skip": g["skip"],
+                 "now": cyan(g["now"]), "todo": g["todo"]}
+        parts = []
+        for (name, _), st in zip(self.steps, self.state):
+            label = bold(name) if st == "now" else name
+            parts.append(marks[st] + " " + label)
+        line, out = "", []
+        for part in parts:
+            add = (g["sep"] if line else "") + part
+            if line and _visible_len(line + add) > _width() - 2:
+                out.append(line)
+                line = part
+            else:
+                line += add
+        return out + [line]
+
+    def start(self, name):
+        """Opens the section called `name`."""
+        g = _glyphs()
+        i = [n for n, _ in self.steps].index(name)
+        if 0 <= self.index < len(self.state) and self.state[self.index] == "now":
+            self.state[self.index] = "done"
+        self.index = i
+        self.state[i] = "now"
+        head = "%s %d/%d  %s " % (g["H"] * 3, i + 1, len(self.steps), name.upper())
+        _indent(False)
+        print("\n\n" + bold(head + g["H"] * max(0, _width() - len(head))))
+        for line in self._crumbs():
+            print("  " + line)
+        print("  " + self.steps[i][1])
+        _indent(True)
+
+    def end(self, state="done", why=""):
+        """Closes the current section: done, fail or skip."""
+        g = _glyphs()
+        if self.index < 0:
+            return
+        self.state[self.index] = state
+        name = self.steps[self.index][0]
+        mark = {"done": green(g["done"]), "fail": red(g["fail"]), "skip": g["skip"]}[state]
+        word = {"done": "done", "fail": "didn't work", "skip": "skipped"}[state]
+        print("\n%s %s: %s%s" % (mark, name, word, (" -- " + why) if why else ""))
+
+    def skip_rest(self, why=""):
+        for i in range(len(self.state)):
+            if self.state[i] in ("todo", "now"):
+                self.state[i] = "skip"
+
+    def note(self, label, value):
+        self.notes.append((label, value))
+
+    def summary(self, closing=""):
+        g = _glyphs()
+        if 0 <= self.index < len(self.state) and self.state[self.index] == "now":
+            self.state[self.index] = "done"
+        marks = {"done": green(g["done"]), "fail": red(g["fail"]), "skip": g["skip"], "todo": g["skip"]}
+        words = {"done": "done", "fail": red("didn't work"), "skip": "skipped", "todo": "not reached"}
+        width = max(len(n) for n, _ in self.steps)
+        lines = ["%s  %s  %s" % (marks.get(st, "?"), name.ljust(width), words.get(st, st))
+                 for (name, _), st in zip(self.steps, self.state)]
+        if self.notes:
+            lw = max(len(l) for l, _ in self.notes)
+            room = _width() - 4 - lw - 2
+            lines.append("")
+            for label, value in self.notes:
+                value = str(value)
+                parts = [value] if "\033" in value or len(value) <= room else \
+                    [value[k:k + room] for k in range(0, len(value), room)]
+                lines.append("%s  %s" % (bold(label.ljust(lw)), parts[0]))
+                lines += [" " * (lw + 2) + p for p in parts[1:]]
+        if closing:
+            lines += ["", closing]
+        _indent(False)
+        box(self.title + " -- summary", lines)
+        Route.current = None
+        return all(st != "fail" for st in self.state)
+
+
 def banner(text):
-    print("\n" + "=" * 70)
-    print(text)
-    print("=" * 70)
+    """A heading: a sub-heading inside a route's section, else a heading."""
+    g = _glyphs()
+    if Route.current is not None and Route.current.index >= 0:
+        head, sep, rest = text.partition(" — ")
+        if head.isupper():
+            head = head.capitalize()
+        print("\n" + cyan(g["h"] * 2 + " " + head + sep + rest + " " + g["h"] * 2))
+        return
+    head = g["H"] * 3 + " " + text + " "
+    print("\n" + bold(head + g["H"] * max(0, _width() - len(head))))
+
+
+def subhead(text):
+    """A topic inside a section (the config questions)."""
+    g = _glyphs()
+    print("\n" + cyan(g["h"] * 2 + " " + text + " " + g["h"] * 2))
 
 
 # Color/bold terminal output for exactly the things a technician needs
@@ -1163,7 +1380,7 @@ def cyan(text):
 
 def ask(prompt, default=None):
     suffix = f" [{default}]" if default is not None else ""
-    val = input(f"{prompt}{suffix}: ").strip()
+    val = _in(f"{prompt}{suffix}: ").strip()
     return val if val else default
 
 
@@ -1184,7 +1401,7 @@ def ask_yes_no(prompt, default=True):
     """
     hint = "Y/n" if default else "y/N"
     while True:
-        raw = input(f"{prompt} [{hint}]: ").strip().lower()
+        raw = _in(f"{prompt} [{hint}]: ").strip().lower()
         if not raw:
             return default
         if raw in _YES:
@@ -1199,7 +1416,7 @@ def ask_choice(prompt, options):
     for i, opt in enumerate(options, 1):
         print(f"  {i}) {opt}")
     while True:
-        raw = input(f"Choose 1-{len(options)}: ").strip()
+        raw = _in(f"Choose 1-{len(options)}: ").strip()
         if raw.isdigit() and 1 <= int(raw) <= len(options):
             return options[int(raw) - 1]
         print("  invalid choice, try again")
@@ -1348,7 +1565,7 @@ def ask_wifi(prompt, default="", scan=None):
         for i, n in enumerate(nets, 1):
             print("  %2d) %s %s%s" % (i, _bars(n["signal"]), n["ssid"], "" if n["open"] else ("  🔒" if _fancy() else "  (password)")))
         print("   r) look again     or type a name that isn't listed")
-        raw = input("Choose 1-%d%s: " % (len(nets), " [%s]" % default if default else "")).strip()
+        raw = _in("Choose 1-%d%s: " % (len(nets), " [%s]" % default if default else "")).strip()
         if raw.lower() == "r":
             continue
         if not raw:
@@ -1897,12 +2114,14 @@ def scan_boards():
     return ports
 
 
-def choose_board():
+def choose_board(role=None):
+    """Picks the board's port. With the role already known (the start
+    menu), returns the port alone; without, (port, board_type)."""
     ports = scan_boards()
     if not ports:
         manual = ask("No boards auto-detected. Enter a serial port path manually (blank to abort)")
         if not manual:
-            return None, None
+            return None if role else (None, None)
         ports = [{"device": manual, "description": "manual entry", "guess": "unknown board"}]
 
     device_list = [p["device"] for p in ports]
@@ -1925,6 +2144,14 @@ def choose_board():
         print("  (a guess from generic USB ids -- confirm below)")
     else:
         print(f"\n  Couldn't identify this board from USB alone ({chosen['description']}).")
+
+    if role:
+        named = {"heltec": "Heltec", "heltec_transport": "Heltec", "cam": "CAM"}[role]
+        if guess and guess != "unknown board" and named.lower() not in guess.lower():
+            print(yellow("  That doesn't look like a %s. Flashing the wrong board is destructive." % named))
+            if not ask_yes_no("  Use this port anyway?", False):
+                return None
+        return chosen_device
 
     # An exact-label lookup, not a substring match against "Heltec" --
     # that approach broke the moment a second Heltec-labeled choice
@@ -2845,7 +3072,6 @@ def _diff_against_device(resolved, filenames, device_sizes):
 # ---------------------------------------------------------------------------
 
 def config_wizard(board_type):
-    banner("GUIDED CONFIG WIZARD")
     # Three roles, three sensible defaults -- the old binary check here
     # (cam vs. everything-else-is-firefly) silently gave a standalone
     # transport relay the wrong default name ("unnamed-firefly"), since
@@ -2856,6 +3082,7 @@ def config_wizard(board_type):
         "pc": "unnamed-stump",
         "heltec_transport": "unnamed-repeater",
     }
+    subhead("Name")
     node_name = ask("Node name (shown to peers)", default_names.get(board_type, "unnamed-firefly"))
 
     profile = {"node_name": node_name, "board_type": board_type}
@@ -2868,7 +3095,8 @@ def config_wizard(board_type):
         # just never hears or is heard by anything -- there's no
         # message for that failure mode, only silence, so this is the
         # one place to actually catch it before it ships.
-        print("\nRadio parameters (defaults match the deployed mesh):")
+        subhead("Radio")
+        print("Radio parameters (defaults match the deployed mesh):")
         radio = dict(DEFAULT_RADIO)
         radio["frequency"] = int(ask("Frequency (Hz)", radio["frequency"]))
         radio["bandwidth"] = int(ask("Bandwidth (Hz)", radio["bandwidth"]))
@@ -2879,7 +3107,8 @@ def config_wizard(board_type):
         return profile, None
 
     if board_type == "heltec":
-        print("\nRadio parameters (defaults match the deployed mesh):")
+        subhead("Radio")
+        print("Radio parameters (defaults match the deployed mesh):")
         radio = dict(DEFAULT_RADIO)
         radio["frequency"] = int(ask("Frequency (Hz)", radio["frequency"]))
         radio["bandwidth"] = int(ask("Bandwidth (Hz)", radio["bandwidth"]))
@@ -2902,7 +3131,8 @@ def config_wizard(board_type):
         # depends on. Without it the Heltec is USB-only and the CAM has
         # no way to reach it, so this belongs in the guided flow rather
         # than as a command the technician is told to remember.
-        print("\nWiFi Remote (Station mode) — this is what lets the CAM reach this")
+        subhead("Wi-Fi: how the CAM reaches it")
+        print("WiFi Remote (Station mode) — this is what lets the CAM reach this")
         print("radio over the network instead of a USB cable. Required for the bridge.")
         if ask_yes_no("Configure WiFi Station mode on this Heltec now?", True):
             # Made explicit after a real question about it: the CAM works
@@ -2954,12 +3184,14 @@ def config_wizard(board_type):
         # operating system's to set up, so nothing to join and no hotspot
         # name to broadcast -- only what visitors are told.
         profile["wifi_ssid"], profile["wifi_pass"] = "", ""
+        subhead("Visitors' Wi-Fi")
         print("Visitors join this computer's hotspot (Windows: Mobile Hotspot; macOS:")
         print("Internet Sharing), or a router the computer is on, and open its address.")
         profile["pc_hotspot_name"] = ask("The Wi-Fi name visitors join (shown on the About page)", node_name)
         profile["ssid_name"] = profile["pc_hotspot_name"]
         profile["ssid_include_ip"] = False
     if board_type == "cam":
+        subhead("Wi-Fi")
         print("This build's config.py has the CAM join an EXISTING WiFi network")
         print("(for internet/LXMF reachability) -- it's not creating its own hotspot")
         print("with this name. The local walk-up AP is a separate, fixed 'Stump'")
@@ -3008,7 +3240,8 @@ def config_wizard(board_type):
 
     if board_type in ("cam", "pc"):
         # ---- Chain of Stumps over Wi-Fi (docs/CHAIN.md) ----
-        print("\nStumps can be chained over Wi-Fi -- e.g. one per apartment, each")
+        subhead("Chain")
+        print("Stumps can be chained over Wi-Fi -- e.g. one per apartment, each")
         print("joining the Wi-Fi of the one before it -- so files move between them")
         print("over Wi-Fi and never over LoRa.")
         chain_cfg = None
@@ -3073,6 +3306,7 @@ def config_wizard(board_type):
                 print("  " + yellow("No secret: anyone on a Stump's Wi-Fi could join the chain."))
         profile["chain"] = chain_cfg
 
+        subhead("The Heltec (LoRa radio)")
         has_heltec = True
         if board_type == "pc":
             link = ask_choice("The Heltec (LoRa radio)", [
@@ -3108,7 +3342,7 @@ def config_wizard(board_type):
             print("  rnodeconf <port> -w STATION --ip <address> (see docs/PC.md).")
             profile["heltec_host"] = ask("  The Heltec's address", "192.168.137.2")
             profile["heltec_port"] = 7633
-        elif has_heltec:
+        elif has_heltec and board_type != "pc":
             print("\nIs the Heltec reaching this CAM through an existing WiFi network (a")
             print("router), or connected directly to THIS CAM's own hotspot (a")
             print("standalone pair, no router involved)?")
@@ -3155,7 +3389,8 @@ def config_wizard(board_type):
         pack_themes = [p["spec"]["theme"] for p in packs if p["spec"].get("theme", {}).get("name")]
 
         # ---- Local greeter name ----
-        print("\nThe node's bot has a name: it's who answers '!' commands in the")
+        subhead("The bot")
+        print("The node's bot has a name: it's who answers '!' commands in the")
         print("chat (and the Concierge, a hidden page at /concierge). Cosmetic,")
         print("and separate from the node name above, which is what mesh peers see.")
         profile["bot_name"] = ask("  Bot's name", persona.get("bot_name") or "BarKeep")
@@ -3198,7 +3433,8 @@ def config_wizard(board_type):
             profile["plugin_config"] = {}
 
         # ---- Credit economy ----
-        print("\nFile sharing can run as a credit economy (bring something to take")
+        subhead("File sharing")
+        print("File sharing can run as a credit economy (bring something to take")
         print("something) or completely free. Free mode hides the credit UI entirely.")
         credit_choice = ask_choice(
             "How should file sharing work?",
@@ -3237,7 +3473,8 @@ def config_wizard(board_type):
         # Which visitor features this node offers. One that's off is gone:
         # no tile, no link, and its addresses answer "not offered here".
         # Turning chat off also turns off chat over the mesh.
-        print("\nWhich features should this node offer? (A feature that's off is")
+        subhead("Features")
+        print("Which features should this node offer? (A feature that's off is")
         print("removed entirely: no tile, no link, its pages answer 'not offered'.)")
         picked = []
         for key, label in (
@@ -3256,7 +3493,8 @@ def config_wizard(board_type):
         profile["features"] = picked
 
         # ---- Propagation node ----
-        print("\nRun an LXMF propagation node? It holds messages for people who")
+        subhead("Propagation node")
+        print("Run an LXMF propagation node? It holds messages for people who")
         print("are offline (FireFly, Sideband) and hands them over when they're")
         print("back. Needs the SD card. Each stored message costs ~30 s of")
         print("background work on this board. Can be switched later in /admin.")
@@ -3266,7 +3504,8 @@ def config_wizard(board_type):
         # Site-wide: every page and the chat use it, for every visitor.
         # A browser can still pick its own from /admin; that only
         # changes that one browser.
-        print("\nPick the node's look. It applies to every page and the chat, for")
+        subhead("Look")
+        print("Pick the node's look. It applies to every page and the chat, for")
         print("everyone. (Anyone with the admin password can still switch their")
         print("own browser from /admin -- that changes nothing for other visitors.)")
         looks = [
@@ -3931,148 +4170,288 @@ def diagnostics(port, board_type=None, interactive=True):
 # Full guided flow
 # ---------------------------------------------------------------------------
 
-def interactive_wizard():
-    banner("THE PROVISIONER — Technician Deployment Utility")
-    print("One-click flashing + guided config + diagnostics for Stump / Firefly hardware.\n")
+# What the Provisioner sets up, and the route each one takes.
+ROLES = [
+    ("cam", "A Stump CAM", "the ESP32-S3-CAM: pages, chat, files, mesh"),
+    ("heltec", "A Heltec for a CAM", "the RNode radio a CAM reaches over Wi-Fi"),
+    ("heltec_transport", "A Heltec relay", "a standalone LoRa repeater, no CAM"),
+    ("pc", "A Stump on this computer", "Windows, macOS or Linux, with a Heltec"),
+    ("fix", "Check or fix something", "diagnostics, chain, address, packs, card"),
+]
 
-    if not check_tools():
-        if not ask_yes_no("\nSome tools are missing. Continue anyway?", False):
-            print("Aborted.")
-            return
 
-    port, board_type = choose_board()
+def route_for(role):
+    if role == "cam":
+        return Route("Setting up a Stump CAM", [
+            ("Check", "the tools on this computer, and the Stump firmware folder"),
+            ("Board", "pick the CAM's USB port"),
+            ("Flash", "MicroPython onto the board: erases it (~2 min)"),
+            ("Firmware", "the Stump files onto the board (~3 min)"),
+            ("Configure", "questions: name, Wi-Fi, chain, the Heltec, packs, bot, features, look"),
+            ("Install", "the settings and packs onto the board; restart; find its address"),
+            ("Verify", "the diagnostic suite"),
+        ], needs=["the CAM on USB, with a data cable (not a charge-only one)",
+                  "the name and password of the Wi-Fi it joins, if any",
+                  "for a chain: the chain secret, and the Stump it joins",
+                  "about 10 minutes"],
+            subtitle="Nothing touches the board before section 3, and each section asks first.")
+    if role == "heltec":
+        return Route("Setting up a Heltec for a CAM", [
+            ("Check", "the tools on this computer"),
+            ("Board", "pick the Heltec's USB port"),
+            ("Flash", "the RNode firmware: erases the board (~2 min)"),
+            ("Configure", "questions: radio settings, access code, its Wi-Fi (how the CAM reaches it)"),
+            ("Install", "the settings onto the Heltec"),
+            ("Verify", "the diagnostic suite"),
+        ], needs=["the Heltec V3 on USB, with a data cable",
+                  "the radio settings of your mesh (the defaults match the deployed one)",
+                  "the Wi-Fi it joins: usually the CAM's own, and a fixed address in it",
+                  "about 5 minutes"],
+            subtitle="Nothing touches the board before section 3, and each section asks first.")
+    if role == "heltec_transport":
+        return Route("Setting up a Heltec relay", [
+            ("Check", "the tools on this computer"),
+            ("Board", "pick the Heltec's USB port"),
+            ("Flash", "radio settings, then the standalone Reticulum firmware: erases the board"),
+            ("Verify", "the diagnostic suite"),
+        ], needs=["the Heltec V3 on USB, with a data cable",
+                  "the radio settings of your mesh (the defaults match the deployed one)",
+                  "about 5 minutes"])
+    raise ValueError(role)
+
+
+def start_menu():
+    """What are you setting up? Returns a role from ROLES, or None."""
+    g = _glyphs()
+    lines = ["Sets up Stump hardware step by step: it shows the route first,",
+             "then goes through it one numbered section at a time, asking",
+             "before anything touches a board.", "", "What are you setting up?", ""]
+    width = max(len(t) for _, t, _ in ROLES)
+    for i, (_, title, what) in enumerate(ROLES, 1):
+        lines.append("%d) %s  %s" % (i, bold(title.ljust(width)), what))
+    box("The Provisioner", lines)
+    while True:
+        raw = input("Choose 1-%d (blank to quit): " % len(ROLES)).strip()
+        if not raw:
+            return None
+        if raw.isdigit() and 1 <= int(raw) <= len(ROLES):
+            return ROLES[int(raw) - 1][0]
+        print("  a number from 1 to %d" % len(ROLES))
+
+
+def fix_menu():
+    """Check or fix something: the one-off tools, without the flags."""
+    actions = [
+        ("Run the diagnostic suite on a board", "diag"),
+        ("Check a chain of Stumps is linked", "chain"),
+        ("Find a CAM's addresses", "ip"),
+        ("Re-upload the Stump files to a CAM (keeps its settings)", "upload"),
+        ("Add a pack to a CAM", "pack"),
+        ("Update the Tools page on a CAM's card", "tools"),
+        ("Erase a CAM's SD card", "wipe"),
+        ("Check the tools on this computer", "toolcheck"),
+    ]
+    box("Check or fix something", ["%d) %s" % (i, a) for i, (a, _) in enumerate(actions, 1)])
+    raw = input("Choose 1-%d (blank to go back): " % len(actions)).strip()
+    if not raw.isdigit() or not 1 <= int(raw) <= len(actions):
+        return
+    what = actions[int(raw) - 1][1]
+    if what == "toolcheck":
+        check_tools()
+        return
+    if what == "chain":
+        target = ask("A Stump's address (blank: the Stump on this computer)", "")
+        check_chain(target or None)
+        return
+    ports = scan_boards()
+    port = ask_choice("Which port?", [p["device"] for p in ports]) if ports else ask("The board's port")
     if not port:
-        print("Aborted — no board selected.")
+        return
+    if what == "diag":
+        diagnostics(port)
+    elif what == "ip":
+        addrs = get_stump_ip(port)
+        if addrs:
+            _print_discovered_addrs(addrs)
+        else:
+            print("  No address yet: reset the board, wait a few seconds, and try again.")
+    elif what == "upload":
+        upload_stump_app(port)
+    elif what == "pack":
+        packs = discover_packs()
+        chosen = choose_packs(_remembered_path("stump_app_dir") or STUMP_APP_DIR, packs) if packs else []
+        if chosen:
+            install_packs(port, chosen)
+        elif not packs:
+            print("  No packs found. Put pack folders or .zip files in %s" % PACKS_DIR)
+    elif what == "tools":
+        install_tools_on_node(port)
+    elif what == "wipe":
+        if ask_yes_no("This erases the card. Is this port a CAM?", False):
+            wipe_sd_card(port, board_type="cam")
+
+
+def _ask_radio():
+    print("  Radio parameters (the defaults match the deployed mesh):")
+    radio = dict(DEFAULT_RADIO)
+    radio["frequency"] = int(ask("  Frequency (Hz)", radio["frequency"]))
+    radio["bandwidth"] = int(ask("  Bandwidth (Hz)", radio["bandwidth"]))
+    radio["txpower"] = int(ask("  TX power", radio["txpower"]))
+    radio["spreadingfactor"] = int(ask("  Spreading factor", radio["spreadingfactor"]))
+    radio["codingrate"] = int(ask("  Coding rate", radio["codingrate"]))
+    return radio
+
+
+def interactive_wizard():
+    role = start_menu()
+    if role is None:
+        print("Nothing done.")
+        return
+    if role == "pc":
+        setup_pc()
+        return
+    if role == "fix":
+        fix_menu()
+        return
+    r = route_for(role)
+    r.show()
+    if not ask_yes_no("Start?", True):
+        print("Nothing done.")
         return
 
-    # heltec_transport now has its own complete, self-contained flow --
-    # a real, pre-built firmware (microReticulum_Firmware) flashed and
-    # RF-locked in one combined step, not MicroPython files uploaded
-    # afterward. None of the preflight-firmware-folder, app-upload, or
-    # separate config-push logic below applies to it at all, so this
-    # branch runs its own sequence and then joins the shared
-    # diagnostics/DONE ending below, same as every other role.
-    if board_type == "heltec_transport":
-        if ask_yes_no(f"\nFlash standalone Reticulum firmware onto {port} now?", True):
-            print("\nRadio parameters (defaults match the deployed mesh):")
-            radio = dict(DEFAULT_RADIO)
-            radio["frequency"] = int(ask("Frequency (Hz)", radio["frequency"]))
-            radio["bandwidth"] = int(ask("Bandwidth (Hz)", radio["bandwidth"]))
-            radio["txpower"] = int(ask("TX power", radio["txpower"]))
-            radio["spreadingfactor"] = int(ask("Spreading factor", radio["spreadingfactor"]))
-            radio["codingrate"] = int(ask("Coding rate", radio["codingrate"]))
-            flash_heltec_standalone_reticulum(port, radio)
-        # Falls through to the shared diagnostics/DONE ending below --
-        # radio and serial_bridge checks there now treat this role the
-        # same as the existing "heltec" RNode role, since both are now
-        # the same kind of firmware, reached the same way.
+    # ── Check
+    r.start("Check")
+    tools_ok = check_tools()
+    resolved_app_dir = None
+    if role == "cam":
+        banner("The Stump firmware folder")
+        resolved_app_dir = resolve_path(
+            STUMP_APP_DIR,
+            _STUMP_FILES_DESC,
+            remember_key="stump_app_dir",
+            is_dir=True,
+            search_roots=[Path.cwd(), Path.cwd().parent, Path(__file__).resolve().parent,
+                          Path.home() / "Desktop", Path.home() / "Downloads"],
+            search_name="final_firmware",
+            validate_fn=_is_current_firmware_folder,
+        )
+        if resolved_app_dir:
+            print(f"Using firmware source: {resolved_app_dir}")
+        else:
+            print("No firmware folder found: MicroPython will still flash, but section 4")
+            print("(Firmware) will be skipped unless this is fixed.")
+    if not tools_ok and not ask_yes_no("\n  Some tools are missing. Carry on anyway?", False):
+        r.end("fail", "tools missing")
+        r.summary("Install the missing tools (above), then run the Provisioner again.")
+        return
+    r.end("done" if tools_ok else "fail", "" if tools_ok else "some tools missing; carried on")
+
+    # ── Board
+    r.start("Board")
+    port = choose_board(role)
+    if not port:
+        r.end("fail", "no board selected")
+        r.summary("Plug the board in with a data cable, then run the Provisioner again.")
+        return
+    r.note("Board", port)
+    r.end()
+
+    # ── Flash
+    r.start("Flash")
+    flashed = False
+    if role == "heltec_transport":
+        if ask_yes_no(f"Flash the standalone Reticulum firmware onto {port} now?", True):
+            flashed = flash_heltec_standalone_reticulum(port, _ask_radio())
+            r.end("done" if flashed else "fail")
+        else:
+            r.end("skip")
+    elif ask_yes_no(f"Flash firmware onto {port} now? (erases the board)", True):
+        if role == "heltec":
+            flashed = bool(flash_heltec_rnode(port))
+        else:
+            flashed, flashed_port = flash_cam_micropython(port)
+            if flashed and flashed_port and flashed_port != port:
+                # Bootloader recovery can land the board on another port.
+                print(f"\nThe board moved to {flashed_port} during flashing: using that from here.")
+                port = flashed_port
+                r.note("Board", port)
+        r.end("done" if flashed else "fail")
     else:
-        # Preflight: resolve local file dependencies (firmware tree,
-        # firmware image) up front, before touching the board at all. Catches
-        # a wrong working-directory/layout as a friendly prompt right away
-        # instead of after erase-flash has already run.
-        resolved_app_dir = None
-        if board_type == "cam":
-            banner("PREFLIGHT — CHECKING LOCAL FILE LOCATIONS")
-            resolved_app_dir = resolve_path(
-                STUMP_APP_DIR,
-                _STUMP_FILES_DESC,
-                remember_key="stump_app_dir",
-                is_dir=True,
-                search_roots=[Path.cwd(), Path.cwd().parent, Path(__file__).resolve().parent,
-                              Path.home() / "Desktop", Path.home() / "Downloads"],
-                search_name="final_firmware",
-                validate_fn=_is_current_firmware_folder,
-            )
-            if resolved_app_dir:
-                print(f"  Using firmware source: {resolved_app_dir}")
-            else:
-                print("  No firmware folder found — MicroPython will still flash,")
-                print("  but the app upload step will be skipped unless this is fixed.")
+        r.end("skip", "the board keeps what it has")
 
-        if ask_yes_no(f"\nFlash firmware onto {port} now?", True):
-            if board_type == "heltec":
-                flash_heltec_rnode(port)
-            else:
-                flash_ok, flashed_port = flash_cam_micropython(port)
-                if flash_ok:
-                    # Bootloader recovery can land the board on a different
-                    # serial port than the one we started with, so carry the
-                    # working port forward -- the upload, config push and IP
-                    # query below all need to target where the board
-                    # actually is, not where it was before the flash.
-                    if flashed_port and flashed_port != port:
-                        print(f"\nBoard moved to {flashed_port} during flashing -- using that from here.")
-                        port = flashed_port
-                    # esptool hard-resets the board via RTS right after writing
-                    # the image (visible in its own output: "Hard resetting via
-                    # RTS pin..."). Starting the upload immediately races that
-                    # reboot -- the board hasn't finished booting MicroPython
-                    # yet, so the very first mpremote connection attempt fails
-                    # with "could not enter raw repl" almost every time, while
-                    # every attempt after succeeds instantly. This wait is the
-                    # actual fix for that pattern, not just the retry papering
-                    # over it.
-                    print("\nWaiting for the board to finish booting after the flash...")
-                    time.sleep(5)
-                    upload_stump_app(port, app_dir=resolved_app_dir)
-                else:
-                    print("\nSkipping app upload since flashing failed -- fix that first, then")
-                    print(f"retry the upload separately with: python3 provisioner.py --upload-app {port}")
+    # ── Firmware (CAM)
+    if role == "cam":
+        r.start("Firmware")
+        if not resolved_app_dir:
+            r.end("skip", "no firmware folder (section 1)")
+        elif flashed or ask_yes_no("Upload the Stump files now? (keeps the board's settings)", False):
+            if flashed:
+                # esptool resets the board right after writing; the first
+                # mpremote attempt would race that reboot.
+                print("Waiting for the board to finish booting after the flash...")
+                time.sleep(5)
+            ok = upload_stump_app(port, app_dir=resolved_app_dir)
+            r.end("done" if ok else "fail",
+                  "" if ok else "retry with: python3 provisioner.py --upload-app %s" % port)
+        else:
+            r.end("skip", "the board keeps its Stump files")
 
-        if ask_yes_no("\nRun guided config wizard?", True):
-            profile, _ = config_wizard(board_type)
-            push_config_to_board(port, board_type, profile)
-            if board_type == "cam" and profile.get("packs"):
-                install_packs(port, [p for p in (load_pack(x) for x in profile["packs"]) if p])
-
-            if board_type == "cam":
-                banner("FINDING THE NODE'S IP ADDRESS(ES)")
-                # Reset first, then wait for the real boot sequence. Querying
-                # straight after the config push would almost always miss:
-                # the new config.py has only just landed, and the addresses
-                # only exist once example_node.py has actually run its WiFi
-                # join. Resetting here means the wizard reports a real
-                # address instead of handing the technician homework.
-                print("Resetting the board so it boots with the new config...")
+    # ── Configure, Install
+    profile = None
+    if role in ("cam", "heltec"):
+        r.start("Configure")
+        if ask_yes_no("Answer the setup questions now?", True):
+            profile, _ = config_wizard(role)
+            r.end()
+        else:
+            r.end("skip", "the board keeps its settings")
+        r.start("Install")
+        if profile is None:
+            r.end("skip", "nothing new to install")
+        else:
+            ok = push_config_to_board(port, role, profile)
+            if role == "cam" and profile.get("packs"):
+                ok = install_packs(port, [p for p in (load_pack(x) for x in profile["packs"]) if p]) and ok
+            if role == "cam":
+                banner("Finding the node's addresses")
+                print("Restarting the board so it boots with the new settings...")
                 run(["mpremote", "connect", port, "reset"], timeout=15)
-                print("Waiting for boot (WiFi join, NTP sync, Reticulum startup)...")
+                print("Waiting for it to boot (Wi-Fi, clock, Reticulum)...")
                 time.sleep(12)
-                print("Querying the board for its current network state...")
                 addrs = get_stump_ip(port)
                 if addrs and (addrs.get("sta") or addrs.get("ap")):
                     print()
-                    _print_discovered_addrs(addrs, wifi_ssid=profile["wifi_ssid"])
-                    if not addrs.get("sta"):
-                        print("\n(No LAN IP yet -- if this is right after flashing/config, power-cycle")
-                        print(" the board so example_node.py actually runs through its real WiFi join.)")
+                    _print_discovered_addrs(addrs, wifi_ssid=profile.get("wifi_ssid"))
+                    if addrs.get("sta"):
+                        r.note("On the Wi-Fi", "http://%s/" % addrs["sta"])
+                    if addrs.get("ap"):
+                        r.note("Its own Wi-Fi", "http://%s/" % addrs["ap"])
                 else:
-                    print("\nCouldn't confirm either address yet. That's expected if the board hasn't")
-                    print("been power-cycled since the config/upload above -- this build's WiFi join,")
-                    print(f"NTP sync, and Reticulum startup all happen in example_node.py's real boot")
-                    print(f"sequence, not something this query can fake. Reset the board, wait a few")
-                    print(f"seconds, then try: python3 provisioner.py --get-ip {port}")
+                    print("No address yet: that's normal right after an upload. Power-cycle the")
+                    print("board, wait a few seconds, then: python3 provisioner.py --get-ip %s" % port)
+                chain = profile.get("chain") or {}
+                if chain.get("enabled"):
+                    r.note("Chain", "first Stump" if not chain.get("uplink_ssid") else
+                           "joins '%s'" % chain["uplink_ssid"])
+                    if chain.get("secret"):
+                        r.note("Chain secret", chain["secret"])
+            hw = profile.get("heltec_wifi") or {}
+            if role == "heltec" and hw.get("ip"):
+                r.note("Heltec address", "%s (enter it as the CAM's Heltec address)" % hw["ip"])
+            r.end("done" if ok else "fail")
 
-    ran_diagnostics = False
-    diag_passed = None
-    if ask_yes_no("\nRun diagnostic test suite now?", True):
-        diag_results = diagnostics(port, board_type)
-        ran_diagnostics = True
-        # Same pass/fail computation diagnostics() itself already printed
-        # -- recomputed here because its return value was previously
-        # discarded entirely, leaving the final banner below always
-        # claiming "Board is ready" even seconds after diagnostics had
-        # just printed "NOT CERTIFIED" for the exact same board. Real
-        # bug, not cosmetic: whoever's reading only the last few lines
-        # of a long run would see nothing but the false reassurance.
-        diag_passed = all(v for v in diag_results.values() if v is not None)
-
-    banner("DONE")
-    if ran_diagnostics and not diag_passed:
-        print("Board is NOT certified -- see the diagnostic summary above for what to")
-        print(f"fix, then re-run: python3 provisioner.py --diag {port}")
+    # ── Verify
+    r.start("Verify")
+    if ask_yes_no("Run the diagnostic suite now?", True):
+        results = diagnostics(port, role)
+        passed = all(v for v in results.values() if v is not None)
+        r.end("done" if passed else "fail", "certified" if passed else "NOT certified: see the summary above")
     else:
-        print("Board is ready. Re-run with --diag PORT any time to re-certify.")
+        r.end("skip")
+    ok = r.summary("Re-check any time: python3 provisioner.py --diag %s" % port)
+    if not ok:
+        print("Fix what's marked " + red(_glyphs()["fail"]) + ", then run that section again"
+              " (python3 provisioner.py --help lists them one by one).")
 
 
 # ---------------------------------------------------------------------------
@@ -4568,63 +4947,116 @@ def check_chain(target=None):
 
 def setup_pc(folder=None, reconfigure=False):
     """Sets up (or updates) a Stump on this computer. True if it's ready."""
-    banner("STUMP ON THIS COMPUTER")
     fw = STUMP_APP_DIR
     if not (fw / "example_node.py").is_file() or not (PC_SOURCE / "stump_pc.py").is_file():
         print(red("Run this from the Stump download: final_firmware/ and pc/ must be next to provisioner.py."))
         return False
+    r = Route("A Stump on this computer", [
+        ("Folder", "where this Stump lives (its firmware, settings and files)"),
+        ("Python", "the folder's own Python, with cryptography and pyserial (internet, first time)"),
+        ("Firmware", "the Stump files, copied or brought up to date"),
+        ("Configure", "questions: visitors' Wi-Fi, chain, the Heltec, packs, bot, features, look"),
+        ("Packs", "the packs and the Tools page"),
+        ("Chain", "if it joins another Stump: checks the link, says what to fix"),
+        ("Start", "now, and whenever you log in (if you want)"),
+    ], needs=["Python 3.8 or newer (this one: %s)" % sys.version.split()[0],
+              "a Heltec on USB, or over Wi-Fi, or none (a chain can bring LoRa)",
+              "to join a CAM: this computer on the CAM's Wi-Fi, and the chain secret",
+              "about 5 minutes"],
+        subtitle="Updating? The same route: settings, identity and files are kept.")
+    r.show()
+
+    r.start("Folder")
     if folder is None:
         folder = ask("Folder for this Stump", str(pc_default_folder()))
     folder = Path(folder).expanduser().resolve()
     first = not (folder / "config.py").exists()
     folder.mkdir(parents=True, exist_ok=True)
-    print("  Folder: %s (%s)" % (folder, "new" if first else "updating; its settings are kept"))
+    print("%s (%s)" % (folder, "new" if first else "updating: its settings are kept"))
+    r.note("Folder", str(folder))
+    r.end()
+
+    r.start("Python")
     py = _pc_ensure_venv(folder)
     if py is None:
+        r.end("fail", "see above")
+        r.summary("Fix the Python environment (above), then run --pc again.")
         return False
+    r.end()
+
+    r.start("Firmware")
     n = _pc_copy_firmware(fw, folder)
-    print("  Firmware: %d file(s) updated" % n)
+    r.end("done", "%d file(s) updated" % n)
+
+    r.start("Configure")
     profile = None
     if first or reconfigure:
         profile, _ = config_wizard("pc")
         _pc_write_config(fw, folder, profile)
-        print("  config.py written")
+        r.end("done", "config.py written")
+    else:
+        r.end("skip", "config.py kept (--pc --reconfigure asks again)")
+
+    r.start("Packs")
     packs = []
     if profile and profile.get("packs"):
         packs = [p for p in (load_pack(x) for x in profile["packs"]) if p]
     elif not first:
         found = discover_packs()
-        installed = [p for p in found if all((folder / name / "install.py").exists()
-                                             for name in p["spec"].get("plugins", []))]
-        if installed:
-            print("  Packs on this Stump, brought up to date: " + ", ".join(p["spec"]["name"] for p in installed))
-            packs = installed
+        packs = [p for p in found if all((folder / name / "install.py").exists()
+                                         for name in p["spec"].get("plugins", []))]
+        if packs:
+            print("Packs on this Stump, brought up to date: " + ", ".join(p["spec"]["name"] for p in packs))
     if packs:
         _pc_install_packs(folder, packs)
     _pc_install_tools(fw, folder)
-    print("  Tools page: ready")
-    chain = (profile or {}).get("chain") or {}
-    joins = bool(chain.get("enabled") and chain.get("uplink_ssid") and chain.get("parent_ip"))
-    if joins:
-        print("\n  Checking that this computer can join %s:" % chain["parent_ip"])
-        while not _print_checks(chain_preflight(chain["parent_ip"], chain.get("secret", ""), chain["uplink_ssid"])):
-            if not ask_yes_no("  Fix it, then check again? (no: carry on, check later with --check-chain)", True):
+    print("Tools page: ready")
+    r.end()
+
+    cfg = _read_folder_config(folder) or {}
+    parent = cfg.get("PC_CHAIN_PARENT_IP")
+    joins = bool(cfg.get("CHAIN_ENABLED") and cfg.get("CHAIN_UPLINK_SSID") and parent)
+    secret = cfg.get("CHAIN_SECRET", "") or ""
+    r.start("Chain")
+    if not cfg.get("CHAIN_ENABLED"):
+        r.end("skip", "not in a chain")
+    elif not joins:
+        r.note("Chain", "first Stump: the others join it")
+        if secret:
+            r.note("Chain secret", secret)
+        r.end("skip", "it's the first Stump: nothing to join")
+    else:
+        print("Can this computer join %s?" % parent)
+        while not _print_checks(chain_preflight(parent, secret, cfg.get("CHAIN_UPLINK_SSID", ""))):
+            if not ask_yes_no("Fix it, then check again? (no: carry on, check later with --check-chain)", True):
                 break
             print()
+        else:
+            r.note("Chain", "joins %s" % parent)
+            r.end("done", "ready to join")
+        if r.state[r.index] == "now":
+            r.end("fail", "fix what's marked, then: python3 provisioner.py --check-chain")
+
+    r.start("Start")
     started = False
+    run_cmd = "%s %s" % (_pc_python(folder), folder / "stump_pc.py")
     if ask_yes_no("Start this Stump automatically when you log in?", True):
         started = _pc_autostart(folder)
+        r.note("Log", str(folder / "stump.log"))
     else:
-        print("\n  Start it yourself with:")
-        print("    %s %s" % (_pc_python(folder), folder / "stump_pc.py"))
-    if joins:
-        if started:
-            print("\n  Checking the link now that it runs:")
-            ok = _print_checks(chain_live(folder, chain["parent_ip"]))
-            print("  " + (green("The chain is linked.") if ok else "Fix what's marked ✗, then: python3 provisioner.py --check-chain"))
+        print("\nStart it yourself with:")
+        print("  " + run_cmd)
+        r.note("Start it", run_cmd)
+    if joins and started:
+        print("\nChecking the link now that it runs:")
+        if _print_checks(chain_live(folder, parent)):
+            r.note("Chain", green("linked to %s" % parent))
         else:
-            print("\n  Once it runs, check the chain with:  python3 provisioner.py --check-chain")
-    print("\n  More: docs/PC.md (hotspot set-up, the Heltec, chaining with CAM Stumps).")
+            r.state[[n for n, _ in r.steps].index("Chain")] = "fail"
+            r.note("Chain", red("not linked yet: python3 provisioner.py --check-chain"))
+    r.note("Open", "http://localhost/ on this computer (8080 if 80 was taken)")
+    r.end("done", "running, and at every login" if started else "start it with the command below")
+    r.summary("More: docs/PC.md (the hotspot, the Heltec, chaining with CAM Stumps).")
     return True
 
 def main():

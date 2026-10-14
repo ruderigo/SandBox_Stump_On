@@ -165,6 +165,31 @@ check('ask_wifi: no scan -> typed as before', P.ask_wifi("Wi-Fi", "", scan=lambd
 P.WIFI_SCAN.update({n["ssid"]: n for n in nets})
 check('open network needs no password', P.wifi_is_open("LaBuche-Stump.web.app") and not P.wifi_is_open("Bob's Glitch")
       and not P.wifi_is_open("unknown"))
+# The layout: a route, its sections, the summary
+import io, contextlib
+buf = io.StringIO()
+with contextlib.redirect_stdout(buf):
+    r = P.Route("Test route", [("One", "first"), ("Two", "second"), ("Three", "third")], needs=["a board"])
+    r.show(); r.start("One"); print("inside one"); r.end()
+    r.start("Two"); r.end("skip", "not asked")
+    r.start("Three"); r.end("fail", "broke")
+    r.note("Address", "http://192.168.4.1/")
+    ok = r.summary("closing line")
+    print("after")
+out = buf.getvalue()
+check('route: card lists the sections and needs', "1  One" in out and "a board" in out, out[:600])
+check('route: section header with number', "1/3  ONE" in out and "3/3  THREE" in out, out)
+check('route: content indented under its section', "\n  inside one\n" in out, out)
+check('route: summary shows results and notes, fails overall', ok is False and "skipped" in out
+      and "didn't work" in out and "http://192.168.4.1/" in out and "closing line" in out, out[-900:])
+check('route: indentation off after the summary', out.endswith("\nafter\n"), out[-40:])
+sys.stdout = sys.__stdout__
+for role in ("cam", "heltec", "heltec_transport"):
+    check('route for ' + role, len(P.route_for(role).steps) >= 4)
+answers("9", "4")
+with contextlib.redirect_stdout(io.StringIO()):
+    picked = P.start_menu()
+check('start menu: re-asks, then picks', picked == "pc", picked)
 # remove_plugin refuses core
 check('remove refuses urns', P.remove_plugin('/dev/fake', 'urns') is False)
 print('FAILURES', FAIL)

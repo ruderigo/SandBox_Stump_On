@@ -94,9 +94,13 @@ check it (`docs/RELEASE.md`), unzip it, and inside the folder:
 python3 provisioner.py
 ```
 
-The guided wizard: flashing, app upload, configuration, plugin setup
-and diagnostics, for all three roles — the CAM, the Heltec Bridge, and
-the standalone Heltec transport.
+It asks what you're setting up (a CAM, a Heltec for a CAM, a Heltec
+relay, a Stump on this computer, or a check or fix), then shows the
+**route**: its numbered sections, what each does, and what you'll need.
+Each section then opens with a header and where you are on the route,
+asks before touching the board, and ends with done, skipped or what
+went wrong. The run ends on a summary: each section's result, and what
+to keep (addresses, the chain secret, the next command).
 
 Everywhere below, `PORT` means the board's USB serial port, not the
 word itself — find it with `--scan` (on a Mac it looks like

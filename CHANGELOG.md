@@ -1,6 +1,18 @@
 # Changelog
 
 ## Unreleased
+- **The Provisioner, laid out as a route.** It starts by asking what
+  you're setting up (CAM, Heltec for a CAM, Heltec relay, Stump on this
+  computer, check or fix), shows the route on a card (numbered sections,
+  what each does, what you'll need), then runs one section at a time:
+  a header with where you are, everything inside it indented under it,
+  the setup questions grouped by topic, and a done / skipped / didn't
+  work line at the end of each. It ends on a summary of each section and
+  what to keep (addresses, chain secret, next command). "Check or fix
+  something" offers the one-off tools without flags. Packs list their
+  files only with `--list-packs`; the wizard says whether they match the
+  pack's hashes. Fixed: a computer with its Heltec on USB was asked the
+  CAM's Heltec-over-Wi-Fi questions.
 - **Is the chain linked?** When a computer Stump joins another Stump, the
   `--pc` wizard checks each step before and after it starts: on that
   Stump's network, a Stump answers there, its chain is on, the secrets
