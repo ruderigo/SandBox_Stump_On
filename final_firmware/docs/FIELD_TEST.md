@@ -1,4 +1,4 @@
-# Field test — Stump 1.0.0-beta.3 (Beta A)
+# Field test — Stump 1.0.0-beta.4 (Beta A)
 
 What's new since the last field test, in the order you'd check it on
 site, and what to send back. Items marked **(hardware)** are things the
@@ -6,12 +6,12 @@ lab tests could not settle — they need the real board, radio and phones.
 
 ## Before you go
 
-- [ ] Download `Stump-1.0.0-beta.3.zip` and `SHA256SUMS` from the
+- [ ] Download `Stump-1.0.0-beta.4.zip` and `SHA256SUMS` from the
       [release](https://github.com/ruderigo/SandBox_Stump_On/releases),
       check them (`shasum -a 256 -c SHA256SUMS` on a Mac; see
       `docs/RELEASE.md` for the signatures), unzip, and work from that
       folder: the Provisioner, the firmware and `packs/` are all in it.
-- [ ] (from 1.0.0-beta.4) `python3 provisioner.py --version`: the release you're about to install
+- [ ] `python3 provisioner.py --version`: the release you're about to install
       (and, with a port, the one on the CAM). After setup, the About page
       shows it too.
 - [ ] `python3 provisioner.py --upload-app PORT --skip-tools` — the app
@@ -250,10 +250,34 @@ See `PC.md`. A Mac or a Windows PC, and a Heltec.
 - [ ] In the chat (and from FireFly over LoRa): `!find <word>` answers on
       one line.
 
+## 14. The chain's room and the release (new in beta.4)
+
+- [ ] `python3 provisioner.py --version /dev/cu.<the CAM>`: this folder's
+      release, GitHub's, and the CAM's — the same.
+- [ ] The About page (bottom) and `/admin` (top) show `Stump Beta A ·
+      1.0.0-beta.4`.
+- [ ] A computer on the same home Wi-Fi as the first CAM (`--pc`, "On
+      the Wi-Fi it's on now", the CAM's address there): the chain check
+      passes without leaving that Wi-Fi.
+- [ ] Start the CAM and the computer minutes apart. On both,
+      `/join wifi-mesh`: within ~30 s each shows the other at the bottom
+      of the column, 🪵, under *Buches* / *Stumps*.
+- [ ] A line in `#wifi-mesh` shows once on the other as
+      `<nick@stump>`; nothing new in `#lora-mesh`; no joins or parts
+      crossing.
+- [ ] `/msg rod@<other Stump> hi` reaches rod there privately; the
+      answer comes back. A DM to the other Stump itself shows in its
+      `#wifi-mesh` as `@Stump hi`.
+- [ ] FireFly over LoRa still lands in `#lora-mesh` (`→ #lora-mesh`);
+      `/join lxmf` still works.
+- [ ] RRC: drag the bar between the rooms and the chat; reload: the
+      width is kept; double-click resets it. Scroll bars show only while
+      scrolling.
+
 ## What to send back
 
 - The boot log (from power-on to `Announced as`); its first line names
-  the release (`Project Stump -- Beta A (1.0.0-beta.3)`).
+  the release (`Project Stump -- Beta A (1.0.0-beta.4)`).
 - Screenshots of `/admin` (radio, propagation status) and the home page
   with branding, phone and laptop.
 - The iPhone ♪ answer, the APK download time, the 15 s Opus note time

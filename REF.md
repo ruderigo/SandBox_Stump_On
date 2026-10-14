@@ -400,6 +400,8 @@ plugin's state, the RAM it took to start and its last error.
 
 ## Part 3 — The mesh room
 
+(`#lxmf` before 1.0.0-beta.4: the old name still reaches it.)
+
 `#lora-mesh` exists unconditionally from the moment the node boots — seeded
 in `rrc.py` exactly like `#main`, not created by any command, not
 dependent on `stumpid` being installed or active at all.
@@ -419,6 +421,18 @@ mesh peer is redirected to `#main` instead, with a system message
 explaining why — translated into their own language preference the
 same way a rejected web visitor's message is.
 
+**On a Stump in a chain**, a third room exists, `#wifi-mesh`: the other
+Stumps of the chain land there (taken in as soon as they're heard over
+the chain, no message needed), and so does anyone whose message came in
+over the chain. Between Stumps only chat lines cross, shown as
+`<nick@thatstump>`; joins, parts and renames stay on their own Stump.
+People on other Stumps are DM contacts: `/msg rod@LaBuche text` is
+private, and rod's answer arrives as a DM from `you@yourstump`; a
+`/msg` to someone not there comes back as `⊖ name`. A DM to a Stump
+itself (`/msg LaBuche text`) shows in that Stump's `#wifi-mesh` as
+`<you@yourstump> @LaBuche text`. (`#chained` and `#mesh`, its names on
+`main` for an afternoon, still reach it.)
+
 **Test matrix:**
 - [ ] Fresh, unconfigured node: `/rooms` shows both `#main` and `#lora-mesh`, with zero admin action taken
 - [ ] A mesh peer's first message lands them in `#lora-mesh`, and the first thing they receive is `→ #lora-mesh`
@@ -427,6 +441,9 @@ same way a rejected web visitor's message is.
 - [ ] An unverified mesh peer sends `/join vip` (a `minted` room) → `⊘ #vip minted — …`, stays put
 - [ ] The same peer sends `#vip hello` → refused the same way, nothing posted in `#vip`
 - [ ] Re-tier `#lora-mesh` back to `open` → the *next* new mesh peer lands in `#lora-mesh` again (existing peers already placed aren't moved)
+- [ ] Two chained Stumps, started minutes apart: each lists the other in `#wifi-mesh` (🪵, bottom of the column) within ~30 s of the link
+- [ ] A line in `#wifi-mesh` on one shows once on the other as `<nick@stump>`; nothing appears in `#lora-mesh`
+- [ ] `/msg rod@LaBuche hi` reaches rod privately; rod's answer comes back
 
 ---
 
@@ -519,7 +536,7 @@ accepts the certificate (it fetches `/tls-ok` first).
 | GET | `/tools.json` | The same as JSON: `{"sd", "apps": [{"app","file","version","size","url"}], "files": [{"name","size","section","url"}], "sections": [{"dir","title","summary","readme","files"}]}` |
 | GET | `/tool?f=` | Download a tool file: `name`, or `folder/name` one folder down |
 | GET | `/node.json` | Who this node is, without joining the chat: `{"name", "lxmf", "version", "release", "ap_ip", "chain", "features"}`; `chain` is `null` or the `/chain.json` object (see `CLIENT_QUICKSTART.md`) |
-| GET | `/chain.json` | This Stump's place in a chain over Wi-Fi: `{"enabled", "role", "ap_ip", "channel", "secret", "uplink", "below"}` (see `CHAIN.md`) |
+| GET | `/chain.json` | This Stump's place in a chain over Wi-Fi: `{"enabled", "role", "ap_ip", "lan_ip", "channel", "secret", "uplink", "below"}`; `lan_ip`: the first Stump's address on the Wi-Fi it joined, where it also takes chain links (else `null`) (see `CHAIN.md`) |
 | GET | `/plugins.json` | What the plugins add: `{"api", "trigger", "plugins": [{"name","version","commands","pages"}]}` (see `PLUGINS.md`) |
 | GET, POST | `/p/<plugin>/…` | A plugin's own pages. Any address under `/p/` that no running plugin answers shows the home page, like any unknown address |
 | GET | `/home-file?f=` | A file from the card's `home/` folder, for the home page's own section (see `HOME_BRANDING.md`) |

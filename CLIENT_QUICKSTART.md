@@ -8,32 +8,32 @@ you hit `AUTH-CHALLENGE` cold and start reverse-engineering source.
 you're looking at (a forwarded zip, an older doc, a snippet someone
 pasted into chat) disagrees with what's there, the repo wins.
 
-**This page matches firmware 1.0.0-beta.3.** What changed for clients
-since 1.0.0-beta.2 — additions, plus two limits; nothing a beta.2
-client relies on was removed or reworded:
+**This page matches firmware 1.0.0-beta.4.** What changed for clients
+since 1.0.0-beta.3:
 
-- **Stumps on a computer** (see *Stumps on a computer*), and
-  `GET /node.json`: the node's name, LXMF address, release, hotspot
-  address, chain role and features, without joining the chat — for
-  discovery (see *Addresses*).
-- `/tools.json` gains `sections` and each file's `section`, with app
-  URLs that name their folder (see *Apps and tools*).
-- **Search and sort as data:** `/files.json` rows carry `cat` and
-  `mtime` and take `?q=`, `?cat=`, `?sort=`; `/billboard.json` takes
-  `?q=` and `?sort=`. `POST /chat` with `Accept: application/json`
-  answers BarKeep the librarian's findings as data.
-- **Limits:** chat lines faster than 3 at once, then one every 2 s, get
-  `⧗ — …`; more than 3 billboard posts a minute per visitor get `429`.
-- **HTTPS only for `/admin` and the voice recorder (`/rrc/rec`)**;
-  `GET /rrc` over HTTPS answers `302` to HTTP.
-- LXMF messages with a bad signature are dropped, never shown.
+- **Rooms renamed.** `#lxmf` is now `#lora-mesh` (LoRa phones and
+  handhelds land there). The old name still works — `/join lxmf`,
+  `#lxmf text`, `?room=lxmf` — but replies say `lora-mesh`: compare
+  against that.
+- **`#wifi-mesh`, on a Stump in a chain**: the other Stumps of the
+  chain and their people. Lines from another Stump's people show as
+  `nick@thatstump`; only chat lines cross, not joins and parts. Anyone
+  reached over the chain lands there, not in `#lora-mesh`. People on
+  other Stumps are DM contacts as `nick@thatstump` (see *The two rooms
+  that always exist*).
+- `/chain.json` gains `lan_ip`: the first Stump, with a chain secret,
+  also takes chain links on the Wi-Fi it joined itself.
+- The About page and `/admin` show the release (`Stump Beta A ·
+  1.0.0-beta.4`), as `GET /node.json` already did.
 
-**After beta.3, on `main` for the next release:** `#lxmf` is renamed
-`#lora-mesh` (the old name still works; replies say `lora`); `#wifi-mesh` on a
-Stump in a chain, with lines from other Stumps' people as
-`nick@thatstump` (see *The two rooms that always exist*); `/chain.json`
-gains `lan_ip`, where the first Stump also takes chain links on the
-Wi-Fi it joined.
+What changed since 1.0.0-beta.2 (in beta.3) — additions, plus two
+limits: Stumps on a computer and `GET /node.json`; `/tools.json`
+`sections`; `/files.json` and `/billboard.json` search and sort
+(`?q=`, `?cat=`, `?sort=`) and `POST /chat` as JSON; chat lines faster
+than 3 at once, then one every 2 s, get `⧗ — …`, and more than 3
+billboard posts a minute per visitor get `429`; HTTPS only for
+`/admin` and `/rrc/rec` (`GET /rrc` over HTTPS answers `302`); LXMF
+messages with a bad signature are dropped.
 
 Since 1.0.0-beta.1: chained Stumps (a Stump's Wi-Fi may be
 `192.168.5.1`, `192.168.6.1`… — use the phone's gateway address;
@@ -200,9 +200,9 @@ until you've done the handshake above once.
 
 ## The two rooms that always exist
 
-**Renamed after 1.0.0-beta.3:** `#lxmf` is now `#lora-mesh`. The old name
+**Renamed in 1.0.0-beta.4:** `#lxmf` is now `#lora-mesh`. The old name
 still works everywhere (`/join lxmf`, `#lxmf text`, `?room=lxmf`), but
-the node answers with `lora`: compare against that.
+the node answers with `lora-mesh`: compare against that.
 
 `#main` and `#lora-mesh` are both present the moment a node boots — nothing
 to request, nothing to configure. If you're building a mesh-first
@@ -226,8 +226,11 @@ lines cross between Stumps, not joins and parts. Anyone reached over
 the chain lands there, not in `#lora-mesh`. People seen on another Stump are
 DM contacts as `nick@thatstump` (in `users`); `/msg rod@LaBuche text`
 reaches rod privately, and rod's answer arrives as a DM from
-`you@yourstump`. A DM to a Stump itself shows in its `#wifi-mesh` as
-`@ThatStump text`.
+`you@yourstump`. That works over LXMF too: a mesh client sends `/msg
+rod@LaBuche text` like any `/msg`. A DM to a Stump itself shows in its
+`#wifi-mesh` as `@ThatStump text`. The other Stumps' names are in the
+poll's `stumps` list: the web chat groups them at the bottom of its
+column with a 🪵 (see *Telling Stumps from people*).
 
 ---
 
@@ -338,7 +341,7 @@ formats: every endpoint, payload and limit a client touches.
 # Reference for client builders
 
 Everything the client teams have been given, in one place. Checked
-against the 1.0.0-beta.3 `barkeep.py`, `rrc.py`, `rrc_mesh.py`,
+against the 1.0.0-beta.4 `barkeep.py`, `rrc.py`, `rrc_mesh.py`,
 `billboard.py`, `fserv.py`, `plugins.py`, `chain.py` and
 `example_node.py` source; the JSON shapes below are the ones the
 firmware's own tests (`tests/`) check.
@@ -365,7 +368,7 @@ Use it to probe and label nodes:
 
 ```json
 {"name": "LaBuche", "lxmf": "53d91d2f…48e4", "version": "Beta A",
- "release": "1.0.0-beta.3", "ap_ip": "192.168.4.1", "chain": null,
+ "release": "1.0.0-beta.4", "ap_ip": "192.168.4.1", "chain": null,
  "features": ["chat", "billboard", "files", "about"]}
 ```
 
@@ -436,13 +439,17 @@ is the highest message `id` you already have.
   `action` (`/me`), or `dm`.
 - `messages` and `dms` share one id sequence — one `since` covers both.
 - `users` is the people in your room **plus** mesh peers reachable by
-  DM only (see RRC over LXMF) — i.e. everyone you can `/msg`.
+  DM only (see RRC over LXMF) and, on a chain, people on the other
+  Stumps as `nick@thatstump` — i.e. everyone you can `/msg`.
 - `node` is the node you're talking to: its name and its LXMF address.
   A client reaching the same node over Wi-Fi and LoRa matches the two
   by this address.
 - `stumps` lists which of those nicks are other Stump nodes (known from
-  their `stump.node` beacons, below). The web chat shows them with a
-  small "stump" tag; the nick itself is unchanged.
+  their `stump.node` beacons, below). The web chat groups them at the
+  bottom of its column with a 🪵 in front, under *Stumps* (*Buches* in
+  French); the nick itself is unchanged.
+- `nick` on a message may be `rod@LaBuche`: a line from someone on
+  another Stump of the chain, in `#wifi-mesh`.
 - Limits: 60 messages per room (oldest drop like scrollback), 16 rooms,
   400 characters per message.
 
@@ -547,7 +554,7 @@ Up to 10 room messages per 5-second cycle; your own room lines are
 never echoed back.
 
 **Each pushed batch names its room in the LXMF message title** — `#lora-mesh`,
-`#main` — so lines queued just before a `/join` can't be filed under the
+`#main`, `#wifi-mesh` — so lines queued just before a `/join` can't be filed under the
 wrong room. File room lines by the title, not by the room you think
 you're in. A batch with only DMs has no title (each `[DM]` line names
 its author).
@@ -685,8 +692,9 @@ beacon = RNS.Destination.hash(identity, "stump", "node")
 RNS.Transport.request_path(beacon)
 ```
 
-Beacons go out at boot and every 30 minutes (`STUMP_ANNOUNCE_INTERVAL`),
-so on first sight of a peer, asking is faster than waiting. Only CAM
+Beacons go out at boot, every 30 minutes (`STUMP_ANNOUNCE_INTERVAL`)
+and within seconds of a new chain link, so on first sight of a peer,
+asking is faster than waiting. Only CAM
 nodes beacon: a standalone Heltec transport runs different firmware and
 has no chat of its own.
 
@@ -1031,7 +1039,13 @@ Wi-Fi rather than LoRa. Two things worth knowing:
 - **Big transfers relayed onto LoRa are cut off** after 48 KB per link
   every 10 minutes. Over the chain there's no limit.
 
-`GET /chain.json` shows the Stump's place in a chain.
+- **The chain has its own room, `#wifi-mesh`** (see *The two rooms that
+  always exist*): the other Stumps and their people, with lines as
+  `nick@thatstump` and DMs across Stumps. A client reached over the
+  chain lands there rather than in `#lora-mesh`.
+
+`GET /chain.json` shows the Stump's place in a chain; its `lan_ip` is
+where the first Stump also takes chain links on the Wi-Fi it joined.
 
 ## Stumps on a computer
 

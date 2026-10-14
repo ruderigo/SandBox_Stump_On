@@ -71,12 +71,12 @@ assuming you know what "turn on hybrid" does.
 - [Billboard](#billboard)
 - [Chat and direct messages](#chat-and-direct-messages)
 - [Voice notes](#voice-notes)
-- [LXMF propagation node](#lora-mesh-propagation-node)
+- [LXMF propagation node](#lxmf-propagation-node)
 - [Home page, navigation, About and Tools](#home-page-navigation-about-and-tools)
 - [BarKeep, the librarian](#barkeep-the-librarian)
 - [HTTPS](#https)
 - [Internationalization](#internationalization)
-- [Chained Stumps](#wifi-mesh-stumps)
+- [Chained Stumps](#chained-stumps)
 - [Stump on a computer](#stump-on-a-computer)
 - [Plugins and packs](#plugins-and-packs)
 - [Configuration](#configuration)
@@ -547,7 +547,7 @@ global mode above, not field-hardened.**
 
 ### 3. The mesh room
 
-A mesh user who messages the node lands in **`#lora-mesh`**, always there
+A LoRa mesh user who messages the node lands in **`#lora-mesh`**, always there
 and seeded like `#main`, and is told so (`→ #lora-mesh`). If `#lora-mesh` has been
 given a tier (`/admin <password> room lora-mesh minted`) and they don't
 qualify, they land in `#main` instead, told why. `/admin <password>
@@ -630,16 +630,25 @@ error token. Moderation is on `/admin`. History:
 
 ## Chat and direct messages
 
-Rooms: `#main`, `#lora-mesh` (where the mesh arrives; `#lxmf` before
-1.0.0-beta.4, and the old name still works), `#wifi-mesh` on a Stump in a
-chain (the other Stumps and their people: lines show as
-`nick@thatstump`) and any made with `/join`. Every command and reply is in
+Rooms: `#main`, `#lora-mesh` (where LoRa phones and handhelds arrive;
+`#lxmf` before 1.0.0-beta.4, and the old name still works),
+`#wifi-mesh` on a Stump in a chain (below) and any made with `/join`.
+Every command and reply is in
 [`docs/COMMANDS.md`](final_firmware/docs/COMMANDS.md).
 
 - **Direct messages:** `/msg <nick> text`, or a name in *Message
   someone*. Each conversation is a thread. Kept in memory for **72
   hours** (`rrc.DM_TTL_SECONDS`), at most 60 per person; a restart clears
   them.
+- **On a chain (`#wifi-mesh`):** the other Stumps of the chain are taken
+  in as soon as they're heard over the chain, and anyone on any Stump
+  can `/join wifi-mesh`. Only chat lines cross between Stumps, shown as
+  `<rod@LaBuche>`; joins and parts stay on their own Stump. People on
+  other Stumps are DM contacts as `rod@LaBuche` (`/msg rod@LaBuche ...`
+  is private); a DM to a Stump itself shows in its `#wifi-mesh`.
+- **The column:** drag the bar between the rooms and the chat to widen
+  it. Other Stumps are grouped at the bottom, each with a 🪵, under
+  *Stumps* (*Buches* in French).
 - **Speed limit:** lines other people see, 3 at once then one every 2 s
   (`CHAT_BURST`, `CHAT_EVERY`), on the web and over the mesh, where each
   line costs airtime. `/help`, `/names` and other replies only you see
@@ -662,7 +671,8 @@ chain (the other Stumps and their people: lines show as
 in the reader's language (mesh users get the node's default, French).
 
 **Over LXMF:**
-- A mesh user's lines go to the room they're in, and they get that
+- A mesh user lands in `#lora-mesh` (anyone reached over a chain, in
+  `#wifi-mesh`). Their lines go to the room they're in, and they get that
   room's traffic for `MESH_PEER_TIMEOUT` seconds (300) after their last
   message. Room batches carry the room as the LXMF title.
 - Someone heard only by their announce can be sent DMs, never room
@@ -824,6 +834,13 @@ joining the Wi-Fi of the one before it — so messages and files cross
 the chain over Wi-Fi and big transfers never touch LoRa. Only the
 Stumps with a Heltec use the radio. Set up in the Provisioner wizard;
 everything else is in [`docs/CHAIN.md`](final_firmware/docs/CHAIN.md).
+
+- **A computer on the same home Wi-Fi** as the first Stump joins the
+  chain without leaving it (and keeps its internet), when that Stump
+  has a chain secret (`CHAIN_LAN = True`, the default).
+- **`#wifi-mesh`** is the chain's chat room: the Stumps, their people,
+  and DMs between them (see *Chat and direct messages*). `#lora-mesh`
+  stays for LoRa.
 
 ## Stump on a computer
 

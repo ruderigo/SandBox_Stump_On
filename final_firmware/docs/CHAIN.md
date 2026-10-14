@@ -26,6 +26,11 @@ rest reach the LoRa mesh through the chain.
   network it joins, so the whole chain uses the first Stump's channel.
   Pick the quietest: `bench/wifi_bench.py` lists the channels in use
   around a CAM (1, 6 and 11 don't overlap).
+- **`#wifi-mesh`** is the chain's chat room, on every Stump of it: the
+  other Stumps join it as soon as they're heard over the chain, lines
+  from their people show as `<nick@thatstump>`, and people on different
+  Stumps can DM each other (`/msg rod@LaBuche ...`). `#lora-mesh` stays
+  for LoRa phones and handhelds.
 - **The chain secret** keeps the chain to Stumps (and PCs) that know it.
   Each one says hello to the Stump above it with a code made from the
   secret, and a Stump only sends to, and accepts from, those that have.
@@ -126,8 +131,9 @@ shows the address as `lan_ip`.
 - **`/admin` → Stump chain:** the Stump above (and when it last
   answered), and who's linked below.
 - **`GET /chain.json`:**
-  `{"enabled", "role": "root"|"member", "ap_ip", "channel", "secret",
-  "uplink": {"ssid", "ip", "parent", "parent_heard_s"}, "below": [...]}`.
+  `{"enabled", "role": "root"|"member", "ap_ip", "lan_ip", "channel",
+  "secret", "uplink": {"ssid", "ip", "parent", "parent_heard_s"},
+  "below": [...]}` (`lan_ip`: see *On a shared network instead*).
 
 ## Limits
 

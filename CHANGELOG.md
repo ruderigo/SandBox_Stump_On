@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.0.0-beta.4
 - **Chat column you can widen.** Drag the bar between the room list
   and the chat to make room for long names (kept on that device;
   double-click puts it back); a cut-off name shows whole on hover.

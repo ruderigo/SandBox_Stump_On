@@ -50,6 +50,12 @@ copies what changed, keeps `config.py`, the identity and everything
 saved, brings the folder's packs up to date, and restarts the Stump if
 it starts at login. `--pc --reconfigure` runs the wizard again.
 
+**Restarting** without updating: with start-at-login, on macOS
+`launchctl unload ~/Library/LaunchAgents/app.stump.node.plist` then
+`launchctl load -w` on the same file (Windows: `schtasks /End /TN Stump`
+then `schtasks /Run /TN Stump`; Linux: `systemctl --user restart
+stump`); started by hand, Ctrl+C and run the same command again.
+
 **Stopping or removing start-at-login:**
 
 | | Stop | Remove |
@@ -118,6 +124,11 @@ Stump's Wi-Fi" with the CAM's address (`192.168.<its number>.1`). With
 one Wi-Fi radio the computer can't also run a hotspot, so its visitors
 use that same network; a second network (Ethernet, a USB Wi-Fi adapter,
 a router) gives it its own.
+
+**Talking across the chain:** `/join wifi-mesh` in the chat, on each
+Stump. The other Stumps show at the bottom of the column (🪵), lines
+from their people as `<nick@thatstump>`, and `/msg rod@LaBuche ...`
+reaches someone on another Stump privately.
 
 **Checking the link.** The wizard checks it, step by step, and says what
 to fix when a step fails (not on the CAM's Wi-Fi, the CAM's chain off,
