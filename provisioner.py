@@ -3501,8 +3501,14 @@ def config_wizard(board_type):
                 else:
                     print("  Join the other Stump's Wi-Fi from this computer's Wi-Fi settings.")
                     chain_cfg["uplink_ssid"] = ask_wifi("  Wi-Fi name of the Stump this one joins", "LaBuche-Stump.web.app")
-                    chain_cfg["parent_ip"] = ask("  That Stump's address (a CAM: 192.168.<its number>.1)",
-                                                 "192.168.4.1")
+                    print("  Its address is the \"Router\" in this computer's Wi-Fi details once it's")
+                    print("  joined (a CAM: 192.168.4.1) -- not this computer's own \"IP address\".")
+                    while True:
+                        chain_cfg["parent_ip"] = ask("  That Stump's address", "192.168.4.1")
+                        if _route_ip(chain_cfg["parent_ip"]) != chain_cfg["parent_ip"]:
+                            break
+                        print(yellow("  That's this computer's own address. The Stump it joins is the Router"
+                                     " (%s.1 on this network)." % chain_cfg["parent_ip"].rsplit(".", 1)[0]))
                     chain_cfg["secret"] = ask("  Chain secret (the same as on the first Stump)", "") or ""
             elif first:
                 print("  The whole chain shares one Wi-Fi channel, set here. Pick the quietest:")
@@ -5192,6 +5198,13 @@ def chain_preflight(parent_ip, secret, ssid="", hello=chain_hello, get=_get_json
                     "usual Wi-Fi, since a Stump's has no internet: turn off Auto-Join for the usual "
                     "one while you set up (macOS: System Settings > Wi-Fi > its ... button)."
                     % (mine or "unknown", where)))
+        return out
+    if mine == parent_ip:
+        out.append((False, "%s is another Stump" % parent_ip,
+                    "%s is this computer's own address, so it was checking itself. The Stump it "
+                    "joins is the network's Router (%s1 for a CAM; see this computer's Wi-Fi "
+                    "details). Run python3 provisioner.py --pc --reconfigure and enter that, or set "
+                    "PC_CHAIN_PARENT_IP in the Stump folder's config.py." % (parent_ip, prefix)))
         return out
     out.append((True, "This computer is on %s's network (as %s)" % (parent_ip, mine), ""))
     try:

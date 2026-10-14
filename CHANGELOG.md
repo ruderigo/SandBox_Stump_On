@@ -1,6 +1,11 @@
 # Changelog
 
 ## Unreleased
+- **A computer joining a CAM: the right address.** The wizard says the
+  Stump's address is the *Router* in the computer's Wi-Fi details, and
+  refuses the computer's own address; the chain check, given its own
+  address, says it was checking itself instead of reporting a secret
+  mismatch.
 - **Joining a CAM from a computer: "Connection refused" explained.**
   The Provisioner now reaches a Stump directly, never through a proxy
   from the system settings (a VPN or filter app can't reach the

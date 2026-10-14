@@ -67,6 +67,9 @@ r = P.chain_preflight(CAM, SECRET, "LaBuche-Stump.web.app", route=lambda ip: "19
 check("not on the CAM's network: says to join its Wi-Fi", not last(r)[0] and "Join 'LaBuche-Stump.web.app'" in last(r)[2], r)
 r = P.chain_preflight(CAM, SECRET, route=on, get=fake_get({}))
 check("nothing answers: says to check the Stump and its address", not last(r)[0] and "Nothing answers" in last(r)[2], r)
+r = P.chain_preflight("192.168.4.3", SECRET, route=lambda ip: "192.168.4.3")
+check("its own address as the parent: says so, names the Router", not last(r)[0] and "own address" in last(r)[2]
+      and "192.168.4.1" in last(r)[2], r)
 import urllib.error
 refused = urllib.error.URLError(ConnectionRefusedError(61, "Connection refused"))
 r = P.chain_preflight(CAM, SECRET, route=on, get=fake_get({"/chain.json": refused, "/node.json": refused}), wait=0)
