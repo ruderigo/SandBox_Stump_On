@@ -60,6 +60,14 @@ _NORM = [
 ]
 
 
+def annotate(name, text):
+    """On GitHub Actions, a failing test shows as an annotation with its
+    output: the run's logs can't always be read, the annotations can."""
+    if os.environ.get("GITHUB_ACTIONS"):
+        body = ("%s failed:\n%s" % (name, text))[-3500:]
+        print("::error title=%s::%s" % (name, body.replace("%", "%25").replace("\r", "").replace("\n", "%0A")))
+
+
 def normalise(text, workdir):
     out = []
     for line in text.replace(str(workdir), "<work>").splitlines():
@@ -130,6 +138,7 @@ def main():
                 if not ok:
                     print(detail)
                     failed.append(name)
+                    annotate(name, detail)
                 continue
             if kind == "safe":
                 seq = ["reset", "culprit", "normal", "reset", "running", "normal"]
@@ -157,6 +166,7 @@ def main():
             if not ok:
                 print(detail)
                 failed.append(name)
+                annotate(name, detail)
         finally:
             shutil.rmtree(cwd.parent, ignore_errors=True)
     if not only or "provisioner" in only:
@@ -166,6 +176,8 @@ def main():
         if not ok:
             print((r.stdout + r.stderr)[-3000:])
             failed.append("provisioner")
+            annotate("provisioner", "\n".join(l for l in (r.stdout + r.stderr).splitlines()
+                                              if l.startswith("FAIL") or "Error" in l)[-3000:])
     # Stump on a computer (docs/PC.md): the same firmware on regular Python.
     # Needs the cryptography and pyserial packages (CI installs them).
     for name, script in (("pc_rnode_serial", "rnode_serial_test.py"), ("pc_chain", "pc_chain_test.py"),
@@ -187,6 +199,8 @@ def main():
         if not ok:
             print("\n".join(l for l in (r.stdout + r.stderr).splitlines() if not l.startswith("["))[-3000:])
             failed.append(name)
+            annotate(name, "\n".join(l for l in (r.stdout + r.stderr).splitlines()
+                                      if l.startswith("FAIL") or "Error" in l)[-3000:])
     print("\n%d failed: %s" % (len(failed), ", ".join(failed)) if failed else "\nall passed")
     sys.exit(1 if failed else 0)
 
