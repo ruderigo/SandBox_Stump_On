@@ -101,7 +101,11 @@ python3 provisioner.py
 
 It asks what you're setting up (a CAM, a Heltec for a CAM, a Heltec
 relay, a Stump on this computer, or a check or fix), then shows the
-**route**: its numbered sections, what each does, and what you'll need.
+**route**: its numbered sections, what each does, how long it takes,
+whether it needs you or runs by itself, and what you'll need. A CAM
+takes about 30 minutes, most of it copying files to the board over USB:
+all its questions come first (about 5 minutes), then the rest runs by
+itself while the computer is kept awake.
 Each section then opens with a header and where you are on the route,
 asks before touching the board, and ends with done, skipped or what
 went wrong. The run ends on a summary: each section's result, and what

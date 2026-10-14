@@ -1222,7 +1222,7 @@ TIMINGS_FILE = Path.home() / ".provisioner" / "timings.json"
 # computer has timed its own (TIMINGS_FILE): the route card shows the
 # median of the last runs here once there are some.
 ESTIMATES = {
-    "cam": {"Check": 20, "Board": 20, "Flash": 180, "Firmware": 900, "Configure": 300,
+    "cam": {"Check": 20, "Board": 20, "Questions": 300, "Flash": 180, "Firmware": 900,
             "Install": 300, "Verify": 120},          # ~30 min in all, as timed in the field
     "heltec": {"Check": 20, "Board": 20, "Flash": 180, "Configure": 120, "Install": 60, "Verify": 60},
     "heltec_transport": {"Check": 20, "Board": 20, "Flash": 240, "Verify": 60},
@@ -1259,12 +1259,56 @@ def _span(seconds):
     return "%d h %02d" % (seconds // 3600, (seconds % 3600) // 60)
 
 
+def _sections(nums):
+    """[1, 2, 3, 5] -> "sections 1-3 and 5"."""
+    runs, start = [], None
+    for i, n in enumerate(nums):
+        if start is None:
+            start = n
+        if i + 1 == len(nums) or nums[i + 1] != n + 1:
+            runs.append(str(start) if start == n else "%d-%d" % (start, n))
+            start = None
+    if len(runs) == 1:
+        return ("section " if "-" not in runs[0] else "sections ") + runs[0]
+    return "sections " + ", ".join(runs[:-1]) + " and " + runs[-1]
+
+
+def keep_awake():
+    """Keeps this computer from going to sleep until the Provisioner ends
+    (a sleeping computer cuts the USB copy halfway). True if it could."""
+    try:
+        if sys.platform == "darwin":
+            subprocess.Popen(["caffeinate", "-im", "-w", str(os.getpid())],
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            return True
+        if sys.platform.startswith("win"):
+            import ctypes
+            ES_CONTINUOUS, ES_SYSTEM_REQUIRED = 0x80000000, 0x00000001
+            ctypes.windll.kernel32.SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED)
+            return True
+    except Exception:
+        pass
+    return False
+
+
 class Route:
     """The numbered sections of one run (see the comment above)."""
     current = None
 
-    def __init__(self, title, steps, needs=(), subtitle="", key=None):
+    def __init__(self, title, steps, needs=(), subtitle="", key=None, why=()):
         self.title, self.subtitle, self.key = title, subtitle, key
+        self.why = list(why)                  # lines saying where the time goes
+        # [(name, what)] or [(name, who, what)], who: "you" (it asks you
+        # things) or "auto" (it runs by itself).
+        self.who = {}
+        flat = []
+        for st in steps:
+            if len(st) == 3:
+                self.who[st[0]] = st[1]
+                flat.append((st[0], st[2]))
+            else:
+                flat.append(st)
+        steps = flat
         self.steps = list(steps)              # [(name, what)]
         self.needs = list(needs)
         self.state = ["todo"] * len(self.steps)
@@ -1286,20 +1330,34 @@ class Route:
         g = _glyphs()
         lines = [self.subtitle, ""] if self.subtitle else []
         width = max(len(n) for n, _ in self.steps)
-        room = _width() - 4 - (width + 6) - 9
-        total, measured = 0, False
+        whow = 6 if self.who else 0
+        room = _width() - 4 - (width + 6) - whow - 9
+        total, measured, you_s, auto_s = 0, False, 0, 0
         for i, (name, what) in enumerate(self.steps, 1):
             secs, real = self.expected(name)
             total += secs or 0
             measured = measured or real
+            if self.who.get(name) == "you":
+                you_s += secs or 0
+            elif self.who:
+                auto_s += secs or 0
             when = ("~" + _span(secs)) if secs else ""
+            who = {"you": "you", "auto": "auto"}.get(self.who.get(name), "") if self.who else ""
             parts = _wrap(what, room) or [""]
-            lines.append("%2d  %s  %s %s" % (i, bold(name.ljust(width)), parts[0].ljust(room), when.rjust(8)))
-            lines += [" " * (width + 6) + p for p in parts[1:]]
+            lines.append("%2d  %s  %s%s %s" % (i, bold(name.ljust(width)), who.ljust(whow),
+                                              parts[0].ljust(room), when.rjust(8)))
+            lines += [" " * (width + 6 + whow) + p for p in parts[1:]]
         if total:
-            lines += ["", "About %s in all (%s; questions take as long as you do)."
-                      % (_span(total), "as timed on this computer" if measured else "a first guess, "
-                         "until this computer has timed a run")]
+            lines += ["", "About %s in all (%s)." % (_span(total), "as timed on this computer" if measured
+                                                    else "a first guess, until this computer has timed a run")]
+            if self.who:
+                yours = [i for i, (n, _) in enumerate(self.steps, 1) if self.who.get(n) == "you"]
+                lines.append("you  = it asks you things: %s, about %s (as long as you take)"
+                             % (_sections(yours), _span(you_s)))
+                lines.append("auto = it runs by itself: about %s%s" % (
+                    _span(auto_s), ", you can step away" if auto_s >= 300 else ""))
+        for para in self.why:
+            lines += [""] + _wrap(para, _width() - 4)
         if self.needs:
             lines += ["", "You'll need:"] + ["  " + g["now"] + " " + n for n in self.needs]
         _indent(False)
@@ -4247,6 +4305,106 @@ def diagnostics(port, board_type=None, interactive=True):
 # Full guided flow
 # ---------------------------------------------------------------------------
 
+def _cam_after_board(r, port, app_dir):
+    """A CAM, once its port is known: every question first (section 3),
+    then the long, unattended part (4-7) with nothing more to ask."""
+    # ── Questions
+    r.start("Questions")
+    print("Everything is asked now, so the rest can run while you're away.")
+    flash = ask_yes_no(f"Flash MicroPython onto {port}? (erases the board: yes for a new or "
+                       "broken board, no to keep it and only update)", True)
+    upload = bool(app_dir) and (flash or ask_yes_no(
+        "Upload the Stump files? (keeps the board's settings)", True))
+    profile = None
+    if ask_yes_no("Answer the setup questions? (no: the board keeps its settings)", True):
+        profile, _ = config_wizard("cam")
+    verify = ask_yes_no("Run the diagnostic suite at the end?", True)
+    r.end()
+    left = sum((r.expected(n)[0] or 0) for n, _ in r.steps[r.index + 1:])
+    awake = keep_awake()
+    box("Over to the Provisioner", [
+        "Sections %d-%d run by themselves now: about %s." % (r.index + 2, len(r.steps), _span(left)),
+        "Leave the USB cable in." + (" This computer won't go to sleep until the end."
+                                     if awake else " Keep this computer awake (no sleep, lid open)."),
+        "You can step away: the summary at the end says how it went."])
+
+    # ── Flash
+    r.start("Flash")
+    flashed = False
+    if flash:
+        flashed, flashed_port = flash_cam_micropython(port)
+        if flashed and flashed_port and flashed_port != port:
+            # Bootloader recovery can land the board on another port.
+            print(f"\nThe board moved to {flashed_port} during flashing: using that from here.")
+            port = flashed_port
+            r.note("Board", port)
+        r.end("done" if flashed else "fail")
+    else:
+        r.end("skip", "the board keeps what it has")
+
+    # ── Firmware
+    r.start("Firmware")
+    if not app_dir:
+        r.end("skip", "no firmware folder (section 1)")
+    elif upload and (flashed or not flash):
+        if flashed:
+            # esptool resets the board right after writing; the first
+            # mpremote attempt would race that reboot.
+            print("Waiting for the board to finish booting after the flash...")
+            time.sleep(5)
+        ok = upload_stump_app(port, app_dir=app_dir)
+        r.end("done" if ok else "fail",
+              "" if ok else "retry with: python3 provisioner.py --upload-app %s" % port)
+    elif flash and not flashed:
+        r.end("skip", "the flash didn't work")
+    else:
+        r.end("skip", "the board keeps its Stump files")
+
+    # ── Install
+    r.start("Install")
+    if profile is None:
+        r.end("skip", "nothing new to install")
+    else:
+        ok = push_config_to_board(port, "cam", profile)
+        if profile.get("packs"):
+            ok = install_packs(port, [p for p in (load_pack(x) for x in profile["packs"]) if p]) and ok
+        banner("Finding the node's addresses")
+        print("Restarting the board so it boots with the new settings...")
+        run(["mpremote", "connect", port, "reset"], timeout=15)
+        print("Waiting for it to boot (Wi-Fi, clock, Reticulum)...")
+        time.sleep(12)
+        addrs = get_stump_ip(port)
+        if addrs and (addrs.get("sta") or addrs.get("ap")):
+            print()
+            _print_discovered_addrs(addrs, wifi_ssid=profile.get("wifi_ssid"))
+            if addrs.get("sta"):
+                r.note("On the Wi-Fi", "http://%s/" % addrs["sta"])
+            if addrs.get("ap"):
+                r.note("Its own Wi-Fi", "http://%s/" % addrs["ap"])
+        else:
+            print("No address yet: that's normal right after an upload. Power-cycle the")
+            print("board, wait a few seconds, then: python3 provisioner.py --get-ip %s" % port)
+        chain = profile.get("chain") or {}
+        if chain.get("enabled"):
+            r.note("Chain", "first Stump" if not chain.get("uplink_ssid") else
+                   "joins '%s'" % chain["uplink_ssid"])
+            if chain.get("secret"):
+                r.note("Chain secret", chain["secret"])
+        r.end("done" if ok else "fail")
+
+    # ── Verify
+    r.start("Verify")
+    if verify:
+        results = diagnostics(port, "cam")
+        passed = all(v for v in results.values() if v is not None)
+        r.end("done" if passed else "fail", "certified" if passed else "NOT certified: see the summary above")
+    else:
+        r.end("skip")
+    if not r.summary("Re-check any time: python3 provisioner.py --diag %s" % port):
+        print("Fix what's marked " + red(_glyphs()["fail"]) + ", then run that section again"
+              " (python3 provisioner.py --help lists them one by one).")
+
+
 # What the Provisioner sets up, and the route each one takes.
 ROLES = [
     ("cam", "A Stump CAM", "the ESP32-S3-CAM: pages, chat, files, mesh"),
@@ -4260,35 +4418,44 @@ ROLES = [
 def route_for(role):
     if role == "cam":
         return Route("Setting up a Stump CAM", key="cam", steps=[
-            ("Check", "the tools on this computer, and the Stump firmware folder"),
-            ("Board", "pick the CAM's USB port"),
-            ("Flash", "MicroPython onto the board: erases it"),
-            ("Firmware", "the Stump files onto the board"),
-            ("Configure", "questions: name, Wi-Fi, chain, the Heltec, packs, bot, features, look"),
-            ("Install", "the settings and packs onto the board; restart; find its address"),
-            ("Verify", "the diagnostic suite"),
+            ("Check", "you", "the tools on this computer, and the Stump firmware folder"),
+            ("Board", "you", "pick the CAM's USB port"),
+            ("Questions", "you", "all of them now: flash or not, name, Wi-Fi, chain, the Heltec, "
+                                 "packs, bot, features, look"),
+            ("Flash", "auto", "MicroPython onto the board (erases it)"),
+            ("Firmware", "auto", "the Stump files, then the Tools page's files onto its SD card: "
+                                 "the long part"),
+            ("Install", "auto", "the settings and packs; restart; find its address"),
+            ("Verify", "auto", "the diagnostic suite"),
         ], needs=["the CAM on USB, with a data cable (not a charge-only one)",
                   "the name and password of the Wi-Fi it joins, if any",
-                  "for a chain: the chain secret, and the Stump it joins"],
-            subtitle="Nothing touches the board before section 3, and each section asks first.")
+                  "for a chain: the chain secret, and the Stump it joins",
+                  "a laptop: its lid open (a closed laptop sleeps anyway)"],
+            subtitle="Nothing touches the board before you've answered everything.",
+            why=["Why so long: the board takes files over USB slowly, about 1 KB/s once they go "
+                 "to its SD card. The Tools page's files (~1 MB: the Provisioner, the firmware "
+                 "bundle, the browser flasher) are most of the wait, and only the first time: a "
+                 "re-run skips what's already on the card.",
+                 "Leave the cable in. This computer is kept awake until the end."])
     if role == "heltec":
         return Route("Setting up a Heltec for a CAM", key="heltec", steps=[
-            ("Check", "the tools on this computer"),
-            ("Board", "pick the Heltec's USB port"),
-            ("Flash", "the RNode firmware: erases the board"),
-            ("Configure", "questions: radio settings, access code, its Wi-Fi (how the CAM reaches it)"),
-            ("Install", "the settings onto the Heltec"),
-            ("Verify", "the diagnostic suite"),
+            ("Check", "you", "the tools on this computer"),
+            ("Board", "you", "pick the Heltec's USB port"),
+            ("Flash", "you", "the RNode firmware (erases the board); rnodeconf asks its own questions"),
+            ("Configure", "you", "radio settings, access code, its Wi-Fi (how the CAM reaches it)"),
+            ("Install", "you", "the settings onto the Heltec (rnodeconf may ask again)"),
+            ("Verify", "auto", "the diagnostic suite"),
         ], needs=["the Heltec V3 on USB, with a data cable",
                   "the radio settings of your mesh (the defaults match the deployed one)",
                   "the Wi-Fi it joins: usually the CAM's own, and a fixed address in it"],
             subtitle="Nothing touches the board before section 3, and each section asks first.")
     if role == "heltec_transport":
         return Route("Setting up a Heltec relay", key="heltec_transport", steps=[
-            ("Check", "the tools on this computer"),
-            ("Board", "pick the Heltec's USB port"),
-            ("Flash", "radio settings, then the standalone Reticulum firmware: erases the board"),
-            ("Verify", "the diagnostic suite"),
+            ("Check", "you", "the tools on this computer"),
+            ("Board", "you", "pick the Heltec's USB port"),
+            ("Flash", "you", "radio settings, then the standalone Reticulum firmware (erases the "
+                             "board); rnodeconf asks its own questions"),
+            ("Verify", "auto", "the diagnostic suite"),
         ], needs=["the Heltec V3 on USB, with a data cable",
                   "the radio settings of your mesh (the defaults match the deployed one)"])
     raise ValueError(role)
@@ -4429,6 +4596,10 @@ def interactive_wizard():
         return
     r.note("Board", port)
     r.end()
+
+    if role == "cam":
+        _cam_after_board(r, port, resolved_app_dir)
+        return
 
     # ── Flash
     r.start("Flash")

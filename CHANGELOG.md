@@ -1,6 +1,13 @@
 # Changelog
 
 ## Unreleased
+- **A CAM's setup asks everything first.** Section 3, *Questions*, asks
+  them all (flash or not, the wizard, diagnostics at the end); sections
+  4-7 then run by themselves, about 25 minutes, and the Provisioner keeps
+  the computer awake meanwhile (macOS, Windows). The route card marks
+  each section *you* or *auto*, totals both, and says why it's slow: the
+  board takes files at about 1 KB/s on its SD card, and the Tools page's
+  ~1 MB is most of it, the first time only.
 - **BarKeep is back, as the node's librarian (HF-003).** Visitors ask it
   what's on the node in French, English or Spanish ("do you have a
   movie?", "as-tu un livre sur le jardinage ?") from an *Ask BarKeep*

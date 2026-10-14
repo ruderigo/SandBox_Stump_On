@@ -197,6 +197,49 @@ answers("9", "4")
 with contextlib.redirect_stdout(io.StringIO()):
     picked = P.start_menu()
 check('start menu: re-asks, then picks', picked == "pc", picked)
+# The CAM route: every question in section 3, nothing asked after it
+import io, contextlib
+asked_after, phase, calls = [], [None], []
+def fake_input(prompt=""):
+    if phase[0] == "auto":
+        asked_after.append(prompt)
+    if prompt.startswith("Choose 1-") and "blank to quit" in prompt:
+        return "1"                       # a Stump CAM
+    return ""                            # defaults everywhere
+builtins.input = fake_input
+saved = {n: getattr(P, n) for n in ("check_tools", "resolve_path", "choose_board", "config_wizard",
+                                    "flash_cam_micropython", "upload_stump_app", "push_config_to_board",
+                                    "install_packs", "run", "get_stump_ip", "diagnostics", "keep_awake")}
+P.check_tools = lambda: True
+P.resolve_path = lambda *a, **k: fw
+P.choose_board = lambda role=None: "/dev/fake-cam"
+def fake_wizard(role):
+    calls.append("wizard"); return {"node_name": "t", "wifi_ssid": "", "packs": []}, None
+P.config_wizard = fake_wizard
+def flash(port): phase[0] = "auto"; calls.append("flash"); return True, port
+P.flash_cam_micropython = flash
+P.upload_stump_app = lambda port, app_dir=None: calls.append("upload") or True
+P.push_config_to_board = lambda port, role, prof: calls.append("push") or True
+P.install_packs = lambda *a: True
+P.run = lambda *a, **k: None
+P.get_stump_ip = lambda port: {"sta": "192.168.0.161", "ap": "192.168.4.1"}
+P.diagnostics = lambda port, role=None, interactive=True: calls.append("diag") or {"serial": True}
+P.keep_awake = lambda: True
+real_sleep = P.time.sleep
+P.time.sleep = lambda s: None
+buf = io.StringIO()
+with contextlib.redirect_stdout(buf):
+    P.interactive_wizard()
+P.time.sleep = real_sleep
+for n, f in saved.items():
+    setattr(P, n, f)
+sys.stdout = sys.__stdout__
+out = buf.getvalue()
+check('CAM route: the questions come before anything touches the board', calls == ["wizard", "flash", "upload", "push", "diag"], calls)
+check('CAM route: nothing is asked after section 3', asked_after == [], asked_after)
+check('CAM route: it says the rest runs by itself', "run by themselves now" in out and "step away" in out, out[-1500:])
+check('CAM route: the card says who does what, and why it is slow', "Why so long" in out and "auto = it runs by itself" in out)
+check('CAM route: the summary has the addresses', "http://192.168.4.1/" in out and "Took" in out)
 # remove_plugin refuses core
 check('remove refuses urns', P.remove_plugin('/dev/fake', 'urns') is False)
 print('FAILURES', FAIL)
