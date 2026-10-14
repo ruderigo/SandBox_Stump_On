@@ -228,6 +228,70 @@ def guess_class(filename):
     return "other"
 
 
+# What kind of file, for finding things (the Files page's filters,
+# BarKeep, /files.json?cat=). Broader than guess_class(), which sets
+# credit costs and stays as it is.
+KINDS = (
+    ("video", ("mp4", "mkv", "avi", "mov", "webm", "m4v")),
+    ("music", ("mp3", "flac", "wav", "ogg", "m4a", "opus", "aac")),
+    ("document", ("pdf", "txt", "doc", "docx", "epub", "md", "html", "htm", "odt", "rtf")),
+    ("image", ("jpg", "jpeg", "png", "gif", "webp", "avif", "svg", "heic")),
+)
+
+
+def kind(filename):
+    """video, music, document, image or other."""
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    for k, exts in KINDS:
+        if ext in exts:
+            return k
+    return "other"
+
+
+def query_files(words=None, cat=None, sort="newest", limit=5):
+    """The shelf, filtered and sorted: [{"name", "size", "mtime", "cat"}].
+    words: topic words (folded, see librarian.py); a file matches when its
+    folded name holds one of them (or the start of a long one), and files
+    matching more words come first. cat: one kind() value. sort: newest,
+    oldest, name, small or large. Reads the folder listing and each file's
+    size and date, nothing else."""
+    import librarian
+    rows = []
+    for n in _list_files():
+        c = kind(n)
+        if cat and c != cat:
+            continue
+        score = 0
+        if words:
+            folded = librarian.fold(n)
+            for w in words:
+                if librarian.stem(w) in folded:
+                    score += 1
+            if not score:
+                continue
+        try:
+            st = os.stat(SHARED_DIR + "/" + n)
+            size, mtime = st[6], st[8]
+        except OSError:
+            size, mtime = 0, 0
+        rows.append({"name": n, "size": size, "mtime": mtime, "cat": c, "_s": score})
+    # One sort, best matches first, then the order asked for (MicroPython's
+    # sort isn't stable, so two passes wouldn't keep the first).
+    if sort == "name":
+        rows.sort(key=lambda r: (-r["_s"], r["name"].lower()))
+    elif sort == "small":
+        rows.sort(key=lambda r: (-r["_s"], r["size"]))
+    elif sort == "large":
+        rows.sort(key=lambda r: (-r["_s"], -r["size"]))
+    elif sort == "oldest":
+        rows.sort(key=lambda r: (-r["_s"], r["mtime"]))
+    else:
+        rows.sort(key=lambda r: (-r["_s"], -r["mtime"]))
+    for r in rows:
+        del r["_s"]
+    return rows[:limit] if limit else rows
+
+
 def credit_balance(identifier):
     if not sd_ok:
         return 0

@@ -222,6 +222,9 @@ def active_triggers():
     for t in templates.BASE_TEMPLATES:
         if t not in _disabled and t not in _custom:
             out.append(p + t)
+    for t in getattr(templates, "ARG_TEMPLATES", {}):
+        if t not in _disabled and t not in _custom:
+            out.append(p + t)
     return out
 
 
@@ -258,6 +261,14 @@ def maybe_respond(room, nick, text):
         except Exception as e:
             # A broken template must not take down the chat handler it
             # was called from. Report and stay quiet.
+            print("[fservbot] template '%s' failed: %s" % (trig, e))
+            return None
+    arg_templates = getattr(templates, "ARG_TEMPLATES", {})
+    if trig in arg_templates and trig not in _disabled:
+        rest = text.split(" ", 1)[1] if " " in text else ""
+        try:
+            return arg_templates[trig](_ctx(), rest)
+        except Exception as e:
             print("[fservbot] template '%s' failed: %s" % (trig, e))
             return None
     return None

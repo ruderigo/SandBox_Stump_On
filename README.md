@@ -73,6 +73,7 @@ assuming you know what "turn on hybrid" does.
 - [Voice notes](#voice-notes)
 - [LXMF propagation node](#lxmf-propagation-node)
 - [Home page, navigation, About and Tools](#home-page-navigation-about-and-tools)
+- [BarKeep, the librarian](#barkeep-the-librarian)
 - [HTTPS](#https)
 - [Internationalization](#internationalization)
 - [Chained Stumps](#chained-stumps)
@@ -275,6 +276,7 @@ final_firmware/              the CAM's firmware (core files hashed in provisione
 ├── propagation.py               LXMF propagation node (store-and-forward)
 ├── radio.py                      Heltec radio settings from /admin
 ├── guard.py                      speed limits and the wrong-password lockout
+├── librarian.py                  BarKeep as the librarian: questions -> files, notices, apps
 ├── chain.py                      a chain of Stumps over Wi-Fi (docs/CHAIN.md)
 ├── stump_tls.py                   HTTPS with your own certificate
 ├── billboard.py                 bulletin board storage + rendering
@@ -721,6 +723,25 @@ for an address*. Peering with other propagation nodes is still to come.
 How each came to be, with its tests:
 [`ENGINEERING_NOTES.md`](final_firmware/docs/ENGINEERING_NOTES.md#chat-direct-messages-voice-notes-the-propagation-node-and-the-pages).
 
+## BarKeep, the librarian
+
+Visitors ask BarKeep what's on the node, in French, English or Spanish —
+*"do you have a movie?"*, *"as-tu un livre sur le jardinage ?"*,
+*"¿qué hay en el tablón?"* — and get the matching files (linked), notices
+and apps. It's an **Ask BarKeep** drawer at the top of the Files and
+Billboard pages (and `/concierge`); not on the home page, and labelled
+with what it does, so nobody takes it for the people's chat room. In the
+chat, `!find <words>` asks it on one short line. No language model:
+`librarian.py` folds accents, drops filler words, spots the kind of file
+or the billboard or the apps, and matches the rest against file names
+and notices. Commands and examples: `COMMANDS.md` Part 4.
+
+The Files page also sorts (newest, oldest, name, size) and filters (by
+kind, or as you type; Enter asks BarKeep), and the Billboard searches
+titles and bodies (opening a post whose body matches) and sorts — all in
+the browser, no request to the node. `/files.json` and `/billboard.json`
+take `?q=`, `?cat=` and `?sort=` for apps.
+
 ## HTTPS
 
 Browsers only open the microphone on secure pages, so live voice
@@ -1119,6 +1140,5 @@ what each decision would need, in `docs/HIDDEN_FEATURES.md`:
   itself is unrelated to the file-deletion feature documented above —
   that's a separate capability that shipped since this entry was
   written, and doesn't touch the awaiting-slot mechanism at all.
-- **`HF-003`** — the Concierge (BarKeep) chat box, moved off the home
-  page. Still works at `/concierge` (and `POST /chat`); nothing links
-  to it.
+- **`HF-003`** — the Concierge (BarKeep) chat box: **brought back** as
+  the librarian (above), on the Files and Billboard pages.

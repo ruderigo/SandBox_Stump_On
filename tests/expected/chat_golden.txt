@@ -1,4 +1,4 @@
-[fservbot] active: prefix '!', 7 trigger(s), notice off
+[fservbot] active: prefix '!', 11 trigger(s), notice off
 [stumpid] active: mode=open
 [plugin] active: fservbot, stumpid
 loaded ['fservbot', 'stumpid']
@@ -38,7 +38,7 @@ loaded ['fservbot', 'stumpid']
 >> 50 /fshelp
   replies ["fserv bot -- channel triggers start with '!' (!fserv, !help, !list)", '/fsadd <pw> <trigger> :: <response>   add or replace a dialogue', '/fsdel <pw> <trigger>                 remove one (base or custom)', '/fslist                               show active triggers', '/fsshow <trigger>                     show what one replies', '/fsset <pw> prefix <char>             change the trigger character', "/fsset <pw> broadcast <mins|off>      periodic 'what I am' notice", 'the password is set by a technician in config.py, not from here.'] None
 >> 50 /fslist
-  replies ['active: !about, !files, !fserv, !help, !info, !list, !rules'] None
+  replies ['active: !about, !busca, !cherche, !files, !find, !fserv, !help, !info, !list, !rules, !search'] None
 >> 50 !files
   replies [] None
   #main <alice> !files

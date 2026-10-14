@@ -1,6 +1,19 @@
 # Changelog
 
 ## Unreleased
+- **BarKeep is back, as the node's librarian (HF-003).** Visitors ask it
+  what's on the node in French, English or Spanish ("do you have a
+  movie?", "as-tu un livre sur le jardinage ?") from an *Ask BarKeep*
+  drawer on the Files and Billboard pages and `/concierge`, and get the
+  matching files (linked), notices and apps; `!find <words>` asks it in
+  the chat, on one short line. `librarian.py`: accents folded, filler
+  dropped, kinds of file / billboard / apps spotted, the rest matched.
+  The Files page sorts and filters (kind pills, as-you-type, Enter asks
+  BarKeep); the Billboard searches titles and bodies and sorts; both in
+  the browser. `/files.json` and `/billboard.json` take `?q=`, `?cat=`,
+  `?sort=`; `/files.json` rows gain `cat` and `mtime`; `POST /chat`
+  answers JSON when asked. Notices past 72 hours are no longer shown
+  before the next post prunes them.
 - **A shorter README (H-09).** From about 2,400 lines to about 1,100:
   each feature is a short reference now, and the bug stories and test
   write-ups it had collected moved, word for word, to

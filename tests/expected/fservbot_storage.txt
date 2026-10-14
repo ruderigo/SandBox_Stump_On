@@ -1,5 +1,5 @@
 [plugin] fservbot: moved <work>/sdm/fservbot.json to <work>/sdm/plugins/fservbot/fservbot.json
-[fservbot] active: prefix '!', 8 trigger(s), notice off
+[fservbot] active: prefix '!', 12 trigger(s), notice off
 [stumpid] active: mode=open
 [plugin] active: fservbot, stumpid
 ['fservbot', 'stumpid']

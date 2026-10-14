@@ -1,4 +1,4 @@
-[fservbot] active: prefix '!', 7 trigger(s), notice off
+[fservbot] active: prefix '!', 11 trigger(s), notice off
 [stumpid] active: mode=open
 [plugin] active: fservbot, stumpid
 >> web /admin pw room vip minted -> ['#vip is now minted'] None
@@ -11,7 +11,7 @@ peer main main
 >> mesh hello -> [] None
 >> mesh /auth -> ['AUTH-CHALLENGE <n>'] None
 >> mesh /whoami -> ['not verified this session -- /auth to prove an identity'] None
->> mesh /fslist -> ['active: !about, !files, !fserv, !help, !info, !list, !rules'] None
+>> mesh /fslist -> ['active: !about, !busca, !cherche, !files, !find, !fserv, !help, !info, !list, !rules, !search'] None
 >> mesh !list -> [] None
 >> mesh /names -> ['#main: Rod, guest-xxxx'] None
 >> mesh /part -> ['= #main — tu es déjà dans #main'] None

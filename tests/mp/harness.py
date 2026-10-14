@@ -15,6 +15,13 @@ fserv.AWAITING_FILE = ROOT + '/awaiting.json'; fserv.sd_ok = True
 import billboard
 billboard.storage_file = lambda: ROOT + '/billboard.txt'
 import barkeep
+# Everything the pages can save goes in the test's own folder, never the
+# real filesystem's root (a test that changed the theme once wrote
+# /site_theme.json there).
+import theme, layout, radio
+theme.SITE_THEME_FILE = ROOT + '/site_theme.json'
+layout.LAYOUT_FILE = ROOT + '/layout.json'
+radio.SETTINGS_FILE = ROOT + '/radio.json'
 barkeep._check_admin_pw_now = lambda pw: pw == 'pw'
 import uasyncio as asyncio, ujson as json
 

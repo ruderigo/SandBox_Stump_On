@@ -430,23 +430,41 @@ same way a rejected web visitor's message is.
 
 ---
 
-## Part 4 — BarKeep console (`/chat` — separate from RRC)
+## Part 4 — BarKeep, the librarian (`/chat` — separate from RRC)
 
-The single-box command console. No longer on the home page: it's
-hidden feature HF-003, still working at `/concierge` (and `POST /chat`)
-for anyone who types the address — see `HIDDEN_FEATURES.md`. Command
-words stay fixed; only descriptions translate.
+BarKeep answers questions about what's on the node: files on the shelf,
+billboard notices, the apps on the card. Asked from the **Ask BarKeep**
+drawer on `/files` and `/billboard`, from `/concierge`, with `POST /chat`
+(raw text body; `Accept: application/json` gives `{"reply", "found"}`),
+or in the chat with `!find <words>` (aliases `!search`, `!cherche`,
+`!busca`; one short line, for LoRa). Its replies are in the asker's
+language; `!find`'s in the node's default.
+
+How it reads a question (`librarian.py`): lowercase, accents folded,
+filler words dropped (*hey, do you have, est-ce que, tienes…*); words
+naming a kind of file (*movie / film / película*, *book / livre / libro*,
+*music / musique / música*, *photo / imagen*), the billboard (*notice,
+annonce, aviso, news*) or the apps (*app, apk, firefly, outils*); the rest
+is the topic, matched against file names and notices (*gardening* finds
+*garden*, *vélo* finds *Vélo*).
 
 | Input | Effect |
 |---|---|
 | `menu` / `help` / *(blank)* | Full command list |
 | `chat` / `rrc` / `irc` / `talk` | Points to the RRC page |
-| `billboard` | Points to the bulletin board |
 | `files` | Lists what's on the shelf |
 | `get <name>` | Download link for a specific file |
 | `balance` | Credit balance (or "everything's free" if credits are disabled) |
 | `upload` | How to share a file |
-| *(anything else)* | `Don't know that one. Try menu.` |
+| *a kind* — `do you have a movie?` | Up to 5 of that kind, newest first, linked; none: what kinds there are |
+| *a kind and a topic* — `as-tu un livre sur le jardinage ?` | The matching ones; none: the files of that kind |
+| *a topic* — `anything about sourdough?` | Matching files and notices; none: says so, and points to the Files page |
+| *the billboard* — `what's new on the billboard?` | The 3 newest notices (or matching ones) |
+| *the apps* — `do you have the firefly app?` | The apps on the card, linked |
+| *a greeting* — `hello` | What BarKeep can do |
+
+File sharing or the billboard switched off (`FEATURES`): BarKeep says
+file sharing isn't offered, and leaves notices out.
 
 Not subject to `AUTH_MODE` at all — this console is intentionally
 outside the RRC/stumpid gating system.
@@ -467,7 +485,7 @@ accepts the certificate (it fetches `/tls-ok` first).
 |---|---|---|
 | GET | `/` | Home page: a tile per enabled feature |
 | GET | `/concierge` | BarKeep console — hidden feature HF-003, not linked anywhere |
-| POST | `/chat` | BarKeep command, raw text body |
+| POST | `/chat` | Ask BarKeep (raw text body); `Accept: application/json`: `{"reply", "found"}` |
 | GET | `/rrc` | RRC chat client |
 | GET | `/rrc/poll?room=&since=` | JSON: new messages, DMs, `users`, `stumps`, and `node` (name + LXMF address) |
 | POST | `/rrc/send` | RRC chat line or `/command`, raw text body |
@@ -478,10 +496,10 @@ accepts the certificate (it fetches `/tls-ok` first).
 | GET | `/opus.wasm` | libopus 1.5.2 for the browser (BSD-style licence) |
 | GET | `/opus.js` | Its JavaScript glue: Ogg Opus writer and reader |
 | GET | `/billboard` | Bulletin board page |
-| GET | `/billboard.json` | Bulletin board as JSON: `{"posts": [{"id","title","body","sig"}]}` |
+| GET | `/billboard.json` | Bulletin board as JSON: `{"posts": [{"id","title","body","sig"}]}`; `?q=` search, `?sort=newest\|oldest\|title` |
 | POST | `/post` | New notice: `title=` (required), `body=` (optional), or a JSON body; legacy `entry=` = title only. With `Accept: application/json`: `201` + the new post's `id`, or `400`/`507` with an `error` token |
 | GET | `/files` | File listing and upload panel (upload shown only with an SD card) |
-| GET | `/files.json` | Shelf as JSON: `{"sd","credits","files": [{"name","size","class","cost"}]}` |
+| GET | `/files.json` | Shelf as JSON: `{"sd","credits","files": [{"name","size","class","cat","mtime","cost"}]}`; `?q=`, `?cat=`, `?sort=newest\|oldest\|name\|small\|large` |
 | POST | `/upload` | `X-Filename` header (percent-encoded UTF-8 with `X-Filename-Encoding: url`, or raw), raw body; `507` if the card is over capacity even after evicting the oldest shared files. With `Accept: application/json`: the result as data (`name`, `size`, `balance`, or an `error` token) |
 | GET | `/download?f=` | Streamed file download (name percent-encoded as UTF-8) |
 | GET | `/admin` | The admin page with a live session (the `stump_admin` cookie set at login), the password prompt otherwise; no link anywhere points here. Admin pages are sent `Cache-Control: no-store` |

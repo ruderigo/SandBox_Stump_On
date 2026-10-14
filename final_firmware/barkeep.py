@@ -117,6 +117,20 @@ ul.files a{
 }
 ul.files a span{overflow-wrap:break-word; word-break:break-word;}
 ul.files small{flex-shrink:0; padding-left:8px; text-align:right;}
+/* BarKeep the librarian, and the sort / filter bar (/files, /billboard) */
+details.ask{margin:10px 0;}
+details.ask summary{cursor:pointer; font-weight:bold; color:var(--ember-bright); padding:4px 0;}
+#askout:empty{display:none;}
+#askout ul{margin:4px 0 8px;}
+#askout li{padding:3px 0; border:none;}
+.finder{display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:8px 0;}
+.finder input{flex:1; min-width:140px;}
+.finder select{font-family:inherit; font-size:1rem; padding:9px; border-radius:6px;
+  border:1px solid var(--border); background:var(--panel); color:var(--text);}
+.pills{display:flex; flex-wrap:wrap; gap:6px; width:100%;}
+.pills button{padding:6px 12px; font-weight:normal; background:var(--panel); color:var(--text);
+  border:1px solid var(--border);}
+.pills button.on{background:var(--ember); color:var(--bg); border-color:var(--ember);}
 /* /admin */
 .admin-head{display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;}
 .admin-head h1{margin:0;}
@@ -528,6 +542,95 @@ def _clean_filename(name):
     return name.strip()
 
 
+def _librarian(text, lang):
+    """BarKeep as the librarian (librarian.py): (reply HTML, data) for a
+    question. Every name and text from the node is escaped, every link
+    percent-encoded as UTF-8."""
+    import librarian
+    files_on, board_on = features.enabled("files"), features.enabled("billboard")
+    r = librarian.search(text, files_on, board_on)
+    esc = billboard._esc
+    out = []
+    topic = esc(r["topic"])
+
+    def files_list(rows):
+        return "<ul>" + "".join(
+            "<li>&bull; <a href='/download?f=" + _url_encode(f["name"]) + "'>" + esc(f["name"])
+            + "</a> <small>(" + _human_size(f["size"]) + ")</small></li>" for f in rows) + "</ul>"
+
+    cats = [c for c in librarian.CATS if c in r["intents"]]
+    if not r["intents"] and not r["words"]:
+        return i18n.t("lib_hello", lang), r
+    if r["words"] or cats:                          # asked about files
+        if not files_on:
+            out.append("<p>" + i18n.t("lib_files_off", lang) + "</p>")
+        elif not r["sd"]:
+            out.append("<p>" + i18n.t("lib_no_card", lang) + "</p>")
+        elif r["files"]:
+            out.append("<p>" + i18n.t("lib_files_found", lang) + "</p>" + files_list(r["files"]))
+        elif r["others"]:
+            out.append("<p>" + i18n.t("lib_files_none_topic", lang, topic=topic) + " "
+                       + i18n.t("lib_files_others", lang, kind=i18n.t("kind_" + cats[0], lang)) + "</p>"
+                       + files_list(r["others"]))
+        elif cats:
+            have = ", ".join("%d %s" % (n, i18n.t("kind_" + c, lang)) for c, n in sorted(r["counts"].items()))
+            out.append("<p>" + i18n.t("lib_files_none_kind", lang, kind=i18n.t("kind_" + cats[0], lang)) + " "
+                       + (i18n.t("lib_shelf_has", lang, list=have) + " <a href='/files'>"
+                          + i18n.t("lib_files_open", lang) + "</a>" if have else i18n.t("lib_shelf_empty", lang))
+                       + "</p>")
+        elif r["posts"]:
+            out.append("<p>" + i18n.t("lib_files_none_topic", lang, topic=topic) + "</p>")
+        else:
+            out.append("<p>" + i18n.t("lib_nothing", lang, topic=topic) + "</p>")
+    if r["posts"]:
+        out.append("<p>" + i18n.t("lib_board_found", lang) + "</p><ul>" + "".join(
+            "<li>&bull; <b>" + esc(p["title"]) + "</b>"
+            + (" &mdash; <small>" + esc(p["snippet"]) + "</small>" if p["snippet"] else "") + "</li>"
+            for p in r["posts"]) + "</ul><p><a href='/billboard'>" + i18n.t("lib_board_open", lang) + "</a></p>")
+    elif "board" in r["intents"] and board_on:
+        out.append("<p>" + i18n.t("lib_board_none", lang) + "</p>")
+    if "apps" in r["intents"]:
+        if r["apps"]:
+            out.append("<p>" + i18n.t("lib_apps", lang) + "</p><ul>" + "".join(
+                "<li>&bull; <a href='/tool?f=" + _url_encode(a["file"]) + "'>" + esc(a["name"]) + "</a> <small>("
+                + _human_size(a["size"]) + ")</small></li>" for a in r["apps"]) + "</ul>")
+        else:
+            out.append("<p>" + i18n.t("lib_apps_none", lang) + " <a href='/tools'>/tools</a></p>")
+    return "".join(out) or i18n.t("lib_hello", lang), r
+
+
+def _ask_drawer(lang, open_=False):
+    """"Ask BarKeep": a drawer on /files and /billboard (and the Concierge
+    page), answering through POST /chat. Labelled with what BarKeep does,
+    so nobody takes it for the people's chat room."""
+    name = _esc_name(BOT_NAME)
+    return (
+        "<details class='ask'" + (" open" if open_ else "") + "><summary>" + i18n.t("ask_title", lang, bot=name)
+        + "</summary><p class='sub'>" + i18n.t("ask_hint", lang, bot=name) + "</p>"
+        "<div class='row'><input id='askq' maxlength='200' placeholder='"
+        + billboard._esc(i18n.t("ask_placeholder", lang, bot=BOT_NAME)) + "'>"
+        "<button id='askgo'>" + i18n.t("ask_button", lang) + "</button></div>"
+        "<div id='askout' class='panel' aria-live='polite'></div></details>"
+        "<script>" + _ASK_SCRIPT + "</script>"
+    )
+
+
+_ASK_SCRIPT = """
+function askBK(q){
+  var input=document.getElementById('askq'), out=document.getElementById('askout');
+  q=(q||input.value||'').trim(); if(!q) return;
+  out.parentNode.open=true; input.value=q;
+  var you=document.createElement('p'); you.innerHTML='<small></small>'; you.firstChild.textContent='\u203a '+q;
+  out.innerHTML=''; out.appendChild(you);
+  var ans=document.createElement('div'); ans.textContent='\u2026'; out.appendChild(ans);
+  fetch('/chat',{method:'POST',body:q}).then(function(r){return r.text();})
+    .then(function(t){ ans.innerHTML=t; }, function(){ ans.textContent='\u2014'; });
+}
+document.getElementById('askgo').onclick=function(){ askBK(); };
+document.getElementById('askq').addEventListener('keydown',function(e){ if(e.key==='Enter') askBK(); });
+"""
+
+
 def _process_command(text, identifier, lang):
     cmd = text.strip()
     lower = cmd.lower()
@@ -555,8 +658,6 @@ def _process_command(text, identifier, lang):
     if lower in ("chat", "rrc", "irc", "talk"):
         return i18n.t("bot_chat_pointer", lang)
 
-    if lower == "billboard":
-        return i18n.t("bot_billboard_pointer", lang)
 
     if lower == "files":
         if not fserv.sd_ok:
@@ -594,7 +695,8 @@ def _process_command(text, identifier, lang):
         unit = i18n.t("bot_credit_singular", lang) if bal == 1 else i18n.t("bot_credit_plural", lang)
         return i18n.t("bot_balance_have", lang, n=str(bal), unit=unit)
 
-    return i18n.t("bot_unknown", lang)
+    # Anything else is a question for the librarian (librarian.py).
+    return _librarian(cmd, lang)[0]
 
 
 def _render_chat_page(lang):
@@ -647,12 +749,13 @@ def _render_concierge_page(lang):
     return (
         "<h1>" + _esc_name(BOT_NAME) + "</h1>"
         + _lang_switcher(lang, "/concierge") +
-        "<p class='sub'>" + i18n.t("barkeep_greeting", lang, bot_name=_esc_name(BOT_NAME)) + "</p>"
+        "<p class='sub'>" + i18n.t("barkeep_greeting", lang, bot_name=_esc_name(BOT_NAME)) + " "
+        + i18n.t("ask_hint", lang, bot=_esc_name(BOT_NAME)) + "</p>"
         "<div class='panel' id='log'>"
         "<p><b>" + _esc_name(BOT_NAME) + ":</b> " + i18n.t("barkeep_evening", lang) + "</p>"
         "</div>"
         "<div class='row'>"
-        "<input id='in' placeholder='" + i18n.t("home_say_something", lang) + "' autofocus>"
+        "<input id='in' placeholder='" + billboard._esc(i18n.t("ask_placeholder", lang, bot=BOT_NAME)) + "' autofocus>"
         "<button onclick='sendMsg()'>" + i18n.t("rrc_send", lang) + "</button>"
         "</div>"
         + _nav(lang, "home") +
@@ -1549,26 +1652,28 @@ def _render_files_page(lang):
     if not fserv.sd_ok:
         rows = "<p class='sub'>" + i18n.t("files_no_card", lang) + "</p>"
     else:
-        names = fserv._list_files()
-        if not names:
+        shelf = fserv.query_files(None, None, "newest", 0)
+        if not shelf:
             rows = "<p class='sub'>" + i18n.t("files_none_yet", lang) + "</p>"
         else:
             items = []
-            for n in names:
+            for f in shelf:
+                n = f["name"]
                 cls = fserv.guess_class(n)
-                try:
-                    size = _human_size(os.stat(fserv.SHARED_DIR + "/" + n)[6])
-                except Exception:
-                    size = ""
+                size = _human_size(f["size"]) if f["size"] else ""
                 meta = cls + (", " + size if size else "")
                 if fserv.CREDITS_ENABLED:
                     meta += " &middot; %d %s" % (fserv.credit_cost(n), i18n.t("files_credit_suffix", lang))
+                # data-*: the sort and filter bar works on these, in the browser.
                 items.append(
-                    "<li><a href='/download?f=" + _url_encode(n) + "'>"
+                    "<li data-name='" + billboard._esc(n) + "' data-size='%d' data-mtime='%d' data-cat='%s'>"
+                    % (f["size"], f["mtime"], f["cat"])
+                    + "<a href='/download?f=" + _url_encode(n) + "'>"
                     + _ICON_DOWNLOAD + "<span>" + billboard._esc(n) + "</span>"
                     "</a><small>" + meta + "</small></li>"
                 )
-            rows = "<ul class='files'>" + "".join(items) + "</ul>"
+            rows = ("<ul class='files'>" + "".join(items) + "</ul>"
+                    "<p id='fnone' class='sub' style='display:none'>" + i18n.t("filter_none", lang) + "</p>")
 
     # Upload lives here, next to the shelf it adds to (it used to sit on
     # the home page). Shown only with a card mounted -- without one,
@@ -1590,14 +1695,75 @@ def _render_files_page(lang):
                 .replace("I18N_UPLOAD_ERROR", json.dumps(i18n.t("home_upload_error", lang)).replace("</", "<\\/"))
         )
 
+    finder = ""
+    if fserv.sd_ok:
+        sorts = "".join("<option value='%s'>%s</option>" % (k, i18n.t("sort_" + k, lang))
+                        for k in ("newest", "oldest", "name", "small", "large"))
+        pills = "".join("<button type='button' data-cat='%s'%s>%s</button>"
+                        % (c, " class='on'" if not c else "", i18n.t("cat_" + (c or "all"), lang))
+                        for c in ("", "video", "music", "document", "image", "other"))
+        finder = (
+            "<div class='finder'><input id='flt' type='search' placeholder='"
+            + billboard._esc(i18n.t("filter_placeholder", lang, bot=BOT_NAME)) + "' aria-label='"
+            + billboard._esc(i18n.t("filter_placeholder", lang, bot=BOT_NAME)) + "'>"
+            "<select id='srt' aria-label='" + billboard._esc(i18n.t("sort_label", lang)) + "'>" + sorts + "</select>"
+            "<div class='pills'>" + pills + "</div></div>"
+        )
     return (
         "<h1>" + i18n.t("nav_files", lang) + "</h1>"
         + _lang_switcher(lang, "/files") +
+        (_ask_drawer(lang) if features.enabled("files") else "") +
         "<p class='sub'>" + i18n.t("files_tap_to_download", lang) + "</p>"
+        + finder +
         "<div class='panel' id='file-list'>" + rows + "</div>"
+        + (_FILES_FINDER_SCRIPT if finder else "")
         + upload
         + _nav_except(lang, "files")
     )
+
+
+# The Files page's sort and filter bar: in the browser, on the rows'
+# data-* attributes -- no request to the node. Enter in the filter box
+# asks BarKeep instead (a whole question, not a filter).
+_FILES_FINDER_SCRIPT = """<script>
+(function(){
+  var list=document.getElementById('file-list'), flt=document.getElementById('flt'),
+      srt=document.getElementById('srt'), cat='';
+  function norm(t){ t=String(t||'').toLowerCase(); return t.normalize ? t.normalize('NFD').replace(/[\u0300-\u036f]/g,'') : t; }
+  function apply(){
+    var ul=list.querySelector('ul.files'), none=document.getElementById('fnone');
+    if(!ul) return;
+    var q=norm(flt.value).trim(), how=srt.value, shown=0, items=[].slice.call(ul.children);
+    items.sort(function(a,b){
+      var A=a.dataset, B=b.dataset;
+      if(how==='name') return norm(A.name).localeCompare(norm(B.name));
+      if(how==='small') return A.size-B.size;
+      if(how==='large') return B.size-A.size;
+      if(how==='oldest') return A.mtime-B.mtime;
+      return B.mtime-A.mtime;
+    });
+    items.forEach(function(li){
+      ul.appendChild(li);
+      var ok=(!cat || li.dataset.cat===cat) && (!q || norm(li.dataset.name).indexOf(q)>=0);
+      li.style.display=ok ? '' : 'none';
+      if(ok) shown++;
+    });
+    if(none) none.style.display=shown ? 'none' : '';
+  }
+  window.applyFinder=apply;
+  flt.addEventListener('input', apply);
+  flt.addEventListener('keydown', function(e){ if(e.key==='Enter' && flt.value.trim() && window.askBK) askBK(flt.value); });
+  srt.onchange=apply;
+  [].forEach.call(document.querySelectorAll('.pills button'), function(b){
+    b.onclick=function(){
+      cat=b.getAttribute('data-cat');
+      [].forEach.call(document.querySelectorAll('.pills button'), function(o){ o.className = o===b ? 'on' : ''; });
+      apply();
+    };
+  });
+  apply();
+})();
+</script>"""
 
 
 # The upload button's script. Three real, reported gaps fixed earlier
@@ -1641,6 +1807,7 @@ function refreshList(){
   fetch('/files').then(function(r){return r.text();}).then(function(h){
     var fresh=new DOMParser().parseFromString(h,'text/html').getElementById('file-list');
     if(fresh) document.getElementById('file-list').innerHTML=fresh.innerHTML;
+    if(window.applyFinder) applyFinder();
   }).catch(function(){});
 }
 </script>"""
@@ -1919,7 +2086,55 @@ def _render_about_page(lang):
 
 
 def _render_billboard_page(lang):
-    return billboard._render_page(lang) + _nav_except(lang, "board")
+    sorts = "".join("<option value='%s'>%s</option>" % (k, i18n.t("sort_" + k, lang))
+                    for k in ("newest", "oldest", "title"))
+    tools = (
+        _ask_drawer(lang) +
+        "<div class='finder'><input id='bsearch' type='search' placeholder='"
+        + billboard._esc(i18n.t("search_placeholder", lang)) + "' aria-label='"
+        + billboard._esc(i18n.t("search_placeholder", lang)) + "'>"
+        "<select id='bsort' aria-label='" + billboard._esc(i18n.t("sort_label", lang)) + "'>" + sorts + "</select></div>"
+    )
+    return (billboard._render_page(lang, tools,
+                                   "<p id='bnone' class='sub' style='display:none'>" + i18n.t("filter_none", lang) + "</p>")
+            + _BOARD_FINDER_SCRIPT + _nav_except(lang, "board"))
+
+
+# The billboard's search and sort, in the browser. A word found only in a
+# collapsed body opens that post, so the match shows; clearing the search
+# closes again what it opened.
+_BOARD_FINDER_SCRIPT = """<script>
+(function(){
+  var ul=document.querySelector('ul.board'), q=document.getElementById('bsearch'), srt=document.getElementById('bsort');
+  if(!ul) return;
+  function norm(t){ t=String(t||'').toLowerCase(); return t.normalize ? t.normalize('NFD').replace(/[\u0300-\u036f]/g,'') : t; }
+  function apply(){
+    var w=norm(q.value).trim(), how=srt.value, shown=0, items=[].slice.call(ul.querySelectorAll('li[data-ts]'));
+    items.sort(function(a,b){
+      if(how==='title') return norm(a.dataset.title).localeCompare(norm(b.dataset.title));
+      var d=parseFloat(a.dataset.ts||0)-parseFloat(b.dataset.ts||0);
+      return how==='oldest' ? d : -d;
+    });
+    items.forEach(function(li){
+      ul.appendChild(li);
+      var det=li.querySelector('details'), body=li.querySelector('.post-body');
+      var inTitle=!w || norm(li.dataset.title).indexOf(w)>=0,
+          inBody=!!w && !!body && norm(body.textContent).indexOf(w)>=0;
+      var ok=inTitle || inBody;
+      li.style.display=ok ? '' : 'none';
+      if(ok) shown++;
+      if(det){
+        if(w && inBody && !inTitle){ if(!det.open){ det.open=true; det.setAttribute('data-auto','1'); } }
+        else if(det.getAttribute('data-auto')){ det.open=false; det.removeAttribute('data-auto'); }
+      }
+    });
+    var none=document.getElementById('bnone'); if(none) none.style.display=shown||!items.length ? 'none' : '';
+  }
+  q.addEventListener('input', apply);
+  q.addEventListener('keydown', function(e){ if(e.key==='Enter' && q.value.trim() && window.askBK) askBK(q.value); });
+  srt.onchange=apply;
+})();
+</script>"""
 
 
 async def _send(writer, status, body, content_type="text/html"):
@@ -2296,8 +2511,14 @@ async def _handle(reader, writer, secure=False):
         if method == "POST" and path.startswith("/chat"):
             length = int(headers.get("content-length", "0"))
             body = await _read_small_body(reader, length)
-            reply = _process_command(body.decode(), identifier, i18n.get_lang(identifier))
-            await _send(writer, "200 OK", reply, "text/plain")
+            lang = i18n.get_lang(identifier)
+            if _wants_json(headers):
+                # Apps: the librarian's findings as data, with the reply too.
+                reply, found = _librarian(body.decode()[:200], lang)
+                await _send(writer, "200 OK", json.dumps({"reply": reply, "found": found}), "application/json")
+            else:
+                reply = _process_command(body.decode()[:200], identifier, lang)
+                await _send(writer, "200 OK", reply, "text/plain")
 
         elif method == "POST" and path.startswith("/post"):
             length = int(headers.get("content-length", "0"))
@@ -2954,22 +3175,39 @@ async def _handle(reader, writer, secure=False):
             # The billboard as data: newest first, as the page shows it.
             # "id" is the post id (null for a post written before ids
             # existed, until the next rewrite gives it one).
+            # ?q= searches titles and bodies (accents and case ignored);
+            # ?sort=oldest|title|newest.
+            q = _query(path, "q") or ""
+            sort = _query(path, "sort") or "newest"
+            entries = [(sig, title, body, ts, pid) for sig, title, body, ts, pid in billboard._read_entries()
+                       if billboard._live(ts)]
+            if q:
+                import librarian
+                keep = set(p["id"] for p in billboard.search_entries(librarian.parse(q)[1] or [librarian.fold(q).strip()], 1000))
+                entries = [e for e in entries if e[4] in keep]
+            if sort == "title":
+                entries.sort(key=lambda e: e[1].lower())
+            elif sort != "oldest":
+                entries.reverse()
             posts = [{"id": pid, "title": title, "body": body, "sig": sig}
-                     for sig, title, body, ts, pid in reversed(billboard._read_entries())]
+                     for sig, title, body, ts, pid in entries]
             await _send(writer, "200 OK", json.dumps({"posts": posts}), "application/json")
 
         elif method == "GET" and path.startswith("/files.json"):
             # The shelf as data. Download with /download?f=<name>, the
             # name percent-encoded as UTF-8.
+            # ?q= words in the name, ?cat=video|music|document|image|other,
+            # ?sort=newest|oldest|name|small|large (default: by name, as before).
             files = []
             if fserv.sd_ok:
-                for n in fserv._list_files():
-                    try:
-                        size = os.stat(fserv.SHARED_DIR + "/" + n)[6]
-                    except OSError:
-                        size = None
-                    files.append({"name": n, "size": size, "class": fserv.guess_class(n),
-                                  "cost": fserv.credit_cost(n) if fserv.CREDITS_ENABLED else 0})
+                import librarian
+                q = _query(path, "q") or ""
+                words = (librarian.parse(q)[1] or [librarian.fold(q).strip()]) if q.strip() else None
+                for f in fserv.query_files(words, _query(path, "cat") or None,
+                                           _query(path, "sort") or "name", 0):
+                    files.append({"name": f["name"], "size": f["size"], "class": fserv.guess_class(f["name"]),
+                                  "cat": f["cat"], "mtime": f["mtime"],
+                                  "cost": fserv.credit_cost(f["name"]) if fserv.CREDITS_ENABLED else 0})
             await _send(writer, "200 OK", json.dumps({"sd": fserv.sd_ok, "credits": fserv.CREDITS_ENABLED,
                                                       "files": files}), "application/json")
 

@@ -793,7 +793,11 @@ upstream delivers locally.
 
 `id` is the post's id (it can be `null` for a post written before ids
 existed, until the node next rewrites the board). `body` is `""` for a
-title-only post.
+title-only post. Notices past their 72 hours aren't listed.
+
+Optional: `?q=<words>` keeps the posts whose title or body holds one of
+them (case and accents ignored: `velo` finds *Vélo*), and
+`?sort=newest|oldest|title`.
 
 `GET /billboard` is the rendered HTML page. A post is a required **title** and an optional
 **body**:
@@ -839,12 +843,24 @@ set); don't assume permanence.
 
 ```json
 {"sd": true, "credits": true,
- "files": [{"name": "photo.jpg", "size": 48213, "class": "other", "cost": 1}]}
+ "files": [{"name": "photo.jpg", "size": 48213, "class": "other", "cat": "image",
+            "mtime": 1791388089, "cost": 1}]}
 ```
 
-`size` is in bytes (`null` if it couldn't be read), `class` is one of
-`video`, `music`, `document`, `other`, and `cost` is the credit weight
-(0 when credits are off). Both JSON endpoints answer `404` when their
+`size` is in bytes, `class` is the credit class (`video`, `music`,
+`document`, `other`), `cat` the kind of file for finding things (`video`,
+`music`, `document`, `image`, `other` — broader: `.webm`, `.epub`,
+pictures…), `mtime` when it arrived (node clock), and `cost` the credit
+weight (0 when credits are off). Optional: `?q=<words>` (in the name;
+accents ignored), `?cat=<cat>`, `?sort=newest|oldest|name|small|large`
+(default: by name).
+
+**`POST /chat`** asks BarKeep, the node's librarian (`COMMANDS.md`
+Part 4): a raw text body, a question in French, English or Spanish.
+With `Accept: application/json`: `{"reply": "<HTML>", "found": {"intents",
+"words", "topic", "files", "others", "posts", "apps", "counts"}}` —
+`files`/`others` rows like `/files.json`'s, `posts` `{"id", "title",
+"body", "snippet"}`. Both JSON endpoints answer `404` when their
 feature is off on the node. `GET /files` is the rendered HTML page.
 
 **`POST /upload`** — raw body, not multipart; filename and optional

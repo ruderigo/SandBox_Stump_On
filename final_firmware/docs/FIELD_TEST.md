@@ -236,6 +236,17 @@ See `PC.md`. A Mac or a Windows PC, and a Heltec.
       padlock; record, ■: the window closes and the note arrives.
       `/admin` has the padlock.
 
+## 13. BarKeep, the librarian
+
+- [ ] Files page: *Ask BarKeep*, "do you have a movie?" (and in French,
+      "as-tu un livre ?"): the right files, linked; a download works.
+- [ ] Type in the filter: rows narrow as you type; a kind pill; sort by
+      size. Enter on a whole question answers in the drawer.
+- [ ] Billboard: search a word that's only in a post's body: that post
+      opens. Sort by title.
+- [ ] In the chat (and from FireFly over LoRa): `!find <word>` answers on
+      one line.
+
 ## What to send back
 
 - The boot log (from power-on to `Announced as`); its first line names

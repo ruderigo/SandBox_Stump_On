@@ -1,4 +1,4 @@
-[fservbot] active: prefix '!', 7 trigger(s), notice off
+[fservbot] active: prefix '!', 11 trigger(s), notice off
 [fservbot] no operator password set -- dialogue editing is OFF
 [stumpid] active: mode=open
 [stumpid] no admin password set (own or fservbot's) -- /admin is disabled
