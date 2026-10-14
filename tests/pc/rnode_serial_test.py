@@ -18,6 +18,16 @@ FEND, FESC, TFEND, TFESC = 0xC0, 0xDB, 0xDC, 0xDD
 FAIL = []
 
 
+def _crash(kind, value, tb):
+    import traceback
+    text = "".join(traceback.format_exception(kind, value, tb))
+    print(text)
+    annotate("crashed: " + text[-2500:])
+    sys.exit(1)
+
+sys.excepthook = _crash
+
+
 def annotate(text):
     """On GitHub Actions, a failure shows as an annotation (readable without the log)."""
     if os.environ.get("GITHUB_ACTIONS"):
@@ -112,10 +122,26 @@ os.write(master, b"boot noise" + kiss(0x00, incoming) + kiss(0x25, b"\x01\x02"))
 asyncio.run(run(0.5))
 check("a packet comes in (boot noise and other commands ignored)", received == [incoming], received)
 
-# Unplug: the port goes away; the interface goes offline and retries.
-stop.set()
-os.close(master)
+# Unplug: the serial port starts failing, as pyserial does when the USB
+# device goes away (a closed pseudo-terminal doesn't on macOS, so the
+# failure is made at the serial layer); the interface goes offline.
+import serial
+
+
+class Gone:
+    @property
+    def in_waiting(self):
+        raise serial.SerialException("device disconnected")
+
+    def write(self, data):
+        raise serial.SerialException("device disconnected")
+
+    def close(self):
+        pass
+
+iface._socket.s = Gone()
 asyncio.run(run(0.5))
 check("unplugged: offline", not iface.online)
+stop.set()
 print("FAILURES", FAIL)
 sys.exit(1 if FAIL else 0)

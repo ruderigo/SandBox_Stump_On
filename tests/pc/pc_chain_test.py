@@ -27,6 +27,16 @@ SECRET = "pc-chain-secret"
 FAIL = []
 
 
+def _crash(kind, value, tb):
+    import traceback
+    text = "".join(traceback.format_exception(kind, value, tb))
+    print(text)
+    annotate("crashed: " + text[-2500:])
+    sys.exit(1)
+
+sys.excepthook = _crash
+
+
 def annotate(text):
     """On GitHub Actions, a failure shows as an annotation (readable without the log)."""
     if os.environ.get("GITHUB_ACTIONS"):
