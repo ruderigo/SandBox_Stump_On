@@ -255,6 +255,30 @@ out_file = P.CONFIG_OUT_DIR / 'Test_Node.config.py'
 check('config push: the firmware folder is left alone', (fw / 'config.py').read_bytes() == before)
 check('config push: saved in the profiles folder and sent from there', ok and out_file.is_file()
       and "Test Node" in out_file.read_text() and sent and str(out_file) in sent[0], sent)
+# Which release: this folder, GitHub, the board
+check('release: read from the firmware folder', P._folder_release(fw) == P._folder_release() and
+      P._folder_release().startswith("1."), P._folder_release(fw))
+lines = P.release_lines({"release": "1.2.3", "git": "v1.2.3", "behind": 0})
+check('release: up to date', "1.2.3" in lines[0] and "Up to date" in lines[1], lines)
+lines = P.release_lines({"release": "1.2.3", "git": "v1.2.2-4-gabc", "behind": 4})
+check('release: behind GitHub says git pull', "4 newer commits" in lines[1] and "git pull" in lines[1], lines)
+check('release: offline says so', "Couldn't ask GitHub" in P.release_lines({"release": "1", "git": "x", "behind": None})[1])
+check('release: outside git, one line', len(P.release_lines({"release": "1", "git": None, "behind": None})) == 1)
+check('release: no network from a test', P.checkout_status()["behind"] is None)
+saved_run = P.run
+here = P._folder_release()
+P.run = lambda cmd, **k: (True, "STUMP_RELEASE:%s\n" % here)
+check('release: the board matches', P.release_check('/dev/fake')[0] and P.release_check('/dev/fake')[2] == here)
+P.run = lambda cmd, **k: (True, "STUMP_RELEASE:0.9\n")
+ok, text, rel = P.release_check('/dev/fake')
+check('release: an old board is caught', not ok and "0.9" in text and "re-upload" in text, text)
+P.run = lambda cmd, **k: (False, "failed to access port")
+check('release: unreadable board', P.release_check('/dev/fake')[0] is False)
+P.run = saved_run
+with contextlib.redirect_stdout(io.StringIO()) as b2:
+    answers("1")
+    P.start_menu(["Installs Stump 9.9 (this folder)"])
+check('start menu: shows the release first', "Installs Stump 9.9" in b2.getvalue().split("What are you")[0])
 # remove_plugin refuses core
 check('remove refuses urns', P.remove_plugin('/dev/fake', 'urns') is False)
 print('FAILURES', FAIL)

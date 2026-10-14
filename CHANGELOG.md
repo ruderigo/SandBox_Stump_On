@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+- **Which version, at a glance.** The Provisioner's first box says which
+  release this folder installs and whether GitHub has newer commits
+  ("quit, run git pull, start again"); a firmware folder remembered from
+  an earlier run that isn't this download's is pointed out. A CAM's
+  *Verify* reads the release back from the board and fails on a
+  mismatch ("re-upload the Stump files"), and so does `--diag`.
+  `python3 provisioner.py --version [PORT]` prints all of it. On the
+  node, the About page and `/admin` show `Stump Beta A · <release>`
+  (also in `GET /node.json` and the boot log's first line).
+
 ## 1.0.0-beta.3
 - **The Provisioner no longer edits your checkout.** A CAM's generated
   `config.py` used to be written into `final_firmware/config.py`, which

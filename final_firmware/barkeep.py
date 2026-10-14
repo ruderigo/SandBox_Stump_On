@@ -984,6 +984,19 @@ def _render_admin_login_page(lang, error=False, wait=0):
     )
 
 
+def _release_line():
+    """"Stump Beta A · 1.0.0-beta.3": the release this node runs (set at
+    boot from example_node.py), so anyone can check it from a phone.
+    Empty before boot sets it (tests, a bare import)."""
+    info = rrc.NODE_INFO or {}
+    rel = info.get("release")
+    if not rel:
+        return ""
+    ver = info.get("version")
+    return ("<p class='sub release'>Stump " + billboard._esc((ver + " · ") if ver else "")
+            + billboard._esc(rel) + "</p>")
+
+
 def _render_admin_file_list_page(lang, names, pw):
     """Shown only after a correct password. The password travels
     forward as a hidden field on the SAME simple, stateless pattern
@@ -1024,6 +1037,7 @@ def _render_admin_file_list_page(lang, names, pw):
     return (
         "<div class='admin-head'><h1>" + i18n.t("admin_header", lang) + "</h1>"
         + _admin_logout_form(lang, pw) + "</div>"
+        + _release_line()
         + files_part
         + board_part
         + _render_admin_tools_section(lang, pw)
@@ -2081,6 +2095,7 @@ def _render_about_page(lang):
         "<div class='view-pane' id='pane-connect'>" + connect_pane + "</div>"
         "<div class='view-pane' id='pane-apps'>" + apps_pane + "</div>"
         + _nav_except(lang, "about")
+        + _release_line()
         + script
     )
 

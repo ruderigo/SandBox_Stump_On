@@ -11,6 +11,9 @@ lab tests could not settle — they need the real board, radio and phones.
       check them (`shasum -a 256 -c SHA256SUMS` on a Mac; see
       `docs/RELEASE.md` for the signatures), unzip, and work from that
       folder: the Provisioner, the firmware and `packs/` are all in it.
+- [ ] (from 1.0.0-beta.4) `python3 provisioner.py --version`: the release you're about to install
+      (and, with a port, the one on the CAM). After setup, the About page
+      shows it too.
 - [ ] `python3 provisioner.py --upload-app PORT --skip-tools` — the app
       and its two built-in plugins are ~1.7 MB: about 12 minutes over USB.
       It then offers the packs (tavern, rnfs): see section 9.

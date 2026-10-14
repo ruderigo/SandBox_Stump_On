@@ -144,4 +144,14 @@ r = fb.maybe_respond('main', 'rod', '!find')
 check("!find alone: how to use it", r and "!find" in r, r)
 r = fb.maybe_respond('main', 'rod', '!find quantum')
 check("!find nothing: says so", r and "quantum" in r, r)
+
+# the release, on the About page and in /admin (set at boot from example_node.py)
+import barkeep
+rrc.NODE_INFO = {"version": "Beta A", "release": "1.0.0-beta.9"}
+s, ct, b = req('/about')
+check("About page: the release", "Stump Beta A · 1.0.0-beta.9" in b, b[-400:])
+b = barkeep._render_admin_file_list_page('en', [], 'pw')
+check("/admin: the release under the header", "1.0.0-beta.9" in b and b.find("1.0.0-beta.9") < b.find("HTTPS"), b[:400])
+rrc.NODE_INFO = {}
+check("no release known: no line", "release" not in barkeep._release_line())
 print('FAILURES:', FAIL)

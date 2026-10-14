@@ -24,6 +24,7 @@ Usage:
     python3 provisioner.py --wipe-sd PORT  # erase + reformat the CAM's SD card
     python3 provisioner.py --upload-app PORT  # re-push app files without reflashing
     python3 provisioner.py --get-ip PORT   # look up the Stump's live AP IP
+    python3 provisioner.py --version [PORT] # this folder's release, GitHub's, a CAM's
     python3 provisioner.py --list-packs    # show the packs in packs/ (and their hashes)
     python3 provisioner.py --install-pack PORT PACK   # add a pack (folder or .zip) to a node
     python3 provisioner.py --remove-plugin PORT NAME  # take a plugin off a node
@@ -163,6 +164,105 @@ def _folder_version(path):
     return None
 
 
+def _folder_release(path=None):
+    """STUMP_RELEASE ("1.0.0-beta.3") of a firmware folder (this download's
+    final_firmware/ by default), read as text like _folder_version. None
+    if it can't be read."""
+    try:
+        f = Path(path or STUMP_APP_DIR) / "example_node.py"
+        for line in f.read_text().splitlines():
+            if line.startswith("STUMP_RELEASE"):
+                return line.partition("=")[2].split("#")[0].strip().strip("'\"")
+    except Exception:
+        pass
+    return None
+
+
+def checkout_status(fetch=None):
+    """Is this download the latest? {"release", "git", "behind"}:
+    release from final_firmware/example_node.py; outside a git checkout
+    git is None; behind is how many commits GitHub has that this folder
+    hasn't (0: up to date), or None when it couldn't ask (offline, no
+    upstream). fetch=None asks GitHub only from a real terminal (a test
+    or a pipe never waits on the network)."""
+    here = Path(__file__).resolve().parent
+    st = {"release": _folder_release(), "git": None, "behind": None}
+    if not (here / ".git").exists():
+        return st
+    if fetch is None:
+        fetch = sys.stdin.isatty()
+    env = dict(os.environ, GIT_TERMINAL_PROMPT="0")
+
+    def git(*args, timeout=10):
+        try:
+            r = subprocess.run(["git", "-C", str(here)] + list(args), capture_output=True,
+                               text=True, timeout=timeout, env=env)
+            return r.stdout.strip() if r.returncode == 0 else None
+        except (OSError, subprocess.SubprocessError):
+            return None
+    fetched = bool(fetch) and git("fetch", "--quiet", "--tags", timeout=15) is not None
+    st["git"] = git("describe", "--tags", "--always") or "?"
+    if fetched:
+        n = git("rev-list", "--count", "HEAD..@{u}")
+        st["behind"] = int(n) if n and n.isdigit() else None
+    return st
+
+
+def release_lines(st=None):
+    """The start box's lines about the version: what this folder installs,
+    and whether GitHub has newer."""
+    st = st or checkout_status()
+    rel = st.get("release") or "?"
+    lines = ["Installs Stump %s (this folder)" % bold(rel)]
+    if st.get("git") is None:
+        return lines
+    b = st.get("behind")
+    if b is None:
+        lines.append("  Couldn't ask GitHub for a newer one (offline?). Check: git pull")
+    elif b == 0:
+        lines.append("  " + green("Up to date with GitHub") + " (%s)" % st["git"])
+    else:
+        lines.append("  " + yellow("GitHub has %d newer commit%s:" % (b, "" if b == 1 else "s"))
+                     + " quit, run git pull, start again")
+    return lines
+
+
+def board_release(port):
+    """STUMP_RELEASE of the firmware on a CAM, read from its
+    example_node.py over USB. None if it couldn't be read."""
+    code = ("r='?'\n"
+            "for p in ('example_node.py','/lib/example_node.py'):\n"
+            "    try:\n"
+            "        for l in open(p):\n"
+            "            if l.startswith('STUMP_RELEASE'):\n"
+            "                r=l.split('=',1)[1].split('#')[0].strip().strip(chr(34)+chr(39))\n"
+            "                break\n"
+            "        break\n"
+            "    except OSError:\n"
+            "        pass\n"
+            "print('STUMP_RELEASE:'+r)\n")
+    res = run(["mpremote", "connect", port, "exec", code], timeout=20)
+    out = res[1] if res else ""
+    for line in (out or "").splitlines():
+        if line.startswith("STUMP_RELEASE:"):
+            v = line.split(":", 1)[1].strip()
+            return None if v == "?" else v
+    return None
+
+
+def release_check(port, folder=None):
+    """(ok, text, release on the board) comparing the CAM's release with
+    the folder's."""
+    want = _folder_release(folder)
+    have = board_release(port)
+    if have is None:
+        return False, "couldn't read the board's release (is this a Stump CAM?)", None
+    if want and have != want:
+        return (False, "the board runs %s, this folder has %s: re-upload the Stump files" % (have, want),
+                have)
+    return True, "the board runs %s, the same as this folder" % have, have
+
+
 def _is_current_firmware_folder(path):
     """Structure AND version. Used as the resolver's validate_fn so a
     folder from an older beta simply doesn't qualify, instead of being
@@ -207,7 +307,7 @@ DEFAULT_CREDIT_WEIGHTS = {"video": 3, "music": 2, "document": 1, "other": 1}
 #   [print(f'    {str(f.relative_to(\"final_firmware\"))!r}: {hashlib.sha256(f.read_bytes()).hexdigest()[:16]!r},')
 #    for f in sorted(Path('final_firmware').rglob('*')) if f.is_file()]"
 EXPECTED_FILE_HASHES = {
-    "barkeep.py": "7c23ba5e6c3688b8",
+    "barkeep.py": "02d6b596a6a994e9",
     "billboard.py": "a7d1f3df668997ab",
     "boot_common.py": "d1f60dd4434752bf",
     "captive_portal.py": "35cb3a279ecc42db",
@@ -217,7 +317,7 @@ EXPECTED_FILE_HASHES = {
     "docs/CLIENT_QUICKSTART.md": "922d7ea7c5030597",
     "docs/COMMANDS.md": "af8d6dc391915325",
     "docs/ENGINEERING_NOTES.md": "526b3ea96bc44873",
-    "docs/FIELD_TEST.md": "3be4909ca128a150",
+    "docs/FIELD_TEST.md": "c0158f8c36091e16",
     "docs/HIDDEN_FEATURES.md": "b1e2a0e9bcaa0b1b",
     "docs/HOME_BRANDING.md": "e1a1a9cf854dcdce",
     "docs/HTTPS_SETUP.md": "12cbbf2de7c38810",
@@ -4196,6 +4296,10 @@ def diagnostics(port, board_type=None, interactive=True):
         ok, out = run(["mpremote", "connect", port, "exec", "print('provisioner-ping')"], timeout=15)
         results["serial_bridge"] = ok
         print("  OK — board responded over serial." if ok else f"  FAILED: {out.strip()}")
+        if ok and board_type == "cam":
+            rel_ok, rel_text, _ = release_check(port, _remembered_path("stump_app_dir") or STUMP_APP_DIR)
+            results["release"] = rel_ok
+            print(("  Release: " if rel_ok else "  FAILED release: ") + rel_text)
 
     # 2. SD card storage -- meaningful ONLY for the CAM. Neither Heltec
     # role has an SD card at all, confirmed directly: this is also the
@@ -4408,7 +4512,12 @@ def _cam_after_board(r, port, app_dir):
 
     # ── Verify
     r.start("Verify")
-    if verify:
+    rel_ok, rel_text, rel = release_check(port, app_dir)
+    print(("" if rel_ok else red(_glyphs()["fail"] + " ")) + "Release: " + rel_text)
+    r.note("Release", (rel + " " + _glyphs()["done"]) if rel_ok else red(rel_text))
+    if not rel_ok and not verify:
+        r.end("fail", rel_text)
+    elif verify:
         results = diagnostics(port, "cam")
         passed = all(v for v in results.values() if v is not None)
         r.end("done" if passed else "fail", "certified" if passed else "NOT certified: see the summary above")
@@ -4476,10 +4585,12 @@ def route_for(role):
     raise ValueError(role)
 
 
-def start_menu():
-    """What are you setting up? Returns a role from ROLES, or None."""
+def start_menu(version=None):
+    """What are you setting up? Returns a role from ROLES, or None.
+    version: release_lines() for the top of the box."""
     g = _glyphs()
-    lines = ["Sets up Stump hardware step by step: it shows the route first,",
+    lines = (version or []) + ([""] if version else []) + [
+             "Sets up Stump hardware step by step: it shows the route first,",
              "then goes through it one numbered section at a time, asking",
              "before anything touches a board.", "", "What are you setting up?", ""]
     width = max(len(t) for _, t, _ in ROLES)
@@ -4583,7 +4694,7 @@ def checkout_warning():
 
 def interactive_wizard():
     checkout_warning()
-    role = start_menu()
+    role = start_menu(release_lines())
     if role is None:
         print("Nothing done.")
         return
@@ -4616,7 +4727,12 @@ def interactive_wizard():
             validate_fn=_is_current_firmware_folder,
         )
         if resolved_app_dir:
-            print(f"Using firmware source: {resolved_app_dir}")
+            rel, here_rel = _folder_release(resolved_app_dir), _folder_release()
+            print(f"Using firmware source: {resolved_app_dir} (Stump {rel or '?'})")
+            if here_rel and rel != here_rel:
+                print(yellow(f"  That's not this download's firmware ({here_rel}): a folder remembered from"
+                             " an earlier run. To install this one, answer the folder question with"
+                             f" {STUMP_APP_DIR}"))
         else:
             print("No firmware folder found: MicroPython will still flash, but section 4")
             print("(Firmware) will be skipped unless this is fixed.")
@@ -5269,7 +5385,10 @@ def setup_pc(folder=None, reconfigure=False):
 
     r.start("Firmware")
     n = _pc_copy_firmware(fw, folder)
-    r.end("done", "%d file(s) updated" % n)
+    rel = _folder_release(folder) or _folder_release(folder / "final_firmware")
+    if rel:
+        r.note("Release", rel)
+    r.end("done", "%d file(s) updated, Stump %s" % (n, rel or "?"))
 
     r.start("Configure")
     profile = None
@@ -5463,6 +5582,14 @@ def main():
                 for w in lint_plugin(target if flag == "--hash-plugin" else target / name)]
         for f, n, why in lint:
             print("  NOTE %s line %d: %s" % (f, n, why))
+    elif "--version" in args:
+        idx = args.index("--version")
+        for line in release_lines(checkout_status(fetch=True)):
+            print(line)
+        if idx + 1 < len(args):
+            ok, text, _ = release_check(args[idx + 1])
+            print(("CAM: " if ok else red("CAM: ")) + text)
+            sys.exit(0 if ok else 1)
     elif "--get-ip" in args:
         idx = args.index("--get-ip")
         if idx + 1 >= len(args):
