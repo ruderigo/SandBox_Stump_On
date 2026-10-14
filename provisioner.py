@@ -1313,8 +1313,8 @@ def scan_wifi():
     nets = sorted(best.values(), key=lambda n: -n["signal"])
     if not nets:
         if hidden:
-            return [], ("the system hides Wi-Fi names from the terminal: give it Location access "
-                        "(macOS: System Settings > Privacy & Security > Location Services)")
+            return [], ("this system hides Wi-Fi names from the Terminal (recent macOS does): "
+                        "type the name as your Wi-Fi menu shows it")
         if sys.platform.startswith("win") and "location" in out.lower():
             return [], ("Windows lists Wi-Fi networks only with Location on "
                         "(Settings > Privacy & security > Location)")
@@ -3028,7 +3028,7 @@ def config_wizard(board_type):
                     chain_cfg["secret"] = ask("  Chain secret", _secrets.token_hex(8)) or ""
                 else:
                     print("  Join the other Stump's Wi-Fi from this computer's Wi-Fi settings.")
-                    chain_cfg["uplink_ssid"] = ask_wifi("  Wi-Fi name of the Stump this one joins", "")
+                    chain_cfg["uplink_ssid"] = ask_wifi("  Wi-Fi name of the Stump this one joins", "LaBuche-Stump.web.app")
                     chain_cfg["parent_ip"] = ask("  That Stump's address (a CAM: 192.168.<its number>.1)",
                                                  "192.168.4.1")
                     chain_cfg["secret"] = ask("  Chain secret (the same as on the first Stump)", "") or ""
@@ -3051,7 +3051,7 @@ def config_wizard(board_type):
                 print("  Every Stump in the chain needs the same one: note it down.")
                 chain_cfg["secret"] = ask("  Chain secret", suggested) or ""
             else:
-                chain_cfg["uplink_ssid"] = ask_wifi("  Wi-Fi name of the Stump this one joins", "")
+                chain_cfg["uplink_ssid"] = ask_wifi("  Wi-Fi name of the Stump this one joins", "LaBuche-Stump.web.app")
                 chain_cfg["uplink_pass"] = "" if wifi_is_open(chain_cfg["uplink_ssid"]) else \
                     (ask("  Its Wi-Fi password (blank if open)", "") or "")
                 print("  Each Stump's own Wi-Fi uses its own address range, 192.168.<n>.1:")
