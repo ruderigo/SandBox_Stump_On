@@ -1,6 +1,13 @@
 # Changelog
 
 ## Unreleased
+- **Joining a CAM from a computer: "Connection refused" explained.**
+  The Provisioner now reaches a Stump directly, never through a proxy
+  from the system settings (a VPN or filter app can't reach the
+  Stump's Wi-Fi). When the Stump's Wi-Fi is up but its web server
+  refuses, it waits up to a minute (a CAM still starting), then says
+  so: its program has most likely stopped, power-cycle it, and where
+  its boot log says why.
 - **Which version, at a glance.** The Provisioner's first box says which
   release this folder installs and whether GitHub has newer commits
   ("quit, run git pull, start again"); a firmware folder remembered from

@@ -5115,9 +5115,26 @@ CHAIN_HELLO_MAGIC = b"STUMPCHAIN1"
 
 
 def _get_json(url, timeout=4):
+    """GET a Stump's JSON, straight to it: never through a proxy set in
+    the system settings or the environment (a Stump is always on the
+    local network, and a proxy -- often a VPN or filter app -- can't
+    reach it, which showed as "Connection refused" for a Stump that was
+    right there)."""
     import urllib.request
-    with urllib.request.urlopen(url, timeout=timeout) as r:
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    with opener.open(url, timeout=timeout) as r:
         return json.loads(r.read().decode("utf-8", "replace"))
+
+
+def _why_unreachable(e):
+    """'refused', 'timeout' or 'other' for a failed _get_json."""
+    import socket
+    reason = getattr(e, "reason", e)
+    if isinstance(reason, ConnectionRefusedError):
+        return "refused"
+    if isinstance(reason, (socket.timeout, TimeoutError)):
+        return "timeout"
+    return "other"
 
 
 def _route_ip(dest):
@@ -5158,10 +5175,12 @@ def chain_hello(parent_ip, secret, my_ip, timeout=3.0):
         s.close()
 
 
-def chain_preflight(parent_ip, secret, ssid="", hello=chain_hello, get=_get_json, route=_route_ip):
+def chain_preflight(parent_ip, secret, ssid="", hello=chain_hello, get=_get_json, route=_route_ip, wait=60):
     """Before the Stump on this computer starts: can it join the Stump at
     parent_ip? A list of (ok, what, fix); stops at the first failure,
-    since the later steps depend on it."""
+    since the later steps depend on it. A Stump whose Wi-Fi is up but
+    whose web server refuses is usually still starting (a CAM takes about
+    a minute after power-on): that's retried for up to `wait` seconds."""
     out = []
     where = "'%s'" % ssid if ssid else "that Stump's Wi-Fi"
     prefix = parent_ip.rsplit(".", 1)[0] + "."
@@ -5177,10 +5196,37 @@ def chain_preflight(parent_ip, secret, ssid="", hello=chain_hello, get=_get_json
         who = "%s, Stump %s" % (node.get("name") or "?", node.get("version") or "?")
     except Exception:
         node, who = None, None
-    try:
-        chain = get("http://%s/chain.json" % parent_ip)
-    except Exception as e:
-        if node is None:
+    chain, err, deadline, told = None, None, time.time() + wait, False
+    while True:
+        try:
+            chain = get("http://%s/chain.json" % parent_ip)
+            if node is None:
+                try:
+                    node = get("http://%s/node.json" % parent_ip)
+                    who = "%s, Stump %s" % (node.get("name") or "?", node.get("version") or "?")
+                except Exception:
+                    pass
+            err = None
+            break
+        except Exception as e:
+            err = e
+        if node is not None or _why_unreachable(err) != "refused" or time.time() >= deadline:
+            break
+        if not told:
+            print("  Its web server isn't answering yet (a CAM takes about a minute after power-on):"
+                  " trying again for up to %d s..." % wait)
+            told = True
+        time.sleep(3)
+    if err is not None:
+        e, kind = err, _why_unreachable(err)
+        if node is None and kind == "refused":
+            out.append((False, "A Stump answers at http://%s/" % parent_ip,
+                        "Its Wi-Fi is up (it gave this computer %s), but its web server refused the "
+                        "connection, for %d s. Its program has most likely stopped: power-cycle it and "
+                        "check again in a minute; if it does it again, its boot log says why "
+                        "(python3 provisioner.py --diag PORT, or a serial monitor). A phone on its "
+                        "Wi-Fi opening http://%s/ shows the same." % (mine, wait, parent_ip)))
+        elif node is None:
             out.append((False, "A Stump answers at http://%s/" % parent_ip,
                         "Nothing answers (%s). Is that Stump on, and is %s its address? A CAM's is "
                         "192.168.<its CHAIN_SUBNET>.1: 192.168.4.1 unless changed. Opening "

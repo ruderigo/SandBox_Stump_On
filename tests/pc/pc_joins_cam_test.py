@@ -67,6 +67,27 @@ r = P.chain_preflight(CAM, SECRET, "LaBuche-Stump.web.app", route=lambda ip: "19
 check("not on the CAM's network: says to join its Wi-Fi", not last(r)[0] and "Join 'LaBuche-Stump.web.app'" in last(r)[2], r)
 r = P.chain_preflight(CAM, SECRET, route=on, get=fake_get({}))
 check("nothing answers: says to check the Stump and its address", not last(r)[0] and "Nothing answers" in last(r)[2], r)
+import urllib.error
+refused = urllib.error.URLError(ConnectionRefusedError(61, "Connection refused"))
+r = P.chain_preflight(CAM, SECRET, route=on, get=fake_get({"/chain.json": refused, "/node.json": refused}), wait=0)
+check("refused: its Wi-Fi is up, its program stopped, power-cycle", not last(r)[0] and "web server refused" in last(r)[2]
+      and ME in last(r)[2] and "power-cycle" in last(r)[2], r)
+tries = []
+def starting(url, timeout=4):
+    tries.append(url)
+    if len(tries) < 3:
+        raise refused
+    return {"enabled": True, "role": "root", "secret": True} if url.endswith("/chain.json") else {"name": "LaBuche", "version": "Beta A"}
+real_sleep = P.time.sleep
+P.time.sleep = lambda s: None
+import io, contextlib
+with contextlib.redirect_stdout(io.StringIO()) as said:
+    r = P.chain_preflight(CAM, SECRET, route=on, get=starting, hello=lambda *a: True, wait=30)
+P.time.sleep = real_sleep
+check("refused while starting: waits, then goes on", all(ok for ok, _, _ in r) and "trying again" in said.getvalue()
+      and "LaBuche" in r[1][1], (r, said.getvalue()))
+import urllib.request
+check("no proxy between this computer and a Stump", "ProxyHandler({})" in open(P.__file__).read())
 r = P.chain_preflight(CAM, SECRET, route=on, get=fake_get({"/node.json": {"name": "Old", "version": "0.9"}}))
 check("old firmware: says to update it", not last(r)[0] and "--upload-app" in last(r)[2], r)
 r = P.chain_preflight(CAM, SECRET, route=on, get=fake_get({"/chain.json": {"enabled": False}}))
