@@ -87,7 +87,7 @@ P.time.sleep = real_sleep
 check("refused while starting: waits, then goes on", all(ok for ok, _, _ in r) and "trying again" in said.getvalue()
       and "LaBuche" in r[1][1], (r, said.getvalue()))
 import urllib.request
-check("no proxy between this computer and a Stump", "ProxyHandler({})" in open(P.__file__).read())
+check("no proxy between this computer and a Stump", "ProxyHandler({})" in open(P.__file__, encoding="utf-8").read())
 r = P.chain_preflight(CAM, SECRET, route=on, get=fake_get({"/node.json": {"name": "Old", "version": "0.9"}}))
 check("old firmware: says to update it", not last(r)[0] and "--upload-app" in last(r)[2], r)
 r = P.chain_preflight(CAM, SECRET, route=on, get=fake_get({"/chain.json": {"enabled": False}}))
