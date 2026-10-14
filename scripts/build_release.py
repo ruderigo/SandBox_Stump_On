@@ -90,7 +90,7 @@ def main():
                if (ROOT / n).is_file()]
     # pc/: Stump on a computer (provisioner.py --pc, docs/PC.md).
     for base in ("final_firmware", "packs", "pc"):
-        entries += [(p, top + str(p.relative_to(ROOT))) for p in files_under(ROOT / base) if p.suffix != ".zip"]
+        entries += [(p, top + p.relative_to(ROOT).as_posix()) for p in files_under(ROOT / base) if p.suffix != ".zip"]
     write_zip(out / ("Stump-%s.zip" % version), entries, stamp, manifest)
 
     (out / "provisioner.py").write_bytes((ROOT / "provisioner.py").read_bytes())
@@ -101,7 +101,7 @@ def main():
             continue
         spec = json.loads(spec_file.read_text())
         name = "%s-pack-%s.zip" % (spec["name"], spec["version"])
-        write_zip(out / name, [(p, pack.name + "/" + str(p.relative_to(pack))) for p in files_under(pack)],
+        write_zip(out / name, [(p, pack.name + "/" + p.relative_to(pack).as_posix()) for p in files_under(pack)],
                   stamp, manifest)
 
     (out / "MANIFEST.json").write_text(json.dumps({"version": version, "source_date_epoch": stamp,

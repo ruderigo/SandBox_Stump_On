@@ -139,9 +139,18 @@ class Gone:
     def close(self):
         pass
 
+real_port = iface.port
 iface._socket.s = Gone()
-asyncio.run(run(0.5))
-check("unplugged: offline", not iface.online)
+iface.port = iface.target_host = "/dev/stump-test-no-such-port"     # and the port is gone
+iface.reconnect_wait = 0.05
+asyncio.run(run(0.6))
+check("unplugged: offline, and stays so while the port is gone", not iface.online)
+iface.port = iface.target_host = real_port                         # plugged back in
+iface._last_reconnect = 0
+got.clear()
+asyncio.run(run(1.5))
+check("plugged back in: reconnects and sets the radio up again", iface.online
+      and [c for c, p in frames(got)][:6] == [0x01, 0x02, 0x03, 0x04, 0x05, 0x06], frames(got)[:6])
 stop.set()
 print("FAILURES", FAIL)
 sys.exit(1 if FAIL else 0)

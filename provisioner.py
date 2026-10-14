@@ -692,7 +692,7 @@ def plugin_files(plugin_dir, spec=None):
     listed = spec.get("files")
     if listed:
         return [f for f in listed if (d.parent / f).is_file()]
-    return sorted(str(f.relative_to(d.parent)) for f in d.rglob("*")
+    return sorted(f.relative_to(d.parent).as_posix() for f in d.rglob("*")
                   if f.is_file() and "__pycache__" not in f.parts
                   and not any(f.name.endswith(s) for s in MANIFEST_EXCLUDE_SUFFIXES))
 
@@ -744,7 +744,7 @@ def lint_plugin(plugin_dir):
             code = line.split("#", 1)[0]
             for pat, why in _LINT_PATTERNS:
                 if pat in code:
-                    out.append((str(f.relative_to(Path(plugin_dir).parent)), n, why))
+                    out.append((f.relative_to(Path(plugin_dir).parent).as_posix(), n, why))
     return out
 
 
@@ -757,7 +757,7 @@ def _pack_files(pack_dir, spec):
             continue
         root = d / sub
         if root.is_dir():
-            out += sorted(str(f.relative_to(d)) for f in root.iterdir() if f.is_file()
+            out += sorted(f.relative_to(d).as_posix() for f in root.iterdir() if f.is_file()
                           and not f.name.startswith("."))
     return out
 
@@ -2060,7 +2060,7 @@ def manifest_candidates(fw_dir):
     for f in sorted(Path(fw_dir).rglob("*")):
         if not f.is_file():
             continue
-        rel = str(f.relative_to(fw_dir))
+        rel = f.relative_to(fw_dir).as_posix()
         if rel in MANIFEST_EXCLUDE:
             continue
         # A plugin folder's files are hashed in its own plugin.json; the
