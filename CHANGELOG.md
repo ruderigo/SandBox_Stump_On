@@ -35,6 +35,9 @@
   sections (Provisioner, flasher, FireFly apps) and the rnfs pack now
   have all three. `/admin`'s home-section status and HTTPS reason are
   translated too (they were English in every language).
+- `--skip-tools` still brings the Tools page's READMEs up to date (a few
+  KB, every language, for the sections already on the card, packs'
+  included): a translation no longer waits for the slow tools copy.
 - Fixed: **`--upload-app` replaced the node's `config.py`** with the one
   in the firmware folder, so an update could change a node's name,
   Wi-Fi, passwords or theme (the theme was what showed). It now keeps

@@ -2325,6 +2325,8 @@ def install_tools_on_node(port):
     if "--skip-tools" in sys.argv:
         print("\n  Technician tools: skipped (--skip-tools). The node works without them;")
         print("  only its /tools download page is affected.")
+        print("  Its sections' READMEs (a few KB) are brought up to date all the same:")
+        refresh_tool_readmes(port)
         return
     here = Path(__file__).resolve().parent
     total = 0
@@ -2352,6 +2354,50 @@ def install_tools_on_node(port):
         print("  technician tools on its SD card are incomplete. Re-run --upload-app later")
         print("  to finish them (files already copied are skipped).")
         return
+
+
+def _tool_readmes(here):
+    """(local README, section folder on the card) for every Tools page
+    section this Provisioner knows: the built-in ones and each pack's."""
+    out = []
+    payload = here / "final_firmware" / "tools_payload"
+    for src, sec in (("provisioner", "provisioner"), ("flasher", "flasher"), ("apps", "firefly")):
+        out += [(rd, sec) for rd in sorted((payload / src).glob("README*.md"))]
+    for pack in discover_packs():
+        tools = pack["dir"] / "tools"
+        if pack["dir"].is_dir() and tools.is_dir():
+            out += [(rd, pack["spec"]["name"]) for rd in sorted(tools.glob("README*.md"))]
+    return out
+
+
+def refresh_tool_readmes(port):
+    """Brings the Tools page's READMEs (each section's title, summary and
+    Read me, in every language) up to date on the card -- only for the
+    sections already there, so it never adds a section of its own. Small
+    and quick: run even with --skip-tools, so a translation doesn't wait
+    for the slow tools copy. Unchanged ones are skipped."""
+    here = Path(__file__).resolve().parent
+    readmes = _tool_readmes(here)
+    if not readmes:
+        return
+    ok, out = run(["mpremote", "connect", port, "exec",
+                   "import fserv, os\nfserv.mount_sd()\n"
+                   "try:\n print('DIRS:' + ','.join(os.listdir('/sd/tools')))\n"
+                   "except OSError:\n print('DIRS:')\n"], timeout=30)
+    present = set()
+    for line in (out or "").splitlines():
+        if line.startswith("DIRS:"):
+            present = set(x for x in line[5:].strip().split(",") if x)
+    done, failed = [], []
+    for rd, sec in readmes:
+        if sec not in present:
+            continue
+        ok, why = _sd_push(port, rd, ":/sd/tools/%s/%s" % (sec, rd.name))
+        (done if ok else failed).append(sec + "/" + rd.name)
+    if done:
+        print("    READMEs up to date: " + ", ".join(done))
+    for f in failed:
+        print("    Could not copy " + f)
 
 
 def _install_tools_on_node(port):
@@ -2549,6 +2595,8 @@ def _install_tools_on_node(port):
                 continue
             push(f, ":/sd/home/" + f.name, "home/" + f.name)
 
+    # The packs' sections' READMEs too (the built-in ones were pushed above).
+    refresh_tool_readmes(port)
     if installed:
         print("  Installed: " + ", ".join(installed))
         print("  Tools at   http://<node>/tools")

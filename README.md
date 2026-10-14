@@ -1508,7 +1508,9 @@ long it took, `unchanged, skipped`, or the reason it failed; skips any
 file already on the card byte for byte (SHA-256 computed on the board),
 so a re-run is quick and a half-copied file is redone; scales each time
 limit with the file's size; treats Ctrl+C as "stop here, the app is
-installed" instead of a traceback; and `--skip-tools` leaves it out.
+installed" instead of a traceback; and `--skip-tools` leaves it out,
+except the sections' READMEs (a few KB, every language), which are
+always brought up to date for the sections already on the card.
 The bundle copied to the node no longer carries `third_party/` (the
 3 MB of Codec 2 sources tripled it to 1.6 MB); it stays in the project
 download.

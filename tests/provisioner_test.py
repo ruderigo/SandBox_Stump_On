@@ -45,6 +45,7 @@ def fake_run(cmd, timeout=None, **kw):
     calls.append(cmd)
     if 'exec' in cmd and any('SHA:' in str(c) for c in cmd): return True, 'SHA:none'
     if 'exec' in cmd and any('CONFIG:yes' in str(c) for c in cmd): return True, BOARD_CONFIG[0]
+    if 'exec' in cmd and any("'DIRS:'" in str(c) for c in cmd): return True, 'DIRS:flasher,rnfs,notes.txt'
     if cmd[-2:] == ['cat', ':themes.json']: return True, '{"old": {"label": "Old", "colors": {"--bg": "#000"}}}'
     if 'exec' in cmd and any('def walk' in str(c) for c in cmd):
         sizes = {}
@@ -88,6 +89,13 @@ calls.clear(); BOARD_CONFIG[0] = 'CONFIG:yes'; sys.argv.append('--replace-config
 P.upload_stump_app('/dev/fake')
 check('--replace-config replaces it', ':config.py' in [c[-1] for c in calls if 'cp' in c])
 sys.argv.remove('--replace-config')
+# --skip-tools still brings the sections' READMEs up to date (sections on the card only)
+calls.clear()
+P.refresh_tool_readmes('/dev/fake')
+rd = [c[-1] for c in calls if 'cp' in c]
+check('READMEs refreshed, every language', ':/sd/tools/flasher/README.fr.md' in rd and ':/sd/tools/flasher/README.es.md' in rd
+      and ':/sd/tools/rnfs/README.fr.md' in rd and ':/sd/tools/flasher/README.md' in rd, rd)
+check('no README for a section not on the card', not any('/provisioner/' in d or '/firefly/' in d for d in rd), rd)
 # remove_plugin refuses core
 check('remove refuses urns', P.remove_plugin('/dev/fake', 'urns') is False)
 print('FAILURES', FAIL)
