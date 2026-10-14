@@ -167,6 +167,7 @@ check('open network needs no password', P.wifi_is_open("LaBuche-Stump.web.app") 
       and not P.wifi_is_open("unknown"))
 # The layout: a route, its sections, the summary
 import io, contextlib
+P.TIMINGS_FILE = Path(tempfile.mkdtemp()) / 'timings.json'
 buf = io.StringIO()
 with contextlib.redirect_stdout(buf):
     r = P.Route("Test route", [("One", "first"), ("Two", "second"), ("Three", "third")], needs=["a board"])
@@ -184,6 +185,12 @@ check('route: summary shows results and notes, fails overall', ok is False and "
       and "didn't work" in out and "http://192.168.4.1/" in out and "closing line" in out, out[-900:])
 check('route: indentation off after the summary', out.endswith("\nafter\n"), out[-40:])
 sys.stdout = sys.__stdout__
+P._save_timing("cam", "Flash", 100); P._save_timing("cam", "Flash", 300); P._save_timing("cam", "Flash", 200)
+check('route: the card uses the median of this computer\'s runs', P.route_for("cam").expected("Flash") == (200, True)
+      and P.route_for("cam").expected("Verify") == (120, False))
+for i in range(7):
+    P._save_timing("cam", "Verify", i)
+check('route: only the last five runs kept', P._load_timings()["cam"]["Verify"] == [2, 3, 4, 5, 6])
 for role in ("cam", "heltec", "heltec_transport"):
     check('route for ' + role, len(P.route_for(role).steps) >= 4)
 answers("9", "4")

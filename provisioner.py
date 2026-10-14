@@ -1213,27 +1213,90 @@ def _in(prompt):
     return input(prompt)
 
 
+TIMINGS_FILE = Path.home() / ".provisioner" / "timings.json"
+
+# First guesses at how long each section takes, in seconds, until this
+# computer has timed its own (TIMINGS_FILE): the route card shows the
+# median of the last runs here once there are some.
+ESTIMATES = {
+    "cam": {"Check": 20, "Board": 20, "Flash": 180, "Firmware": 600, "Configure": 300,
+            "Install": 240, "Verify": 120},
+    "heltec": {"Check": 20, "Board": 20, "Flash": 180, "Configure": 120, "Install": 60, "Verify": 60},
+    "heltec_transport": {"Check": 20, "Board": 20, "Flash": 240, "Verify": 60},
+    "pc": {"Folder": 15, "Python": 90, "Firmware": 20, "Configure": 300, "Packs": 30,
+           "Chain": 30, "Start": 60},
+}
+
+
+def _load_timings():
+    try:
+        return json.loads(TIMINGS_FILE.read_text())
+    except (OSError, ValueError):
+        return {}
+
+
+def _save_timing(key, step, seconds):
+    t = _load_timings()
+    runs = t.setdefault(key, {}).setdefault(step, [])
+    runs.append(round(seconds))
+    del runs[:-5]                             # the last five runs
+    try:
+        TIMINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        TIMINGS_FILE.write_text(json.dumps(t, indent=1))
+    except OSError:
+        pass
+
+
+def _span(seconds):
+    seconds = int(seconds)
+    if seconds < 60:
+        return "%d s" % max(1, seconds)
+    if seconds < 3600:
+        return "%d min" % round(seconds / 60.0)
+    return "%d h %02d" % (seconds // 3600, (seconds % 3600) // 60)
+
+
 class Route:
     """The numbered sections of one run (see the comment above)."""
     current = None
 
-    def __init__(self, title, steps, needs=(), subtitle=""):
-        self.title, self.subtitle = title, subtitle
+    def __init__(self, title, steps, needs=(), subtitle="", key=None):
+        self.title, self.subtitle, self.key = title, subtitle, key
         self.steps = list(steps)              # [(name, what)]
         self.needs = list(needs)
         self.state = ["todo"] * len(self.steps)
         self.notes = []                       # [(label, value)] for the summary
         self.index = -1
+        self.t0 = [None] * len(self.steps)
+        self.took = [None] * len(self.steps)
+        self.started = time.time()
+
+    def expected(self, name):
+        """(seconds, measured?) for a section: this computer's median of
+        its last runs, else the first guess."""
+        runs = _load_timings().get(self.key or "", {}).get(name) or []
+        if runs:
+            return sorted(runs)[len(runs) // 2], True
+        return (ESTIMATES.get(self.key or "", {}).get(name), False)
 
     def show(self):
         g = _glyphs()
         lines = [self.subtitle, ""] if self.subtitle else []
         width = max(len(n) for n, _ in self.steps)
-        room = _width() - 4 - (width + 6)
+        room = _width() - 4 - (width + 6) - 9
+        total, measured = 0, False
         for i, (name, what) in enumerate(self.steps, 1):
+            secs, real = self.expected(name)
+            total += secs or 0
+            measured = measured or real
+            when = ("~" + _span(secs)) if secs else ""
             parts = _wrap(what, room) or [""]
-            lines.append("%2d  %s  %s" % (i, bold(name.ljust(width)), parts[0]))
+            lines.append("%2d  %s  %s %s" % (i, bold(name.ljust(width)), parts[0].ljust(room), when.rjust(8)))
             lines += [" " * (width + 6) + p for p in parts[1:]]
+        if total:
+            lines += ["", "About %s in all (%s; questions take as long as you do)."
+                      % (_span(total), "as timed on this computer" if measured else "a first guess, "
+                         "until this computer has timed a run")]
         if self.needs:
             lines += ["", "You'll need:"] + ["  " + g["now"] + " " + n for n in self.needs]
         _indent(False)
@@ -1266,6 +1329,7 @@ class Route:
             self.state[self.index] = "done"
         self.index = i
         self.state[i] = "now"
+        self.t0[i] = time.time()
         head = "%s %d/%d  %s " % (g["H"] * 3, i + 1, len(self.steps), name.upper())
         _indent(False)
         print("\n\n" + bold(head + g["H"] * max(0, _width() - len(head))))
@@ -1281,9 +1345,15 @@ class Route:
             return
         self.state[self.index] = state
         name = self.steps[self.index][0]
+        took = None
+        if self.t0[self.index]:
+            took = self.took[self.index] = time.time() - self.t0[self.index]
+            if state == "done" and self.key:
+                _save_timing(self.key, name, took)
         mark = {"done": green(g["done"]), "fail": red(g["fail"]), "skip": g["skip"]}[state]
         word = {"done": "done", "fail": "didn't work", "skip": "skipped"}[state]
-        print("\n%s %s: %s%s" % (mark, name, word, (" -- " + why) if why else ""))
+        print("\n%s %s: %s%s%s" % (mark, name, word, (" in " + _span(took)) if took and state == "done" else "",
+                                   (" -- " + why) if why else ""))
 
     def skip_rest(self, why=""):
         for i in range(len(self.state)):
@@ -1299,9 +1369,13 @@ class Route:
             self.state[self.index] = "done"
         marks = {"done": green(g["done"]), "fail": red(g["fail"]), "skip": g["skip"], "todo": g["skip"]}
         words = {"done": "done", "fail": red("didn't work"), "skip": "skipped", "todo": "not reached"}
+        if 0 <= self.index < len(self.state) and self.t0[self.index] and self.took[self.index] is None:
+            self.took[self.index] = time.time() - self.t0[self.index]
         width = max(len(n) for n, _ in self.steps)
-        lines = ["%s  %s  %s" % (marks.get(st, "?"), name.ljust(width), words.get(st, st))
-                 for (name, _), st in zip(self.steps, self.state)]
+        lines = ["%s  %s  %s%s" % (marks.get(st, "?"), name.ljust(width), words.get(st, st),
+                                   ("  (%s)" % _span(t)) if t and st in ("done", "fail") else "")
+                 for (name, _), st, t in zip(self.steps, self.state, self.took)]
+        lines += ["", "Took %s in all." % _span(time.time() - self.started)]
         if self.notes:
             lw = max(len(l) for l, _ in self.notes)
             room = _width() - 4 - lw - 2
@@ -4182,41 +4256,38 @@ ROLES = [
 
 def route_for(role):
     if role == "cam":
-        return Route("Setting up a Stump CAM", [
+        return Route("Setting up a Stump CAM", key="cam", steps=[
             ("Check", "the tools on this computer, and the Stump firmware folder"),
             ("Board", "pick the CAM's USB port"),
-            ("Flash", "MicroPython onto the board: erases it (~2 min)"),
-            ("Firmware", "the Stump files onto the board (~3 min)"),
+            ("Flash", "MicroPython onto the board: erases it"),
+            ("Firmware", "the Stump files onto the board"),
             ("Configure", "questions: name, Wi-Fi, chain, the Heltec, packs, bot, features, look"),
             ("Install", "the settings and packs onto the board; restart; find its address"),
             ("Verify", "the diagnostic suite"),
         ], needs=["the CAM on USB, with a data cable (not a charge-only one)",
                   "the name and password of the Wi-Fi it joins, if any",
-                  "for a chain: the chain secret, and the Stump it joins",
-                  "about 10 minutes"],
+                  "for a chain: the chain secret, and the Stump it joins"],
             subtitle="Nothing touches the board before section 3, and each section asks first.")
     if role == "heltec":
-        return Route("Setting up a Heltec for a CAM", [
+        return Route("Setting up a Heltec for a CAM", key="heltec", steps=[
             ("Check", "the tools on this computer"),
             ("Board", "pick the Heltec's USB port"),
-            ("Flash", "the RNode firmware: erases the board (~2 min)"),
+            ("Flash", "the RNode firmware: erases the board"),
             ("Configure", "questions: radio settings, access code, its Wi-Fi (how the CAM reaches it)"),
             ("Install", "the settings onto the Heltec"),
             ("Verify", "the diagnostic suite"),
         ], needs=["the Heltec V3 on USB, with a data cable",
                   "the radio settings of your mesh (the defaults match the deployed one)",
-                  "the Wi-Fi it joins: usually the CAM's own, and a fixed address in it",
-                  "about 5 minutes"],
+                  "the Wi-Fi it joins: usually the CAM's own, and a fixed address in it"],
             subtitle="Nothing touches the board before section 3, and each section asks first.")
     if role == "heltec_transport":
-        return Route("Setting up a Heltec relay", [
+        return Route("Setting up a Heltec relay", key="heltec_transport", steps=[
             ("Check", "the tools on this computer"),
             ("Board", "pick the Heltec's USB port"),
             ("Flash", "radio settings, then the standalone Reticulum firmware: erases the board"),
             ("Verify", "the diagnostic suite"),
         ], needs=["the Heltec V3 on USB, with a data cable",
-                  "the radio settings of your mesh (the defaults match the deployed one)",
-                  "about 5 minutes"])
+                  "the radio settings of your mesh (the defaults match the deployed one)"])
     raise ValueError(role)
 
 
@@ -4951,7 +5022,7 @@ def setup_pc(folder=None, reconfigure=False):
     if not (fw / "example_node.py").is_file() or not (PC_SOURCE / "stump_pc.py").is_file():
         print(red("Run this from the Stump download: final_firmware/ and pc/ must be next to provisioner.py."))
         return False
-    r = Route("A Stump on this computer", [
+    r = Route("A Stump on this computer", key="pc", steps=[
         ("Folder", "where this Stump lives (its firmware, settings and files)"),
         ("Python", "the folder's own Python, with cryptography and pyserial (internet, first time)"),
         ("Firmware", "the Stump files, copied or brought up to date"),
@@ -4961,8 +5032,7 @@ def setup_pc(folder=None, reconfigure=False):
         ("Start", "now, and whenever you log in (if you want)"),
     ], needs=["Python 3.8 or newer (this one: %s)" % sys.version.split()[0],
               "a Heltec on USB, or over Wi-Fi, or none (a chain can bring LoRa)",
-              "to join a CAM: this computer on the CAM's Wi-Fi, and the chain secret",
-              "about 5 minutes"],
+              "to join a CAM: this computer on the CAM's Wi-Fi, and the chain secret"],
         subtitle="Updating? The same route: settings, identity and files are kept.")
     r.show()
 

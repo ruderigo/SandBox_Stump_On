@@ -13,6 +13,9 @@
   files only with `--list-packs`; the wizard says whether they match the
   pack's hashes. Fixed: a computer with its Heltec on USB was asked the
   CAM's Heltec-over-Wi-Fi questions.
+- **The Provisioner times itself.** Each section says how long it took,
+  the summary adds them up, and the route card shows the times measured
+  on this computer (the median of its last five runs) instead of a guess.
 - **Is the chain linked?** When a computer Stump joins another Stump, the
   `--pc` wizard checks each step before and after it starts: on that
   Stump's network, a Stump answers there, its chain is on, the secrets
