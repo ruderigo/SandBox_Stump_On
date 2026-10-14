@@ -6,7 +6,7 @@
 Writes to dist/:
 
   Stump-<version>.zip         everything a technician needs, in one folder:
-                              provisioner.py, final_firmware/, packs/,
+                              provisioner.py, final_firmware/, packs/, pc/,
                               README, CHANGELOG, LICENSE, and what checks
                               a release (docs/RELEASE.md, the signing key,
                               scripts/sign_release.py)
@@ -88,7 +88,8 @@ def main():
                                              "RELEASE_SIGNING_KEY.txt", "docs/RELEASE.md",
                                              "scripts/sign_release.py")
                if (ROOT / n).is_file()]
-    for base in ("final_firmware", "packs"):
+    # pc/: Stump on a computer (provisioner.py --pc, docs/PC.md).
+    for base in ("final_firmware", "packs", "pc"):
         entries += [(p, top + str(p.relative_to(ROOT))) for p in files_under(ROOT / base) if p.suffix != ".zip"]
     write_zip(out / ("Stump-%s.zip" % version), entries, stamp, manifest)
 

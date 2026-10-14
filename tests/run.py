@@ -16,7 +16,7 @@ writes into the source tree. Two kinds:
             --update rewrites those files: review the diff before
             committing it.
 """
-import os, re, shutil, subprocess, sys, tempfile, time
+import importlib.util, os, re, shutil, subprocess, sys, tempfile, time
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -163,6 +163,26 @@ def main():
         if not ok:
             print((r.stdout + r.stderr)[-3000:])
             failed.append("provisioner")
+    # Stump on a computer (docs/PC.md): the same firmware on regular Python.
+    # Needs the cryptography and pyserial packages (CI installs them).
+    for name, script in (("pc_rnode_serial", "rnode_serial_test.py"), ("pc_chain", "pc_chain_test.py")):
+        if only and name not in only:
+            continue
+        missing = [m for m in ("cryptography", "serial") if importlib.util.find_spec(m) is None]
+        if missing:
+            print("skip  %s (needs: pip install cryptography pyserial)" % name)
+            continue
+        if name == "pc_rnode_serial" and os.name == "nt":
+            print("skip  %s (uses a pseudo-terminal: Linux and macOS)" % name)
+            continue
+        env = dict(os.environ, MICROPYTHON=MP)
+        r = subprocess.run([sys.executable, str(HERE / "pc" / script)], capture_output=True, text=True,
+                           env=env, timeout=600)
+        ok = r.returncode == 0 and "FAILURES []" in r.stdout
+        print(("ok    " if ok else "FAIL  ") + name)
+        if not ok:
+            print("\n".join(l for l in (r.stdout + r.stderr).splitlines() if not l.startswith("["))[-3000:])
+            failed.append(name)
     print("\n%d failed: %s" % (len(failed), ", ".join(failed)) if failed else "\nall passed")
     sys.exit(1 if failed else 0)
 

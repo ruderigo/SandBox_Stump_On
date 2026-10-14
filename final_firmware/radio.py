@@ -17,6 +17,8 @@ it's connected, or at its next connection otherwise.
 import ujson as json
 
 SETTINGS_FILE = "/radio.json"
+# The Heltec bridge: over Wi-Fi (the CAM), or on USB (Stump on a computer).
+BRIDGE_TYPES = ("WiFiSerialInterface", "RNodeSerialInterface")
 
 # What the Heltec V3's SX1262 and RNode firmware accept.
 BANDWIDTHS = (7800, 10400, 15600, 20800, 31250, 41700, 62500, 125000, 250000, 500000)
@@ -34,7 +36,7 @@ def bridges():
         from urns.transport import Transport
     except ImportError:
         return []
-    return [i for i in Transport.interfaces if i.__class__.__name__ == "WiFiSerialInterface"]
+    return [i for i in Transport.interfaces if i.__class__.__name__ in BRIDGE_TYPES]
 
 
 def current():
@@ -154,7 +156,7 @@ def overlay(config):
              "sf": "spreadingfactor", "cr": "codingrate"}
     hit = False
     for entry in config.get("interfaces", []):
-        if entry.get("type") == "WiFiSerialInterface":
+        if entry.get("type") in BRIDGE_TYPES:
             for k, v in s.items():
                 entry[names[k]] = v
             hit = True

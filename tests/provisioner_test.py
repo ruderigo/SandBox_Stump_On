@@ -96,6 +96,18 @@ rd = [c[-1] for c in calls if 'cp' in c]
 check('READMEs refreshed, every language', ':/sd/tools/flasher/README.fr.md' in rd and ':/sd/tools/flasher/README.es.md' in rd
       and ':/sd/tools/rnfs/README.fr.md' in rd and ':/sd/tools/flasher/README.md' in rd, rd)
 check('no README for a section not on the card', not any('/provisioner/' in d or '/firefly/' in d for d in rd), rd)
+# Stump on a computer: the config.py block (docs/PC.md)
+b = P._pc_config_block({"pc_hotspot_name": "Apt 3B", "pc_heltec": "usb", "pc_heltec_port": "COM5",
+                        "chain": {"enabled": True, "parent_ip": "192.168.4.1"}})
+ns = {"CONFIG": {"interfaces": [{"type": "WiFiSerialInterface"}, {"type": "UDPInterface"}]}}
+exec(b, ns)
+check('pc block: USB Heltec replaces the Wi-Fi bridge', [i["type"] for i in ns["CONFIG"]["interfaces"]] ==
+      ["UDPInterface", "RNodeSerialInterface"] and ns["CONFIG"]["interfaces"][1]["port"] == "COM5", ns["CONFIG"])
+check('pc block: hotspot, parent, own clock', ns["PC_HOTSPOT_NAME"] == "Apt 3B" and ns["PC_CHAIN_PARENT_IP"] == "192.168.4.1"
+      and ns["CONFIG"]["time_sync"] == {"enabled": False} and ns["PC_HTTP_PORT"] == 80)
+ns = {"CONFIG": {"interfaces": [{"type": "WiFiSerialInterface", "target_host": "192.168.137.2"}]}}
+exec(P._pc_config_block({"pc_heltec": "wifi"}), ns)
+check('pc block: a Wi-Fi Heltec is kept', ns["CONFIG"]["interfaces"][0]["target_host"] == "192.168.137.2")
 # remove_plugin refuses core
 check('remove refuses urns', P.remove_plugin('/dev/fake', 'urns') is False)
 print('FAILURES', FAIL)

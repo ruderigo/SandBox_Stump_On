@@ -72,6 +72,8 @@ assuming you know what "turn on hybrid" does.
 - [Direct messages](#direct-messages)
 - [Internationalization](#internationalization)
 - [The About page](#the-about-page)
+- [Chained Stumps](#chained-stumps)
+- [Stump on a computer](#stump-on-a-computer)
 - [Plugins](#plugins)
 - [Configuration](#configuration)
 - [Conventions for contributors](#conventions-for-contributors)
@@ -241,6 +243,8 @@ there, the About page's Android card says "Not on this Stump yet".
 provisioner.py               technician deployment tool (runs on a laptop): flashes,
                               uploads, configures and diagnoses three board roles
 packs/                       plugin packs the Provisioner offers (tavern, rnfs) -- docs/PACKS.md
+pc/                          Stump on a computer: stump_pc.py and the stand-ins that run
+                              the firmware on regular Python (provisioner.py --pc, docs/PC.md)
 tests/                       the test suite: python3 tests/run.py (tests/README.md)
 scripts/                     build_micropython.sh, build_release.py, sign_release.py, update_manifest.py
 docs/RELEASE.md              how releases are built, signed and checked
@@ -2025,6 +2029,17 @@ joining the Wi-Fi of the one before it — so messages and files cross
 the chain over Wi-Fi and big transfers never touch LoRa. Only the
 Stumps with a Heltec use the radio. Set up in the Provisioner wizard;
 everything else is in [`docs/CHAIN.md`](final_firmware/docs/CHAIN.md).
+
+## Stump on a computer
+
+A Windows, macOS or Linux computer can be a Stump, running the same
+firmware: the same pages, chat, plugins, packs, `/admin` and mesh. A
+Heltec plugged in by USB puts it on the LoRa mesh, and it chains with
+CAM Stumps over Wi-Fi. Set it up with `python3 provisioner.py --pc`
+(Windows: `py provisioner.py --pc`), which asks the CAM wizard's
+questions adapted to a computer and can start it at login. Visitors'
+Wi-Fi, the Heltec, chaining and the limits are in
+[`docs/PC.md`](final_firmware/docs/PC.md).
 
 ## Plugins and packs
 

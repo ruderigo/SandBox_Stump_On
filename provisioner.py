@@ -29,6 +29,8 @@ Usage:
     python3 provisioner.py --remove-plugin PORT NAME  # take a plugin off a node
     python3 provisioner.py --hash-pack FOLDER         # pack authors: hash before publishing
     python3 provisioner.py --check-tools   # verify esptool/mpremote/rnodeconf present
+    python3 provisioner.py --pc [FOLDER]   # Stump on THIS computer: set up or update (docs/PC.md)
+    python3 provisioner.py --pc --reconfigure         # ...and run its config wizard again
 
 Nothing here talks to a real board unless you run it on a machine that has
 one plugged in. Every external call is wrapped so a missing tool or absent
@@ -211,13 +213,14 @@ EXPECTED_FILE_HASHES = {
     "chain.py": "346632abeeaba698",
     "config.py": "4b546033fac3572a",
     "docs/CHAIN.md": "c16a45a09ee64ca0",
-    "docs/CLIENT_QUICKSTART.md": "7da377c205209b1c",
+    "docs/CLIENT_QUICKSTART.md": "2b5aa636a3991ad7",
     "docs/COMMANDS.md": "dc1e12390a36a0e9",
-    "docs/FIELD_TEST.md": "8fe391b6dcb0846b",
+    "docs/FIELD_TEST.md": "318c01f1bc15b078",
     "docs/HIDDEN_FEATURES.md": "053479ae239e0891",
     "docs/HOME_BRANDING.md": "e1a1a9cf854dcdce",
     "docs/HTTPS_SETUP.md": "30171f88d7a75712",
     "docs/PACKS.md": "2e89e3c28d80d72d",
+    "docs/PC.md": "2b0f6afb38239823",
     "docs/PLUGINS.md": "3f5b4a5ee6844305",
     "example_node.py": "b3dda61339f0699e",
     "features.py": "7fca96873d59d2d3",
@@ -236,7 +239,7 @@ EXPECTED_FILE_HASHES = {
     "peripherals/adc_reader.py": "50a393bfa61641d4",
     "plugins.py": "7d277aabb19f4291",
     "propagation.py": "0fbf13b1d6167ad3",
-    "radio.py": "feb621dfb9d1e95b",
+    "radio.py": "e641a5b077368c9c",
     "rrc.py": "b7029967f7fb0496",
     "rrc_mesh.py": "ea17b8fd9020b1c0",
     "rrc_ui.py": "03bec821b6bad94d",
@@ -1147,6 +1150,10 @@ def green(text):
 
 def yellow(text):
     return _ansi(text, "1;33")
+
+
+def red(text):
+    return _ansi(text, "1;31")
 
 
 def cyan(text):
@@ -2684,6 +2691,7 @@ def config_wizard(board_type):
     # field, but worth fixing before someone did.
     default_names = {
         "cam": "unnamed-stump",
+        "pc": "unnamed-stump",
         "heltec_transport": "unnamed-repeater",
     }
     node_name = ask("Node name (shown to peers)", default_names.get(board_type, "unnamed-firefly"))
@@ -2779,7 +2787,17 @@ def config_wizard(board_type):
         else:
             profile["heltec_wifi"] = None
 
-    else:  # cam
+    elif board_type == "pc":
+        # Stump on a computer (docs/PC.md): the computer's own Wi-Fi is the
+        # operating system's to set up, so nothing to join and no hotspot
+        # name to broadcast -- only what visitors are told.
+        profile["wifi_ssid"], profile["wifi_pass"] = "", ""
+        print("Visitors join this computer's hotspot (Windows: Mobile Hotspot; macOS:")
+        print("Internet Sharing), or a router the computer is on, and open its address.")
+        profile["pc_hotspot_name"] = ask("The Wi-Fi name visitors join (shown on the About page)", node_name)
+        profile["ssid_name"] = profile["pc_hotspot_name"]
+        profile["ssid_include_ip"] = False
+    if board_type == "cam":
         print("This build's config.py has the CAM join an EXISTING WiFi network")
         print("(for internet/LXMF reachability) -- it's not creating its own hotspot")
         print("with this name. The local walk-up AP is a separate, fixed 'Stump'")
@@ -2826,6 +2844,7 @@ def config_wizard(board_type):
                 "Include the AP's IP address in the hotspot name?", True)
             profile["ssid_name"] = ask("Custom hotspot name", node_name)
 
+    if board_type in ("cam", "pc"):
         # ---- Chain of Stumps over Wi-Fi (docs/CHAIN.md) ----
         print("\nStumps can be chained over Wi-Fi -- e.g. one per apartment, each")
         print("joining the Wi-Fi of the one before it -- so files move between them")
@@ -2837,7 +2856,22 @@ def config_wizard(board_type):
                 "Joins another Stump's Wi-Fi",
             ]).startswith("The first")
             chain_cfg = {"enabled": True, "uplink_ssid": "", "uplink_pass": ""}
-            if first:
+            if board_type == "pc":
+                # A computer: the OS joins Wi-Fi; Stump needs addresses only.
+                chain_cfg.update(subnet=4, channel=0)
+                if first:
+                    print("  The other Stumps join this computer's hotspot (or the router it's on).")
+                    import secrets as _secrets
+                    print("  A chain secret keeps visitors out of the chain. Every Stump in the")
+                    print("  chain needs the same one: note it down.")
+                    chain_cfg["secret"] = ask("  Chain secret", _secrets.token_hex(8)) or ""
+                else:
+                    print("  Join the other Stump's Wi-Fi from this computer's Wi-Fi settings.")
+                    chain_cfg["uplink_ssid"] = ask("  Wi-Fi name of the Stump this one joins", "")
+                    chain_cfg["parent_ip"] = ask("  That Stump's address (a CAM: 192.168.<its number>.1)",
+                                                 "192.168.4.1")
+                    chain_cfg["secret"] = ask("  Chain secret (the same as on the first Stump)", "") or ""
+            elif first:
                 print("  The whole chain shares one Wi-Fi channel, set here. Pick the quietest:")
                 print("  bench/wifi_bench.py lists the channels in use around a CAM (1, 6 and 11")
                 print("  don't overlap).")
@@ -2875,11 +2909,25 @@ def config_wizard(board_type):
         profile["chain"] = chain_cfg
 
         has_heltec = True
-        if chain_cfg:
+        if board_type == "pc":
+            link = ask_choice("The Heltec (LoRa radio)", [
+                "Plugged into this computer by USB",
+                "Over Wi-Fi (the Heltec joins this computer's network)",
+                "None (this Stump reaches the LoRa mesh through the chain, or not at all)",
+            ])
+            has_heltec = not link.startswith("None")
+            profile["pc_heltec"] = "usb" if link.startswith("Plugged") else ("wifi" if has_heltec else "none")
+            if profile["pc_heltec"] == "usb":
+                port = ask("  Its USB port ('auto' finds it)", "auto")
+                profile["pc_heltec_port"] = port or "auto"
+        elif chain_cfg:
             has_heltec = ask_yes_no("Does this Stump have its own Heltec (LoRa radio)?",
                                     not chain_cfg["uplink_ssid"])
         profile["heltec_enabled"] = has_heltec
-        if not has_heltec:
+        if board_type == "pc" and profile["pc_heltec"] != "wifi":
+            # USB or none: no Wi-Fi bridge entry to fill in.
+            profile["heltec_host"], profile["heltec_port"] = "192.168.4.2", 7633
+        elif not has_heltec:
             profile["heltec_host"], profile["heltec_port"] = "192.168.4.2", 7633
             print("  No Heltec: this Stump reaches the LoRa mesh through the chain.")
 
@@ -2890,7 +2938,12 @@ def config_wizard(board_type):
         # different range from this prompt's old default -- asking
         # outright, rather than letting the two boards' provisioning runs
         # silently assume different networks, is the actual fix.
-        if has_heltec:
+        if board_type == "pc" and profile.get("pc_heltec") == "wifi":
+            print("  Set the Heltec to join this computer's network with a fixed address:")
+            print("  rnodeconf <port> -w STATION --ip <address> (see docs/PC.md).")
+            profile["heltec_host"] = ask("  The Heltec's address", "192.168.137.2")
+            profile["heltec_port"] = 7633
+        elif has_heltec:
             print("\nIs the Heltec reaching this CAM through an existing WiFi network (a")
             print("router), or connected directly to THIS CAM's own hotspot (a")
             print("standalone pair, no router involved)?")
@@ -3861,6 +3914,299 @@ def interactive_wizard():
 # Entry point
 # ---------------------------------------------------------------------------
 
+
+# ==========================================================================
+# Stump on a computer (docs/PC.md): python3 provisioner.py --pc [FOLDER]
+# ==========================================================================
+# The computer plays the CAM's role. Its Stump folder plays the board's
+# flash: the same firmware files --upload-app puts on a CAM are copied there
+# (with config.py kept on updates), plus pc/stump_pc.py and pc/pc_compat/,
+# which make the firmware run on regular Python. The folder has its own
+# Python environment (venv) with the two packages Stump needs.
+
+PC_SOURCE = Path(__file__).resolve().parent / "pc"
+PC_PACKAGES = ("cryptography", "pyserial")
+PC_SERVICE_LABEL = "app.stump.node"
+
+
+def pc_default_folder():
+    return Path.home() / "Stump"
+
+
+def _pc_python(folder, windowless=False):
+    v = Path(folder) / "venv"
+    if os.name == "nt":
+        return v / "Scripts" / ("pythonw.exe" if windowless else "python.exe")
+    return v / "bin" / "python"
+
+
+def _pc_ensure_venv(folder):
+    """The folder's own Python with Stump's packages. Returns its path, or
+    None (with the reason printed)."""
+    py = _pc_python(folder)
+    if not py.exists():
+        print("  Making this Stump's own Python environment (venv) ...")
+        r = subprocess.run([sys.executable, "-m", "venv", str(Path(folder) / "venv")],
+                           capture_output=True, text=True)
+        if r.returncode != 0 or not py.exists():
+            print("  " + red("Couldn't make it: ") + (r.stderr or r.stdout).strip()[-300:])
+            print("  (On Linux: sudo apt install python3-venv)")
+            return None
+    check = subprocess.run([str(py), "-c", "import cryptography, serial"], capture_output=True)
+    if check.returncode != 0:
+        print("  Installing %s into it (needs internet, this once) ..." % " and ".join(PC_PACKAGES))
+        r = subprocess.run([str(py), "-m", "pip", "install", "--quiet", "--upgrade"] + list(PC_PACKAGES))
+        if r.returncode != 0:
+            print("  " + red("pip couldn't install them.") + " Connect to the internet and run --pc again.")
+            return None
+    return py
+
+
+def _board_files(fw):
+    """What --upload-app would put on a CAM: the core and the built-in
+    plugins, as paths relative to the firmware folder."""
+    files = [f for f in STUMP_APP_FILES if (fw / f).is_file()]
+    for name, spec in discover_plugins(fw):
+        files += [f for f in plugin_files(fw / name, spec) if _belongs_on_board(f)]
+    return files
+
+
+def _copy_if_changed(src, dst):
+    """Copies src to dst unless dst is already identical. True if copied."""
+    import shutil
+    dst = Path(dst)
+    try:
+        if dst.is_file() and dst.stat().st_size == Path(src).stat().st_size and \
+                dst.read_bytes() == Path(src).read_bytes():
+            return False
+    except OSError:
+        pass
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(src, dst)
+    return True
+
+
+def _pc_copy_firmware(fw, folder):
+    """The firmware and the computer runtime into the Stump folder. Keeps
+    the folder's own config.py. Returns how many files changed."""
+    folder = Path(folder)
+    changed = 0
+    for rel in _board_files(fw):
+        if rel.endswith(".mpy"):
+            continue                        # the ESP32's compiled modules
+        if rel == "config.py" and (folder / "config.py").exists():
+            continue                        # this Stump's own settings stay
+        changed += _copy_if_changed(fw / rel, folder / rel)
+    changed += _copy_if_changed(PC_SOURCE / "stump_pc.py", folder / "stump_pc.py")
+    for f in sorted((PC_SOURCE / "pc_compat").glob("*.py")):
+        changed += _copy_if_changed(f, folder / "pc_compat" / f.name)
+    return changed
+
+
+def _pc_install_packs(folder, packs):
+    """Packs into a Stump folder: their plugins next to the firmware, their
+    tools and home files in its sd/ folder, their themes in themes.json --
+    what install_packs() does on a CAM, as local copies."""
+    folder = Path(folder)
+    themes = {}
+    tf = folder / "themes.json"
+    if tf.exists():
+        try:
+            themes = json.loads(tf.read_text(encoding="utf-8"))
+        except ValueError:
+            themes = {}
+    for pack in packs:
+        spec, d = pack["spec"], pack["dir"]
+        print(f"  {spec['name']} {spec['version']}")
+        for name in spec.get("plugins", []):
+            for rel in plugin_files(d / name):
+                if _belongs_on_board(rel):
+                    _copy_if_changed(d / rel, folder / rel)
+        for rel in _pack_files(d, spec):
+            sub, fname = rel.split("/", 1)
+            dest = folder / "sd" / (("tools/" + spec["name"]) if sub == "tools" else sub) / fname
+            _copy_if_changed(d / rel, dest)
+        t = spec.get("theme")
+        if t and t.get("name"):
+            themes[t["name"]] = {"label": t.get("label", t["name"]), "colors": t.get("colors", {})}
+    if themes:
+        tf.write_text(json.dumps(themes, ensure_ascii=False), encoding="utf-8")
+
+
+def _pc_install_tools(fw, folder):
+    """The Tools page's sections in the Stump folder's sd/tools/: local
+    copies, so nothing here is slow (no 1 MB limit either)."""
+    folder = Path(folder)
+    here = Path(__file__).resolve().parent
+    tools = folder / "sd" / "tools"
+    payload = fw / "tools_payload"
+    for src, dst in ((here / "provisioner.py", "provisioner/provisioner.py"),
+                     (here / "README.md", "provisioner/Stump-README.md"),
+                     (here / "LICENSE", "provisioner/LICENSE"),
+                     (payload / "flasher" / "esptool-bundle.js", "flasher/esptool-bundle.js"),
+                     (payload / "flasher" / "esptool-js-LICENSE.txt", "flasher/esptool-js-LICENSE.txt")):
+        if src.is_file():
+            _copy_if_changed(src, tools / dst)
+    for src, sec in (("provisioner", "provisioner"), ("flasher", "flasher"), ("apps", "firefly")):
+        for f in sorted((payload / src).glob("*")):
+            if f.is_file() and (f.name.startswith("README") or src == "apps"):
+                _copy_if_changed(f, tools / sec / f.name)
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            z = Path(tmp) / "Stump_Beta_A.zip"
+            _build_firmware_zip(z, fw)
+            _copy_if_changed(z, tools / "provisioner" / "Stump_Beta_A.zip")
+    except Exception as e:
+        print("  (firmware zip for the Tools page skipped: %s)" % e)
+    cat = payload / "flasher" / "catalog.json"
+    if cat.is_file():
+        _copy_if_changed(cat, folder / "sd" / "fw" / "catalog.json")
+
+
+def _pc_config_block(profile):
+    """What a computer Stump adds to config.py (docs/PC.md)."""
+    out = ["\n# ---- Stump on a computer (docs/PC.md; added by the Provisioner) ----\n",
+           "PC_HOTSPOT_IP = 'auto'      # the address visitors reach this computer on\n",
+           "PC_HTTP_PORT = 80           # 8080 is used if 80 is taken\n",
+           "PC_STORAGE_MB = 2048        # room for shared files and tools in the sd/ folder\n",
+           "PC_HOTSPOT_NAME = %r\n" % profile.get("pc_hotspot_name", ""),
+           "CONFIG['time_sync'] = {'enabled': False}   # the computer keeps its own time\n"]
+    chain = profile.get("chain") or {}
+    if chain.get("parent_ip"):
+        out.append("PC_CHAIN_PARENT_IP = %r   # the Stump this one joins\n" % chain["parent_ip"])
+    heltec = profile.get("pc_heltec", "none")
+    if heltec == "usb":
+        out.append("# The Heltec on USB ('auto' finds it); radio settings: /admin -> Radio.\n")
+        out.append("CONFIG['interfaces'] = [i for i in CONFIG['interfaces'] if i.get('type') != 'WiFiSerialInterface'] + [\n")
+        out.append("    {'type': 'RNodeSerialInterface', 'name': 'Heltec (USB)', 'enabled': True,\n")
+        out.append("     'port': %r},\n]\n" % profile.get("pc_heltec_port", "auto"))
+    elif heltec == "none":
+        out.append("CONFIG['interfaces'] = [i for i in CONFIG['interfaces'] if i.get('type') != 'WiFiSerialInterface']\n")
+    return "".join(out)
+
+
+def _pc_write_config(fw, folder, profile):
+    gen = _generate_config_py(
+        fw / "config.py", profile["node_name"], profile["wifi_ssid"], profile["wifi_pass"],
+        profile["heltec_host"], profile["heltec_port"],
+        credits_enabled=profile.get("credits_enabled"),
+        credit_weights=profile.get("credit_weights"),
+        bot_name=profile.get("bot_name"),
+        mesh_greeting=profile.get("mesh_greeting"),
+        plugin_config=profile.get("plugin_config"),
+        ssid_include_ip=profile.get("ssid_include_ip"),
+        ssid_name=profile.get("ssid_name", _UNSET),
+        theme=profile.get("theme"),
+        features=profile.get("features"),
+        propagation_node=profile.get("propagation_node"),
+        chain=profile.get("chain") or {"enabled": False},
+        heltec_enabled=profile.get("heltec_enabled"),
+    )
+    (Path(folder) / "config.py").write_text(gen + _pc_config_block(profile), encoding="utf-8")
+
+
+def _pc_autostart(folder):
+    """Starts this Stump at login: a LaunchAgent on macOS, a scheduled task
+    on Windows, a systemd user service on Linux. True if set up."""
+    folder = Path(folder).resolve()
+    launcher = folder / "stump_pc.py"
+    if sys.platform == "darwin":
+        agents = Path.home() / "Library" / "LaunchAgents"
+        agents.mkdir(parents=True, exist_ok=True)
+        plist = agents / (PC_SERVICE_LABEL + ".plist")
+        plist.write_text("""<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>Label</key><string>%s</string>
+  <key>ProgramArguments</key><array><string>%s</string><string>%s</string><string>--service</string></array>
+  <key>WorkingDirectory</key><string>%s</string>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><dict><key>SuccessfulExit</key><false/></dict>
+</dict></plist>
+""" % (PC_SERVICE_LABEL, _pc_python(folder), launcher, folder))
+        # Unloaded first: an update restarts the running Stump on its new files.
+        subprocess.run(["launchctl", "unload", str(plist)], capture_output=True)
+        r = subprocess.run(["launchctl", "load", "-w", str(plist)], capture_output=True, text=True)
+        if r.returncode != 0:
+            print("  " + red("launchctl: ") + (r.stderr or r.stdout).strip())
+            return False
+        print("  Starts at login (%s); running now. Log: %s" % (plist, folder / "stump.log"))
+        print("  Stop it: launchctl unload %s" % plist)
+        return True
+    if os.name == "nt":
+        cmd = '"%s" "%s" --service' % (_pc_python(folder, windowless=True), launcher)
+        r = subprocess.run(["schtasks", "/Create", "/F", "/SC", "ONLOGON", "/RL", "LIMITED",
+                            "/TN", "Stump", "/TR", cmd], capture_output=True, text=True)
+        if r.returncode != 0:
+            print("  " + red("schtasks: ") + (r.stderr or r.stdout).strip())
+            return False
+        # Restarted, so an update's new files are the ones running.
+        subprocess.run(["schtasks", "/End", "/TN", "Stump"], capture_output=True)
+        subprocess.run(["schtasks", "/Run", "/TN", "Stump"], capture_output=True)
+        print("  Starts at login (Task Scheduler: Stump); running now. Log: %s" % (folder / "stump.log"))
+        print('  Stop it: schtasks /End /TN Stump    Remove: schtasks /Delete /TN Stump /F')
+        return True
+    unit_dir = Path.home() / ".config" / "systemd" / "user"
+    unit_dir.mkdir(parents=True, exist_ok=True)
+    (unit_dir / "stump.service").write_text(
+        "[Unit]\nDescription=Stump\n\n[Service]\nWorkingDirectory=%s\nExecStart=%s %s --service\n"
+        "Restart=on-failure\n\n[Install]\nWantedBy=default.target\n" % (folder, _pc_python(folder), launcher))
+    subprocess.run(["systemctl", "--user", "daemon-reload"], capture_output=True)
+    r = subprocess.run(["systemctl", "--user", "enable", "stump"], capture_output=True, text=True)
+    if r.returncode == 0:
+        r = subprocess.run(["systemctl", "--user", "restart", "stump"], capture_output=True, text=True)
+    if r.returncode != 0:
+        print("  " + red("systemctl: ") + (r.stderr or r.stdout).strip())
+        return False
+    print("  Starts at login (systemd --user: stump); running now. Log: %s" % (folder / "stump.log"))
+    return True
+
+
+def setup_pc(folder=None, reconfigure=False):
+    """Sets up (or updates) a Stump on this computer. True if it's ready."""
+    banner("STUMP ON THIS COMPUTER")
+    fw = STUMP_APP_DIR
+    if not (fw / "example_node.py").is_file() or not (PC_SOURCE / "stump_pc.py").is_file():
+        print(red("Run this from the Stump download: final_firmware/ and pc/ must be next to provisioner.py."))
+        return False
+    if folder is None:
+        folder = ask("Folder for this Stump", str(pc_default_folder()))
+    folder = Path(folder).expanduser().resolve()
+    first = not (folder / "config.py").exists()
+    folder.mkdir(parents=True, exist_ok=True)
+    print("  Folder: %s (%s)" % (folder, "new" if first else "updating; its settings are kept"))
+    py = _pc_ensure_venv(folder)
+    if py is None:
+        return False
+    n = _pc_copy_firmware(fw, folder)
+    print("  Firmware: %d file(s) updated" % n)
+    profile = None
+    if first or reconfigure:
+        profile, _ = config_wizard("pc")
+        _pc_write_config(fw, folder, profile)
+        print("  config.py written")
+    packs = []
+    if profile and profile.get("packs"):
+        packs = [p for p in (load_pack(x) for x in profile["packs"]) if p]
+    elif not first:
+        found = discover_packs()
+        installed = [p for p in found if all((folder / name / "install.py").exists()
+                                             for name in p["spec"].get("plugins", []))]
+        if installed:
+            print("  Packs on this Stump, brought up to date: " + ", ".join(p["spec"]["name"] for p in installed))
+            packs = installed
+    if packs:
+        _pc_install_packs(folder, packs)
+    _pc_install_tools(fw, folder)
+    print("  Tools page: ready")
+    if ask_yes_no("Start this Stump automatically when you log in?", True):
+        _pc_autostart(folder)
+    else:
+        print("\n  Start it yourself with:")
+        print("    %s %s" % (_pc_python(folder), folder / "stump_pc.py"))
+    print("\n  More: docs/PC.md (hotspot set-up, the Heltec, chaining with CAM Stumps).")
+    return True
+
 def main():
     args = sys.argv[1:]
     if "--check-tools" in args:
@@ -3912,6 +4258,12 @@ def main():
             sys.exit(1)
         host = args[args.index("--host") + 1] if "--host" in args and args.index("--host") + 1 < len(args) else None
         sys.exit(0 if install_cert(args[idx + 1], args[idx + 2], args[idx + 3], host) else 1)
+    elif "--pc" in args:
+        # Stump on this computer (docs/PC.md): set up or update its folder.
+        idx = args.index("--pc")
+        folder = args[idx + 1] if idx + 1 < len(args) and not args[idx + 1].startswith("--") else None
+        ok = setup_pc(folder, reconfigure="--reconfigure" in args)
+        sys.exit(0 if ok else 1)
     elif "--upload-app" in args:
         idx = args.index("--upload-app")
         if idx + 1 >= len(args):

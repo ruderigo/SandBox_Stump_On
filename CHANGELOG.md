@@ -1,6 +1,18 @@
 # Changelog
 
 ## Unreleased
+- **Stump on a computer** (`docs/PC.md`): Windows, macOS or Linux, the
+  same firmware on regular Python 3 -- pages, chat, plugins, packs,
+  `/admin`, LXMF, propagation node -- with a Heltec on USB (new
+  `RNodeSerialInterface`, sharing the Wi-Fi bridge's RNode code) or over
+  Wi-Fi, and chaining with CAM Stumps. `python3 provisioner.py --pc` makes
+  its folder (firmware, packs, Tools page, its own venv), runs the wizard
+  adapted to a computer, and can start it at login (macOS LaunchAgent,
+  Windows scheduled task, Linux user service); running it again updates
+  and keeps the settings. `pc/` holds the launcher and the stand-ins for
+  MicroPython's modules (crypto from `cryptography`, checked against the
+  board's own code). Tested in CI on Windows, macOS and Linux, and on Linux
+  with a MicroPython CAM joining it over the chain.
 - **`GET /node.json`**: name, LXMF address, version and release,
   hotspot address, chain role and features, without joining the chat
   (asked for by the Android team, for discovering nodes).

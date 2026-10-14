@@ -9,6 +9,10 @@
 #
 # Run:  python3 stump_pc.py        (Windows: py stump_pc.py)
 # Stop: Ctrl+C
+#
+#   --service   what start-at-login runs: the log goes to stump.log in this
+#               folder (rotated at 5 MB), and the node is started again if
+#               it ever stops on an error (not after Ctrl+C).
 
 import os
 import sys
@@ -35,6 +39,13 @@ def main():
     except ImportError:
         _fail("Stump needs the 'cryptography' package:\n  python3 -m pip install cryptography pyserial")
 
+    # The log has symbols (✓ ✗ ✎ →): never let printing them stop the node
+    # (Windows prints to a pipe or file in its legacy code page otherwise).
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
     os.chdir(HERE)
     sys.path[:0] = [os.path.join(HERE, "pc_compat"), HERE]
     import stump_host
@@ -45,5 +56,56 @@ def main():
     import example_node  # noqa: F401  -- the node itself, exactly as on the board
 
 
+LOG = os.path.join(HERE, "stump.log")
+LOG_MAX = 5 * 1024 * 1024
+
+
+def _open_log():
+    try:
+        if os.path.getsize(LOG) > LOG_MAX:
+            os.replace(LOG, LOG + ".1")
+    except OSError:
+        pass
+    return open(LOG, "a", buffering=1, encoding="utf-8", errors="replace")
+
+
+def service():
+    """Runs the node in a child process, logging to stump.log, and starts
+    it again if it stops on an error (with a growing pause, up to a
+    minute, so a broken setup doesn't spin)."""
+    import subprocess
+    import time
+    log = _open_log()
+    wait = 2
+    while True:
+        log.write("\n[stump] starting %s\n" % time.strftime("%Y-%m-%d %H:%M:%S"))
+        t0 = time.time()
+        try:
+            code = subprocess.call([sys.executable, "-u", os.path.abspath(__file__)],
+                                   cwd=HERE, stdout=log, stderr=subprocess.STDOUT)
+        except KeyboardInterrupt:
+            log.write("[stump] stopped\n")
+            return
+        if code == 0:
+            log.write("[stump] stopped\n")
+            return
+        if time.time() - t0 > 300:
+            wait = 2
+        log.write("[stump] stopped with code %s; starting again in %d s\n" % (code, wait))
+        log.flush()
+        time.sleep(wait)
+        wait = min(wait * 2, 60)
+        log.close()
+        log = _open_log()
+
+
 if __name__ == "__main__":
-    main()
+    if "--service" in sys.argv:
+        service()
+    else:
+        if sys.stdout is None:          # pythonw.exe: no console to print to
+            sys.stdout = sys.stderr = _open_log()
+        try:
+            main()
+        except KeyboardInterrupt:
+            pass

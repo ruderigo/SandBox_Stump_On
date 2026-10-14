@@ -20,7 +20,8 @@ was removed or reworded:
 - The `stump.node` beacon: read its first four elements and ignore any
   more (see *Telling Stumps from people*).
 
-**After beta.2, on `main` for the next release:** `GET /node.json`, the
+**After beta.2, on `main` for the next release:** Stumps on a computer
+(see *Stumps on a computer*); `GET /node.json`, the
 node's name, LXMF address, release, hotspot address, chain role and
 features, without joining the chat — for discovery (see *Addresses*);
 and `/tools.json` gains `sections` and each file's `section`, with app
@@ -981,6 +982,16 @@ Wi-Fi rather than LoRa. Two things worth knowing:
   every 10 minutes. Over the chain there's no limit.
 
 `GET /chain.json` shows the Stump's place in a chain.
+
+## Stumps on a computer
+
+A Stump can also run on a laptop or desktop (`PC.md`): same pages, same
+API, same LXMF behaviour, and it chains like any other Stump. For a
+client the differences are addresses: its Wi-Fi is the computer's
+hotspot (`192.168.137.1` on Windows, `192.168.2.1` on macOS) or a
+router's, the web port may be 8080, and the sign-in pop-up may not
+appear. Take the address from the network you joined (and `/node.json`
+reports `ap_ip`), as for chained Stumps.
 
 ## Android: RNode over a local TCP bridge
 

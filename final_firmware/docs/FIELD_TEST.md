@@ -195,6 +195,26 @@ Two or three CAMs; one with a Heltec as the first Stump. See `CHAIN.md`.
 - [ ] **(hardware)** Restart the middle Stump: the last one links up again
       by itself.
 
+## 11. Stump on a computer
+
+See `PC.md`. A Mac or a Windows PC, and a Heltec.
+
+- [ ] `python3 provisioner.py --pc`: the wizard, then start-at-login.
+      The log (`Stump/stump.log`) says `visitors reach it at http://…/`.
+- [ ] Turn on the computer's hotspot (or join a travel router); a phone
+      joins it and opens that address: home, chat, Tools, `/admin`.
+- [ ] **(hardware)** The Heltec on USB (Heltec: "On USB" in the wizard):
+      the log says `RNode on USB: …` and `radio configured`. FireFly over
+      LoRa reaches the computer Stump (chat, a DM both ways).
+- [ ] `/admin` → Radio on the computer: change TX power; the Heltec
+      takes it (log: `radio configured`).
+- [ ] Chained with a CAM: the computer as the first Stump, the CAM
+      joining its hotspot with the same secret. `/admin` → Stump chain on
+      both; a chat line from a phone on the CAM reaches a phone on the
+      computer.
+- [ ] Log out, restart the computer: the Stump comes back by itself.
+- [ ] `git pull` and `--pc` again: settings kept, the Stump restarts.
+
 ## What to send back
 
 - The boot log (from power-on to `Announced as`); its first line names
