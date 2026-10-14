@@ -112,6 +112,14 @@ one Wi-Fi radio the computer can't also run a hotspot, so its visitors
 use that same network; a second network (Ethernet, a USB Wi-Fi adapter,
 a router) gives it its own.
 
+**Checking the link.** The wizard checks it, step by step, and says what
+to fix when a step fails (not on the CAM's Wi-Fi, the CAM's chain off,
+different secrets...). Any time after:
+
+```
+python3 provisioner.py --check-chain
+```
+
 ## Settings
 
 In the folder's `config.py` (the wizard writes them):

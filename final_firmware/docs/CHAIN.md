@@ -109,6 +109,10 @@ It prints `in the chain` once the Stump has let it in.
 
 ## Checking it
 
+- **From a computer:** `python3 provisioner.py --check-chain 192.168.<n>.1`,
+  on that Stump's Wi-Fi: whether it joined the Stump above, whether that
+  one answers, and what to fix if not. For a Stump on the computer
+  itself: `--check-chain` alone.
 - **Boot log:** `[chain] member on 192.168.5.1`, `[chain] uplink:
   192.168.4.23 via 192.168.4.1 (signal -52 dBm)`.
 - **`/admin` → Stump chain:** the Stump above (and when it last

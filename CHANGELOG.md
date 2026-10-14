@@ -1,6 +1,13 @@
 # Changelog
 
 ## Unreleased
+- **Is the chain linked?** When a computer Stump joins another Stump, the
+  `--pc` wizard checks each step before and after it starts: on that
+  Stump's network, a Stump answers there, its chain is on, the secrets
+  match (a real hello), and once running, the Stump above answers it and
+  lists it. Each failure says what to fix. Any time:
+  `python3 provisioner.py --check-chain` (this computer's Stump) or
+  `--check-chain 192.168.5.1` (a CAM's, from a computer on its Wi-Fi).
 - **Wi-Fi names picked from a list.** Wherever the Provisioner wizard
   asks for a Wi-Fi name (the network to join, the Stump a chain member
   joins, the Heltec's network), it lists the networks this computer

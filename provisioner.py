@@ -31,6 +31,7 @@ Usage:
     python3 provisioner.py --check-tools   # verify esptool/mpremote/rnodeconf present
     python3 provisioner.py --pc [FOLDER]   # Stump on THIS computer: set up or update (docs/PC.md)
     python3 provisioner.py --pc --reconfigure         # ...and run its config wizard again
+    python3 provisioner.py --check-chain [FOLDER|ADDRESS]  # is the chain linked? what to fix if not
 
 Nothing here talks to a real board unless you run it on a machine that has
 one plugged in. Every external call is wrapped so a missing tool or absent
@@ -212,7 +213,7 @@ EXPECTED_FILE_HASHES = {
     "captive_portal.py": "35cb3a279ecc42db",
     "chain.py": "346632abeeaba698",
     "config.py": "4b546033fac3572a",
-    "docs/CHAIN.md": "b5cd3d95faadf6bf",
+    "docs/CHAIN.md": "83adce093766b03c",
     "docs/CLIENT_QUICKSTART.md": "2b5aa636a3991ad7",
     "docs/COMMANDS.md": "dc1e12390a36a0e9",
     "docs/FIELD_TEST.md": "318c01f1bc15b078",
@@ -220,7 +221,7 @@ EXPECTED_FILE_HASHES = {
     "docs/HOME_BRANDING.md": "e1a1a9cf854dcdce",
     "docs/HTTPS_SETUP.md": "30171f88d7a75712",
     "docs/PACKS.md": "2e89e3c28d80d72d",
-    "docs/PC.md": "2b0f6afb38239823",
+    "docs/PC.md": "692583bf55478f46",
     "docs/PLUGINS.md": "3f5b4a5ee6844305",
     "example_node.py": "b3dda61339f0699e",
     "features.py": "7fca96873d59d2d3",
@@ -3066,6 +3067,8 @@ def config_wizard(board_type):
                     print("    A number from 5 to 254.")
                 chain_cfg["secret"] = ask("  Chain secret (the same as on the first Stump)", "") or ""
                 chain_cfg["channel"] = 0
+                print("  Once it's up, check the link from a computer on its Wi-Fi:")
+                print("    python3 provisioner.py --check-chain 192.168.%d.1" % chain_cfg["subnet"])
             if not chain_cfg["secret"]:
                 print("  " + yellow("No secret: anyone on a Stump's Wi-Fi could join the chain."))
         profile["chain"] = chain_cfg
@@ -4324,6 +4327,245 @@ def _pc_autostart(folder):
     return True
 
 
+# ── Is the chain linked? (docs/CHAIN.md, docs/PC.md) ─────────────────
+# Run by the --pc wizard when this computer joins another Stump, and on
+# demand with --check-chain. Each step that fails says what to do.
+
+CHAIN_PORT = 4242
+CHAIN_HELLO_MAGIC = b"STUMPCHAIN1"
+
+
+def _get_json(url, timeout=4):
+    import urllib.request
+    with urllib.request.urlopen(url, timeout=timeout) as r:
+        return json.loads(r.read().decode("utf-8", "replace"))
+
+
+def _route_ip(dest):
+    """This computer's address on the way to `dest` (sends nothing)."""
+    import socket
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect((dest, CHAIN_PORT))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except OSError:
+        return None
+
+
+def chain_hello(parent_ip, secret, my_ip, timeout=3.0):
+    """Says hello to the Stump at parent_ip as a chain member would, with
+    the chain secret. True if it let us in, False if it didn't answer."""
+    import hashlib, hmac, socket
+    tag = b""
+    if secret:
+        tag = hmac.new(secret.encode(), (my_ip + ">" + parent_ip).encode(), hashlib.sha256).digest()[:16]
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        s.bind((my_ip, 0))              # any port: the answer comes back to it
+        s.settimeout(0.5)
+        end = time.time() + timeout
+        while time.time() < end:
+            s.sendto(CHAIN_HELLO_MAGIC + tag, (parent_ip, CHAIN_PORT))
+            try:
+                data, addr = s.recvfrom(256)
+                if addr[0] == parent_ip and data.startswith(CHAIN_HELLO_MAGIC):
+                    return True
+            except socket.timeout:
+                pass
+        return False
+    finally:
+        s.close()
+
+
+def chain_preflight(parent_ip, secret, ssid="", hello=chain_hello, get=_get_json, route=_route_ip):
+    """Before the Stump on this computer starts: can it join the Stump at
+    parent_ip? A list of (ok, what, fix); stops at the first failure,
+    since the later steps depend on it."""
+    out = []
+    where = "'%s'" % ssid if ssid else "that Stump's Wi-Fi"
+    prefix = parent_ip.rsplit(".", 1)[0] + "."
+    mine = route(parent_ip)
+    if not mine or not mine.startswith(prefix):
+        out.append((False, "This computer is on %s's network" % parent_ip,
+                    "It isn't (its address is %s). Join %s from this computer's Wi-Fi menu, "
+                    "then check again." % (mine or "unknown", where)))
+        return out
+    out.append((True, "This computer is on %s's network (as %s)" % (parent_ip, mine), ""))
+    try:
+        node = get("http://%s/node.json" % parent_ip)
+        who = "%s, Stump %s" % (node.get("name") or "?", node.get("version") or "?")
+    except Exception:
+        node, who = None, None
+    try:
+        chain = get("http://%s/chain.json" % parent_ip)
+    except Exception as e:
+        if node is None:
+            out.append((False, "A Stump answers at http://%s/" % parent_ip,
+                        "Nothing answers (%s). Is that Stump on, and is %s its address? A CAM's is "
+                        "192.168.<its CHAIN_SUBNET>.1: 192.168.4.1 unless changed. Opening "
+                        "http://%s/ in a browser shows it." % (e, parent_ip, parent_ip)))
+        else:
+            out.append((False, "%s knows about chains" % who,
+                        "Its firmware is older than the chain: update it (provisioner.py --upload-app PORT)."))
+        return out
+    out.append((True, "A Stump answers at %s%s" % (parent_ip, " (%s)" % who if who else ""), ""))
+    if not chain.get("enabled"):
+        out.append((False, "That Stump is in a chain",
+                    "It isn't. On it, set CHAIN_ENABLED = True and a CHAIN_SECRET in its config.py "
+                    "(or run its wizard: chain > 'The first Stump'), then restart it."))
+        return out
+    out.append((True, "That Stump is in a chain (%s)" % chain.get("role"), ""))
+    if chain.get("secret") and not secret:
+        out.append((False, "The same chain secret on both",
+                    "That Stump has a chain secret and this one has none. Run --pc --reconfigure "
+                    "and enter its secret (CHAIN_SECRET in its config.py)."))
+        return out
+    if secret and not chain.get("secret"):
+        out.append((False, "The same chain secret on both",
+                    "That Stump has no chain secret and this one does. Give both the same one."))
+        return out
+    if not hello(parent_ip, secret, mine):
+        out.append((False, "That Stump lets this computer into the chain",
+                    "It didn't answer the hello. Most often the chain secrets differ (its log then "
+                    "says 'refused (wrong chain secret)'): copy CHAIN_SECRET exactly from its "
+                    "config.py. If they match, this computer's firewall may be blocking the answer: "
+                    "allow Python (macOS: System Settings > Network > Firewall)."))
+        return out
+    out.append((True, "That Stump lets this computer into the chain (the secret matches)", ""))
+    return out
+
+
+def _print_checks(checks):
+    for ok, what, fix in checks:
+        print("  %s %s" % (green("✓") if ok else red("✗"), what))
+        if fix:
+            print("      → " + fix)
+    return all(ok for ok, _, _ in checks)
+
+
+def _read_folder_config(folder):
+    import runpy
+    sys.path.insert(0, str(Path(folder)))     # config.py imports from its folder
+    try:
+        return runpy.run_path(str(Path(folder) / "config.py"))
+    except Exception as e:
+        print(red("  Can't read %s: %s" % (Path(folder) / "config.py", e)))
+        return None
+    finally:
+        sys.path.remove(str(Path(folder)))
+
+
+def chain_live(folder, parent_ip, wait=60, get=_get_json):
+    """Once the Stump on this computer runs: has the Stump above answered
+    it, and does it list it below? A list of (ok, what, fix)."""
+    cfg = _read_folder_config(folder) or {}
+    port = int(cfg.get("PC_HTTP_PORT", 80) or 80)
+    status, url = None, None
+    end = time.time() + wait
+    print("  Waiting for the link (up to %d s)..." % wait)
+    while time.time() < end:
+        for p in dict.fromkeys((port, 8080)):
+            u = "http://127.0.0.1:%d/chain.json" % p
+            try:
+                status, url = get(u), u
+                break
+            except Exception:
+                pass
+        up = (status or {}).get("uplink") or {}
+        if up.get("parent_heard_s") is not None:
+            break
+        time.sleep(3)
+    if status is None:
+        return [(False, "The Stump on this computer is running",
+                 "It doesn't answer. Start it (%s %s) and check again with "
+                 "--check-chain; if it stops, the end of stump.log says why."
+                 % (_pc_python(folder), Path(folder) / "stump_pc.py"))]
+    out = [(True, "The Stump on this computer is running", "")]
+    up = status.get("uplink") or {}
+    if status.get("role") != "member":
+        out.append((False, "It's set to join another Stump",
+                    "Its config.py makes it the first Stump (CHAIN_UPLINK_SSID is empty): run --pc --reconfigure."))
+        return out
+    if up.get("parent_heard_s") is None:
+        out.append((False, "The Stump above answers it",
+                    "No answer yet from %s. Check that its config.py's CHAIN_SECRET matches, and look "
+                    "for '[chain]' lines in stump.log." % (up.get("parent") or parent_ip)))
+        return out
+    out.append((True, "The Stump above answers it (last %d s ago)" % up["parent_heard_s"], ""))
+    try:
+        below = get("http://%s/chain.json" % parent_ip).get("below", [])
+        mine = up.get("ip")
+        out.append((mine in below, "%s lists this computer below it" % parent_ip,
+                    "" if mine in below else "Not yet (it lists %s): check again in a minute." % (below or "nobody")))
+    except Exception:
+        pass
+    return out
+
+
+def check_remote_chain(ip, get=_get_json):
+    """From a computer on a Stump's Wi-Fi: that Stump's place in its chain."""
+    try:
+        st = get("http://%s/chain.json" % ip)
+    except Exception as e:
+        return [(False, "A Stump answers at http://%s/" % ip,
+                 "Nothing answers (%s): join that Stump's Wi-Fi first, and check its address." % e)]
+    out = [(True, "A Stump answers at %s" % ip, "")]
+    if not st.get("enabled"):
+        out.append((False, "It's in a chain", "It isn't: CHAIN_ENABLED = True in its config.py, then restart it."))
+        return out
+    if st.get("role") == "root":
+        below = st.get("below") or []
+        out.append((True, "It's the first Stump; below it: %s" % (", ".join(below) or "nobody yet"), ""))
+        return out
+    up = st.get("uplink") or {}
+    if not up.get("ip"):
+        out.append((False, "It joined the Wi-Fi of the Stump above ('%s')" % up.get("ssid"),
+                    "Not yet. Check CHAIN_UPLINK_SSID (exactly that Stump's Wi-Fi name), "
+                    "CHAIN_UPLINK_PASS, and that the Stump above is on and in range."))
+        return out
+    out.append((True, "It joined '%s' as %s" % (up.get("ssid"), up.get("ip")), ""))
+    if up.get("parent_heard_s") is None:
+        out.append((False, "The Stump above (%s) answers it" % up.get("parent"),
+                    "No answer: the chain secrets differ, or the Stump above isn't in a chain. "
+                    "Give both the same CHAIN_SECRET and CHAIN_ENABLED = True."))
+        return out
+    out.append((True, "The Stump above (%s) answers it (last %d s ago)" % (up.get("parent"), up["parent_heard_s"]), ""))
+    return out
+
+
+def check_chain(target=None):
+    """--check-chain [FOLDER | ADDRESS]."""
+    import re
+    banner("STUMP CHAIN CHECK")
+    if target and re.match(r"^\d+\.\d+\.\d+\.\d+$", target):
+        return _print_checks(check_remote_chain(target))
+    folder = Path(target).expanduser() if target else pc_default_folder()
+    cfg = _read_folder_config(folder)
+    if cfg is None:
+        print("  No Stump on this computer at %s. For a Stump elsewhere: --check-chain ITS.ADDRESS" % folder)
+        return False
+    if not cfg.get("CHAIN_ENABLED"):
+        print("  The Stump in %s isn't in a chain (CHAIN_ENABLED is off): --pc --reconfigure." % folder)
+        return False
+    parent = cfg.get("PC_CHAIN_PARENT_IP")
+    if not cfg.get("CHAIN_UPLINK_SSID") or not parent:
+        print("  It's the first Stump of its chain. Who joined it:")
+        try:
+            st = _get_json("http://127.0.0.1:%d/chain.json" % int(cfg.get("PC_HTTP_PORT", 80) or 80))
+            print("    " + (", ".join(st.get("below") or []) or "nobody yet"))
+            return True
+        except Exception:
+            print(red("    It isn't running: start it, and check again."))
+            return False
+    ok = _print_checks(chain_preflight(parent, cfg.get("CHAIN_SECRET", ""), cfg.get("CHAIN_UPLINK_SSID", "")))
+    if ok:
+        ok = _print_checks(chain_live(folder, parent, wait=30))
+    print("\n  " + (green("The chain is linked.") if ok else "Fix what's marked ✗, then: python3 provisioner.py --check-chain"))
+    return ok
+
+
 def setup_pc(folder=None, reconfigure=False):
     """Sets up (or updates) a Stump on this computer. True if it's ready."""
     banner("STUMP ON THIS COMPUTER")
@@ -4361,11 +4603,27 @@ def setup_pc(folder=None, reconfigure=False):
         _pc_install_packs(folder, packs)
     _pc_install_tools(fw, folder)
     print("  Tools page: ready")
+    chain = (profile or {}).get("chain") or {}
+    joins = bool(chain.get("enabled") and chain.get("uplink_ssid") and chain.get("parent_ip"))
+    if joins:
+        print("\n  Checking that this computer can join %s:" % chain["parent_ip"])
+        while not _print_checks(chain_preflight(chain["parent_ip"], chain.get("secret", ""), chain["uplink_ssid"])):
+            if not ask_yes_no("  Fix it, then check again? (no: carry on, check later with --check-chain)", True):
+                break
+            print()
+    started = False
     if ask_yes_no("Start this Stump automatically when you log in?", True):
-        _pc_autostart(folder)
+        started = _pc_autostart(folder)
     else:
         print("\n  Start it yourself with:")
         print("    %s %s" % (_pc_python(folder), folder / "stump_pc.py"))
+    if joins:
+        if started:
+            print("\n  Checking the link now that it runs:")
+            ok = _print_checks(chain_live(folder, chain["parent_ip"]))
+            print("  " + (green("The chain is linked.") if ok else "Fix what's marked ✗, then: python3 provisioner.py --check-chain"))
+        else:
+            print("\n  Once it runs, check the chain with:  python3 provisioner.py --check-chain")
     print("\n  More: docs/PC.md (hotspot set-up, the Heltec, chaining with CAM Stumps).")
     return True
 
@@ -4420,6 +4678,10 @@ def main():
             sys.exit(1)
         host = args[args.index("--host") + 1] if "--host" in args and args.index("--host") + 1 < len(args) else None
         sys.exit(0 if install_cert(args[idx + 1], args[idx + 2], args[idx + 3], host) else 1)
+    elif "--check-chain" in args:
+        idx = args.index("--check-chain")
+        target = args[idx + 1] if idx + 1 < len(args) and not args[idx + 1].startswith("--") else None
+        sys.exit(0 if check_chain(target) else 1)
     elif "--pc" in args:
         # Stump on this computer (docs/PC.md): set up or update its folder.
         idx = args.index("--pc")

@@ -165,7 +165,8 @@ def main():
             failed.append("provisioner")
     # Stump on a computer (docs/PC.md): the same firmware on regular Python.
     # Needs the cryptography and pyserial packages (CI installs them).
-    for name, script in (("pc_rnode_serial", "rnode_serial_test.py"), ("pc_chain", "pc_chain_test.py")):
+    for name, script in (("pc_rnode_serial", "rnode_serial_test.py"), ("pc_chain", "pc_chain_test.py"),
+                         ("pc_joins_cam", "pc_joins_cam_test.py")):
         if only and name not in only:
             continue
         missing = [m for m in ("cryptography", "serial") if importlib.util.find_spec(m) is None]
