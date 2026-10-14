@@ -350,16 +350,23 @@ def list_tools(section=""):
 # The Tools page is sectioned: each tool in its own folder of tools/,
 # with a README.md that says what it is (its first "# " line is the
 # section's title, the first paragraph under it the summary). Loose files
-# in tools/ itself are still offered, under "Other files".
+# in tools/ itself are still offered, under "Other files". A README in
+# the visitor's language, README.fr.md / README.es.md, is shown instead
+# when there is one.
 README = "README.md"
+
+
+def _is_readme(n):
+    return n == README or (n.startswith("README.") and n.endswith(".md"))
 README_MAX = 8192            # shown on the page up to this size
 
 
-def tool_sections():
-    """[{"dir", "title", "summary", "readme", "files": [(name, size)]}],
-    folders in name order, then the loose files (dir "") if any. "readme"
-    is the README's text (up to README_MAX) or None; README.md itself
-    isn't in "files"."""
+def tool_sections(lang=None):
+    """[{"dir", "title", "summary", "readme", "readme_file", "files":
+    [(name, size)]}], folders in name order, then the loose files (dir "")
+    if any. "readme" is the README's text (up to README_MAX), in `lang`
+    when the folder has one (README.<lang>.md), or None; the READMEs
+    aren't in "files"."""
     if not sd_ok:
         return []
     try:
@@ -370,19 +377,24 @@ def tool_sections():
     for d in [n for n in names if _is_dir(TOOLS_DIR + "/" + n)] + [""]:
         base = TOOLS_DIR + ("/" + d if d else "")
         files = []
-        for n in list_tools(d):
-            if d and n == README:
+        names_here = list_tools(d)
+        for n in names_here:
+            if d and _is_readme(n):
                 continue
             try:
                 files.append((n, os.stat(base + "/" + n)[6]))
             except OSError:
                 pass
-        text = _read_readme(base + "/" + README) if d else None
+        rname = None
+        if d:
+            local = "README.%s.md" % lang if lang else None
+            rname = local if local in names_here else (README if README in names_here else None)
+        text = _read_readme(base + "/" + rname) if rname else None
         if not files and not text:
             continue
         title, summary = _readme_head(text) if text else (None, "")
         out.append({"dir": d, "title": title or d, "summary": summary,
-                    "readme": text, "files": files})
+                    "readme": text, "readme_file": rname, "files": files})
     return out
 
 
@@ -672,24 +684,28 @@ def save_home_config(place, height, hidden):
 
 
 def home_status(lang):
-    """For /admin: what the node sees in home/, in plain words."""
+    """For /admin: what the node sees in home/, in plain words, in the
+    reader's language."""
+    import i18n
     if not sd_ok:
-        return "no SD card"
+        return i18n.t("home_st_no_sd", lang)
     files = _home_html_files()
     if files is None:
-        return "no home folder on the SD card"
+        return i18n.t("home_st_no_folder", lang)
     b = home_branding(lang)
     if b is None and home_config()["hidden"] and files:
-        return "hidden from the home page (turned off in /admin) -- the Stump logo shows"
+        return i18n.t("home_st_hidden", lang)
     if b is not None:
-        how = "a full page, in a %d px frame" % b["height"] if b["kind"] == "page" else "a section"
-        return "home/%s: %s, placed %s" % (b["name"], how, b["place"])
+        how = (i18n.t("home_st_page", lang, height=b["height"]) if b["kind"] == "page"
+               else i18n.t("home_st_section", lang))
+        return i18n.t("home_st_in_use", lang, name=b["name"], how=how,
+                      place=i18n.t("home_st_place_" + b["place"], lang))
     if not files:
-        return "home/ has no .html file"
+        return i18n.t("home_st_no_html", lang)
     big = [n for n in files if n.lower().startswith("home") and _size(HOME_DIR + "/" + n) > HOME_MAX_BYTES]
     if big:
-        return "home/%s is over %d KB: ignored (a piece of HTML must stay under that)" % (big[0], HOME_MAX_BYTES // 1024)
-    return "home/ has several .html files (%s): name the one to use home.html" % ", ".join(files)
+        return i18n.t("home_st_too_big", lang, name=big[0], kb=HOME_MAX_BYTES // 1024)
+    return i18n.t("home_st_several", lang, names=", ".join(files))
 
 
 def _size(path):

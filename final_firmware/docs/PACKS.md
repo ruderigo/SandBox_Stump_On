@@ -61,8 +61,10 @@ Other commands:
 
 **A pack's tools section** gets its title and summary from a
 `README.md` in `tools/`: its first `# ` line, and the paragraph under
-it. The whole README folds out on the page under the files. Without
-one, the section is titled with the pack's name.
+it. The whole README folds out on the page under the files. Add
+`README.fr.md` and `README.es.md` beside it for French and Spanish
+readers (each falls back to `README.md`). Without one, the section is
+titled with the pack's name.
 
 Files in `tools/` or `home/` over 1 MB aren't copied over USB (about
 1 KB/s): the Provisioner says which, for a card reader.

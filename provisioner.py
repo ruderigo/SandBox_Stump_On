@@ -204,7 +204,7 @@ DEFAULT_CREDIT_WEIGHTS = {"video": 3, "music": 2, "document": 1, "other": 1}
 #   [print(f'    {str(f.relative_to(\"final_firmware\"))!r}: {hashlib.sha256(f.read_bytes()).hexdigest()[:16]!r},')
 #    for f in sorted(Path('final_firmware').rglob('*')) if f.is_file()]"
 EXPECTED_FILE_HASHES = {
-    "barkeep.py": "a314267aa1f71766",
+    "barkeep.py": "5aff823cfad721e8",
     "billboard.py": "23b3263eb7fddcf3",
     "boot_common.py": "d1f60dd4434752bf",
     "captive_portal.py": "35cb3a279ecc42db",
@@ -222,10 +222,10 @@ EXPECTED_FILE_HASHES = {
     "example_node.py": "b3dda61339f0699e",
     "features.py": "7fca96873d59d2d3",
     "flasher_ui.py": "1d3035b1132bc87e",
-    "fserv.py": "b1a890c80e969652",
+    "fserv.py": "e627bfe479d14bb2",
     "fservbot/plugin.json": "fecf7cbfff4e7d97",
-    "i18n.py": "c34aa079f87abc6f",
-    "layout.py": "e4dd81500a86f71d",
+    "i18n.py": "6c7a93b2236d8f3f",
+    "layout.py": "fb82a2d1ed9f00da",
     "lib/bz2_fast_xtensawin.mpy": "ac55d9eda2126432",
     "lib/ed25519_fast_xtensawin.mpy": "96e74dac45f91687",
     "lib/ed25519_iram.mpy": "96e74dac45f91687",
@@ -240,7 +240,7 @@ EXPECTED_FILE_HASHES = {
     "rrc.py": "edda82c4b71b7915",
     "rrc_mesh.py": "42aa4bb1417ce208",
     "rrc_ui.py": "6f30c2c8c1655093",
-    "stump_tls.py": "f096a27c3cbfdae8",
+    "stump_tls.py": "c4924c237805ae84",
     "stumpid/plugin.json": "68cc159374a5c102",
     "theme.py": "dfc65e16f93175f0",
     "third_party/codec2/COPYING": "9ebb6f82b7380a62",
@@ -366,12 +366,18 @@ EXPECTED_FILE_HASHES = {
     "third_party/opus/build_opus_wasm.sh": "e42a07ee5e114e14",
     "third_party/opus/stump_opus.c": "833eb43c52d6c1b2",
     "tools_payload/apps/FireFly-RK3326-0.6.2.zip": "8d0277ddec4d715b",
+    "tools_payload/apps/README.es.md": "26ec9046d7c4447a",
+    "tools_payload/apps/README.fr.md": "afdbb2570e4cb770",
     "tools_payload/apps/README.md": "2e0f5a7aa18abdaf",
+    "tools_payload/flasher/README.es.md": "51131571a4aead12",
+    "tools_payload/flasher/README.fr.md": "3783d700c0d5a21f",
     "tools_payload/flasher/README.md": "b5d9f0f3808bf523",
     "tools_payload/flasher/catalog.json": "8dc38061d6bf49a3",
     "tools_payload/flasher/esptool-bundle.js": "ef7d5a237d3f273e",
     "tools_payload/flasher/esptool-js-LICENSE.txt": "1c25f29242785d63",
     "tools_payload/images/README.txt": "10dbf1ed3e3eee26",
+    "tools_payload/provisioner/README.es.md": "a11e1f5793fa473d",
+    "tools_payload/provisioner/README.fr.md": "65c68d1ca42a6c13",
     "tools_payload/provisioner/README.md": "dbf678077919e6c2",
     "urns/__init__.py": "4a83ee3f5cd42ca4",
     "urns/buffer.py": "b1da1d0723340421",
@@ -2495,8 +2501,11 @@ def _install_tools_on_node(port):
         payload = here / "tools_payload"
     if payload.is_dir():
         # Each section's README.md (what the Tools page shows about it).
+        # Each in English (README.md) and, when there is one, the visitor's
+        # language (README.fr.md, README.es.md).
         for src, sec in (("provisioner", "provisioner"), ("flasher", "flasher"), ("apps", "firefly")):
-            push(payload / src / "README.md", ":/sd/tools/%s/README.md" % sec, sec + "/README.md")
+            for rd in sorted((payload / src).glob("README*.md")):
+                push(rd, ":/sd/tools/%s/%s" % (sec, rd.name), sec + "/" + rd.name)
         fl = payload / "flasher"
         push(fl / "esptool-bundle.js", ":/sd/tools/flasher/esptool-bundle.js", "esptool-bundle.js")
         push(fl / "esptool-js-LICENSE.txt", ":/sd/tools/flasher/esptool-js-LICENSE.txt", "licence")
@@ -2512,7 +2521,7 @@ def _install_tools_on_node(port):
         apps_dir = payload / "apps"
         if apps_dir.is_dir():
             for app in sorted(apps_dir.iterdir()):
-                if not app.is_file() or app.name == "README.md":
+                if not app.is_file() or (app.name.startswith("README") and app.name.endswith(".md")):
                     continue
                 if app.stat().st_size > APP_USB_MAX:
                     print("    %s (%d MB): too big to copy over USB -- put it on the SD card"

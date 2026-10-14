@@ -30,6 +30,11 @@
   first in the navigation row by default.
 - `/admin` → Plugins: one tidy row per plugin (name, state, version and
   RAM, commands), the button beside it, or under it on a phone.
+- **Tools page in the reader's language:** each section can have
+  `README.fr.md` and `README.es.md` beside its `README.md`; the built-in
+  sections (Provisioner, flasher, FireFly apps) and the rnfs pack now
+  have all three. `/admin`'s home-section status and HTTPS reason are
+  translated too (they were English in every language).
 - Fixed: **`--upload-app` replaced the node's `config.py`** with the one
   in the firmware folder, so an update could change a node's name,
   Wi-Fi, passwords or theme (the theme was what showed). It now keeps

@@ -5,9 +5,9 @@
 # from /admin, and saved on the board's own memory like the theme. Hiding
 # only takes a button or tile off the row (its page still answers at its
 # address); switching a whole feature off is FEATURES in config.py.
-# Home comes first by default. A key the saved order doesn't know (a feature switched back
-# on, a new plugin card) goes at the end; one that no longer exists is
-# skipped, so an old saved order never hides anything or breaks a page.
+# Home comes first by default. A key the saved order doesn't know (a
+# feature switched back on, a new plugin card) goes at the end; one that
+# no longer exists is skipped, so an old saved order never breaks a page.
 
 LAYOUT_FILE = "/layout.json"
 

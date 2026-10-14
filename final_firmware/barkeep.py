@@ -1071,7 +1071,7 @@ def _render_admin_tools_section(lang, pw):
     if not fserv.sd_ok:
         return ""
     out = "<h2 class='sub'>" + i18n.t("admin_tools_header", lang) + "</h2>"
-    secs = fserv.tool_sections()
+    secs = fserv.tool_sections(lang)
     if not secs:
         return out + "<p class='sub'>" + i18n.t("admin_tools_none", lang) + "</p>"
     rows = []
@@ -1106,7 +1106,8 @@ def _render_admin_tls_line(lang):
     st = tls.status()
     head = "<h2 class='sub'>HTTPS</h2>"
     if not st["active"]:
-        return head + "<p class='sub'>" + i18n.t("admin_tls_off", lang, reason=billboard._esc(st["reason"])) + "</p>"
+        why = i18n.t("admin_tls_why_" + (st.get("code") or "failed"), lang, detail=st.get("detail") or st["reason"])
+        return head + "<p class='sub'>" + i18n.t("admin_tls_off", lang, reason=billboard._esc(why)) + "</p>"
     try:
         import propagation
         now = propagation.unix_now()
@@ -1663,7 +1664,7 @@ def _render_tools_page(lang):
     # and summary from its README.md, its files, and the README itself
     # folded underneath. The FireFly apps are listed above instead.
     sections = []
-    for sec in fserv.tool_sections():
+    for sec in fserv.tool_sections(lang):
         files = [(n, size) for n, size in sec["files"] if not fserv.is_app_file(n)]
         if not files:
             continue
@@ -2820,7 +2821,7 @@ async def _handle(reader, writer, secure=False):
             # "files": every other file, flat, as before ("section" says
             # which folder); "sections": the same grouped as on the page.
             files, sections = [], []
-            for sec in fserv.tool_sections():
+            for sec in fserv.tool_sections(i18n.get_lang(identifier)):
                 prefix = sec["dir"] + "/" if sec["dir"] else ""
                 sfiles = [{"name": n, "size": size, "section": sec["dir"],
                            "url": "/tool?f=" + _url_encode(prefix + n)}
@@ -2828,7 +2829,7 @@ async def _handle(reader, writer, secure=False):
                 files.extend(sfiles)
                 if sec["dir"] and sfiles:
                     sections.append({"dir": sec["dir"], "title": sec["title"], "summary": sec["summary"],
-                                     "readme": ("/tool?f=" + _url_encode(prefix + fserv.README))
+                                     "readme": ("/tool?f=" + _url_encode(prefix + sec["readme_file"]))
                                      if sec["readme"] else None,
                                      "files": sfiles})
                 elif sfiles:
@@ -3086,7 +3087,7 @@ async def run_barkeep_server(port=80):
             await asyncio.start_server(_handle_tls, "0.0.0.0", 443, ssl=ctx)
             print("[web] HTTPS on 443 for", tls.status()["host"])
         except Exception as e:
-            tls.mark_failed("couldn't open port 443: %s" % e)
+            tls.mark_failed("couldn't open port 443: %s" % e, "port", str(e))
             print("[web] HTTPS not started:", e)
     else:
         print("[web] HTTPS off:", tls.status()["reason"])

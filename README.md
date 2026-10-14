@@ -456,7 +456,10 @@ instead of carrying a USB stick.
 **Each tool has its own folder, with its own `README.md`**, and the
 `/tools` page shows one section per folder: the README's first `# `
 line is the section's title, the paragraph under it the summary, and
-the whole README folds out under the files. The READMEs ship in
+the whole README folds out under the files. A README in the visitor's
+language, `README.fr.md` or `README.es.md` beside it, is shown instead
+when there is one; the built-in sections and the rnfs pack have all
+three. The READMEs ship in
 `tools_payload/<folder>/README.md`; a pack's `tools/` folder becomes
 its own section (`tools/<pack name>/`, see `docs/PACKS.md`).
 

@@ -45,7 +45,10 @@ def _ap_prefix():
         pass
     return AP_PREFIX
 
-_state = {"active": False, "reason": "no certificate installed", "host": None, "not_after": None}
+# "code" names the reason for /admin, which says it in the reader's
+# language (i18n admin_tls_why_<code>); "detail" is the technical part.
+_state = {"active": False, "reason": "no certificate installed", "code": "no_cert", "detail": "",
+          "host": None, "not_after": None}
 
 
 def _read(path):
@@ -59,7 +62,7 @@ def context():
         info = json.loads(_read(INFO_FILE))
         cert, key = _read(CERT_FILE), _read(KEY_FILE)
     except (OSError, ValueError):
-        _state.update(active=False, reason="no certificate installed")
+        _state.update(active=False, reason="no certificate installed", code="no_cert", detail="")
         return None
     _state.update(host=info.get("host"), not_after=info.get("not_after"))
     try:
@@ -67,17 +70,17 @@ def context():
         ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         ctx.load_cert_chain(cert, key)
     except (ImportError, AttributeError) as e:
-        _state.update(active=False, reason="this MicroPython can't serve TLS (%s)" % e)
+        _state.update(active=False, reason="this MicroPython can't serve TLS (%s)" % e, code="no_tls", detail=str(e))
         return None
     except Exception as e:
-        _state.update(active=False, reason="certificate or key rejected: %s" % e)
+        _state.update(active=False, reason="certificate or key rejected: %s" % e, code="rejected", detail=str(e))
         return None
-    _state.update(active=True, reason="")
+    _state.update(active=True, reason="", code="", detail="")
     return ctx
 
 
-def mark_failed(reason):
-    _state.update(active=False, reason=reason)
+def mark_failed(reason, code="failed", detail=""):
+    _state.update(active=False, reason=reason, code=code, detail=detail or reason)
 
 
 def status():

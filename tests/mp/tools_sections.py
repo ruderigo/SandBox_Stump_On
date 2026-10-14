@@ -60,6 +60,14 @@ apps = fserv.find_apps()
 check("apps found in their folder", apps["android"]["file"] == "firefly/FireFly-Android-0.2.11.apk"
       and apps["android"]["name"] == "FireFly-Android-0.2.11.apk", apps)
 
+open(T + '/rnfs/README.fr.md', 'w').write("# rnfs — système de fichiers Reticulum\n\nDes fichiers sur le réseau.\n")
+fr = {x["dir"]: x for x in fserv.tool_sections('fr')}["rnfs"]
+check("French README for a French reader", fr["title"] == "rnfs — système de fichiers Reticulum"
+      and fr["summary"] == "Des fichiers sur le réseau." and fr["readme_file"] == "README.fr.md", fr)
+es = {x["dir"]: x for x in fserv.tool_sections('es')}["rnfs"]
+check("no Spanish one: the default README", es["readme_file"] == "README.md" and es["title"].startswith("rnfs — Reticulum"), es)
+check("translated READMEs aren't listed as files", "README.fr.md" not in [n for n, _ in fr["files"]])
+os.remove(T + '/rnfs/README.fr.md')
 st, ct, page = req('/tools?lang=en')
 import re
 h2 = re.compile("<h2>([^<]*)</h2>")

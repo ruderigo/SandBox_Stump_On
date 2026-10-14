@@ -12,6 +12,8 @@
   "tools": true,
   "home": false,
   "hashes": {
+    "tools/README.es.md": "5945a63ddf2b85c1",
+    "tools/README.fr.md": "d096188fae075b27",
     "tools/README.md": "7eadf4dbf1b9bae2",
     "tools/lxmf-1.2.0-py3-none-any.whl": "805f053e61082f58",
     "tools/reticulum-LICENSE.txt": "851a55a19e4367da",
