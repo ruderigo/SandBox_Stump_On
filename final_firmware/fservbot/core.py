@@ -330,7 +330,15 @@ def check_op_password(pw):
 # Old name, kept as a direct alias rather than a deprecated wrapper --
 # nothing about the old behaviour changed, only where it's advertised
 # from, so there's no reason to make internal call sites migrate.
-_auth = check_op_password
+def _auth(pw):
+    """check_op_password, behind the wrong-password lockout (guard.py):
+    the chat sets who's asking."""
+    try:
+        import guard
+    except ImportError:
+        return check_op_password(pw)
+    ok, wait = guard.password(lambda: check_op_password(pw))
+    return ok
 
 
 _DENIED = ["wrong password -- or none set yet, in which case editing is "

@@ -56,6 +56,16 @@ _announce_installed = [False]
 # [(router, dest_hash_bytes, text_str), ...]  -- drained by poll_loop
 _send_queue = []
 
+# [(dest_hash_hex, text)] from code with no router at hand (stumpid moving
+# someone out of a room) -- turned into sends by poll_loop.
+_notices = []
+
+
+def notify(dest_hash_hex, text):
+    """Sends `text` to a mesh user on the next cycle."""
+    _notices.append((dest_hash_hex, text))
+    del _notices[:-20]
+
 
 # ── Peer state ────────────────────────────────────────────────────────
 
@@ -303,10 +313,28 @@ def _stale_age(message):
         return None
 
 
+def _strict():
+    """True when the node's access mode (stumpid) isn't 'open'."""
+    try:
+        ident = plugins.service_lookup("identity")
+        return ident is not None and getattr(ident, "AUTH_MODE", "open") != "open"
+    except Exception:
+        return False
+
+
 def on_message(router, message):
     """Call this from the LXMF delivery callback in example_node.py."""
     try:
         dest_hash_hex = message.source_hash.hex()
+        # A sender this node can't verify (no announce heard from it yet,
+        # so no key to check the signature with) could be anyone using
+        # that address. An open node takes it, as LXMF clients do; a node
+        # in hybrid or mandatory mode doesn't. (Forged signatures never
+        # get here: urns/lxmf.py drops them.)
+        if not getattr(message, "signature_validated", True) and _strict():
+            print("[rrc_mesh] ignored a message from %s: its sender can't be verified yet "
+                  "(no announce heard), and this node isn't open" % dest_hash_hex[:8])
+            return
         # A /msg, /nick or voice note left at a propagation node can reach
         # the chat hours after it was sent; acting on it then would surprise
         # everyone. Tell the sender instead.
@@ -618,6 +646,15 @@ def _send_item(item):
     rtr, dest_hash_bytes, text = item[0], item[1], item[2]
     title = item[3] if len(item) > 3 else ""
     fields = item[4] if len(item) > 4 else None
+    # Each send signs and encrypts without yielding: reset the Heltec
+    # link's quiet timer right before it, not once per cycle, so no run of
+    # sends can add up to the ~7 s of silence that drops the link.
+    # (A cheap socket write; the loop yields between sends.)
+    try:
+        from urns.interfaces.wifi_serial import prime_all_bridges
+        prime_all_bridges()
+    except Exception:
+        pass
     try:
         if fields:
             rtr.send_message(dest_hash_bytes, text, title=title, fields=fields)
@@ -658,6 +695,9 @@ async def poll_loop(router):
             except Exception:
                 pass  # never let a diagnostic aid block real forwarding
 
+            while _notices:
+                h, text = _notices.pop(0)
+                _send_queue.append((router, bytes.fromhex(h), text))
             while _send_queue:
                 _send_item(_send_queue.pop(0))
                 await asyncio.sleep(0)

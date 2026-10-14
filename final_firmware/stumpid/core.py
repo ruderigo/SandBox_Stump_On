@@ -45,6 +45,10 @@ except ImportError:
 # silently stale.
 
 STORAGE_FILE = "/sd/stumpid.json"
+# The access settings changed live (/admin ... mode, /admin ... room), kept
+# across restarts and power cuts. Set by install.py (on the card, or on
+# the board's flash without one); None = not kept (tests of core alone).
+STATE_FILE = None
 
 # A challenge is only good for this long and only good once. Both limits
 # matter: an unbounded window lets a captured nonce sit around waiting to
@@ -393,7 +397,66 @@ def set_mode(new_mode):
     if new_mode not in ("open", "mandatory", "hybrid"):
         return False
     AUTH_MODE = new_mode
+    _save_state()
     return True
+
+
+def _save_state():
+    """Writes the live access settings (mode, room tiers) to STATE_FILE,
+    whole or not at all (a temporary file, then a rename), so a power cut
+    mid-write leaves the previous settings. Room invites aren't kept:
+    they're tied to a visitor's address, which changes anyway."""
+    if not STATE_FILE:
+        return
+    data = {"mode": AUTH_MODE, "rooms": {r: p["tier"] for r, p in _room_policy.items()}}
+    tmp = STATE_FILE + ".tmp"
+    try:
+        with open(tmp, "w") as f:
+            json.dump(data, f)
+        os.rename(tmp, STATE_FILE)       # replaces, on FAT too (MicroPython)
+    except OSError as e:
+        print("[stumpid] couldn't save the access settings:", e)
+
+
+def load_state():
+    """Restores what _save_state() kept, at start-up. Returns True if
+    anything was restored."""
+    global AUTH_MODE
+    if not STATE_FILE:
+        return False
+    try:
+        os.remove(STATE_FILE + ".tmp")    # a save a power cut interrupted
+    except OSError:
+        pass
+    try:
+        with open(STATE_FILE) as f:
+            data = json.load(f)
+    except (OSError, ValueError):
+        return False
+    mode = data.get("mode")
+    if mode in ("open", "mandatory", "hybrid"):
+        AUTH_MODE = mode
+    for room, tier in (data.get("rooms") or {}).items():
+        if tier in VALID_TIERS and tier != "open":
+            _room_policy[room] = {"tier": tier, "invited": set()}
+    return True
+
+
+def reset_access():
+    """Back to config.py's access settings: the mode from config.py, no
+    room tiers, and the saved settings forgotten."""
+    global AUTH_MODE
+    _room_policy.clear()
+    try:
+        from config import AUTH_MODE as _cfg_mode
+        AUTH_MODE = _cfg_mode
+    except ImportError:
+        AUTH_MODE = "open"
+    if STATE_FILE:
+        try:
+            os.remove(STATE_FILE)
+        except OSError:
+            pass
 
 
 def mesh_landing_room(client_id):
@@ -478,6 +541,7 @@ def set_room_tier(room, tier):
     else:
         pol = _room_policy.setdefault(room, {"tier": tier, "invited": set()})
         pol["tier"] = tier
+    _save_state()
     return True
 
 

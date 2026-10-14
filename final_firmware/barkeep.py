@@ -767,7 +767,15 @@ def _human_size(n):
     return "%.1f MB" % (n / (1024 * 1024))
 
 
-def _check_admin_pw(pw):
+def _check_admin_pw(pw, who=None):
+    """True if pw unlocks admin actions -- unless `who` has tried too many
+    wrong passwords (guard.py): then False without trying."""
+    import guard
+    ok, wait = guard.password(lambda: _check_admin_pw_now(pw), who or "web")
+    return ok
+
+
+def _check_admin_pw_now(pw):
     """True if pw unlocks admin actions on this node -- the one real
     check, reused by every admin-gated route rather than each one
     duplicating it. Asks the "identity" service (stumpid, through
@@ -792,6 +800,11 @@ def _check_admin_pw(pw):
 # shows the password prompt, not the admin page, and can't resend the
 # password. Sessions end on Log out, after SESSION_IDLE_S without use,
 # and at restart (they're only in memory).
+try:
+    from config import BILLBOARD_POSTS_PER_MIN    # per visitor (guard.py)
+except ImportError:
+    BILLBOARD_POSTS_PER_MIN = 3
+POST_MAX, POST_PER_S = BILLBOARD_POSTS_PER_MIN, 60
 SESSION_IDLE_S = 1800
 SESSION_MAX = 8
 _sessions = {}          # token -> last used (time.time())
@@ -826,10 +839,10 @@ def _end_session(tok):
     _sessions.pop(tok, None)
 
 
-def _admin_ok(pw):
+def _admin_ok(pw, who=None):
     """A form from an admin page: a live session token (what pages carry
     now), or the password itself."""
-    return _session_ok(pw) or _check_admin_pw(pw)
+    return _session_ok(pw) or _check_admin_pw(pw, who)
 
 
 def _cookie(headers, name):
@@ -846,7 +859,7 @@ def _admin_logout_form(lang, tok):
             "<button type='submit'>" + i18n.t("admin_logout", lang) + "</button></form>")
 
 
-def _render_admin_login_page(lang, error=False):
+def _render_admin_login_page(lang, error=False, wait=0):
     """The ONLY way to reach file deletion now -- no link, no nav tile,
     no button anywhere in the visible UI points here. Reachable only by
     typing the address directly, which is the point: the drawer this
@@ -855,7 +868,8 @@ def _render_admin_login_page(lang, error=False):
     file. This page asks for the password exactly once regardless of
     how many files get selected next.
     """
-    err = "<p class='sub' style='color:var(--ember-bright);'>" + i18n.t("admin_wrong_password", lang) + "</p>" if error else ""
+    msg = i18n.t("admin_locked", lang, s=wait) if wait else i18n.t("admin_wrong_password", lang)
+    err = "<p class='sub' style='color:var(--ember-bright);'>" + msg + "</p>" if error else ""
     return (
         "<h1>" + i18n.t("admin_header", lang) + "</h1>"
         + err +
@@ -2294,6 +2308,18 @@ async def _handle(reader, writer, secure=False):
                         post_body = billboard._url_decode(kv[5:])
                     elif kv.startswith("entry=") and not title:
                         title = billboard._url_decode(kv[6:])
+            import guard
+            if not guard.window("post", identifier, POST_MAX, POST_PER_S):
+                # A few posts a minute per visitor: each one rewrites the
+                # billboard file on the card.
+                lang = i18n.get_lang(identifier)
+                if _wants_json(headers):
+                    await _result(writer, True, "429 Too Many Requests", "rate_limited", i18n.t("post_rate", lang))
+                else:
+                    await _send(writer, "429 Too Many Requests", _page(
+                        "<p>" + billboard._esc(rrc.tok_rate(i18n.t("post_rate", lang))) + "</p>"
+                        "<p><a href='/billboard'>&larr; " + i18n.t("nav_board", lang) + "</a></p>"))
+                return
             ok, info = billboard._append_entry(title, post_body, identifier)
             if _wants_json(headers):
                 if ok:
@@ -2327,7 +2353,7 @@ async def _handle(reader, writer, secure=False):
                 if len(parts) == 2:
                     fields[parts[0]] = billboard._url_decode(parts[1])
             pw = fields.get("admin_pass", "")
-            if not _admin_ok(pw):
+            if not _admin_ok(pw, identifier):
                 await _send(writer, "403 Forbidden", "Invalid admin password", "text/plain")
             else:
                 lang = i18n.get_lang(identifier)
@@ -2352,7 +2378,7 @@ async def _handle(reader, writer, secure=False):
                 if len(parts) == 2:
                     fields[parts[0]] = billboard._url_decode(parts[1])
             pw = fields.get("admin_pass", "")
-            if not _admin_ok(pw):
+            if not _admin_ok(pw, identifier):
                 await _send(writer, "403 Forbidden", "Invalid admin password", "text/plain")
             else:
                 lang = i18n.get_lang(identifier)
@@ -2389,7 +2415,7 @@ async def _handle(reader, writer, secure=False):
                 if len(parts) == 2:
                     fields[parts[0]] = billboard._url_decode(parts[1])
             pw = fields.get("admin_pass", "")
-            if not _admin_ok(pw):
+            if not _admin_ok(pw, identifier):
                 await _send(writer, "403 Forbidden", "Invalid admin password", "text/plain")
             else:
                 lang = i18n.get_lang(identifier)
@@ -2422,7 +2448,7 @@ async def _handle(reader, writer, secure=False):
                 if len(parts) == 2:
                     fields[parts[0]] = billboard._url_decode(parts[1])
             pw = fields.get("admin_pass", "")
-            if not _admin_ok(pw):
+            if not _admin_ok(pw, identifier):
                 await _send(writer, "403 Forbidden", "Invalid admin password", "text/plain")
             else:
                 lang = i18n.get_lang(identifier)
@@ -2465,7 +2491,7 @@ async def _handle(reader, writer, secure=False):
                 else:
                     fields[parts[0]] = val
             pw = fields.get("admin_pass", "")
-            if not _admin_ok(pw):
+            if not _admin_ok(pw, identifier):
                 await _send(writer, "403 Forbidden", "Invalid admin password", "text/plain")
             else:
                 lang = i18n.get_lang(identifier)
@@ -2510,7 +2536,7 @@ async def _handle(reader, writer, secure=False):
                 if len(parts) == 2:
                     fields[parts[0]] = billboard._url_decode(parts[1])
             pw = fields.get("admin_pass", "")
-            if not _admin_ok(pw):
+            if not _admin_ok(pw, identifier):
                 await _send(writer, "403 Forbidden", "Invalid admin password", "text/plain")
             else:
                 lang = i18n.get_lang(identifier)
@@ -2541,8 +2567,10 @@ async def _handle(reader, writer, secure=False):
                 if kv.startswith("admin_pass="):
                     pw = billboard._url_decode(kv[11:])
             lang = i18n.get_lang(identifier)
-            if not _check_admin_pw(pw):
-                await _send(writer, "403 Forbidden", _page(_render_admin_login_page(lang, error=True)))
+            import guard
+            if not _check_admin_pw(pw, identifier):
+                await _send(writer, "403 Forbidden", _page(_render_admin_login_page(
+                    lang, error=True, wait=guard.locked(identifier))))
             else:
                 tok = _new_session()
                 await writer.awrite("HTTP/1.1 303 See Other\r\nLocation: /admin\r\n"
@@ -2577,7 +2605,7 @@ async def _handle(reader, writer, secure=False):
                     timestamps.append(billboard._url_decode(kv[3:]))
                 elif kv.startswith("admin_pass="):
                     pw = billboard._url_decode(kv[11:])
-            if not _admin_ok(pw):
+            if not _admin_ok(pw, identifier):
                 await _send(writer, "403 Forbidden", "Invalid admin password", "text/plain")
             else:
                 deleted_titles = []
@@ -2616,7 +2644,7 @@ async def _handle(reader, writer, secure=False):
                     fnames.append(_clean_filename(billboard._url_decode(kv[2:])))
                 elif kv.startswith("admin_pass="):
                     pw = billboard._url_decode(kv[11:])
-            if not _admin_ok(pw):
+            if not _admin_ok(pw, identifier):
                 await _send(writer, "403 Forbidden", "Invalid admin password", "text/plain")
             else:
                 deleted_count = 0

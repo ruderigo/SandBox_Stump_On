@@ -94,7 +94,7 @@
   ],
   "hashes": {
     "fservbot/__init__.py": "f164090d81312df8",
-    "fservbot/core.py": "e15c9f442cd20fb3",
+    "fservbot/core.py": "1da02143abc4d079",
     "fservbot/templates.py": "0a49f19852575370",
     "fservbot/install.py": "9b5fb508cc06d5df",
     "fservbot/README.md": "b13272f8f4ea0a92"

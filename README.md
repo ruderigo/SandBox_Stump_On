@@ -586,6 +586,7 @@ unconditionally, even under global `open`, on purpose. Tiers:
 
 ```
 /admin <password> room <name> <open|minted|hybrid>   -- create or re-tier a room
+/admin <password> reset-access                        -- back to config.py's mode, no tiers
 /invite <nick>                                        -- invite someone into the room you're in
 ```
 
@@ -2285,10 +2286,10 @@ Python) a given deployed board actually loads.
 - All three `AUTH_MODE` values and both room-tier systems are
   implemented and tested but not field-hardened at release scale — see
   the notice at the top of this document.
-- Re-tiering a room stricter doesn't eject existing members.
 - Credit identity is IP-based; not a security boundary.
-- Chat, room-tier policy, and the mesh landing room all reset on
-  reboot, by design, for the identical reason rrc.py's own rooms do.
+- Chat history resets on reboot. The access mode and room tiers are
+  kept (`access.json`); `/admin <password> reset-access` goes back to
+  `config.py`.
 - `wifi_serial.py` wraps `sendall` in a 2s blocking timeout — a
   hardware-validated ESP32-S3 lwIP workaround, left untouched
   deliberately.

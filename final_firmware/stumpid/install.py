@@ -40,6 +40,12 @@ def _t(key, lang, **kw):
 def setup(stump):
     _api.append(stump)
     core.STORAGE_FILE = stump.storage_file("stumpid.json", legacy=core.STORAGE_FILE)
+    core.STATE_FILE = stump.storage_file("access.json")
+    if core.load_state():
+        print("[stumpid] access settings restored: mode=%s, %d tiered room(s)"
+              % (core.AUTH_MODE, len(core._room_policy)))
+        for room in core._room_policy:
+            rrc.create_room(room)
     # First, so the admin password check exists even if something below fails.
     stump.provide("identity", core)
     stump.gate(_gate, priority=10)
@@ -180,11 +186,52 @@ def _cmd_whoami(client_id):
 # /admin <password> revoke <hexhash>
 # ---------------------------------------------------------------------
 
+def _enforce_room(room, tier):
+    """A room just became stricter: whoever is in it and no longer
+    qualifies goes back to #main, told why -- the same refusal a /join
+    would get. Returns their nicks."""
+    home = rrc.DEFAULT_ROOM
+    if room == home:
+        return []
+    try:
+        import rrc_mesh
+        mesh = rrc_mesh._peers
+    except ImportError:
+        rrc_mesh, mesh = None, {}
+    moved = []
+    for cid, u in list(rrc._users.items()):
+        if u.get("room") != room:
+            continue
+        ok, reason = core.can_join_room(cid, room)
+        if ok:
+            continue
+        lang = i18n.get_lang(cid)
+        key = "room_needs_verified" if reason == "needs_verified" else "room_invite_only"
+        notice = rrc.tok_refused(room, tier, i18n.t(key, lang))
+        on_mesh = cid in mesh
+        shown = ("~" if on_mesh else "") + u["nick"]
+        rrc.system(room, rrc.ev_leave(shown))
+        rrc.touch_user(cid, room=home)
+        rrc.system(home, rrc.ev_join(shown))
+        if on_mesh:
+            mesh[cid]["room"] = home
+            rrc_mesh.notify(cid, rrc.moved(home) + "\n" + notice)
+        else:
+            rrc.send_dm("*", u["nick"], notice)
+        moved.append(shown)
+    return moved
+
+
 def _cmd_admin(client_id, stripped):
     parts = stripped.split(" ")
     args = parts[1:]
 
-    if len(args) < 2 or not core.check_admin_password(args[0]):
+    import guard
+    ok, wait = (False, 0) if len(args) < 2 else guard.password(lambda: core.check_admin_password(args[0]), client_id)
+    if wait:
+        import i18n as _i18n, rrc as _rrc
+        return [_rrc.tok_rate(_i18n.t("admin_locked", _i18n.get_lang(client_id), s=wait))]
+    if not ok:
         # One ambiguous message for both "wrong password" and "no
         # password configured anywhere" -- matching fservbot's own
         # denial wording. Distinguishing the two would tell an anonymous
@@ -236,6 +283,7 @@ def _cmd_admin(client_id, stripped):
             return ["tier must be open, minted, or hybrid"]
         if not core.set_room_tier(target_room, tier):
             return ["could not set that tier"]
+        moved = []
         if tier != "open":
             # Admin-created, so it exists right away rather than only
             # coming into being the first time someone already minted
@@ -245,7 +293,14 @@ def _cmd_admin(client_id, stripped):
             new_room, err = rrc.create_room(target_room)
             if err:
                 return [err]
-        return ["#%s is now %s" % (target_room, tier)]
+            moved = _enforce_room(target_room, tier)
+        return ["#%s is now %s" % (target_room, tier)] + (
+            ["moved to #%s: %s" % (rrc.DEFAULT_ROOM, ", ".join(moved))] if moved else [])
+
+    if sub == "reset-access":
+        # Back to config.py: its mode, no room tiers, the saved settings gone.
+        core.reset_access()
+        return ["access back to config.py: mode " + core.AUTH_MODE + ", no room tiers"]
 
     if sub == "plugin":
         # /admin <pw> plugin [on|off <name>] -- the plugin off switch
@@ -256,7 +311,7 @@ def _cmd_admin(client_id, stripped):
         except ImportError:
             pass
 
-    return ["unknown admin command -- try mode, meshroom, revoke, or room"]
+    return ["unknown admin command -- try mode, meshroom, revoke, room, or reset-access"]
 
 
 # ---------------------------------------------------------------------

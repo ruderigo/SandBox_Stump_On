@@ -467,7 +467,7 @@ then ` — ` and a sentence for people:
 | `= #lxmf — …` | you're already in #lxmf (reply to `/join`, `/part`) |
 | `? /frob — …` | no such command |
 | `⊘ #vip minted — …` | that room's tier (`minted` or `hybrid`) refused you |
-| `⧗ — …` | slow down: too many voice notes too fast |
+| `⧗ — …` | slow down: lines too fast (3 at once, then one every 2 s, for anything others see), too many voice notes, or too many wrong passwords. The line wasn't sent: offer to resend it |
 
 Inside a DM, `♪ 5.0 s` is a voice note and its length: `[DM] <bob>: ♪ 5.0 s`.
 
@@ -824,6 +824,7 @@ is what the web form wants:
 | `201 Created` | `{"ok": true, "message": "posted", "id": "1791388089.870112274"}` — the same `id` as in `/billboard.json` |
 | `400 Bad Request` | `{"ok": false, "error": "title_required", "message": "a title is required"}` |
 | `507 Insufficient Storage` | `{"ok": false, "error": "storage", "message": "the post couldn't be saved"}` — it wasn't |
+| `429 Too Many Requests` | `{"ok": false, "error": "rate_limited", "message": "…"}` — 3 posts a minute per visitor (`BILLBOARD_POSTS_PER_MIN`); try again in a minute |
 
 Act on `error`, a stable token; `message` is for people. Posts expire 72
 hours after posting (the clock only counts once the node's clock is

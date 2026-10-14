@@ -8,9 +8,8 @@ from .identity import Identity
 from .destination import Destination
 from .packet import Packet
 from .transport import Transport
-from .log import log, LOG_VERBOSE, LOG_DEBUG, LOG_ERROR, LOG_NOTICE, LOG_INFO
+from .log import log, LOG_VERBOSE, LOG_DEBUG, LOG_ERROR, LOG_NOTICE, LOG_INFO, LOG_WARNING
 from .crypto.hashes import sha256
-from .crypto import ed25519
 
 APP_NAME = "lxmf"
 
@@ -295,21 +294,22 @@ class LXMessage:
 
         # Validate signature
         if source_identity:
-            if not LXMRouter.verify_signatures:
-                # Skip expensive Ed25519 verify on constrained devices.
-                # Message is already authenticated by encryption layer
-                # (X25519 ECDH + HMAC-SHA256).
-                message.signature_validated = True
-            else:
-                try:
-                    if source_identity.validate(signature, signed_part):
-                        message.signature_validated = True
-                    else:
-                        message.signature_validated = False
-                        message.unverified_reason = LXMessage.SIGNATURE_INVALID
-                except Exception as e:
+            # Always checked, even without the native Ed25519 module (a
+            # pure-Python verify costs ~2 s on the ESP32, rare on a LoRa
+            # mesh). Skipping it used to mark the message VERIFIED, on the
+            # theory that the encryption authenticates the sender -- it
+            # doesn't: anyone can encrypt to this node and claim any
+            # source hash. Only the signature proves who sent it.
+            try:
+                if source_identity.validate(signature, signed_part):
+                    message.signature_validated = True
+                else:
                     message.signature_validated = False
-                    log("Signature validation error: " + str(e), LOG_DEBUG)
+                    message.unverified_reason = LXMessage.SIGNATURE_INVALID
+            except Exception as e:
+                message.signature_validated = False
+                message.unverified_reason = LXMessage.SIGNATURE_INVALID
+                log("Signature validation error: " + str(e), LOG_DEBUG)
         else:
             message.signature_validated = False
             message.unverified_reason = LXMessage.SOURCE_UNKNOWN
@@ -341,10 +341,6 @@ class LXMRouter:
     - Peer announce tracking
     """
 
-    # Verify sender signatures when the native Ed25519 module makes it cheap
-    # (milliseconds). Pure Python verify costs ~2s/message on ESP32, so fall
-    # back to trusting the encryption layer (X25519 ECDH + HMAC-SHA256) there.
-    verify_signatures = ed25519.have_native()
 
     def __init__(self, identity=None, storagepath=None):
         self.identity = identity
@@ -643,6 +639,10 @@ class LXMRouter:
                 reason = "unknown source" if message.unverified_reason == LXMessage.SOURCE_UNKNOWN else "invalid signature"
                 log("LXMF unverified link message (" + reason + ") from " +
                     message.source_hash.hex()[:8], LOG_NOTICE)
+                if message.unverified_reason == LXMessage.SIGNATURE_INVALID:
+                    # Forged or corrupted: someone else's address on it.
+                    log("LXMF message dropped: its signature doesn't match its sender", LOG_WARNING)
+                    return
 
             # Dedup check
             if message.hash in self.delivered_ids:
@@ -694,6 +694,10 @@ class LXMRouter:
                 reason = "unknown source" if message.unverified_reason == LXMessage.SOURCE_UNKNOWN else "invalid signature"
                 log("LXMF unverified resource message (" + reason + ") from " +
                     message.source_hash.hex()[:8], LOG_NOTICE)
+                if message.unverified_reason == LXMessage.SIGNATURE_INVALID:
+                    # Forged or corrupted: someone else's address on it.
+                    log("LXMF message dropped: its signature doesn't match its sender", LOG_WARNING)
+                    return
 
             # Remember which LXMF peer this link carries (see _link_packet_received).
             link = getattr(resource, "link", None)
@@ -737,6 +741,10 @@ class LXMRouter:
                 reason = "unknown source" if message.unverified_reason == LXMessage.SOURCE_UNKNOWN else "invalid signature"
                 log("LXMF unverified message (" + reason + ") from " +
                     message.source_hash.hex()[:8], LOG_NOTICE)
+                if message.unverified_reason == LXMessage.SIGNATURE_INVALID:
+                    # Forged or corrupted: someone else's address on it.
+                    log("LXMF message dropped: its signature doesn't match its sender", LOG_WARNING)
+                    return
 
             # Dedup check
             if message.hash in self.delivered_ids:

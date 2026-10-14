@@ -31,6 +31,7 @@
 import time
 import i18n
 import plugins
+import guard
 
 MAX_ROOMS = 16
 MAX_MESSAGES_PER_ROOM = 60
@@ -696,6 +697,24 @@ def help_lines(lang, mesh=False):
     ]
 
 
+try:
+    from config import CHAT_EVERY        # seconds per line, once the burst is spent
+except ImportError:
+    CHAT_EVERY = 2
+try:
+    from config import CHAT_BURST        # lines at once
+except ImportError:
+    CHAT_BURST = 3
+_SPEAKING_COMMANDS = ("msg", "m", "w", "me", "topic")
+
+
+def _speaks(text):
+    """True for a line other people will see: a message, or /msg, /me, /topic."""
+    if not text.startswith("/"):
+        return True
+    return text[1:].split(" ", 1)[0].lower() in _SPEAKING_COMMANDS
+
+
 def handle_input(client_id, room, text):
     """
     Processes one line from a client -- either a /command or a message.
@@ -709,6 +728,14 @@ def handle_input(client_id, room, text):
     text = _clean(text, MAX_MESSAGE_LEN)
     if not text:
         return [], None
+    # Who's asking, for password checks inside commands (guard.py), and
+    # a speed limit on lines that reach other people: a few at once, then
+    # one every CHAT_EVERY seconds -- on the web and over the mesh alike,
+    # where every line costs LoRa airtime. Commands that only answer the
+    # sender (/help, /names...) aren't counted.
+    guard.caller(client_id)
+    if _speaks(text) and not guard.allow("chat", client_id, CHAT_EVERY, CHAT_BURST):
+        return [tok_rate(i18n.t("chat_rate", lang))], None
 
     # Plugins (plugins.py): gates and /commands see the line before rrc
     # does; on_result hooks see what came of it.

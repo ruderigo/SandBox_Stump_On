@@ -135,11 +135,19 @@ field should still say "(no nick set)", not show the placeholder.
 | Correct password, valid mode | `mode set to <mode>` |
 | Correct password, invalid mode name | `unknown mode -- use open, hybrid, or mandatory` |
 
-**Runtime-only.** A live mode change reverts to whatever `config.py`
-specifies on next reboot — it is never written back to disk. This is
-deliberate: a permanent security-posture change should require a
-technician physically present with the Provisioner, not just anyone who
-learned the password.
+**Kept across restarts.** A live mode change, and every room tier, is
+saved (`access.json`, on the card, or the board's flash without one)
+and restored at start-up: a brownout on a solar node no longer quietly
+reopens rooms an admin had closed. `/admin <password> reset-access`
+goes back to `config.py` (its mode, no room tiers) and forgets the
+saved settings. (Room invites aren't kept: they're tied to a visitor's
+address, which changes anyway.)
+
+**Wrong passwords.** After 5 wrong passwords in a row from the same
+visitor (here, on the `/admin` page, or with the fserv bot's commands),
+that visitor waits 30 s, then twice as long after each further wrong
+one, up to 15 minutes: `⧗ — too many wrong passwords — try again in
+<n> s`. A right password clears it. Other visitors aren't affected.
 
 **What each mode actually gates**, precisely:
 
@@ -224,7 +232,8 @@ and, since this was added, over LXMF too (the mesh bridge answers
 - [ ] A verified identity `/join vip` succeeds
 - [ ] `/admin <pw> room lounge hybrid` → unverified `/join lounge` blocked with the invite-only message, not the verified-identity message
 - [ ] Re-tiering an existing room to `open` removes the restriction immediately
-- [ ] Re-tiering a room to something stricter does **not** eject anyone already inside (known, intentional limitation — worth confirming it behaves this way rather than assuming)
+- [ ] Re-tiering a room to something stricter moves everyone inside who no longer qualifies to `#main`: web visitors get the refusal (`⊘ #vip minted — …`) as a private message, mesh users get `→ #main` and the refusal; the admin's reply lists who was moved (`moved to #main: bob, ~meshy`)
+- [ ] After a restart, `/rooms` still shows the tiers set before it; `/admin <pw> reset-access` clears them
 
 ---
 
@@ -280,6 +289,17 @@ where `<status>` is either `open to everyone (default)` or `tiered '<tier>'`.
 `#main`, not something this command creates or names. This is a status
 query only; there is nothing left to set here. See
 [Part 3](#part-3--the-mesh-room) below for the full behavior.
+
+---
+
+### `/admin <password> reset-access` — back to config.py
+
+**Request:** `/admin <password> reset-access`
+
+**Reply:** `access back to config.py: mode <mode>, no room tiers`
+
+Puts the mode back to `config.py`'s, clears every room tier, and deletes
+the saved access settings, so a restart keeps it that way.
 
 ---
 

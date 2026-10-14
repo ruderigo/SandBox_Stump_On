@@ -610,6 +610,9 @@ STRINGS = {
     "voice_bad": {"fr": "note vocale illisible (Opus ou Codec 2 attendu)", "en": "unreadable voice note (Opus or Codec 2 expected)", "es": "nota de voz ilegible (se esperaba Opus o Codec 2)"},
     "voice_length": {"fr": "note vocale entre 0,6 et 15 secondes", "en": "voice notes must be 0.6 to 15 seconds", "es": "las notas de voz deben durar de 0,6 a 15 segundos"},
     "voice_rate": {"fr": "trop de notes vocales — attends un peu", "en": "too many voice notes — wait a little", "es": "demasiadas notas de voz — espera un poco"},
+    "chat_rate": {"fr": "tu écris trop vite — attends un peu", "en": "you're typing too fast — wait a little", "es": "escribes demasiado rápido — espera un poco"},
+    "post_rate": {"fr": "trop d'annonces d'un coup — réessaie dans une minute", "en": "too many posts at once — try again in a minute", "es": "demasiados anuncios seguidos — vuelve a intentarlo en un minuto"},
+    "admin_locked": {"fr": "trop de mots de passe erronés — réessaie dans {s} s", "en": "too many wrong passwords — try again in {s} s", "es": "demasiadas contraseñas incorrectas — vuelve a intentarlo en {s} s"},
     "voice_needs_target": {
         "fr": "pour envoyer une note vocale par ce nœud : /msg <qui> avec la note jointe",
         "en": "to send a voice note through this node: /msg <who> with the note attached",

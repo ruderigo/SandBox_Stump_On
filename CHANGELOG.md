@@ -1,6 +1,32 @@
 # Changelog
 
 ## Unreleased
+- **Hardening (October 2026 review, H-02 to H-08).**
+  - **Forged LXMF messages are dropped.** A message whose signature
+    doesn't match its sender never reaches the chat or the propagation
+    node's mailbox. Without the native Ed25519 module, signatures used to
+    go unchecked *and* the message was marked verified (which could also
+    set the clock); now they're always checked. A sender not yet heard
+    from (no key to check with) is still taken on an open node, and
+    refused in hybrid or mandatory mode.
+  - **Speed limits** (`guard.py`): chat lines that reach others, on the
+    web and over the mesh, 3 at once then one every 2 s (`CHAT_BURST`,
+    `CHAT_EVERY`); 3 billboard posts a minute per visitor
+    (`BILLBOARD_POSTS_PER_MIN`, 429 / `rate_limited`); after 5 wrong
+    passwords (the `/admin` page, `/admin` in the chat, the fserv bot)
+    that visitor waits 30 s, doubling each time, up to 15 min.
+  - **Access settings survive a restart:** `/admin … mode` and room
+    tiers are saved (`access.json`) and restored; `/admin <password>
+    reset-access` goes back to `config.py`.
+  - **A room made stricter moves out** whoever no longer qualifies, to
+    #main, told why (web: a private message; mesh: `→ #main` and the
+    refusal).
+  - **Saves are whole or not at all:** the credit ledger is written to a
+    temporary file and renamed (a power cut mid-write used to leave an
+    unreadable ledger, read as empty: everyone's credits gone); the
+    unfinished saves a power cut leaves are removed at start-up.
+  - **The Heltec link** is primed before every mesh send, not once per
+    cycle.
 - **The Provisioner, laid out as a route.** It starts by asking what
   you're setting up (CAM, Heltec for a CAM, Heltec relay, Stump on this
   computer, check or fix), shows the route on a card (numbered sections,

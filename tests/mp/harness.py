@@ -15,7 +15,7 @@ fserv.AWAITING_FILE = ROOT + '/awaiting.json'; fserv.sd_ok = True
 import billboard
 billboard.storage_file = lambda: ROOT + '/billboard.txt'
 import barkeep
-barkeep._check_admin_pw = lambda pw: pw == 'pw'
+barkeep._check_admin_pw_now = lambda pw: pw == 'pw'
 import uasyncio as asyncio, ujson as json
 
 

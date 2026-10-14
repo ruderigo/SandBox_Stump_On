@@ -75,6 +75,14 @@ REANNOUNCE_INTERVAL = 120
 ANNOUNCE_RATE_MAX = 6
 ANNOUNCE_RATE_WINDOW = 60
 
+# Speed limits for people (guard.py): chat lines that reach others (web
+# and mesh) -- CHAT_BURST at once, then one every CHAT_EVERY seconds --
+# and billboard posts per visitor per minute. Wrong passwords (/admin,
+# the fserv bot) lock that visitor out for 30 s after 5, doubling each time.
+CHAT_EVERY = 2
+CHAT_BURST = 1000000   # tests: off (tests/mp/hardening.py sets its own)
+BILLBOARD_POSTS_PER_MIN = 1000000
+
 WEBREPL_PASSWORD = "changeme"
 
 DEBUG = 2

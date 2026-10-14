@@ -129,6 +129,7 @@ def mount_sd():
                 pass  # already exists
         sd_ok = True
         print("[fserv] SD mounted at", SD_MOUNT)
+        sweep_tmp()
         migrate_tools()
     except Exception as e:
         print("[fserv] SD mount FAILED:", e)
@@ -142,6 +143,32 @@ def _load_json(path, default):
             return json.load(f)
     except (OSError, ValueError):
         return default
+
+
+def sweep_tmp(paths=None):
+    """At start-up: the temporary files of saves a power cut interrupted
+    (the credit ledger, the billboard). Each save writes <file>.tmp and
+    then renames it over <file>, so a <file>.tmp still there is a save
+    that never finished: the <file> beside it is the last whole one.
+    Only those names -- never anything else that happens to end in .tmp
+    (a visitor's upload can). Returns how many were removed."""
+    if paths is None:
+        paths = [LEDGER_FILE, AWAITING_FILE]
+        try:
+            import billboard
+            paths.append(billboard.storage_file())
+        except Exception:
+            pass
+    n = 0
+    for p in paths:
+        try:
+            os.remove(p + ".tmp")
+            n += 1
+        except OSError:
+            pass
+    if n:
+        print("[fserv] removed %d unfinished save(s) left by a power cut" % n)
+    return n
 
 
 def _save_json(path, data):
@@ -162,12 +189,23 @@ def _save_json(path, data):
     failed even when the file itself made it onto the card intact.
     Every caller here already treats "couldn't persist this" as
     recoverable rather than fatal to the surrounding request."""
+    # Whole or not at all: written to a temporary file, then renamed over
+    # the old one (MicroPython's FAT rename replaces, as billboard.py's
+    # saves rely on). Writing in place meant a power cut mid-write left a
+    # truncated file -- and an unreadable ledger reads as empty, so
+    # everyone's credits were gone.
+    tmp = path + ".tmp"
     try:
-        with open(path, "w") as f:
+        with open(tmp, "w") as f:
             json.dump(data, f)
+        os.rename(tmp, path)
         return True
     except OSError as e:
         print("[fserv] failed to save", path, "--", e)
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
         return False
 
 

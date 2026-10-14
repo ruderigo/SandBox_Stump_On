@@ -46,6 +46,7 @@ TESTS = [
     ("tools_sections", "assert", []),
     ("admin_theme_tools", "assert", []),
     ("admin_session_layout", "assert", []),
+    ("hardening", "assert", []),
 ]
 
 _NORM = [

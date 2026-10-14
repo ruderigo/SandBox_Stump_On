@@ -32,7 +32,7 @@ loaded ['fservbot', 'stumpid']
 >> 51 /join vip
   replies ['⊘ #vip minted — that room requires a verified identity -- send /auth first'] None
 >> 50 /admin pw zzz
-  replies ['unknown admin command -- try mode, meshroom, revoke, or room'] None
+  replies ['unknown admin command -- try mode, meshroom, revoke, room, or reset-access'] None
 >> 50 /invite bob
   replies ["seule une identité vérifiée peut inviter quelqu'un — /auth d'abord"] None
 >> 50 /fshelp

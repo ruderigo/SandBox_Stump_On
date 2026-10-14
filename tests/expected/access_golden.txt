@@ -67,4 +67,4 @@
 >> 52 /whoami -> ['not verified this session -- /auth to prove an identity'] None
 >> 50 /adminx -> ['auth required for that -- send /auth to verify your identity'] None
 >> 50 /admin pw -> ['not authorised -- or no admin password is configured yet, in which case /admin is off until a technician sets one.'] None
->> 50 /admin pw bogus -> ['unknown admin command -- try mode, meshroom, revoke, or room'] None
+>> 50 /admin pw bogus -> ['unknown admin command -- try mode, meshroom, revoke, room, or reset-access'] None
