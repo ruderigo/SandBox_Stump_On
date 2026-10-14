@@ -3074,11 +3074,28 @@ async def run_barkeep_server(port=80):
     mesh announced, AP broadcasting -- while serving nothing at all, and
     nothing in the boot log would say why."""
     try:
+        import stump_host                       # a Stump on a computer (docs/PC.md)
+        port = int(stump_host.setting("PC_HTTP_PORT", port))
+    except ImportError:
+        stump_host = None
+    try:
         await asyncio.start_server(_handle, "0.0.0.0", port)
     except Exception as e:
-        print("[web] FAILED to bind port %d: %s" % (port, e))
-        print("[web] the billboard, chat and file pages are NOT available.")
-        raise
+        bound = False
+        if stump_host is not None and port != 8080:
+            # Port 80 taken on the computer (another web server): 8080.
+            print("[web] port %d unavailable (%s): using 8080" % (port, e))
+            port = 8080
+            try:
+                await asyncio.start_server(_handle, "0.0.0.0", port)
+                print("[web] visitors: http://%s:8080/" % stump_host.hotspot_ip())
+                bound = True
+            except Exception as e2:
+                e = e2
+        if not bound:
+            print("[web] FAILED to bind port %d: %s" % (port, e))
+            print("[web] the billboard, chat and file pages are NOT available.")
+            raise
     # HTTPS on 443, when a certificate is installed (tls.py). Failing here
     # never takes plain HTTP down with it.
     ctx = tls.context()

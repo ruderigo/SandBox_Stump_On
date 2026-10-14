@@ -629,7 +629,7 @@ function send(text){
   // mirrors rrc.py's own parsing exactly (arg.split(" ", 1) there,
   // same nick-then-rest-of-line shape here) so what this recognizes as
   // a DM is exactly what the server will actually treat as one.
-  var directMsgMatch=(!isDMReply) && text.match(/^\/(?:msg|m|w)\s+(\S+)\s+([\s\S]+)/i);
+  var directMsgMatch=(!isDMReply) && text.match(/^\\/(?:msg|m|w)\\s+(\\S+)\\s+([\\s\\S]+)/i);
   var outgoing=isDMReply ? ('/msg '+viewingDM+' '+text) : text;
   fetch('/rrc/send',{method:'POST',body:outgoing})
    .then(function(r){return r.json();})

@@ -132,6 +132,7 @@ class Reticulum:
         "LoRaInterface":      "lora",
         "TCPClientInterface": "tcp",
         "WiFiSerialInterface": "wifi_serial",  # custom addition -- the Heltec Bridge
+        "RNodeSerialInterface": "rnode_serial", # a Heltec on USB, for Stump on a computer
         "ChainUplinkInterface": "chain",       # Stump-to-Stump over Wi-Fi (chain.py)
         "ChainHubInterface":    "chain",
     }

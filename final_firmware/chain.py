@@ -60,7 +60,13 @@ def settings():
 
 
 def ap_ip(s=None):
-    """This Stump's own Wi-Fi address: 192.168.<subnet>.1."""
+    """This Stump's own Wi-Fi address: 192.168.<subnet>.1 -- or, for a
+    Stump on a computer (docs/PC.md), its hotspot's real address."""
+    try:
+        import stump_host
+        return stump_host.hotspot_ip()
+    except ImportError:
+        pass
     s = s or settings()
     return "192.168.%d.1" % (s["subnet"] if s else DEFAULT_SUBNET)
 
@@ -110,9 +116,13 @@ def connect_uplink(s, timeout=20):
 
 def interfaces(s, sta_ip, parent_ip, own_ap_ip):
     """The Reticulum interface configs for this Stump's place in the chain."""
-    out = [{"type": "ChainHubInterface", "name": "Chain down", "enabled": True,
-            "listen_ip": own_ap_ip, "listen_port": s["port"], "secret": s["secret"],
-            "gravity": 10}]
+    out = []
+    # A Stump on a computer with one Wi-Fi radio joins its parent and serves
+    # visitors on that same network: no separate side below it.
+    if own_ap_ip != sta_ip:
+        out.append({"type": "ChainHubInterface", "name": "Chain down", "enabled": True,
+                    "listen_ip": own_ap_ip, "listen_port": s["port"], "secret": s["secret"],
+                    "gravity": 10})
     if s["uplink_ssid"] and sta_ip and parent_ip:
         out.append({"type": "ChainUplinkInterface", "name": "Chain up", "enabled": True,
                     "listen_ip": sta_ip, "listen_port": s["port"],
