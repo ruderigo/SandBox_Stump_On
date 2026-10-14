@@ -79,6 +79,11 @@ def wait(cond, secs):
 
 
 start(FIRST)
+# The second starts well after the first, as on the bench: it misses the
+# first one's boot beacon (the next is half an hour away), so the chain
+# link itself has to make them meet.
+wait(lambda: get(FIRST, "/node.json"), 90)
+time.sleep(25)
 start(SECOND, parent=FIRST[0])
 up = wait(lambda: get(FIRST, "/node.json") and get(SECOND, "/node.json"), 90)
 check("both Stumps start", up)
@@ -97,6 +102,23 @@ if up:
     got = wait(lambda: any(m["body"] == "hello back" and m["nick"].endswith("@Firstpc")
                            for m in room(SECOND, "chained")), 60)
     check("... and back", got, room(SECOND, "chained"))
+    # a DM between people on the two Stumps
+    nick2 = json.loads(get(SECOND, "/rrc/poll?room=chained&since=0"))["nick"]
+    nick1 = json.loads(get(FIRST, "/rrc/poll?room=chained&since=0"))["nick"]
+    users1 = lambda: json.loads(get(FIRST, "/rrc/poll?room=chained&since=0"))["users"]
+    check("people on the other Stump are DM contacts", wait(lambda: nick2 + "@Secondpc" in users1(), 30), users1())
+    get(FIRST, "/rrc/send", ("/msg %s@Secondpc psst" % nick2).encode())
+    dms2 = lambda: json.loads(get(SECOND, "/rrc/poll?room=chained&since=0")).get("dms", [])
+    got = wait(lambda: any(d["body"] == "psst" and d["nick"] == nick1 + "@Firstpc" for d in dms2()), 60)
+    check("a DM crosses to the person on the other Stump", got, dms2())
+    check("... privately", not any("psst" in m["body"] for m in room(SECOND, "chained") + room(FIRST, "chained")))
+    get(SECOND, "/rrc/send", ("/msg %s@Firstpc got it" % nick1).encode())
+    dms1 = lambda: json.loads(get(FIRST, "/rrc/poll?room=chained&since=0")).get("dms", [])
+    check("... and the answer comes back", wait(lambda: any(d["body"] == "got it" for d in dms1()), 60), dms1())
+    # a DM to the other Stump itself
+    get(SECOND, "/rrc/send", b"/msg Firstpc hi node")
+    check("a DM to a Stump shows in its #chained, never #lora",
+          wait(lambda: any(m["body"] == "@Firstpc hi node" for m in room(FIRST, "chained")), 60), room(FIRST, "chained"))
     time.sleep(12)
     second = room(SECOND, "chained")
     check("said once, never echoed back", sum(m["body"] == "hello from the second" for m in second) == 1

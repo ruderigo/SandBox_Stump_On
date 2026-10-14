@@ -222,8 +222,12 @@ true`). The other Stumps of the chain are in it, taken in as soon as
 their beacon is heard over the chain, and so are the people on every
 Stump who join it. Lines from another Stump's people show as
 `nick@thatstump` (`"nick": "rod@Laptop"` in `/rrc/poll`); only chat
-lines cross between Stumps, not joins and parts. A mesh client that is
-itself a Stump lands there, not in `#lora`.
+lines cross between Stumps, not joins and parts. Anyone reached over
+the chain lands there, not in `#lora`. People seen on another Stump are
+DM contacts as `nick@thatstump` (in `users`); `/msg rod@LaBuche text`
+reaches rod privately, and rod's answer arrives as a DM from
+`you@yourstump`. A DM to a Stump itself shows in its `#chained` as
+`@ThatStump text`.
 
 ---
 

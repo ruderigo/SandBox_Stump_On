@@ -44,6 +44,14 @@ def _ip_of(addr):
         return None
 
 
+def _link_event():
+    try:
+        import chain
+        chain.link_event()
+    except Exception:
+        pass
+
+
 def _hello_tag(secret, child_ip, hub_ip):
     if not secret:
         return b""
@@ -67,6 +75,8 @@ class ChainUplinkInterface(UDPInterface):
         if _ip_of(addr) != self.forward_ip:
             return False
         if data[:len(HELLO_MAGIC)] == HELLO_MAGIC:
+            if not self.parent_seen:
+                _link_event()                  # first answer: introduce ourselves
             self.parent_seen = time.time()     # the parent's answer to a hello
             return False
         return True
@@ -114,6 +124,7 @@ class ChainHubInterface(UDPInterface):
         child Stump."""
         if ip not in self.peers:
             log("Chain: " + ip + " joined below this one", LOG_NOTICE)
+            _link_event()
             self.peers[ip] = [_resolve_addr(ip, self.listen_port), time.time()]
         else:
             self.peers[ip][1] = time.time()

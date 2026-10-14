@@ -523,7 +523,25 @@ def main():
                 if DEBUG >= 2:
                     print("Beacon announce error:", e)
             gc.collect()
-            await asyncio.sleep(STUMP_ANNOUNCE_INTERVAL)
+            # Until the next beacon -- or sooner, when a new chain link
+            # comes up: the Stump at the other end has to hear this
+            # beacon (and the LXMF announce) to put us in #chained.
+            waited = 0
+            while waited < STUMP_ANNOUNCE_INTERVAL:
+                await asyncio.sleep(5)
+                waited += 5
+                try:
+                    import chain as _chain
+                    if _chain.take_link_event():
+                        await asyncio.sleep(3)
+                        try:
+                            router.announce()
+                        except Exception:
+                            pass
+                        await asyncio.sleep(2)
+                        break
+                except ImportError:
+                    pass
 
     async def reannounce_loop():
         while True:

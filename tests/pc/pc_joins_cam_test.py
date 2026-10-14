@@ -170,15 +170,15 @@ r = P.chain_live(folder, CAM_LAN, wait=90, get=real_and_cam)
 check("live check: running, a member, answered by the CAM, listed below", all(ok for ok, _, _ in r) and len(r) == 3, r)
 lxmf = json.loads(get("/node.json"))["lxmf"]
 open(lxmf_file, "w").write(lxmf)
-get("/rrc/send", b"/join lxmf")
+get("/rrc/send", b"/join chained")
 arrived = False
 t0 = time.time()
 while time.time() - t0 < 90 and not arrived:
     time.sleep(3)
-    arrived = any("hello from the root CAM" in m["body"] for m in json.loads(get("/rrc/poll?room=lxmf&since=0"))["messages"])
-check("the CAM's chat line reaches the computer's #lxmf", arrived)
+    arrived = any("hello from the root CAM" in m["body"] for m in json.loads(get("/rrc/poll?room=chained&since=0"))["messages"])
+check("the CAM's chat line reaches the computer's #chained", arrived)
 import re
-names = " ".join(m["body"] for m in json.loads(get("/rrc/poll?room=lxmf&since=0"))["messages"])
+names = " ".join(m["body"] for m in json.loads(get("/rrc/poll?room=chained&since=0"))["messages"])
 nick = (re.findall(r"~[\w-]+", names) or ["~camroot"])[-1]
 reply = get("/rrc/send", ("/msg %s hello from the laptop" % nick).encode())
 time.sleep(20)

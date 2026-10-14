@@ -86,14 +86,65 @@ def _via_chain(dest_hash_bytes):
         return False
 
 
-def _chain_stump(dest_hash_hex):
-    """A Stump (heard by its beacon) on this Stump's chain."""
-    if not rrc.room_exists(rrc.CHAIN_ROOM) or not rrc.is_stump(dest_hash_hex):
+def _on_chain(dest_hash_hex, message=None):
+    """Someone reached over this Stump's chain (when it's in one): the
+    path to them, or -- before any announce gave a path -- the link their
+    message came in on."""
+    if not rrc.room_exists(rrc.CHAIN_ROOM):
         return False
+    iface = getattr(message, "receiving_interface", None) if message is not None else None
+    if iface is not None:
+        return type(iface).__name__.startswith("Chain")
     try:
         return _via_chain(bytes.fromhex(dest_hash_hex))
     except Exception:
         return False
+
+
+def _chain_stump(dest_hash_hex):
+    """A Stump (heard by its beacon) on this Stump's chain."""
+    return rrc.is_stump(dest_hash_hex) and _on_chain(dest_hash_hex)
+
+
+# People on the other Stumps of the chain, as DM contacts "rod@LaBuche":
+# client id "@<stump hash>:<nick>" -> {"h", "nick", "seen", "last_dm"}.
+# A DM to one goes to their Stump as "[DM>rod] <me> text"; their Stump
+# hands it to rod as a DM from "me@thisstump".
+_remote = {}
+MAX_REMOTE = 40
+
+
+def _remote_seen(h, nick, who):
+    cid = "@" + h + ":" + nick.lower()
+    r = _remote.get(cid)
+    if r is None:
+        if len(_remote) >= MAX_REMOTE:
+            old = min(_remote, key=lambda k: _remote[k]["seen"])
+            _remote.pop(old)
+            rrc.drop_reachable(old)
+        r = _remote[cid] = {"h": h, "nick": nick, "seen": 0, "last_dm": 0}
+    r["seen"] = time.time()
+    rrc.set_reachable(cid, nick + "@" + who)
+    return cid
+
+
+def _prune_remote(now):
+    for cid in [k for k, r in _remote.items()
+                if r["h"] not in _peers or now - r["seen"] > ANNOUNCE_TIMEOUT]:
+        _remote.pop(cid)
+        rrc.drop_reachable(cid)
+
+
+def _remote_dm_lines(h):
+    """DMs from this Stump's people to people on Stump h, as lines."""
+    lines = []
+    for cid, r in _remote.items():
+        if r["h"] != h:
+            continue
+        for m in rrc.dms_since(cid, r["last_dm"]):
+            lines.append("[DM>%s] <%s> %s" % (r["nick"], m["nick"], m["body"]))
+            r["last_dm"] = max(r["last_dm"], m["id"])
+    return lines
 
 
 def _take_in_chain_stumps(router):
@@ -123,18 +174,37 @@ def _take_in_chain_stumps(router):
         _get_peer(h, name)
 
 
-def _from_stump(dest_hash_hex, peer, text):
-    """Lines from another Stump of the chain into #chained: "<nick> text"
-    as nick@thatstump, "* nick text" as an action, anything else (a DM to
-    this node) as that Stump's. Marked as relayed, so they go no further."""
+def _from_stump(dest_hash_hex, peer, text, router=None):
+    """Lines from another Stump of the chain: "<nick> text" into #chained
+    as nick@thatstump, "* nick text" as an action, "[DM>rod] <nick> text"
+    as a DM to rod here from nick@thatstump, "[DM] <nick>: text" (a DM to
+    this Stump itself) into #chained, addressed to it. Marked as relayed,
+    so they go no further."""
     who = peer["nick"]
+    me = (rrc.NODE or {}).get("name") or "?"
     for line in text.split("\n"):
         line = line.strip()
         if not line:
             continue
+        if line.startswith("[DM>") and "] <" in line and "> " in line:
+            to, rest = line[4:].split("] <", 1)
+            nick, body = rest.split("> ", 1)
+            _remote_seen(dest_hash_hex, nick, who)
+            ok, _ = rrc.send_dm(nick + "@" + who, to, body)
+            if not ok and router is not None:
+                # No one here by that name: say so, as a DM back.
+                _send_queue.append((router, bytes.fromhex(dest_hash_hex),
+                                    "[DM>%s] <%s> %s" % (nick, me, rrc.no_such(to))))
+            continue
+        if line.startswith("[DM] <") and ">: " in line:
+            nick, body = line[6:].split(">: ", 1)
+            _remote_seen(dest_hash_hex, nick, who)
+            rrc.post(rrc.CHAIN_ROOM, nick + "@" + who, "@" + me + " " + body, via=dest_hash_hex)
+            continue
         if line.startswith("<") and "> " in line:
             nick, body = line[1:].split("> ", 1)
             if nick and " " not in nick:
+                _remote_seen(dest_hash_hex, nick, who)
                 rrc.post(rrc.CHAIN_ROOM, nick + "@" + who, body, via=dest_hash_hex)
                 continue
         if line.startswith("* ") and " " in line[2:]:
@@ -166,7 +236,7 @@ def _prune_peers(now):
             rrc.drop_user(h)
 
 
-def _get_peer(dest_hash_hex, display_name):
+def _get_peer(dest_hash_hex, display_name, message=None):
     """Return peer state, creating it on first contact."""
     now = time.time()
     if dest_hash_hex not in _peers:
@@ -199,7 +269,8 @@ def _get_peer(dest_hash_hex, display_name):
         redirect_reason = None
         ident = plugins.service_lookup("identity")
         stump = _chain_stump(dest_hash_hex)
-        if stump:
+        if stump or _on_chain(dest_hash_hex, message):
+            # Over the chain: #chained, not #lora (which is for LoRa).
             room = rrc.CHAIN_ROOM
         elif ident is not None:
             room, allowed, redirect_reason = ident.mesh_landing_room(dest_hash_hex)
@@ -442,7 +513,7 @@ def on_message(router, message):
             pass
 
         first_contact = dest_hash_hex not in _peers
-        peer = _get_peer(dest_hash_hex, display_name)
+        peer = _get_peer(dest_hash_hex, display_name, message)
         # For plugins (ctx.via_propagation): this line was collected from a
         # propagation node rather than heard live.
         peer["via_propagation"] = bool(getattr(message, "via_propagation", False))
@@ -462,10 +533,26 @@ def on_message(router, message):
         # Greet once, on first contact only. _get_peer() can't do this
         # itself -- it has no router to send with, and it is also called
         # from prune paths where sending would be wrong.
+        text0 = (message.content_as_string() or "").strip()
+        if not peer.get("stump") and _on_chain(dest_hash_hex, message):
+            # Its beacon not heard yet (it comes every half hour): another
+            # Stump shows by what it sends -- a room batch titled "#room",
+            # or a DM line.
+            try:
+                title = message.title_as_string() or ""
+            except Exception:
+                title = ""
+            if title.startswith("#") or text0.startswith("[DM"):
+                rrc.mark_stump(dest_hash_hex)
+                peer["stump"] = True
+                if peer["room"] != rrc.CHAIN_ROOM:
+                    rrc.system(peer["room"], rrc.ev_leave("~" + peer["nick"]))
+                    peer["room"] = peer["home_room"] = rrc.CHAIN_ROOM
+                    rrc.system(rrc.CHAIN_ROOM, rrc.ev_join("~" + peer["nick"]))
+                rrc.touch_user(dest_hash_hex, nick=peer["nick"], room=peer["room"])
         if peer.get("stump"):
-            text = (message.content_as_string() or "").strip()
-            if text:
-                _from_stump(dest_hash_hex, peer, text)
+            if text0:
+                _from_stump(dest_hash_hex, peer, text0, router)
             return
         if first_contact:
             # Landing -- first time, or again after going quiet past
@@ -679,7 +766,8 @@ def _flush_to_peer(router, dest_hash_hex, peer):
     # someone happened to speak in that room.
     dms     = rrc.dms_since(dest_hash_hex, peer.get("last_dm_id", 0))
 
-    if not msgs and not dms:
+    remote = _remote_dm_lines(dest_hash_hex) if peer.get("stump") else []
+    if not msgs and not dms and not remote:
         return
     try:
         dest_hash_bytes = bytes.fromhex(dest_hash_hex)
@@ -722,6 +810,7 @@ def _flush_to_peer(router, dest_hash_hex, peer):
         if m["id"] > peer.get("last_dm_id", 0):
             peer["last_dm_id"] = m["id"]
     _send_queue.extend(_voice_items(router, dest_hash_bytes, dms))
+    lines.extend(remote)
 
     if lines:
         # Room lines in this batch belong to `room`; say so in the title.
@@ -813,6 +902,7 @@ async def poll_loop(router):
             now = time.time()
             _prune_peers(now)
             _prune_reach(now)
+            _prune_remote(now)
             for dest_hash_hex, peer in list(_peers.items()):
                 rrc.touch_user(dest_hash_hex, nick=peer["nick"], room=peer["room"])
                 r = _reach.get(dest_hash_hex)

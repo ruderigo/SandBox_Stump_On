@@ -32,7 +32,22 @@ DEFAULT_SUBNET = 4
 DEFAULT_PORT = 4242
 
 _state = {"sta_ip": None, "parent_ip": None, "ap_ip": None, "uplink": None, "hub": None,
-          "hubs": [], "lan_ip": None}
+          "hubs": [], "lan_ip": None, "new_link": False}
+
+
+def link_event():
+    """A Stump joined below this one, or the one above answered for the
+    first time: this Stump announces itself again soon (example_node's
+    beacon_loop), so the newcomer knows it's a Stump without waiting for
+    the half-hourly beacon -- #chained depends on it."""
+    _state["new_link"] = True
+
+
+def take_link_event():
+    if _state["new_link"]:
+        _state["new_link"] = False
+        return True
+    return False
 
 
 def settings():

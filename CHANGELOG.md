@@ -1,6 +1,17 @@
 # Changelog
 
 ## Unreleased
+- **#chained works when the Stumps start at different times.** A Stump
+  knew another one as a Stump only from its beacon, sent at boot and
+  then every half hour: the one started second never heard the first's,
+  so nothing crossed in #chained and a DM to the other Stump landed in
+  #lora. Now a new chain link makes both ends announce themselves right
+  away, a Stump is also recognised by what it sends, and anyone reached
+  over the chain lands in #chained, never #lora.
+- **DMs between people on different Stumps.** People seen in #chained
+  on another Stump are DM contacts as `rod@LaBuche`; `/msg rod@LaBuche
+  ...` reaches rod privately, who answers the same way. A DM to a Stump
+  itself shows in that Stump's #chained, addressed to it (`@LaBuche ...`).
 - **`#chained`: the Stumps of a chain talk among themselves, `#lora`
   stays for LoRa.** On a Stump in a chain, the other Stumps are taken
   into `#chained` as soon as their beacon is heard over the chain --
