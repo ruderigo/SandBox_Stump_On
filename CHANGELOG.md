@@ -1,6 +1,13 @@
 # Changelog
 
 ## Unreleased
+- **Wi-Fi names picked from a list.** Wherever the Provisioner wizard
+  asks for a Wi-Fi name (the network to join, the Stump a chain member
+  joins, the Heltec's network), it lists the networks this computer
+  hears, strongest first, with a lock on those that need a password, and
+  skips the password for open ones. Typing a name still works at the same
+  prompt; with no list (no Wi-Fi, or the system hiding names), it asks as
+  before.
 - **Stump on a computer** (`docs/PC.md`): Windows, macOS or Linux, the
   same firmware on regular Python 3 -- pages, chat, plugins, packs,
   `/admin`, LXMF, propagation node -- with a Heltec on USB (new

@@ -108,6 +108,63 @@ check('pc block: hotspot, parent, own clock', ns["PC_HOTSPOT_NAME"] == "Apt 3B" 
 ns = {"CONFIG": {"interfaces": [{"type": "WiFiSerialInterface", "target_host": "192.168.137.2"}]}}
 exec(P._pc_config_block({"pc_heltec": "wifi"}), ns)
 check('pc block: a Wi-Fi Heltec is kept', ns["CONFIG"]["interfaces"][0]["target_host"] == "192.168.137.2")
+# Wi-Fi networks offered by the wizard instead of typed names
+NETSH = """
+Interface name : Wi-Fi
+There are 3 networks currently visible.
+
+SSID 1 : Bob's Glitch
+    Network type            : Infrastructure
+    Authentication          : WPA2-Personal
+    Encryption              : CCMP
+    BSSID 1                 : aa:bb:cc:dd:ee:ff
+         Signal             : 60%
+    BSSID 2                 : aa:bb:cc:dd:ee:00
+         Signal             : 91%
+SSID 2 : LaBuche-Stump.web.app
+    Network type            : Infrastructure
+    Authentication          : Open
+    Encryption              : None
+    BSSID 1                 : 11:22:33:44:55:66
+         Signal             : 75%
+SSID 3 :
+    Authentication          : WPA2-Personal
+"""
+n = P.parse_netsh(NETSH)
+check('netsh: names, best signal, open', [(x["ssid"], x["signal"], x["open"]) for x in n][:2] ==
+      [("Bob's Glitch", 91, False), ("LaBuche-Stump.web.app", 75, True)], n)
+n = P.parse_netsh("SSID 1 : Café\n    Authentification : Ouvrir\n    Signal : 40 %\n")
+check('netsh in French', n == [{"ssid": "Café", "signal": 40, "open": True}], n)
+n = P.parse_nmcli("Bob's Glitch:82:WPA2\nStump\\:4:55:\n:30:WPA2\n")
+check('nmcli: escaped colon, open, hidden', [(x["ssid"], x["signal"], x["open"]) for x in n] ==
+      [("Bob's Glitch", 82, False), ("Stump:4", 55, True), ("", 30, False)], n)
+SP = json.dumps({"SPAirPortDataType": [{"spairport_airport_interfaces": [{
+    "spairport_current_network_information": {"_name": "Bob's Glitch", "spairport_signal_noise": "-48 dBm / -95 dBm",
+                                              "spairport_security_mode": "spairport_security_mode_wpa2_personal"},
+    "spairport_airport_other_local_wireless_networks": [
+        {"_name": "LaBuche-Stump.web.app", "spairport_signal_noise": "-70 dBm / -95 dBm",
+         "spairport_security_mode": "spairport_security_mode_none"},
+        {"_name": "<redacted>", "spairport_signal_noise": "-60 dBm"}]}]}]})
+n = P.parse_system_profiler(SP)
+check('system_profiler: current and nearby', sorted((x["ssid"], x["signal"], x["open"]) for x in n) ==
+      [("<redacted>", 80, True), ("Bob's Glitch", 100, False), ("LaBuche-Stump.web.app", 60, True)], n)
+nets = [{"ssid": "Bob's Glitch", "signal": 90, "open": False}, {"ssid": "LaBuche-Stump.web.app", "signal": 60, "open": True}]
+def answers(*a):
+    it = iter(a)
+    builtins.input = lambda *x: next(it)
+answers("2")
+check('ask_wifi: pick by number', P.ask_wifi("Wi-Fi", "", scan=lambda: (nets, "")) == "LaBuche-Stump.web.app")
+answers("r", "1")
+check('ask_wifi: look again, then pick', P.ask_wifi("Wi-Fi", "", scan=lambda: (nets, "")) == "Bob's Glitch")
+answers("Not Listed")
+check('ask_wifi: type a name', P.ask_wifi("Wi-Fi", "", scan=lambda: (nets, "")) == "Not Listed")
+answers("")
+check('ask_wifi: blank keeps the default', P.ask_wifi("Wi-Fi", "Home", scan=lambda: (nets, "")) == "Home")
+answers("Typed")
+check('ask_wifi: no scan -> typed as before', P.ask_wifi("Wi-Fi", "", scan=lambda: ([], "no Wi-Fi")) == "Typed")
+P.WIFI_SCAN.update({n["ssid"]: n for n in nets})
+check('open network needs no password', P.wifi_is_open("LaBuche-Stump.web.app") and not P.wifi_is_open("Bob's Glitch")
+      and not P.wifi_is_open("unknown"))
 # remove_plugin refuses core
 check('remove refuses urns', P.remove_plugin('/dev/fake', 'urns') is False)
 print('FAILURES', FAIL)

@@ -212,7 +212,7 @@ EXPECTED_FILE_HASHES = {
     "captive_portal.py": "35cb3a279ecc42db",
     "chain.py": "346632abeeaba698",
     "config.py": "4b546033fac3572a",
-    "docs/CHAIN.md": "c16a45a09ee64ca0",
+    "docs/CHAIN.md": "b5cd3d95faadf6bf",
     "docs/CLIENT_QUICKSTART.md": "2b5aa636a3991ad7",
     "docs/COMMANDS.md": "dc1e12390a36a0e9",
     "docs/FIELD_TEST.md": "318c01f1bc15b078",
@@ -1202,6 +1202,167 @@ def ask_choice(prompt, options):
         if raw.isdigit() and 1 <= int(raw) <= len(options):
             return options[int(raw) - 1]
         print("  invalid choice, try again")
+
+
+# ── Wi-Fi networks around this computer ──────────────────────────────
+# The wizard offers the networks in range instead of making you type a
+# name (and get one letter wrong). Each operating system lists them its
+# own way; when the list can't be had (no Wi-Fi, permissions), the
+# question is simply asked as before.
+
+WIFI_SCAN = {}          # ssid -> {"signal": 0-100, "open": bool}, from the last scan
+
+
+def _wifi_pct(dbm):
+    """dBm -> 0-100, as the other systems report it."""
+    return max(0, min(100, 2 * (int(dbm) + 100)))
+
+
+def parse_netsh(text):
+    """Windows: `netsh wlan show networks mode=bssid` (English or French)."""
+    import re
+    nets, cur = [], None
+    for raw in text.splitlines():
+        line = raw.strip()
+        m = re.match(r"^SSID \d+\s*:\s*(.*)$", line)
+        if m:
+            cur = {"ssid": m.group(1).strip(), "signal": 0, "open": False}
+            nets.append(cur)
+            continue
+        if cur is None or ":" not in line:
+            continue
+        key, val = [x.strip() for x in line.split(":", 1)]
+        k = key.lower()
+        if k.startswith("auth"):
+            cur["open"] = val.lower() in ("open", "ouvrir", "ouvert", "abierta")
+        elif k.startswith("signal") or k.startswith("señal"):
+            m = re.search(r"(\d+)\s*%", val)
+            if m:
+                cur["signal"] = max(cur["signal"], int(m.group(1)))
+    return nets
+
+
+def parse_nmcli(text):
+    """Linux: `nmcli -t -f SSID,SIGNAL,SECURITY device wifi list`
+    (colons inside a name are written \\:)."""
+    import re
+    nets = []
+    for line in text.splitlines():
+        parts = [x.replace("\\:", ":").replace("\\\\", "\\") for x in re.split(r"(?<!\\):", line)]
+        if len(parts) < 3:
+            continue
+        try:
+            sig = int(parts[1])
+        except ValueError:
+            sig = 0
+        nets.append({"ssid": parts[0], "signal": sig, "open": parts[2].strip() in ("", "--")})
+    return nets
+
+
+def parse_system_profiler(text):
+    """macOS: `system_profiler SPAirPortDataType -json`."""
+    import json
+    import re
+    nets = []
+    try:
+        data = json.loads(text)
+    except ValueError:
+        return nets
+    for top in data.get("SPAirPortDataType", []):
+        for iface in top.get("spairport_airport_interfaces", []):
+            found = list(iface.get("spairport_airport_other_local_wireless_networks", []))
+            cur = iface.get("spairport_current_network_information")
+            if isinstance(cur, dict):
+                found.append(cur)
+            for n in found:
+                m = re.match(r"\s*(-?\d+)", str(n.get("spairport_signal_noise", "")))
+                sec = str(n.get("spairport_security_mode", "")).lower()
+                nets.append({"ssid": n.get("_name", ""),
+                             "signal": _wifi_pct(m.group(1)) if m else 0,
+                             "open": sec.endswith("_none") or sec in ("", "none")})
+    return nets
+
+
+def scan_wifi():
+    """The Wi-Fi networks this computer hears, strongest first:
+    [{"ssid", "signal", "open"}]. ([], why) when it can't tell."""
+    import subprocess
+    if sys.platform == "darwin":
+        cmd, parse = ["system_profiler", "SPAirPortDataType", "-json"], parse_system_profiler
+    elif sys.platform.startswith("win"):
+        cmd, parse = ["netsh", "wlan", "show", "networks", "mode=bssid"], parse_netsh
+    else:
+        cmd, parse = ["nmcli", "-t", "-f", "SSID,SIGNAL,SECURITY", "device", "wifi", "list"], parse_nmcli
+    try:
+        r = subprocess.run(cmd, capture_output=True, timeout=30)
+        try:
+            out = r.stdout.decode("utf-8")
+        except UnicodeDecodeError:          # Windows console tools write the OEM code page
+            out = r.stdout.decode("oem" if sys.platform.startswith("win") else "latin-1", "replace")
+    except (OSError, subprocess.SubprocessError) as e:
+        return [], "couldn't list Wi-Fi networks (%s)" % e
+    best = {}
+    hidden = 0
+    for n in parse(out):
+        name = (n.get("ssid") or "").strip()
+        if not name or name.lower() in ("<redacted>", "<hidden>"):
+            hidden += bool(name)
+            continue
+        if name not in best or n["signal"] > best[name]["signal"]:
+            best[name] = n
+    nets = sorted(best.values(), key=lambda n: -n["signal"])
+    if not nets:
+        if hidden:
+            return [], ("the system hides Wi-Fi names from the terminal: give it Location access "
+                        "(macOS: System Settings > Privacy & Security > Location Services)")
+        if sys.platform.startswith("win") and "location" in out.lower():
+            return [], ("Windows lists Wi-Fi networks only with Location on "
+                        "(Settings > Privacy & security > Location)")
+        return [], "no Wi-Fi networks heard from this computer"
+    for n in nets:
+        WIFI_SCAN[n["ssid"]] = n
+    return nets, ""
+
+
+def _fancy():
+    return "utf" in (getattr(sys.stdout, "encoding", "") or "").lower()
+
+
+def _bars(signal):
+    n = max(1, min(4, (signal + 24) // 25))
+    return ("▂▄▆█"[:n] if _fancy() else "|" * n).ljust(4)
+
+
+def ask_wifi(prompt, default="", scan=None):
+    """Asks for a Wi-Fi name, offering the networks in range. Typing a
+    name (or a blank for the default) still works at the same prompt."""
+    scan = scan or scan_wifi
+    while True:
+        print("%s -- looking for Wi-Fi networks around this computer..." % prompt)
+        nets, why = scan()
+        if not nets:
+            print("  (%s)" % why)
+            return ask("%s, typed in" % prompt, default)
+        nets = nets[:20]
+        for i, n in enumerate(nets, 1):
+            print("  %2d) %s %s%s" % (i, _bars(n["signal"]), n["ssid"], "" if n["open"] else ("  🔒" if _fancy() else "  (password)")))
+        print("   r) look again     or type a name that isn't listed")
+        raw = input("Choose 1-%d%s: " % (len(nets), " [%s]" % default if default else "")).strip()
+        if raw.lower() == "r":
+            continue
+        if not raw:
+            if default:
+                return default
+            print("  pick a number, or type the name")
+            continue
+        if raw.isdigit() and 1 <= int(raw) <= len(nets):
+            return nets[int(raw) - 1]["ssid"]
+        return raw
+
+
+def wifi_is_open(ssid):
+    """True when the last scan saw this network without a password."""
+    return bool(WIFI_SCAN.get(ssid, {}).get("open"))
 
 
 def check_cert(cert_path, key_path, host=None):
@@ -2770,12 +2931,12 @@ def config_wizard(board_type):
                 print("\nThe CAM's own hotspot is open (no password) by design -- nothing")
                 print("to enter for that. Its own address is always 192.168.4.1, so this")
                 print("Heltec needs a DIFFERENT address in that same 192.168.4.x range.")
-                ssid = ask("  The CAM's hotspot name (its Node name, or custom SSID)", "")
+                ssid = ask_wifi("  The CAM's hotspot name (its Node name, or custom SSID)", "")
                 psk = ""
                 default_ip = "192.168.4.2"
             else:
-                ssid = ask("  WiFi network for the Heltec to join", "")
-                psk = ask("  WiFi password", "")
+                ssid = ask_wifi("  WiFi network for the Heltec to join", "")
+                psk = "" if wifi_is_open(ssid) else ask("  WiFi password", "")
                 default_ip = "192.168.0.222"
             ip = ask("  Static IP for the Heltec (must match the CAM's\n"
                       "    'Heltec Bridge' target_host)", default_ip)
@@ -2802,8 +2963,8 @@ def config_wizard(board_type):
         print("(for internet/LXMF reachability) -- it's not creating its own hotspot")
         print("with this name. The local walk-up AP is a separate, fixed 'Stump'")
         print("hotspot that comes up automatically, not something configured here.")
-        wifi_ssid = ask("WiFi network to join", "")
-        wifi_pass = ask("WiFi password", "")
+        wifi_ssid = ask_wifi("WiFi network to join", "")
+        wifi_pass = "" if wifi_is_open(wifi_ssid) else ask("WiFi password", "")
         profile["wifi_ssid"] = wifi_ssid
         profile["wifi_pass"] = wifi_pass
 
@@ -2867,7 +3028,7 @@ def config_wizard(board_type):
                     chain_cfg["secret"] = ask("  Chain secret", _secrets.token_hex(8)) or ""
                 else:
                     print("  Join the other Stump's Wi-Fi from this computer's Wi-Fi settings.")
-                    chain_cfg["uplink_ssid"] = ask("  Wi-Fi name of the Stump this one joins", "")
+                    chain_cfg["uplink_ssid"] = ask_wifi("  Wi-Fi name of the Stump this one joins", "")
                     chain_cfg["parent_ip"] = ask("  That Stump's address (a CAM: 192.168.<its number>.1)",
                                                  "192.168.4.1")
                     chain_cfg["secret"] = ask("  Chain secret (the same as on the first Stump)", "") or ""
@@ -2890,8 +3051,9 @@ def config_wizard(board_type):
                 print("  Every Stump in the chain needs the same one: note it down.")
                 chain_cfg["secret"] = ask("  Chain secret", suggested) or ""
             else:
-                chain_cfg["uplink_ssid"] = ask("  Wi-Fi name of the Stump this one joins", "")
-                chain_cfg["uplink_pass"] = ask("  Its Wi-Fi password (blank if open)", "") or ""
+                chain_cfg["uplink_ssid"] = ask_wifi("  Wi-Fi name of the Stump this one joins", "")
+                chain_cfg["uplink_pass"] = "" if wifi_is_open(chain_cfg["uplink_ssid"]) else \
+                    (ask("  Its Wi-Fi password (blank if open)", "") or "")
                 print("  Each Stump's own Wi-Fi uses its own address range, 192.168.<n>.1:")
                 print("  the first Stump is 4; give every other one a different number.")
                 while True:
