@@ -325,7 +325,7 @@ EXPECTED_FILE_HASHES = {
     "docs/PACKS.md": "2e89e3c28d80d72d",
     "docs/PC.md": "f9c64ffa1b3edf4d",
     "docs/PLUGINS.md": "3f5b4a5ee6844305",
-    "example_node.py": "8778ce28c7b7a1f0",
+    "example_node.py": "98a95231632be84a",
     "features.py": "7fca96873d59d2d3",
     "flasher_ui.py": "1d3035b1132bc87e",
     "fserv.py": "50cebb82fdd6dce3",

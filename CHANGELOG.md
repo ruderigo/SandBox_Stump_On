@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.0.0-beta.6
 - **#lora-mesh crosses between Stumps.** A line in `#lora-mesh` stayed
   on the Stump it was written on: only LoRa users who had messaged that
   Stump got it, so with none, nothing reached the Heltec. Now each Stump
