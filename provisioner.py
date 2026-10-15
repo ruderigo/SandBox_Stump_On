@@ -322,7 +322,7 @@ EXPECTED_FILE_HASHES = {
     "docs/HOME_BRANDING.md": "e1a1a9cf854dcdce",
     "docs/HTTPS_SETUP.md": "12cbbf2de7c38810",
     "docs/PACKS.md": "2e89e3c28d80d72d",
-    "docs/PC.md": "7ea12a026172d965",
+    "docs/PC.md": "0ba48e96a04696c1",
     "docs/PLUGINS.md": "3f5b4a5ee6844305",
     "example_node.py": "7c33f593d01363fa",
     "features.py": "7fca96873d59d2d3",
@@ -5368,10 +5368,9 @@ def chain_preflight(parent_ip, secret, ssid="", hello=chain_hello, get=_get_json
         if node is None and kind == "noroute" and sys.platform == "darwin":
             out.append((False, "A Stump answers at http://%s/" % parent_ip,
                         "macOS stopped this program reaching the local network (\"No route to host\"), "
-                        "even if a browser on this Mac opens http://%s/ fine. It never asks for the "
-                        "Terminal: System Settings > Privacy & Security > Local Network, turn on "
-                        "Terminal (or the app you run this in), then check again. (open \"%s\" "
-                        "goes there.)" % (parent_ip, MAC_LOCAL_NETWORK)))
+                        "even if a browser on this Mac opens http://%s/ fine. It doesn't always ask: "
+                        "System Settings > Privacy & Security > Local Network, turn on Python (and "
+                        "Terminal, if it's listed), then check again. (open \"%s\" goes there.)" % (parent_ip, MAC_LOCAL_NETWORK)))
         elif node is None and kind == "timeout" and not parent_ip.endswith(".1"):
             out.append((False, "A Stump answers at http://%s/" % parent_ip,
                         "No answer from %s (%s). Is the Stump on, and still at that address? On a "

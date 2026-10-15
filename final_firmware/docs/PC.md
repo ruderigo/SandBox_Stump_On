@@ -42,8 +42,8 @@ connections: allow it on **private** networks.
 
 **macOS privacy.** macOS may stop the Terminal (and the Stump) reaching
 the local network without asking: System Settings > Privacy & Security
-> **Local Network**, turn on Terminal (the chain check says when this is
-the problem). It also hides the names of Wi-Fi networks around from the
+> **Local Network**, turn on Python (and Terminal, if listed; the chain
+check says when this is the problem). It also hides the names of Wi-Fi networks around from the
 Terminal, so the Provisioner offers the ones this Mac has joined before.
 
 **What's in the folder.** It plays the CAM's flash: the firmware,

@@ -7,7 +7,7 @@
   this Mac has joined before instead of nothing. And when macOS stops
   the Terminal reaching the local network ("No route to host", though a
   browser works), the chain check says so and where to allow it
-  (Privacy & Security > Local Network). A Stump that doesn't answer on a
+  (Privacy & Security > Local Network: Python). A Stump that doesn't answer on a
   shared Wi-Fi gets "its address may have changed" and `--get-ip`, not
   advice about its own Wi-Fi.
 - **Updating a computer Stump notices a new Heltec.** `--pc` on an

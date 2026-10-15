@@ -79,7 +79,7 @@ r = P.chain_preflight("192.168.0.161", SECRET, route=lambda ip: "192.168.0.172",
                       get=fake_get({"/chain.json": noroute, "/node.json": noroute}), wait=0)
 P.sys.platform = real_platform
 check("macOS blocking the local network: says where to allow it", not last(r)[0] and "Local Network" in last(r)[2]
-      and "Terminal" in last(r)[2], r)
+      and "Python" in last(r)[2], r)
 import socket
 r = P.chain_preflight("192.168.0.161", SECRET, route=lambda ip: "192.168.0.172",
                       get=fake_get({"/chain.json": urllib.error.URLError(socket.timeout("timed out")),
