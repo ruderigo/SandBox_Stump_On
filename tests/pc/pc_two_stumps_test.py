@@ -88,6 +88,9 @@ start(SECOND, parent=FIRST[0])
 up = wait(lambda: get(FIRST, "/node.json") and get(SECOND, "/node.json"), 90)
 check("both Stumps start", up)
 if up:
+    port_get = lambda url, timeout=4: P._get_json(url.replace("/node.json", ":%d/node.json" % FIRST[1]), timeout)
+    found = P.find_stumps("127.0.8.", get=port_get)
+    check("find_stumps finds the first Stump on the network", [ip for ip, _ in found] == [FIRST[0]], found)
     for who in (FIRST, SECOND):
         get(who, "/rrc/send", b"/join wifi-mesh")
     met = wait(lambda: any("~Secondpc" in m["body"] for m in room(FIRST, "wifi-mesh"))

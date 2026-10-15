@@ -85,6 +85,32 @@ r = P.chain_preflight("192.168.0.161", SECRET, route=lambda ip: "192.168.0.172",
                       get=fake_get({"/chain.json": urllib.error.URLError(socket.timeout("timed out")),
                                     "/node.json": urllib.error.URLError(socket.timeout("timed out"))}), wait=0)
 check("no answer on a shared Wi-Fi: its address may have changed, --get-ip", not last(r)[0] and "--get-ip" in last(r)[2], r)
+# A Stump that got a new address on the home Wi-Fi: found, and followed
+import contextlib, io, socket
+def lan(table):
+    def get(url, timeout=4):
+        ip = url.split("/")[2]
+        if ip in table:
+            return table[ip]
+        raise urllib.error.URLError(socket.timeout("timed out"))
+    return get
+moved_cam = {"name": "LaBuche", "chain": {"enabled": True, "role": "root", "lan_ip": "192.168.0.175"}}
+other = {"name": "Phone", "chain": None}
+found = P.find_stumps("192.168.0.", get=lan({"192.168.0.175": moved_cam, "192.168.0.20": other}))
+check("find_stumps: only Stumps taking chain links there", [ip for ip, _ in found] == ["192.168.0.175"], found)
+folder0 = tempfile.mkdtemp()
+open(os.path.join(folder0, "config.py"), "w").write("PC_CHAIN_PARENT_IP = '192.168.0.161'\n")
+P.builtins_input_saved = builtins.input
+builtins.input = lambda *a: ""
+fail = [(True, "This computer is on 192.168.0.161's network", ""), (False, "A Stump answers at http://192.168.0.161/", "x")]
+with contextlib.redirect_stdout(io.StringIO()) as said:
+    new = P._follow_moved_parent(folder0, "192.168.0.161", fail, find=lambda prefix, skip=(): found)
+cfg0 = {}
+exec(open(os.path.join(folder0, "config.py")).read(), cfg0)
+check("a moved Stump is followed: config.py gets its new address", new == "192.168.0.175"
+      and cfg0["PC_CHAIN_PARENT_IP"] == "192.168.0.175" and "LaBuche" in said.getvalue(), said.getvalue())
+check("... not for a Stump's own Wi-Fi address", P._follow_moved_parent(folder0, "192.168.4.1", fail) is None)
+builtins.input = P.builtins_input_saved
 refused = urllib.error.URLError(ConnectionRefusedError(61, "Connection refused"))
 r = P.chain_preflight(CAM, SECRET, route=on, get=fake_get({"/chain.json": refused, "/node.json": refused}), wait=0)
 check("refused: its Wi-Fi is up, its program stopped, power-cycle", not last(r)[0] and "web server refused" in last(r)[2]

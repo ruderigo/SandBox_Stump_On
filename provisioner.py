@@ -3551,10 +3551,20 @@ def config_wizard(board_type):
                     ]).startswith("On the Wi-Fi")
                     if same:
                         print("  This computer stays on its Wi-Fi (and its internet). The Stump takes chain")
-                        print("  links there when it's the first Stump and has a chain secret. Its address")
-                        print("  is the \"On the Wi-Fi\" one in its setup summary (or: --get-ip PORT).")
+                        print("  links there when it's the first Stump and has a chain secret.")
                         chain_cfg["uplink_ssid"] = "(this computer's Wi-Fi)"
                         default_ip = ""
+                        mine = _route_ip("192.0.2.1") or ""
+                        if mine.count(".") == 3 and not mine.startswith("127."):
+                            print("  Looking for Stumps on this network...")
+                            found = find_stumps(mine.rsplit(".", 1)[0] + ".", skip=(mine,))
+                            for ip, node in found:
+                                print("    %s  %s" % (ip, node.get("name") or "?"))
+                            if found:
+                                default_ip = found[0][0]
+                            else:
+                                print("  None found: its address is the \"On the Wi-Fi\" one in its setup")
+                                print("  summary (or --get-ip PORT with it on USB).")
                     else:
                         print("  Join the other Stump's Wi-Fi from this computer's Wi-Fi settings.")
                         chain_cfg["uplink_ssid"] = ask_wifi("  Wi-Fi name of the Stump this one joins",
@@ -5367,10 +5377,12 @@ def chain_preflight(parent_ip, secret, ssid="", hello=chain_hello, get=_get_json
         e, kind = err, _why_unreachable(err)
         if node is None and kind == "noroute" and sys.platform == "darwin":
             out.append((False, "A Stump answers at http://%s/" % parent_ip,
-                        "macOS stopped this program reaching the local network (\"No route to host\"), "
-                        "even if a browser on this Mac opens http://%s/ fine. It doesn't always ask: "
-                        "System Settings > Privacy & Security > Local Network, turn on Python (and "
-                        "Terminal, if it's listed), then check again. (open \"%s\" goes there.)" % (parent_ip, MAC_LOCAL_NETWORK)))
+                        "No route to host: most often nothing is at %s now -- on a shared Wi-Fi a "
+                        "Stump's address can change when it restarts (python3 provisioner.py --get-ip "
+                        "PORT tells it, with the Stump on USB). Or macOS is keeping Python off the "
+                        "local network, even if a browser opens the page: System Settings > Privacy & "
+                        "Security > Local Network, turn on Python (open \"%s\" goes there)."
+                        % (parent_ip, MAC_LOCAL_NETWORK)))
         elif node is None and kind == "timeout" and not parent_ip.endswith(".1"):
             out.append((False, "A Stump answers at http://%s/" % parent_ip,
                         "No answer from %s (%s). Is the Stump on, and still at that address? On a "
@@ -5531,6 +5543,60 @@ def check_remote_chain(ip, get=_get_json):
     return out
 
 
+def find_stumps(prefix, get=_get_json, skip=(), workers=64):
+    """Stumps on this network (prefix "192.168.0."): asks each address's
+    /node.json at once, briefly. [(ip, node)] for those in a chain that
+    take links there: a CAM, first of its chain, with a secret, on the
+    Wi-Fi it joined (chain.lan_ip), or a computer that is the first Stump.
+    A few seconds for a whole /24."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    def ask(ip):
+        try:
+            node = get("http://%s/node.json" % ip, timeout=1.5)
+        except Exception:
+            return None
+        chain = node.get("chain") if isinstance(node, dict) else None
+        if isinstance(chain, dict) and chain.get("enabled") and (
+                chain.get("lan_ip") == ip or (chain.get("role") == "root" and chain.get("ap_ip") == ip)):
+            return ip, node                # a CAM on the shared Wi-Fi, or a computer Stump
+        return None
+    ips = [prefix + str(n) for n in range(1, 255) if prefix + str(n) not in skip]
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        return [x for x in pool.map(ask, ips) if x]
+
+
+def _set_parent_ip(folder, ip):
+    """A new address for the Stump this one joins: appended to config.py,
+    overriding the line above it, nothing else."""
+    with open(Path(folder) / "config.py", "a", encoding="utf-8") as f:
+        f.write("\nPC_CHAIN_PARENT_IP = %r   # the Stump this one joins (its address changed)\n" % ip)
+
+
+def _follow_moved_parent(folder, parent, checks, find=None):
+    """When the Stump this one joins doesn't answer on a shared Wi-Fi, it
+    has most likely got a new address from the router: looks for it on the
+    network and offers it. The new address, or None."""
+    if not checks or checks[-1][0] or not checks[-1][1].startswith("A Stump answers") or parent.endswith(".1"):
+        return None
+    prefix = parent.rsplit(".", 1)[0] + "."
+    print("  Looking for Stumps on %s0/24 (its address may have changed)..." % prefix)
+    found = (find or find_stumps)(prefix, skip=(_route_ip(parent),))
+    if not found:
+        print("  None found taking chain links on this network.")
+        return None
+    for ip, node in found:
+        print("    %s  %s" % (ip, node.get("name") or "?"))
+    ip, node = found[0] if len(found) == 1 else (None, None)
+    if ip is None:
+        pick = ask("  Which one does this Stump join (its address)", found[0][0])
+        ip = pick.strip()
+    if not ask_yes_no("  Join %s at %s from now on?" % (node.get("name") if node else "the Stump", ip), True):
+        return None
+    _set_parent_ip(folder, ip)
+    return ip
+
+
 def check_chain(target=None):
     """--check-chain [FOLDER | ADDRESS]."""
     import re
@@ -5555,7 +5621,13 @@ def check_chain(target=None):
         except Exception:
             print(red("    It isn't running: start it, and check again."))
             return False
-    ok = _print_checks(chain_preflight(parent, cfg.get("CHAIN_SECRET", ""), cfg.get("CHAIN_UPLINK_SSID", "")))
+    checks = chain_preflight(parent, cfg.get("CHAIN_SECRET", ""), cfg.get("CHAIN_UPLINK_SSID", ""))
+    ok = _print_checks(checks)
+    moved = None if ok else _follow_moved_parent(folder, parent, checks)
+    if moved:
+        parent = moved
+        print("  Restart this Stump so it joins the new address (python3 provisioner.py --pc).")
+        ok = _print_checks(chain_preflight(parent, cfg.get("CHAIN_SECRET", ""), cfg.get("CHAIN_UPLINK_SSID", "")))
     if ok:
         ok = _print_checks(chain_live(folder, parent, wait=30))
     print("\n  " + (green("The chain is linked.") if ok else "Fix what's marked ✗, then: python3 provisioner.py --check-chain"))
@@ -5646,11 +5718,19 @@ def setup_pc(folder=None, reconfigure=False):
         r.end("skip", "it's the first Stump: nothing to join")
     else:
         print("Can this computer join %s?" % parent)
-        while not _print_checks(chain_preflight(parent, secret, cfg.get("CHAIN_UPLINK_SSID", ""))):
+        while True:
+            checks = chain_preflight(parent, secret, cfg.get("CHAIN_UPLINK_SSID", ""))
+            if _print_checks(checks):
+                break
+            moved = _follow_moved_parent(folder, parent, checks)
+            if moved:
+                parent = moved
+                print("\nCan this computer join %s?" % parent)
+                continue
             if not ask_yes_no("Fix it, then check again? (no: carry on, check later with --check-chain)", True):
                 break
             print()
-        else:
+        if all(ok for ok, _, _ in checks):
             r.note("Chain", "joins %s" % parent)
             r.end("done", "ready to join")
         if r.state[r.index] == "now":

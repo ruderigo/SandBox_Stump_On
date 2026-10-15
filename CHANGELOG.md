@@ -1,6 +1,15 @@
 # Changelog
 
 ## Unreleased
+- **A Stump that moved on the home Wi-Fi is found.** A CAM gets its
+  address there from the router, and it can change when it restarts;
+  the Provisioner kept trying the old one. Now, when the Stump a
+  computer joins doesn't answer on a shared Wi-Fi, it looks for Stumps
+  on that network (a few seconds), shows them, and offers to join the
+  one it finds at its new address (saved in the computer Stump's
+  `config.py`). The wizard's "On the Wi-Fi it's on now" also lists the
+  Stumps it finds instead of asking you to type an address. "No route to
+  host" on macOS now says it's most often that, before Local Network.
 - **macOS: Wi-Fi names and the local network.** macOS hides the names
   of the networks around from the Terminal unless it has Location
   access, and never asks for it: the Wi-Fi picker now lists the networks
