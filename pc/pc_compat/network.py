@@ -32,7 +32,7 @@ class WLAN:
         if new is not None:
             return None                    # the OS sets addresses, not Stump
         ip = stump_host.hotspot_ip()
-        gw = stump_host.setting("PC_CHAIN_PARENT_IP", "") if self._if == STA_IF else ""
+        gw = stump_host.parent_ip() if self._if == STA_IF else ""
         return (ip, "255.255.255.0", gw or ip, ip)
 
     def config(self, *args, **kwargs):

@@ -82,6 +82,88 @@ def hotspot_ip():
     return ips[0] if ips else "127.0.0.1"
 
 
+# ── the Stump this one joins, when its address moves ────────────────
+# On a shared Wi-Fi (home, office) the Stump this computer joins gets its
+# address from the router, and it can change when it restarts. chain.py
+# notices when it goes quiet and asks find_parent() to look for it on the
+# network by its LXMF address; the new address is kept in
+# chain_parent.json (in the Stump folder) until config.py names another.
+
+def _parent_file():
+    return os.path.join(ROOT or ".", "chain_parent.json")
+
+
+def _parent_saved():
+    import json
+    try:
+        with open(_parent_file(), encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def parent_ip():
+    """The address of the Stump this one joins: the one it was last found
+    at, while config.py still names the one it was set up with."""
+    configured = setting("PC_CHAIN_PARENT_IP", "") or ""
+    saved = _parent_saved()
+    if saved.get("ip") and saved.get("config_ip") == configured:
+        return saved["ip"]
+    return configured
+
+
+def parent_lxmf():
+    saved = _parent_saved()
+    return saved.get("lxmf") if saved.get("config_ip") == (setting("PC_CHAIN_PARENT_IP", "") or "") else None
+
+
+def remember_parent(ip, lxmf):
+    import json
+    data = {"ip": ip, "lxmf": lxmf, "config_ip": setting("PC_CHAIN_PARENT_IP", "") or ""}
+    try:
+        with open(_parent_file(), "w", encoding="utf-8") as f:
+            json.dump(data, f)
+    except OSError as e:
+        print("[chain] couldn't save the address of the Stump above:", e)
+
+
+def node_json(ip, timeout=1.5):
+    """/node.json of a Stump, straight (never through a proxy), or None."""
+    import json
+    import urllib.request
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    try:
+        port = int(setting("PC_CHAIN_PARENT_HTTP_PORT", 80) or 80)   # 80 on a CAM; tests use others
+        with opener.open("http://%s:%d/node.json" % (ip, port), timeout=timeout) as r:
+            return json.loads(r.read().decode("utf-8", "replace"))
+    except Exception:
+        return None
+
+
+def find_parent(lxmf, near, get=None, workers=64):
+    """The address on near's /24 where the Stump with this LXMF address
+    answers now, or None. A few seconds; run it off the event loop."""
+    from concurrent.futures import ThreadPoolExecutor
+    get = get or node_json
+    if not lxmf or near.count(".") != 3:
+        return None
+    prefix = near.rsplit(".", 1)[0] + "."
+
+    def ask(ip):
+        node = get(ip)
+        if not isinstance(node, dict) or node.get("lxmf") != lxmf:
+            return None
+        # Where it says it takes chain links (a computer answers HTTP on
+        # every address it has; its chain is on one of them).
+        chain = node.get("chain") or {}
+        return ip if ip in (chain.get("lan_ip"), chain.get("ap_ip"), node.get("ap_ip")) else None
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        for ip in pool.map(ask, [prefix + str(n) for n in range(1, 255)]):
+            if ip:
+                return ip
+    return None
+
+
 # ── the Stump folder as the board's filesystem ──────────────────────
 
 def _from_firmware():

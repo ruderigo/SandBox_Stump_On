@@ -1,6 +1,14 @@
 # Changelog
 
 ## Unreleased
+- **A computer Stump follows the Stump it joins when its address
+  moves.** On a shared Wi-Fi a CAM's address comes from the router and
+  can change when it restarts, which cut the chain until the
+  Provisioner was run again. Now the computer Stump remembers who the
+  Stump above is (its LXMF address); when it goes quiet for 90 s, it
+  looks for it on the network, rejoins it at its new address, and keeps
+  that address (`chain_parent.json`). Tested end to end: two computer
+  Stumps, the first restarted at another address.
 - **A Stump that moved on the home Wi-Fi is found.** A CAM gets its
   address there from the router, and it can change when it restarts;
   the Provisioner kept trying the old one. Now, when the Stump a

@@ -126,6 +126,14 @@ there (its setup summary's *On the Wi-Fi*, e.g. `192.168.0.161`). The
 CAM must be the first Stump of the chain, have a chain secret, and run
 1.0.0-beta.4 or newer (`CHAIN_LAN = True`, the default).
 
+On a shared Wi-Fi the CAM's address comes from the router and can
+change when it restarts. The computer Stump follows it: when the CAM
+goes quiet for 90 s, it looks for it on the network by its LXMF address
+(a few seconds), rejoins it there, and keeps the new address in
+`chain_parent.json` (until `config.py` names another). Its log says so:
+`[chain] found it at 192.168.0.175: moving the uplink there`. A fixed
+address for the CAM in the router (a DHCP reservation) avoids the gap.
+
 **The computer joining a CAM's own Wi-Fi:** join the CAM's Wi-Fi from the
 computer's Wi-Fi settings, and in the wizard choose "Joins another
 Stump's Wi-Fi" with the CAM's address (`192.168.<its number>.1`). With

@@ -196,17 +196,73 @@ def _start_uplink(rns, s, ip, gw):
     print("[chain] uplink to %s is up" % gw)
 
 
+QUIET_S = 90            # the Stump above not heard for this long: look for it
+
+
+def _follow_parent(up, host, now, started):
+    """A Stump on a computer joins its parent on a shared Wi-Fi, where the
+    parent's address can change when it restarts (the router's DHCP). This
+    remembers the parent's LXMF address while it answers, and when it goes
+    quiet, looks for it on the network in a thread (stump_host.find_parent);
+    the address it's found at is saved, and the watch loop moves the uplink
+    there (network.WLAN.ifconfig reads it)."""
+    import _thread
+    f = _state.setdefault("follow", {"lxmf": host.parent_lxmf(), "busy": False, "last": 0, "asked": 0})
+    heard = up.parent_seen and now - up.parent_seen < host.setting("CHAIN_QUIET_S", QUIET_S)
+    if heard and not f["lxmf"] and not f["busy"] and now - f["asked"] > 60:
+        f["asked"], f["busy"] = now, True
+
+        def learn(ip=up.forward_ip):
+            try:
+                node = host.node_json(ip)
+                if isinstance(node, dict) and node.get("lxmf"):
+                    f["lxmf"] = node["lxmf"]
+                    host.remember_parent(ip, node["lxmf"])
+            except Exception as e:
+                print("[chain] couldn't ask the Stump above who it is:", e)
+            f["busy"] = False
+        _thread.start_new_thread(learn, ())
+    quiet = (now - up.parent_seen if up.parent_seen else now - started) > host.setting("CHAIN_QUIET_S", QUIET_S)
+    if quiet and f["lxmf"] and not f["busy"] and now - f["last"] > 2 * host.setting("CHAIN_QUIET_S", QUIET_S):
+        f["last"], f["busy"] = now, True
+        print("[chain] the Stump above (%s) is quiet: looking for it on the network..." % up.forward_ip)
+
+        def look(near=up.forward_ip, lxmf=f["lxmf"]):
+            try:
+                ip = host.find_parent(lxmf, near)
+                if ip and ip != near:
+                    print("[chain] found it at %s: moving the uplink there" % ip)
+                    host.remember_parent(ip, lxmf)
+                elif not ip:
+                    print("[chain] not found on the network yet; trying again soon")
+            except Exception as e:
+                print("[chain] looking for the Stump above failed:", e)
+            f["busy"] = False
+        _thread.start_new_thread(look, ())
+
+
 async def watch_loop(rns):
     """Brings the uplink up when the parent's Wi-Fi is joined, and moves it
-    if its address changes (the parent rebooted and handed out a new one)."""
+    if its address changes (the parent rebooted and handed out a new one).
+    On a computer, also finds the parent again when its address moved."""
     import uasyncio as asyncio
     import network
     s = settings()
     if not s or not s["uplink_ssid"]:
         return
+    try:
+        import stump_host
+    except ImportError:
+        stump_host = None
+    started = time.time()
     while True:
         await asyncio.sleep(15)
         up = _state["uplink"]
+        if stump_host is not None and up is not None:
+            try:
+                _follow_parent(up, stump_host, time.time(), started)
+            except Exception as e:
+                print("[chain] follow:", e)
         try:
             sta = network.WLAN(network.STA_IF)
             if not sta.isconnected():
