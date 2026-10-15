@@ -307,7 +307,7 @@ DEFAULT_CREDIT_WEIGHTS = {"video": 3, "music": 2, "document": 1, "other": 1}
 #   [print(f'    {str(f.relative_to(\"final_firmware\"))!r}: {hashlib.sha256(f.read_bytes()).hexdigest()[:16]!r},')
 #    for f in sorted(Path('final_firmware').rglob('*')) if f.is_file()]"
 EXPECTED_FILE_HASHES = {
-    "barkeep.py": "02d6b596a6a994e9",
+    "barkeep.py": "2ff25a79d916c437",
     "billboard.py": "a7d1f3df668997ab",
     "boot_common.py": "d1f60dd4434752bf",
     "captive_portal.py": "35cb3a279ecc42db",
@@ -330,7 +330,7 @@ EXPECTED_FILE_HASHES = {
     "fserv.py": "50cebb82fdd6dce3",
     "fservbot/plugin.json": "4e0137362ff327d0",
     "guard.py": "cde136ce989c5c53",
-    "i18n.py": "1b6f2d40e52fa98a",
+    "i18n.py": "319ef04385914fad",
     "layout.py": "fb82a2d1ed9f00da",
     "lib/bz2_fast_xtensawin.mpy": "ac55d9eda2126432",
     "lib/ed25519_fast_xtensawin.mpy": "96e74dac45f91687",

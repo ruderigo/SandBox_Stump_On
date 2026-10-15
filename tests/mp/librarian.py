@@ -116,6 +116,12 @@ for lang in ('fr', 'en', 'es'):
 i18n.set_lang(IP, 'fr')
 s, ct, b = req('/files')
 check("French placeholder whole, inside its attribute", "placeholder='Demande à BarKeep : « As-tu un film ? »" in b, b[:100])
+for lang, h2 in (('fr', 'Un Stump, trois montages'), ('en', 'One Stump, three setups'), ('es', 'Un Stump, tres montajes')):
+    i18n.set_lang(IP, lang)
+    s, ct, b = req('/about')
+    check("About (%s): the three setups and who connects" % lang, h2 in b and "ESP32-S3-CAM + Heltec V3" in b
+          and "macOS / Windows / Linux</span>" in b and "R36S / R36MAX" in b and "#wifi-mesh" in b, lang)
+i18n.set_lang(IP, 'fr')
 s, ct, b = req('/concierge')
 check("/concierge: labelled as the librarian", "fichiers, avis, applis" in b, b[:300])
 

@@ -1234,6 +1234,51 @@ STRINGS = {
         "en": "<strong>Stump (La B\u00fbche)</strong> is an independent digital gathering place. It is an off-grid, self-contained node that hosts its own connection without relying on telecommunications towers, centralized servers, or the internet.",
         "es": "<strong>Stump (El Tronco / La B\u00fbche)</strong> es un punto de encuentro digital aut\u00f3nomo. Es un nodo port\u00e1til fuera de la red (off-grid) que genera su propio espacio de conexi\u00f3n sin depender de internet ni de infraestructura corporativa.",
     },
+    # "What a Stump is": the setups and who connects (as in the README).
+    "about_setups_h2": {"fr": "Un Stump, trois montages", "en": "One Stump, three setups", "es": "Un Stump, tres montajes"},
+    "about_setups_intro": {
+        "fr": "Le même logiciel tourne sur une petite carte ou sur un ordinateur, avec ou sans radio.",
+        "en": "The same firmware runs on a small board or on a computer, with or without a radio.",
+        "es": "El mismo programa funciona en una placa pequeña o en una computadora, con o sin radio.",
+    },
+    "about_setup1_desc": {
+        "fr": "Le nœud de poche : son propre Wi-Fi, une carte SD pour les fichiers, la radio LoRa.",
+        "en": "The pocket node: its own Wi-Fi, an SD card for files, the LoRa radio.",
+        "es": "El nodo de bolsillo: su propio Wi-Fi, una tarjeta SD para archivos, la radio LoRa.",
+    },
+    "about_setup2_desc": {
+        "fr": "Un ordinateur en nœud complet, sur le maillage LoRa directement (Heltec en USB).",
+        "en": "A computer as a full node, on the LoRa mesh directly (Heltec on USB).",
+        "es": "Una computadora como nodo completo, directamente en la malla LoRa (Heltec por USB).",
+    },
+    "about_setup3_desc": {
+        "fr": "Un ordinateur sans radio : il rejoint LoRa par un Stump auquel il est enchaîné.",
+        "en": "A computer with no radio of its own: it reaches LoRa through a Stump it's chained to.",
+        "es": "Una computadora sin radio propia: llega a LoRa a través de un Stump encadenado.",
+    },
+    "about_setups_chain": {
+        "fr": "Les Stumps s'enchaînent par Wi-Fi et relaient les uns pour les autres. Ils se parlent dans <b>#wifi-mesh</b> ; les gens sur LoRa arrivent dans <b>#lora-mesh</b>.",
+        "en": "Stumps chain to each other over Wi-Fi and relay for each other. They talk in <b>#wifi-mesh</b>; people on LoRa land in <b>#lora-mesh</b>.",
+        "es": "Los Stumps se encadenan por Wi-Fi y retransmiten unos para otros. Hablan en <b>#wifi-mesh</b>; la gente en LoRa llega a <b>#lora-mesh</b>.",
+    },
+    "about_clients_h2": {"fr": "Qui s'y connecte", "en": "Who connects", "es": "Quién se conecta"},
+    "about_client_android": {
+        "fr": "FireFly. Par LoRa avec son propre Heltec V3, ou par le Wi-Fi d'un Stump depuis son panneau Stump.",
+        "en": "FireFly. Over LoRa with its own Heltec V3, or over a Stump's Wi-Fi from its Stump panel.",
+        "es": "FireFly. Por LoRa con su propio Heltec V3, o por el Wi-Fi de un Stump desde su panel Stump.",
+    },
+    "about_client_handheld_title": {"fr": "Console portable", "en": "Handheld", "es": "Consola portátil"},
+    "about_client_handheld": {
+        "fr": "R36S / R36MAX, FireFly. Par LoRa avec son propre Heltec V3.",
+        "en": "R36S / R36MAX, FireFly. Over LoRa with its own Heltec V3.",
+        "es": "R36S / R36MAX, FireFly. Por LoRa con su propio Heltec V3.",
+    },
+    "about_client_browser_title": {"fr": "Tout navigateur", "en": "Any browser", "es": "Cualquier navegador"},
+    "about_client_browser": {
+        "fr": "Téléphone ou ordinateur, sur le Wi-Fi du Stump (ou le réseau où il se trouve).",
+        "en": "A phone or a computer, on the Stump's Wi-Fi (or the network it's on).",
+        "es": "Un teléfono o una computadora, en el Wi-Fi del Stump (o la red en la que está).",
+    },
     "about_what_p2": {
         "fr": "On s'y connecte avec n'importe quel appareil Wi-Fi pour partager des messages, \u00e9changer des fichiers ou discuter localement avec ceux qui partagent le m\u00eame espace physique.",
         "en": "Anyone nearby can connect via Wi-Fi to chat, post notes to a community billboard, or share files with people sharing the physical space.",

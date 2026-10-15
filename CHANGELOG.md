@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+- **The About page says what a Stump is**, in French, English and
+  Spanish, as the README now does: its three setups (ESP32-S3-CAM +
+  Heltec V3; a macOS/Windows/Linux computer + Heltec V3; a computer
+  with no radio, reaching LoRa through a chained Stump), how Stumps
+  chain (`#wifi-mesh`, `#lora-mesh`), and who connects (FireFly on
+  Android or the R36S/R36MAX handheld, each with its own Heltec V3, and
+  any browser).
+
 ## 1.0.0-beta.4
 - **Chat column you can widen.** Drag the bar between the room list
   and the chat to make room for long names (kept on that device;
