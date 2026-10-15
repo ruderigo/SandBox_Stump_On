@@ -79,11 +79,18 @@ got = bytearray()
 stop = threading.Event()
 
 
+answering = [True]      # the fake RNode answers the handshake (False: a silent board)
+
+
 def reader():
     os.set_blocking(master, False)
     while not stop.is_set():
         try:
-            got.extend(os.read(master, 4096))
+            data = os.read(master, 4096)
+            got.extend(data)
+            if answering[0] and bytes([FEND, 0x08, 0x73, FEND]) in data:
+                # DETECT -> DETECT_RESP; FW_VERSION -> 1.78; PLATFORM -> ESP32
+                os.write(master, kiss(0x08, b"\x46") + kiss(0x50, b"\x01\x4e") + kiss(0x48, b"\x80"))
         except (BlockingIOError, OSError):
             time.sleep(0.02)
 
@@ -91,7 +98,13 @@ threading.Thread(target=reader, daemon=True).start()
 iface = rs.RNodeSerialInterface({"port": port, "frequency": 915000000, "bandwidth": 125000,
                                  "txpower": 7, "spreadingfactor": 8, "codingrate": 5})
 time.sleep(0.5)
-f = frames(got)
+f = [x for x in frames(got) if x[0] not in (0x08, 0x50, 0x48)]
+check("the handshake first: DETECT, firmware, platform", [c for c, p in frames(got)][:3] == [0x08, 0x50, 0x48],
+      frames(got)[:3])
+st = iface.status()
+check("the handshake answered: online, its firmware and port in the status", st["state"] == "online"
+      and st["detected"] and st["fw"] == "1.78" and st["platform"] == "ESP32" and st["where"] == port
+      and st["kind"] == "usb", st)
 cmds = [c for c, p in f]
 # RNode commands: FREQUENCY 0x01, BANDWIDTH 0x02, TXPOWER 0x03, SF 0x04, CR 0x05, RADIO_STATE 0x06
 check("online after connect", iface.online)
@@ -118,9 +131,16 @@ async def run(seconds):
     t.cancel()
 
 incoming = bytes(range(60)) + bytes([FEND]) + b"in"
-os.write(master, b"boot noise" + kiss(0x00, incoming) + kiss(0x25, b"\x01\x02"))
+os.write(master, b"boot noise" + kiss(0x23, bytes([157 - 92])) + kiss(0x24, bytes([256 - 26]))
+         + kiss(0x00, incoming) + kiss(0x25, bytes([0, 150, 0, 0, 3, 32, 0, 0, 0, 157 - 118]))
+         + kiss(0x27, b"\x02\x57") + kiss(0x01, (915000000).to_bytes(4, "big")) + kiss(0x06, b"\x01"))
 asyncio.run(run(0.5))
 check("a packet comes in (boot noise and other commands ignored)", received == [incoming], received)
+st = iface.status()
+check("its reports read: RSSI, SNR, channel load, airtime, noise, battery, radio echo",
+      st["rssi"] == -92 and st["snr"] == -6.5 and st["channel_load"] == 8.0 and st["airtime"] == 1.5
+      and st["noise"] == -118 and st["battery"] == 87 and st["radio"].get("frequency") == 915000000
+      and st["radio"].get("on") == 1 and st["last_rx"], st)
 
 # Unplug: the serial port starts failing, as pyserial does when the USB
 # device goes away (a closed pseudo-terminal doesn't on macOS, so the
@@ -150,7 +170,19 @@ iface._last_reconnect = 0
 got.clear()
 asyncio.run(run(1.5))
 check("plugged back in: reconnects and sets the radio up again", iface.online
-      and [c for c, p in frames(got)][:6] == [0x01, 0x02, 0x03, 0x04, 0x05, 0x06], frames(got)[:6])
+      and [c for c, p in frames(got) if c not in (0x08, 0x50, 0x48)][:6] == [0x01, 0x02, 0x03, 0x04, 0x05, 0x06],
+      frames(got)[:9])
+
+# A board that doesn't answer the handshake (not the RNode firmware): never
+# "online", and the status says why.
+answering[0] = False
+iface._socket.s = Gone()
+asyncio.run(run(0.3))
+iface._last_reconnect = 0
+asyncio.run(run(rs.HANDSHAKE_S + 1.5))
+st = iface.status()
+check("no answer to the handshake: not online, an error that says what to check", not iface.online
+      and st["state"] == "error" and "RNode firmware" in (st["error"] or ""), st)
 stop.set()
 print("FAILURES", FAIL)
 sys.exit(1 if FAIL else 0)

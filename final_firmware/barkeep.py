@@ -984,6 +984,15 @@ def _render_admin_login_page(lang, error=False, wait=0):
     )
 
 
+def _hw_brief():
+    """The radio's state for the chat's status dot: {"state", "title"}."""
+    try:
+        h = radio.hw()
+        return {"state": h["state"], "title": "\n".join(radio.hw_line(r) for r in h["radios"])}
+    except Exception as e:
+        return {"state": "error", "title": str(e)}
+
+
 def _release_line():
     """"Stump Beta A · 1.0.0-beta.3": the release this node runs (set at
     boot from example_node.py), so anyone can check it from a phone.
@@ -1044,6 +1053,7 @@ def _render_admin_file_list_page(lang, names, pw):
         + _render_admin_tls_line(lang)
         + _render_admin_home_section(lang, pw)
         + _render_admin_radio_section(lang, pw)
+        + _render_admin_radio_live(lang)
         + _render_admin_pn_section(lang, pw)
         + _render_admin_chain_section(lang)
         + _render_admin_plugins_section(lang, pw)
@@ -1389,6 +1399,62 @@ def _render_admin_pn_section(lang, pw):
              "<label>" + i18n.t("admin_pn_leave_text", lang) + "<br><input name='text' maxlength='200'></label>"
              "<button type='submit'>" + i18n.t("admin_pn_leave_button", lang) + "</button></form>")
     return head + body + toggle + mailbox + leave
+
+
+_HW_LIVE_SCRIPT = """<script>(function(){
+var L=HW_LABELS, box=document.getElementById('hwlive');
+function row(k,v){ return v===null||v===undefined||v===''?'':'<tr><th>'+k+'</th><td>'+v+'</td></tr>'; }
+function esc(t){ return String(t).replace(/[&<>"']/g,function(c){return '&#'+c.charCodeAt(0)+';';}); }
+function ago(t){ if(!t) return null; var s=Math.max(0,Math.round(Date.now()/1000-t)); return s+' s'; }
+function draw(h){
+  if(!h.radios.length){ box.innerHTML='<p class="sub">'+esc(L.none)+'</p>'; return; }
+  box.innerHTML=h.radios.map(function(r){
+    var set=r.settings||{}, echo=r.radio||{};
+    var mhz=function(hz){ return hz? (hz/1e6).toFixed(3)+' MHz':null; };
+    return '<table class="hwt"><caption><span class="hw-dot '+esc(r.state)+'"></span> '+esc(r.name)+' — '+esc(L[r.state]||r.state)+'</caption>'
+      +row(L.where, esc(r.where||'')+(r.device?' · '+esc(r.device):''))
+      +row('RNode', r.fw? esc(r.fw)+(r.platform?' · '+esc(r.platform):'') : null)
+      +row(L.error, r.state!=='online'&&r.error? esc(r.error):null)
+      +row(L.set, set.frequency? mhz(set.frequency)+' · '+(set.bandwidth/1000)+' kHz · SF'+set.sf+' · CR4/'+set.cr+' · '+set.txpower+' dBm':null)
+      +row(L.echo, echo.frequency? mhz(echo.frequency)+(echo.on===1?' · '+L.on:''):null)
+      +row('RSSI · SNR', r.rssi!==null? r.rssi+' dBm · '+r.snr+' dB':null)
+      +row(L.noise, r.noise!==null? r.noise+' dBm':null)
+      +row(L.load, r.channel_load!==null? r.channel_load+' % · '+L.airtime+' '+r.airtime+' %':null)
+      +row(L.battery, r.battery!==null? r.battery+' %':null)
+      +row(L.temp, r.temp!==null? r.temp+' °C':null)
+      +row(L.counts, r.rx!==null||r.tx!==null? (r.rx||0)+' / '+(r.tx||0):null)
+      +row(L.last, ago(r.last_rx))
+      +row(L.since, ago(r.since))
+      +'</table>';
+  }).join('');
+}
+function tick(){
+  fetch('/hw.json',{cache:'no-store'}).then(function(r){return r.json();}).then(draw)
+    .catch(function(){}).then(function(){ setTimeout(tick, 2000); });
+}
+tick();
+})();</script>"""
+
+
+def _render_admin_radio_live(lang):
+    """The radio, live: whether the RNode answered, its firmware, the
+    settings it echoed back, signal of the last packet, noise floor,
+    channel load, battery -- refreshed every 2 s from /hw.json."""
+    if not radio.bridges():
+        return ""
+    labels = {k: i18n.t("admin_hw_" + k, lang) for k in (
+        "title", "none", "where", "error", "set", "echo", "on", "noise", "load", "airtime",
+        "battery", "temp", "counts", "last", "since")}
+    labels.update({k: i18n.t("rrc_hw_" + k, lang) for k in ("online", "connecting", "error")})
+    return ("<h2 class='sub'>" + labels["title"] + "</h2>"
+            "<style>.hwt{border-collapse:collapse;margin:6px 0 14px;font-size:.85rem}"
+            ".hwt caption{text-align:left;font-weight:bold;padding:4px 0}"
+            ".hwt th{text-align:left;color:var(--muted);font-weight:normal;padding:2px 12px 2px 0;white-space:nowrap}"
+            ".hwt td{padding:2px 0}.hw-dot{display:inline-block;width:10px;height:10px;border-radius:50%;"
+            "background:#f2efe8;border:1px solid var(--border)}.hw-dot.online{background:#3fb950}"
+            ".hw-dot.connecting{background:#f0a030}.hw-dot.error{background:#e5534b}</style>"
+            "<div id='hwlive'><p class='sub'>…</p></div>"
+            + _HW_LIVE_SCRIPT.replace("HW_LABELS", json.dumps(labels)))
 
 
 def _render_admin_radio_section(lang, pw):
@@ -2383,7 +2449,7 @@ async def _read_small_body(reader, length, chunk=1024, cap=None):
 # these would break a page still open over HTTP, since the browser
 # refuses a cross-origin redirect for them.
 _NO_REDIRECT = ("/home-file", "/tls-ok", "/rrc/poll", "/rrc/voice", "/rrc/send", "/download", "/codec2", "/opus.", "/billboard.json",
-                "/files.json", "/plugins.json", "/chain.json", "/fw", "/tool?", "/lang", "/upload", "/post", "/chat")
+                "/files.json", "/plugins.json", "/chain.json", "/hw.json", "/fw", "/tool?", "/lang", "/upload", "/post", "/chat")
 
 
 def _own_ap_ip():
@@ -2956,7 +3022,7 @@ async def _handle(reader, writer, secure=False):
             # both need to be reflected back rather than silently
             # leaving the client polling a room it isn't in.
             actual = user["room"]
-            if not rrc.room_exists(actual):
+            if not rrc.room_exists(actual) or not rrc.room_allows(identifier, actual):
                 actual = rrc.DEFAULT_ROOM
                 rrc.touch_user(identifier, room=actual)
             if actual != q_room:
@@ -2991,6 +3057,7 @@ async def _handle(reader, writer, secure=False):
                 # Which of those are other Stump nodes (from their
                 # stump.node beacons), so the UI can label them.
                 "stumps": rrc.stump_nicks(),
+                "hw": _hw_brief(),
                 # Which node this is -- a client reaching it over Wi-Fi
                 # and LoRa matches the two by this LXMF address.
                 "node": rrc.NODE,
@@ -3162,7 +3229,18 @@ async def _handle(reader, writer, secure=False):
             st = chain.status()
             info["chain"] = st if st.get("enabled") else None
             info["features"] = [f for f in features.ALL if features.enabled(f)]
+            # The radio settings, when this Stump has a radio: every node of
+            # a mesh needs the same ones (the Provisioner copies them).
+            cur = radio.current()
+            if cur:
+                info["radio"] = {k: cur[k] for k in ("frequency", "bandwidth", "sf", "cr")}
             await _send(writer, "200 OK", json.dumps(info), "application/json")
+
+        elif method == "GET" and path.startswith("/hw.json"):
+            # The radio(s): connected, connecting, or why not; the RNode's
+            # firmware and live statistics (radio.hw). For the chat's
+            # status dot and /admin.
+            await _send(writer, "200 OK", json.dumps(radio.hw()), "application/json")
 
         elif method == "GET" and path.startswith("/chain.json"):
             # This Stump's place in a chain over Wi-Fi (chain.py): role,

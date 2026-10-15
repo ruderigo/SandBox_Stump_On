@@ -433,6 +433,13 @@ itself (`/msg LaBuche text`) shows in that Stump's `#wifi-mesh` as
 `<you@yourstump> @LaBuche text`. (`#chained` and `#mesh`, its names on
 `main` for an afternoon, still reach it.)
 
+**On a computer with its own Heltec**, `#lora-mesh` is the radio's room
+(`/rooms` marks it `[LoRa]`): people on LoRa are always in; on the web,
+the computer's owner (on the computer itself) and whom they invite:
+`/lora invite <nick>`, `/lora uninvite <nick>`, `/lora` (who's invited).
+Others get `⊘ #lora-mesh LoRa — …`. It never reaches other Stumps over
+the chain. `LORA_MESH_LOCKED = False` in config.py opens it.
+
 **Test matrix:**
 - [ ] Fresh, unconfigured node: `/rooms` shows both `#main` and `#lora-mesh`, with zero admin action taken
 - [ ] A mesh peer's first message lands them in `#lora-mesh`, and the first thing they receive is `→ #lora-mesh`
@@ -536,6 +543,7 @@ accepts the certificate (it fetches `/tls-ok` first).
 | GET | `/tools.json` | The same as JSON: `{"sd", "apps": [{"app","file","version","size","url"}], "files": [{"name","size","section","url"}], "sections": [{"dir","title","summary","readme","files"}]}` |
 | GET | `/tool?f=` | Download a tool file: `name`, or `folder/name` one folder down |
 | GET | `/node.json` | Who this node is, without joining the chat: `{"name", "lxmf", "version", "release", "ap_ip", "chain", "features"}`; `chain` is `null` or the `/chain.json` object (see `CLIENT_QUICKSTART.md`) |
+| GET | `/hw.json` | The radio(s): `{"state": "none"|"online"|"connecting"|"error", "radios": [{"name", "kind": "usb"|"wifi", "where", "device", "fw", "platform", "error", "settings", "radio", "rssi", "snr", "noise", "channel_load", "airtime", "battery", "rx", "tx", "last_rx", "since"}]}` |
 | GET | `/chain.json` | This Stump's place in a chain over Wi-Fi: `{"enabled", "role", "ap_ip", "lan_ip", "channel", "secret", "uplink", "below"}`; `lan_ip`: the first Stump's address on the Wi-Fi it joined, where it also takes chain links (else `null`) (see `CHAIN.md`) |
 | GET | `/plugins.json` | What the plugins add: `{"api", "trigger", "plugins": [{"name","version","commands","pages"}]}` (see `PLUGINS.md`) |
 | GET, POST | `/p/<plugin>/…` | A plugin's own pages. Any address under `/p/` that no running plugin answers shows the home page, like any unknown address |

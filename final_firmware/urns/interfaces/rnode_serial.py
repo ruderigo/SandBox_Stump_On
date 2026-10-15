@@ -18,8 +18,11 @@
 #    "spreadingfactor": 8, "codingrate": 5}
 
 import time
-from .wifi_serial import WiFiSerialInterface
+from .wifi_serial import (WiFiSerialInterface, FEND, CMD_DETECT, DETECT_REQ, CMD_FW_VERSION,
+                          CMD_PLATFORM)
 from ..log import log, LOG_NOTICE, LOG_ERROR
+
+HANDSHAKE_S = 3.0     # how long an RNode has to answer "are you an RNode?"
 
 BAUD = 115200
 BOOT_WAIT_S = 2.5     # opening the port resets most ESP32 boards; let it boot
@@ -38,6 +41,20 @@ def find_port():
     for p in sorted(list_ports.comports(), key=lambda p: p.device):
         if p.vid in _KNOWN_VIDS:
             return p.device
+    return None
+
+
+def describe_port(device):
+    """"CP2102 USB to UART Bridge Controller (Silicon Labs)" for a port, so
+    the right board can be told apart on a hub; None if unknown."""
+    try:
+        from serial.tools import list_ports
+        for p in list_ports.comports():
+            if p.device == device:
+                bits = [b for b in (p.product or p.description, p.manufacturer) if b and b != "n/a"]
+                return " · ".join(bits) or None
+    except Exception:
+        pass
     return None
 
 
@@ -100,6 +117,7 @@ class RNodeSerialInterface(WiFiSerialInterface):
             if not port:
                 raise OSError(19, "no RNode found on USB (plug the Heltec in)")
             self.port = self.target_host = port
+        self.hw["device"] = describe_port(port)
         s = _SerialPort(port)
         time.sleep(BOOT_WAIT_S)
         try:
@@ -111,14 +129,43 @@ class RNodeSerialInterface(WiFiSerialInterface):
         self._escape = False
         self._command = None
         self._buffer = bytearray()
+        # The handshake: an RNode answers DETECT, and says its firmware.
+        self.hw["detected"] = False
+        self._send_command(CMD_DETECT, bytes([DETECT_REQ]))
+        self._send_command(CMD_FW_VERSION, b"\x00")
+        self._send_command(CMD_PLATFORM, b"\x00")
+        t0 = time.time()
+        while not self.hw["detected"] and time.time() - t0 < HANDSHAKE_S:
+            try:
+                n = s.readinto(self._recv_buf)
+                for i in range(n):
+                    self._process_byte(self._recv_mv[i])
+            except OSError as e:
+                if e.args and e.args[0] != 11:
+                    raise
+                time.sleep(0.05)
+        if not self.hw["detected"]:
+            s.close()
+            self._socket = None
+            raise OSError(5, "%s answered nothing to the RNode handshake: is the RNode firmware on it "
+                             "(rnodeconf --autoinstall), and nothing else using the port?" % port)
         self.online = True
         self._reconnect_count = 0
         self._last_activity = time.time()
-        log("RNode on USB: " + port, LOG_NOTICE)
+        self.hw["error"] = None
+        self.hw["since"] = time.time()
+        log("RNode on USB: %s (%s), firmware %s" % (port, self.hw.get("device") or "?",
+                                                    self.hw.get("fw") or "?"), LOG_NOTICE)
         self._init_radio()
 
     def prime(self):
         pass
+
+    def status(self):
+        h = WiFiSerialInterface.status(self)
+        h["kind"] = "usb"
+        h["where"] = self.port
+        return h
 
     def __str__(self):
         return "RNodeSerialInterface[" + self.name + "]"

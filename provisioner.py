@@ -307,30 +307,31 @@ DEFAULT_CREDIT_WEIGHTS = {"video": 3, "music": 2, "document": 1, "other": 1}
 #   [print(f'    {str(f.relative_to(\"final_firmware\"))!r}: {hashlib.sha256(f.read_bytes()).hexdigest()[:16]!r},')
 #    for f in sorted(Path('final_firmware').rglob('*')) if f.is_file()]"
 EXPECTED_FILE_HASHES = {
-    "barkeep.py": "2ff25a79d916c437",
+    "_sd_web/billboard.txt": "e3b0c44298fc1c14",
+    "barkeep.py": "c497db7d3900e66b",
     "billboard.py": "a7d1f3df668997ab",
     "boot_common.py": "d1f60dd4434752bf",
     "captive_portal.py": "35cb3a279ecc42db",
     "chain.py": "1457a252b5a69941",
     "config.py": "ed7b475134824fb3",
     "docs/CHAIN.md": "5bbe3be1012ab2c6",
-    "docs/CLIENT_QUICKSTART.md": "86aef14730ee52d2",
-    "docs/COMMANDS.md": "37b3b8a92c0e8c45",
+    "docs/CLIENT_QUICKSTART.md": "35c0a28ced2b0e52",
+    "docs/COMMANDS.md": "aa3d12800535a705",
     "docs/ENGINEERING_NOTES.md": "526b3ea96bc44873",
     "docs/FIELD_TEST.md": "b51116d86fe135d3",
     "docs/HIDDEN_FEATURES.md": "b1e2a0e9bcaa0b1b",
     "docs/HOME_BRANDING.md": "e1a1a9cf854dcdce",
     "docs/HTTPS_SETUP.md": "12cbbf2de7c38810",
     "docs/PACKS.md": "2e89e3c28d80d72d",
-    "docs/PC.md": "dffe007551360277",
+    "docs/PC.md": "01aa1ade711f11b6",
     "docs/PLUGINS.md": "3f5b4a5ee6844305",
-    "example_node.py": "7c33f593d01363fa",
+    "example_node.py": "41aac992480852bb",
     "features.py": "7fca96873d59d2d3",
     "flasher_ui.py": "1d3035b1132bc87e",
     "fserv.py": "50cebb82fdd6dce3",
     "fservbot/plugin.json": "4e0137362ff327d0",
     "guard.py": "cde136ce989c5c53",
-    "i18n.py": "319ef04385914fad",
+    "i18n.py": "4824d5f2318c0fc6",
     "layout.py": "fb82a2d1ed9f00da",
     "lib/bz2_fast_xtensawin.mpy": "ac55d9eda2126432",
     "lib/ed25519_fast_xtensawin.mpy": "96e74dac45f91687",
@@ -343,10 +344,10 @@ EXPECTED_FILE_HASHES = {
     "peripherals/adc_reader.py": "50a393bfa61641d4",
     "plugins.py": "7d277aabb19f4291",
     "propagation.py": "e86471653a5036ec",
-    "radio.py": "e641a5b077368c9c",
-    "rrc.py": "0d0a6a2b0170ca2b",
-    "rrc_mesh.py": "3bd809f4f0e88925",
-    "rrc_ui.py": "69f16df3a539737d",
+    "radio.py": "27cb5a8a8b5ae987",
+    "rrc.py": "a8fb0ebdfd8c7ea9",
+    "rrc_mesh.py": "4828728e75b93f98",
+    "rrc_ui.py": "13d72219a1ddf9ea",
     "stump_tls.py": "32a9394408ae392e",
     "stumpid/plugin.json": "a7887a7dd4bbd28b",
     "theme.py": "79b1b8a3b636d07b",
@@ -512,11 +513,11 @@ EXPECTED_FILE_HASHES = {
     "urns/interfaces/chain.py": "987643f122d08df9",
     "urns/interfaces/e32.py": "4cc3c2994c2d7972",
     "urns/interfaces/lora.py": "34ce816fe69c0b43",
-    "urns/interfaces/rnode_serial.py": "aa051145f9e81076",
+    "urns/interfaces/rnode_serial.py": "b6a42e6d7eb0ad35",
     "urns/interfaces/serial.py": "3c7dda5e4ffb5dec",
     "urns/interfaces/tcp.py": "a29d90caa017764a",
     "urns/interfaces/udp.py": "cc5e30ddc0861737",
-    "urns/interfaces/wifi_serial.py": "6ebabe69b9e1a861",
+    "urns/interfaces/wifi_serial.py": "f832a6b5ae8e6994",
     "urns/link.py": "3cb7d2dafe5bdbb6",
     "urns/log.py": "4b5576693991c7a6",
     "urns/lxmf.py": "ddc9239bb6ad665c",
@@ -2378,8 +2379,12 @@ def list_serial_ports():
         for pattern_dir in ("/dev",):
             if os.path.isdir(pattern_dir):
                 for name in os.listdir(pattern_dir):
-                    if name.startswith("ttyUSB") or name.startswith("ttyACM") or name.startswith("cu.usb"):
-                        candidates.append({"device": f"/dev/{name}", "description": "(pyserial not installed — no VID/PID info)", "guess": "unknown board"})
+                    if name.startswith(("ttyUSB", "ttyACM", "cu.usb", "cu.SLAB", "cu.wchusbserial")):
+                        dev = f"/dev/{name}"
+                        # No USB ids without pyserial: the port name still tells a
+                        # UART bridge (a Heltec's CP2102) from native USB (a CAM).
+                        candidates.append({"device": dev, "description": "(pyserial not installed — no VID/PID info)",
+                                           "guess": _guess_board(None, None, dev.replace("SLAB_USBtoUART", "usbserial"), "")})
         return candidates
 
 
@@ -3634,6 +3639,10 @@ def config_wizard(board_type):
             if profile["pc_heltec"] == "usb":
                 port = ask("  Its USB port ('auto' finds it)", "auto")
                 profile["pc_heltec_port"] = port or "auto"
+                radio, src = mesh_radio_settings((chain_cfg or {}).get("parent_ip"))
+                print("  Radio: %s (%s)" % (_radio_text(radio), "the same as the Stump at %s" % src if src
+                                             else "the Provisioner's defaults: they must match the mesh's"))
+                profile["pc_radio"] = radio
         elif chain_cfg:
             has_heltec = ask_yes_no("Does this Stump have its own Heltec (LoRa radio)?",
                                     not chain_cfg["uplink_ssid"])
@@ -5103,8 +5112,10 @@ def _pc_config_block(profile):
     if heltec == "usb":
         out.append("# The Heltec on USB ('auto' finds it); radio settings: /admin -> Radio.\n")
         out.append("CONFIG['interfaces'] = [i for i in CONFIG['interfaces'] if i.get('type') != 'WiFiSerialInterface'] + [\n")
+        radio = profile.get("pc_radio") or {}
         out.append("    {'type': 'RNodeSerialInterface', 'name': 'Heltec (USB)', 'enabled': True,\n")
-        out.append("     'port': %r},\n]\n" % profile.get("pc_heltec_port", "auto"))
+        out.append("     'port': %r%s},\n]\n" % (profile.get("pc_heltec_port", "auto"),
+                                               "".join(", %r: %r" % kv for kv in sorted(radio.items()))))
     elif heltec == "none":
         out.append("CONFIG['interfaces'] = [i for i in CONFIG['interfaces'] if i.get('type') != 'WiFiSerialInterface']\n")
     return "".join(out)
@@ -5123,7 +5134,10 @@ def _pc_configure_existing(r, folder):
     if heltec != "usb" and usb:
         print(yellow("A Heltec is plugged in by USB (%s), but this Stump doesn't use one." % usb[0]["device"]))
         if ask_yes_no("Use it for this Stump (the other settings stay as they are)?", True):
-            _pc_add_usb_heltec(folder)
+            radio, src = mesh_radio_settings(cfg.get("PC_CHAIN_PARENT_IP"))
+            print("  Radio: %s (%s)" % (_radio_text(radio), "the same as the Stump at %s" % src if src
+                                         else "the Provisioner's defaults: they must match the mesh's"))
+            _pc_add_usb_heltec(folder, radio)
             print("  It needs the RNode firmware: a Heltec set up by the Provisioner has it.")
             r.note("Heltec", "on USB (%s)" % usb[0]["device"])
             r.end("done", "the Heltec on USB added, the rest kept")
@@ -5157,14 +5171,37 @@ def _pc_settings_summary(cfg):
     return " · ".join(parts)
 
 
-def _pc_add_usb_heltec(folder):
+def mesh_radio_settings(parent_ip=None, get=None):
+    """The radio settings the mesh uses: those of the Stump this one joins
+    (its /node.json, firmware 1.0.0-beta.4+), else the Provisioner's
+    defaults. (settings, where they came from)."""
+    if parent_ip:
+        try:
+            r = (get or _get_json)("http://%s/node.json" % parent_ip, timeout=3).get("radio")
+            if r and all(k in r for k in ("frequency", "bandwidth", "sf", "cr")):
+                return ({"frequency": r["frequency"], "bandwidth": r["bandwidth"],
+                         "spreadingfactor": r["sf"], "codingrate": r["cr"]}, parent_ip)
+        except Exception:
+            pass
+    return ({k: DEFAULT_RADIO[k] for k in ("frequency", "bandwidth", "spreadingfactor", "codingrate")}, None)
+
+
+def _radio_text(r):
+    return "%.3f MHz, %g kHz, SF%d, CR4/%d" % (r["frequency"] / 1e6, r["bandwidth"] / 1000,
+                                               r["spreadingfactor"], r["codingrate"])
+
+
+def _pc_add_usb_heltec(folder, radio=None):
     """Switches an existing computer Stump to a Heltec on USB, keeping every
     other setting: appended to config.py, so it overrides the radio lines
-    above it and nothing else."""
+    above it and nothing else. radio: the mesh's settings (every node of a
+    mesh needs the same frequency, bandwidth, SF and CR)."""
+    extra = "".join(", %r: %r" % (k, v) for k, v in sorted((radio or {}).items()))
     block = ("\n# ---- The Heltec on USB (added by the Provisioner; 'auto' finds it) ----\n"
              "CONFIG['interfaces'] = [i for i in CONFIG['interfaces']\n"
              "                        if i.get('type') not in ('WiFiSerialInterface', 'RNodeSerialInterface')] + [\n"
-             "    {'type': 'RNodeSerialInterface', 'name': 'Heltec (USB)', 'enabled': True, 'port': 'auto'},\n]\n")
+             "    {'type': 'RNodeSerialInterface', 'name': 'Heltec (USB)', 'enabled': True, 'port': 'auto'%s},\n]\n"
+             % extra)
     with open(Path(folder) / "config.py", "a", encoding="utf-8") as f:
         f.write(block)
 

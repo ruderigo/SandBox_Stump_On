@@ -49,6 +49,40 @@ def current():
             "txpower": i.txpower, "sf": i.sf, "cr": i.cr}
 
 
+def hw():
+    """The radios' state, for /hw.json, the chat's status dot and /admin:
+    {"state": "none" | "online" | "connecting" | "error", "radios": [...]}.
+    "none": this Stump has no radio of its own (nothing to show)."""
+    out = []
+    for i in bridges():
+        try:
+            out.append(i.status())
+        except Exception as e:
+            out.append({"state": "error", "name": getattr(i, "name", "?"), "error": str(e)})
+    states = [r.get("state") for r in out]
+    if not out:
+        state = "none"
+    elif "error" in states:
+        state = "error"
+    elif "connecting" in states:
+        state = "connecting"
+    else:
+        state = "online"
+    return {"state": state, "radios": out}
+
+
+def hw_line(r):
+    """One radio in one line, for the status dot's hover text."""
+    bits = [r.get("name") or "radio", r.get("state") or "?", r.get("where") or ""]
+    if r.get("device"):
+        bits.append(r["device"])
+    if r.get("fw"):
+        bits.append("RNode " + r["fw"])
+    if r.get("state") != "online" and r.get("error"):
+        bits.append(r["error"])
+    return " · ".join(b for b in bits if b)
+
+
 def load():
     try:
         with open(SETTINGS_FILE) as f:

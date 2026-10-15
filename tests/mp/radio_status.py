@@ -1,0 +1,100 @@
+# The radio's status for people: /hw.json, the chat poll's "hw" (the
+# status dot), the RRC page's dot and profile, /admin's live section,
+# /node.json's radio settings; and #lora-mesh as the radio's room on a
+# computer with its own Heltec (rrc.LORA_LOCKED).
+import sys
+exec(open(sys.argv[1] + '/harness.py').read())
+import rrc, radio, i18n
+import ujson as json
+FAIL = []
+
+
+def check(n, c, i=''):
+    print(('PASS ' if c else 'FAIL ') + n + ('' if c else '  ' + repr(i)[:500]))
+    if not c:
+        FAIL.append(n)
+
+
+from urns.transport import Transport
+saved = list(Transport.interfaces)
+del Transport.interfaces[:]
+
+s, ct, b = req('/hw.json')
+d = json.loads(b)
+check("no radio: state none", d == {"state": "none", "radios": []}, d)
+
+
+class RNodeSerialInterface:
+    """Stands in for the USB interface (its status() is tested in
+    tests/pc/rnode_serial_test.py against a simulated RNode)."""
+    name = "Heltec (USB)"
+    frequency, bandwidth, txpower, sf, cr = 915000000, 125000, 7, 8, 5
+
+    def __init__(self, st):
+        self.st = st
+
+    def status(self):
+        r = {"name": self.name, "kind": "usb", "where": "/dev/cu.usbserial-0001",
+             "device": "CP2102 USB to UART Bridge Controller", "fw": "1.78", "error": None,
+             "settings": {}, "radio": {}, "rssi": -92, "snr": -6.5}
+        r.update(self.st)
+        return r
+
+
+iface = RNodeSerialInterface({"state": "online"})
+Transport.interfaces.append(iface)
+d = json.loads(req('/hw.json')[2])
+check("a radio online", d["state"] == "online" and d["radios"][0]["where"] == "/dev/cu.usbserial-0001", d)
+IP = '192.168.4.50'
+i18n.set_lang(IP, 'en')
+p = json.loads(req('/rrc/poll?room=main&since=0')[2])
+check("the chat poll carries the dot: state, and the port and device for hover", p["hw"]["state"] == "online"
+      and "/dev/cu.usbserial-0001" in p["hw"]["title"] and "CP2102" in p["hw"]["title"] and "1.78" in p["hw"]["title"], p["hw"])
+iface.st = {"state": "error", "error": "no RNode found on USB (plug the Heltec in)"}
+p = json.loads(req('/rrc/poll?room=main&since=0')[2])
+check("an error says why on hover", p["hw"]["state"] == "error" and "plug the Heltec in" in p["hw"]["title"], p["hw"])
+iface.st = {"state": "connecting"}
+check("connecting", json.loads(req('/hw.json')[2])["state"] == "connecting")
+n = json.loads(req('/node.json')[2])
+check("/node.json gives the radio settings (for a computer joining)", n.get("radio") == {"frequency": 915000000,
+      "bandwidth": 125000, "sf": 8, "cr": 5}, n.get("radio"))
+
+s, ct, b = req('/rrc')
+check("RRC page: the dot left of the navigation, the profile at the bottom of the column",
+      "id='hw' class='hw-dot" in b and b.find("id='hw'") < b.find("class='nav'") and "id='side'" in b
+      and "id='profile'" in b and b.find("id='rooms'") < b.find("id='profile'") < b.find("id='chatcol'"), b[:300])
+s, ct, b = admin_page()
+check("/admin: the radio, live", "id='hwlive'" in b and "/hw.json" in b and ("Radio — live" in b or "Radio — en direct" in b),
+      b[b.find('hwlive') - 200:][:300])
+del Transport.interfaces[:]
+s, ct, b = admin_page()
+check("/admin: no live section without a radio", "id='hwlive'" not in b)
+Transport.interfaces[:] = saved
+
+# #lora-mesh, the radio's room
+W, OWNER, LORA = '192.168.0.20', '127.0.0.1', 'ab' * 16
+for c, nick in ((W, 'visitor'), (OWNER, 'owner'), (LORA, '~rod')):
+    i18n.set_lang(c, 'en')
+    rrc.touch_user(c, nick=nick, room='main')
+r, room = rrc.handle_input(W, 'main', '/join lora-mesh')
+check("open by default: anyone joins", room == 'lora-mesh', r)
+rrc.handle_input(W, 'lora-mesh', '/part')
+rrc.LORA_LOCKED[0] = True
+r, room = rrc.handle_input(W, 'main', '/join lora-mesh')
+check("locked: a web visitor is refused, told why", room is None and "LoRa" in r[0] and "/lora invite" in r[0], r)
+r, room = rrc.handle_input(OWNER, 'main', '/join lora-mesh')
+check("the computer's owner gets in", room == 'lora-mesh', r)
+check("someone on LoRa gets in", rrc.lora_allows(LORA))
+r, _ = rrc.handle_input(W, 'main', '/lora invite visitor')
+check("only the owner can invite", "only" in r[0], r)
+r, _ = rrc.handle_input(OWNER, 'lora-mesh', '/lora invite visitor')
+r2, room = rrc.handle_input(W, 'main', '/join lora-mesh')
+check("invited: the visitor gets in", room == 'lora-mesh' and "visitor" in r[0], (r, r2))
+rooms = rrc.handle_input(W, 'lora-mesh', '/rooms')[0]
+check("/rooms marks it", any(x.startswith('#lora-mesh') and '[LoRa]' in x for x in rooms), rooms)
+rrc.handle_input(OWNER, 'lora-mesh', '/lora uninvite visitor')
+check("uninvited: out of the room", rrc.get_user(W)['room'] == 'main')
+p = json.loads(req('/rrc/poll?room=lora-mesh&since=0')[2])
+check("a web client not allowed is kept out by the poll", p["room"] != 'lora-mesh', p["room"])
+rrc.LORA_LOCKED[0] = False
+print('FAILURES:', FAIL)

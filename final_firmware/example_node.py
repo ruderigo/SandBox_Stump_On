@@ -449,6 +449,26 @@ def main():
                                         " and on %s (the Wi-Fi it joined)" % chain._state["lan_ip"]
                                         if chain._state["lan_ip"] else ""))
     rns.setup_interfaces()
+    # #lora-mesh on a computer with its own Heltec on USB is the radio's
+    # room: LoRa users, the computer's owner and whom they invite
+    # (rrc.LORA_LOCKED). LORA_MESH_LOCKED in config.py: True/False, or
+    # leave it out for that default.
+    try:
+        import rrc as _rrc
+        import config as _cfg
+        locked = getattr(_cfg, "LORA_MESH_LOCKED", None)
+        if locked is None:
+            try:
+                import stump_host  # noqa: F401  (a computer)
+                locked = any(i.get("enabled", True) and i.get("type") == "RNodeSerialInterface"
+                             for i in rns.config.get("interfaces", []))
+            except ImportError:
+                locked = False
+        _rrc.LORA_LOCKED[0] = bool(locked)
+        if locked:
+            print("[rrc] #lora-mesh is the radio's room: LoRa users, this computer, and invitees")
+    except Exception as e:
+        print("[rrc] #lora-mesh lock not set:", e)
     if CHAIN:
         chain.attach(rns)
         import rrc as _rrc

@@ -644,6 +644,9 @@ def _tier_refusal(dest_hash_hex, room, lang):
     user could join, or post into, a minted or hybrid room unchecked.
     Without stumpid active there are no tiers. With it, an error in the
     check refuses rather than lets through."""
+    if rrc.canon(room) == rrc.MESH_ROOM and rrc.LORA_LOCKED[0] and _on_chain(dest_hash_hex):
+        # The radio's room stays off the Wi-Fi chain.
+        return rrc.tok_refused(rrc.MESH_ROOM, "LoRa", i18n.t("lora_room_locked", lang))
     sid = plugins.service_lookup("identity")
     if sid is None:
         return None

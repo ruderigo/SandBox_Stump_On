@@ -448,6 +448,9 @@ is the highest message `id` you already have.
   their `stump.node` beacons, below). The web chat groups them at the
   bottom of its column with a 🪵 in front, under *Stumps* (*Buches* in
   French); the nick itself is unchanged.
+- `hw`: `{"state": "none"|"online"|"connecting"|"error", "title"}` — the
+  node's radio, for a status light (`title`: the port, board and RNode
+  firmware, or the problem, one line per radio). Details: `GET /hw.json`.
 - `nick` on a message may be `rod@LaBuche`: a line from someone on
   another Stump of the chain, in `#wifi-mesh`.
 - Limits: 60 messages per room (oldest drop like scrollback), 16 rooms,

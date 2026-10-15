@@ -62,10 +62,33 @@ header b{color:var(--ember);}
   color:var(--ember-bright); border-color:var(--ember); outline:none;
 }
 main{flex:1; display:flex; min-height:0;}
-#rooms{
-  width:132px; border-right:1px solid var(--border); background:var(--panel-2);
-  overflow-y:auto; flex-shrink:0;
+/* The left column runs to the bottom of the window: rooms and people
+   above, the profile (you, this Stump, its radio) below. */
+#side{
+  width:132px; background:var(--panel-2); flex-shrink:0;
+  display:flex; flex-direction:column; min-height:0;
 }
+#rooms{flex:1; overflow-y:auto; min-height:0;}
+#chatcol{flex:1; display:flex; flex-direction:column; min-width:0; min-height:0;}
+#profile{border-top:1px solid var(--border); padding:8px 10px; font-size:12px; color:var(--muted);}
+#profile .ph{font-size:.72rem; text-transform:uppercase; letter-spacing:.06em; color:var(--dim); margin:6px 0 3px;}
+#profile .pv{color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+#profile form{display:flex; gap:4px;}
+#profile input{flex:1; min-width:0; background:var(--bg); color:var(--text); border:1px solid var(--border);
+  border-radius:4px; padding:4px 6px; font:inherit; font-size:12px;}
+#profile button{padding:4px 8px; font-size:12px;}
+#profile .radio{display:flex; gap:6px; align-items:baseline;}
+#profile .radio span:last-child{overflow-wrap:anywhere;}
+/* The radio's state, left of the navigation: green online, white no
+   radio needed, glowing orange connecting, red trouble. */
+.hw-dot{width:12px; height:12px; border-radius:50%; flex-shrink:0; align-self:center;
+  margin-left:auto; border:1px solid var(--border); background:#f2efe8; cursor:help;}
+.hw-dot + .nav{margin-left:0;}
+.hw-dot.online{background:#3fb950; border-color:#3fb950;}
+.hw-dot.connecting{background:#f0a030; border-color:#f0a030; animation:hwglow 1.2s ease-in-out infinite;}
+.hw-dot.error{background:#e5534b; border-color:#e5534b;}
+#profile .hw-dot{margin-left:0; width:9px; height:9px; position:relative; top:1px;}
+@keyframes hwglow{0%,100%{box-shadow:0 0 0 0 rgba(240,160,48,.7);}50%{box-shadow:0 0 8px 3px rgba(240,160,48,.9);}}
 #rooms div{padding:7px 10px; cursor:pointer; border-bottom:1px solid var(--line);
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
 #rooms div:hover{background:var(--line);}
@@ -120,12 +143,12 @@ button{
 button:hover{background:var(--ember-bright);}
 /* The bar between the room list and the chat: drag it to widen the list
    (long names stop being cut), double-click it to put it back. */
-#grip{width:7px; flex-shrink:0; cursor:col-resize; touch-action:none;
+#grip{width:7px; flex-shrink:0; cursor:col-resize; touch-action:none; align-self:stretch;
   background:var(--panel-2); border-right:1px solid var(--border);}
 #grip:hover,#grip.drag{background:var(--ember);}
 #rooms .mark{margin-right:5px;}
 @media (max-width:520px){
-  #rooms{width:96px;}
+  #side{width:96px;}
   header{font-size:13px;}
 }
 /* Language switcher, sitting just below the header. Small and out of
@@ -160,7 +183,7 @@ var room=ROOM_INIT, lastId=0, nick=NICK_INIT, polling=false, pollAgain=false;
 var log=document.getElementById('log');
 (function(){
   // Drag the bar to size the room list; remembered on this device.
-  var side=document.getElementById('rooms'), grip=document.getElementById('grip');
+  var side=document.getElementById('side'), grip=document.getElementById('grip');
   if(!side || !grip) return;
   try{ var w=parseInt(localStorage.getItem('rrcSideW'),10); if(w>0) side.style.width=w+'px'; }catch(e){}
   function clamp(w){ return Math.max(80, Math.min(Math.round(window.innerWidth*0.7), w)); }
@@ -223,6 +246,44 @@ function stumpTag(el, name){
   el.insertBefore(t, el.firstChild);
 }
 var lastUsers=[];
+var PROF=I18N_PROFILE, HWT=I18N_HW, nodeInfo=null, hwInfo=null;
+function setHw(h){
+  // The status dot left of the navigation, and the profile's radio rows.
+  hwInfo=h;
+  var dot=document.getElementById('hw');
+  if(dot){ dot.className='hw-dot '+h.state; dot.title=(HWT[h.state]||h.state)+(h.title?'\\n'+h.title:''); }
+}
+function renderProfile(){
+  var p=document.getElementById('profile');
+  if(!p) return;
+  var editing=document.activeElement && document.activeElement.id==='pnick';
+  if(editing) return;          // don't redraw under someone typing
+  p.innerHTML='';
+  function head(t){ var d=document.createElement('div'); d.className='ph'; d.textContent=t; p.appendChild(d); }
+  function val(t, title){ var d=document.createElement('div'); d.className='pv'; d.textContent=t; if(title) d.title=title; p.appendChild(d); return d; }
+  head(PROF.you);
+  var f=document.createElement('form');
+  var i=document.createElement('input'); i.id='pnick'; i.value=nick; i.maxLength=16; i.setAttribute('aria-label', PROF.nick);
+  var b=document.createElement('button'); b.type='submit'; b.textContent=PROF.set;
+  f.appendChild(i); f.appendChild(b);
+  f.onsubmit=function(e){ e.preventDefault(); var v=i.value.trim(); if(v && v!==nick){ send('/nick '+v); } i.blur(); };
+  p.appendChild(f);
+  if(nodeInfo){
+    head(PROF.stump);
+    val(nodeInfo.name||'?');
+    if(nodeInfo.lxmf) val('LXMF '+nodeInfo.lxmf.slice(0,8)+'\\u2026', nodeInfo.lxmf);
+  }
+  head(PROF.radio);
+  var st=hwInfo?hwInfo.state:'none';
+  var lines=(hwInfo && hwInfo.title)?hwInfo.title.split('\\n'):[];
+  if(!lines.length) lines=[HWT[st]||st];
+  lines.forEach(function(l){
+    var r=document.createElement('div'); r.className='radio';
+    var d=document.createElement('span'); d.className='hw-dot '+st;
+    var t=document.createElement('span'); t.textContent=l;
+    r.appendChild(d); r.appendChild(t); p.appendChild(r);
+  });
+}
 function renderStumps(){
   // The other Stumps, together at the bottom of the column (with their
   // DM threads, if any), after the people.
@@ -675,9 +736,12 @@ function poll(){
      });
      lastId=maxId;
      if(d.stumps){ stumps={}; d.stumps.forEach(function(n){ stumps[n]=1; }); }
+     if(d.hw) setHw(d.hw);
+     if(d.node) nodeInfo=d.node;
      if(d.rooms) setRooms(d.rooms, room, d.users); else renderDMSidebar();
      if(d.topic!==undefined) document.getElementById('topic').textContent=d.topic?('— '+d.topic):'';
      if(d.nick && d.nick!==nick){ nick=d.nick; document.getElementById('me').textContent=nick; }
+     renderProfile();
      onPollOk();
    })
    .catch(function(){ onPollFail(); })
@@ -937,6 +1001,10 @@ def render_page(room, nick, lang=None, rec_url=None):
               .replace("I18N_MESSAGE_SOMEONE", _js(i18n.t("rrc_message_someone", lang)))
               .replace("I18N_DIRECT_MESSAGES", _js(i18n.t("rrc_direct_messages", lang)))
               .replace("I18N_STUMPS", _js(i18n.t("rrc_stumps", lang)))
+              .replace("I18N_PROFILE", _js({k: i18n.t("rrc_profile_" + k, lang)
+                                            for k in ("you", "nick", "set", "stump", "radio")}))
+              .replace("I18N_HW", _js({k: i18n.t("rrc_hw_" + k, lang)
+                                       for k in ("none", "online", "connecting", "error")}))
               .replace("I18N_NOT_SENT", _js(i18n.t("rrc_not_sent", lang)))
               .replace("I18N_VOICE", _js({"record": i18n.t("voice_record", lang),
                   "unreadable": i18n.t("voice_unreadable", lang), "recording": i18n.t("voice_recording", lang),
@@ -955,9 +1023,11 @@ def render_page(room, nick, lang=None, rec_url=None):
         "<script>" + theme.startup_script() + "</script></head><body>"
         "<header><b>RRC</b><span id='topic'></span>"
         "<span class='me'>" + i18n.t("rrc_you_are", lang) + " <span id='me'>" + _esc(nick) + "</span></span>"
+        + "<span id='hw' class='hw-dot none' title='" + _attr(i18n.t("rrc_hw_none", lang)) + "'></span>"
         + _nav_links(lang) + "</header>"
         + i18n.switcher_html(lang, "/rrc") +
-        "<main><div id='rooms'></div><div id='grip' title='\u2194'></div><div id='log'></div></main>"
+        "<main><div id='side'><div id='rooms'></div><div id='profile'></div></div>"
+        "<div id='grip' title='\u2194'></div><div id='chatcol'><div id='log'></div>"
         "<footer>"
         "<input id='in' maxlength='" + str(rrc.MAX_MESSAGE_LEN) + "' "
         "autocomplete='off' autocapitalize='none' spellcheck='false' "
@@ -966,7 +1036,7 @@ def render_page(room, nick, lang=None, rec_url=None):
         "<button id='voice' style='display:none' title='" + _attr(i18n.t("voice_record", lang))
         + "' aria-label='" + _attr(i18n.t("voice_record", lang)) + "'>\u266a</button>"
         "<input id='voicefile' type='file' accept='audio/*' capture hidden>"
-        "</footer>"
+        "</footer></div></main>"
         "<script src='/codec2.js'></script>"
         "<script src='/opus.js'></script>"
         "<script>" + script + "</script>"

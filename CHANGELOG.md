@@ -1,6 +1,30 @@
 # Changelog
 
 ## Unreleased
+- **Is the radio really there?** A Heltec on USB is now asked "are you an
+  RNode?" (the RNode handshake) and its firmware before the Stump calls
+  it online; one that doesn't answer is an error that says what to
+  check (the RNode firmware, another program on the port). Its reports
+  are read: RSSI and SNR of the last packet, noise floor, channel load,
+  airtime, battery, packets in and out, the settings it confirmed.
+  `GET /hw.json` gives all of it; `/admin` shows it live (every 2 s).
+- **The radio's status dot in the chat**, left of the navigation: green
+  online, white no radio, glowing orange connecting, red trouble; on
+  hover, the port and device name (to tell boards apart on a hub),
+  the RNode firmware, or what's wrong.
+- **The chat's column runs to the bottom of the window**, with a profile
+  at its foot: your nickname (change it there), this Stump (name, LXMF
+  address) and its radio. The input line sits under the chat only.
+- **#lora-mesh is the radio's room on a computer with its own Heltec**:
+  people on LoRa are always in; on the web, the computer's owner and
+  whom they invite (`/lora invite <nick>`, `/lora uninvite <nick>`,
+  `/lora`); it never reaches other Stumps over the chain.
+  `LORA_MESH_LOCKED = False` in config.py opens it.
+- **Adding a USB Heltec copies the mesh's radio settings** from the
+  Stump this computer joins (`/node.json` now has `radio`), instead of
+  the defaults, which may not match the mesh.
+- Fixed: without pyserial in the Python running the Provisioner, a
+  Heltec plugged in by USB wasn't recognised ("none is plugged in").
 - **A computer Stump follows the Stump it joins when its address
   moves.** On a shared Wi-Fi a CAM's address comes from the router and
   can change when it restarts, which cut the chain until the

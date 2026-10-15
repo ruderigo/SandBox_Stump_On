@@ -328,6 +328,22 @@ pref_txt = "Preferred networks on en0:\n\tBob's Glitch\n\tLaBuche-Stump.web.app\
 check('mac: the Wi-Fi device', P.parse_mac_ports(ports_txt) == "en0")
 check('mac: saved networks, in order', P.mac_saved_networks(lambda cmd: ports_txt if "-listallhardwareports" in cmd
       else (pref_txt if cmd[-1] == "en0" else "")) == ["Bob's Glitch", "LaBuche-Stump.web.app"])
+# Without pyserial, a Heltec's port is still recognised by its name
+import types
+saved_serial = sys.modules.get("serial.tools")
+sys.modules["serial.tools"] = None                     # import fails
+saved_listdir, saved_isdir = P.os.listdir, P.os.path.isdir
+P.os.listdir = lambda d: ["cu.usbserial-0001", "cu.usbmodem5C372383661", "tty.Bluetooth"]
+P.os.path.isdir = lambda d: True
+ports = P.list_serial_ports()
+P.os.listdir, P.os.path.isdir = saved_listdir, saved_isdir
+if saved_serial is None:
+    del sys.modules["serial.tools"]
+else:
+    sys.modules["serial.tools"] = saved_serial
+guess = {p["device"]: p["guess"] for p in ports}
+check('no pyserial: the Heltec and the CAM told apart by port name', "Heltec" in guess.get("/dev/cu.usbserial-0001", "")
+      and "CAM" in guess.get("/dev/cu.usbmodem5C372383661", ""), guess)
 # remove_plugin refuses core
 check('remove refuses urns', P.remove_plugin('/dev/fake', 'urns') is False)
 print('FAILURES', FAIL)

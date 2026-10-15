@@ -60,6 +60,30 @@ CHAIN_ROOM = "wifi-mesh"
 ROOM_ALIASES = {"lxmf": MESH_ROOM, "lora": MESH_ROOM, "chained": CHAIN_ROOM, "mesh": CHAIN_ROOM}
 
 
+# #lora-mesh on a Stump with its own radio (a computer with a Heltec on
+# USB): the room of the radio. People on LoRa are always in; on the web,
+# the computer's owner (on the computer itself) and whoever they invite
+# (/lora invite <nick>). Lines there never go to the other Stumps of the
+# chain (rrc_mesh sends them only #wifi-mesh). Set at boot (example_node).
+LORA_LOCKED = [False]
+_lora_invited = set()
+_LOCAL = ("127.0.0.1", "::1", "localhost")
+
+
+def lora_allows(client_id):
+    """May this client be in #lora-mesh? Always, unless it's locked."""
+    if not LORA_LOCKED[0]:
+        return True
+    cid = str(client_id or "")
+    if len(cid) == 32 and all(c in "0123456789abcdef" for c in cid):
+        return True                    # an LXMF address: someone on the mesh
+    return cid in _LOCAL or cid in _lora_invited
+
+
+def room_allows(client_id, room):
+    return canon(room) != MESH_ROOM or lora_allows(client_id)
+
+
 def canon(room):
     """The room's current name for an old one (lxmf -> lora-mesh)."""
     return ROOM_ALIASES.get(room, room)
@@ -694,6 +718,8 @@ def reset():
     _reachable.clear()
     _stumps.clear()
     _dms.clear()
+    _lora_invited.clear()
+    LORA_LOCKED[0] = False
     _next_id[0] = 1
 
 
@@ -819,6 +845,8 @@ def _handle_core(client_id, room, text, user, lang):
             return [err], None
         if target == room:
             return [tok_already(target, i18n.t("join_already", lang, room=target))], None
+        if not room_allows(client_id, target):
+            return [tok_refused(target, "LoRa", i18n.t("lora_room_locked", lang))], None
         system(room, ev_leave(user["nick"]))
         touch_user(client_id, room=target)
         system(target, ev_join(user["nick"]))
@@ -833,7 +861,32 @@ def _handle_core(client_id, room, text, user, lang):
         return [], DEFAULT_ROOM
 
     if cmd == "rooms":
-        return [rooms_line(r, len(users_in_room(r)), topic(r, lang)) for r in room_names()], None
+        return [rooms_line(r, len(users_in_room(r)), topic(r, lang))
+                + ("  [LoRa]" if r == MESH_ROOM and LORA_LOCKED[0] else "") for r in room_names()], None
+
+    if cmd == "lora":
+        # /lora, /lora invite <nick>, /lora uninvite <nick>: who may use the
+        # radio's room from the web. Only the computer's owner decides.
+        sub, _, who = arg.partition(" ")
+        if not LORA_LOCKED[0]:
+            return [i18n.t("lora_room_open", lang)], None
+        if sub not in ("invite", "uninvite") or not who.strip():
+            names = sorted(u["nick"] for c, u in _users.items() if c in _lora_invited)
+            return [i18n.t("lora_room_status", lang, names=", ".join(names) or "-")], None
+        if str(client_id) not in _LOCAL:
+            return [i18n.t("lora_room_owner_only", lang)], None
+        target = find_client_by_nick(who.strip())
+        if target is None:
+            return [no_such(who.strip())], None
+        if sub == "invite":
+            _lora_invited.add(target)
+        else:
+            _lora_invited.discard(target)
+            u = _users.get(target)
+            if u and u.get("room") == MESH_ROOM:
+                system(MESH_ROOM, ev_leave(u["nick"]))
+                touch_user(target, room=DEFAULT_ROOM)
+        return [i18n.t("lora_room_" + sub + "d", lang, nick=who.strip())], None
 
     if cmd == "names":
         return [names_line(room, users_in_room(room))], None

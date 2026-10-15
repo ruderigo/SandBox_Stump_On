@@ -50,6 +50,7 @@ TESTS = [
     ("https_voice", "assert", []),
     ("librarian", "assert", []),
     ("mesh_room", "assert", []),
+    ("radio_status", "assert", []),
 ]
 
 _NORM = [

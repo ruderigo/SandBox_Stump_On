@@ -85,6 +85,27 @@ CMD_RADIO_STATE = 0x06
 RADIO_STATE_ON  = 0x01
 CMD_ST_ALOCK    = 0x0B
 CMD_LT_ALOCK    = 0x0C
+# What an RNode reports back (RNS.Interfaces.RNodeInterface's KISS class):
+# the handshake, its firmware, and live radio statistics.
+CMD_DETECT      = 0x08
+DETECT_REQ      = 0x73
+DETECT_RESP     = 0x46
+CMD_STAT_RX     = 0x21
+CMD_STAT_TX     = 0x22
+CMD_STAT_RSSI   = 0x23
+CMD_STAT_SNR    = 0x24
+CMD_STAT_CHTM   = 0x25
+CMD_STAT_BAT    = 0x27
+CMD_STAT_TEMP   = 0x29
+CMD_BOARD       = 0x47
+CMD_PLATFORM    = 0x48
+CMD_MCU         = 0x49
+CMD_FW_VERSION  = 0x50
+CMD_ERROR       = 0x90
+RSSI_OFFSET     = 157
+_ERRORS = {0x01: "the radio didn't start (bad settings for this board?)", 0x02: "a send failed",
+           0x03: "its EEPROM is locked (not provisioned: rnodeconf --autoinstall)",
+           0x04: "its queue is full", 0x05: "it's low on memory", 0x06: "the modem timed out"}
 
 
 def kiss_escape(data):
@@ -147,10 +168,17 @@ class WiFiSerialInterface(Interface):
         self._recv_mv = memoryview(self._recv_buf)
         self._reconnect_count = 0
         self._last_reconnect = 0
+        # What the radio says about itself, for /hw.json, the chat's status
+        # dot and /admin (see status()).
+        self.hw = {"detected": False, "error": None, "fw": None, "platform": None, "radio": {},
+                   "rssi": None, "snr": None, "noise": None, "channel_load": None, "airtime": None,
+                   "battery": None, "temp": None, "rx": None, "tx": None, "last_rx": None,
+                   "since": None}
 
         try:
             self._connect()
         except Exception as e:
+            self.hw["error"] = str(e)
             log("WiFi Serial initial connect failed: " + str(e), LOG_ERROR)
 
     def _connect(self):
@@ -175,6 +203,8 @@ class WiFiSerialInterface(Interface):
         self.online = True
         self._reconnect_count = 0
         self._last_activity = time.time()
+        self.hw["error"] = None
+        self.hw["since"] = time.time()
         log("WiFi Serial connected to " + self.target_host + ":" + str(self.target_port), LOG_NOTICE)
 
         # THE ACTUAL FIX: configure the radio on every connect, the way
@@ -311,6 +341,7 @@ class WiFiSerialInterface(Interface):
         try:
             self._connect()
         except Exception as e:
+            self.hw["error"] = str(e)
             log("WiFi Serial reconnect failed: " + str(e), LOG_ERROR)
 
     def process_outgoing(self, data):
@@ -348,7 +379,10 @@ class WiFiSerialInterface(Interface):
         if self._in_frame and byte == FEND:
             self._in_frame = False
             if self._command == CMD_DATA and len(self._buffer) > 0:
+                self.hw["last_rx"] = time.time()
                 self.process_incoming(bytes(self._buffer))
+            elif self._command is not None:
+                self._on_command(self._command, bytes(self._buffer))
             self._buffer = bytearray()
             self._command = None
 
@@ -374,6 +408,62 @@ class WiFiSerialInterface(Interface):
                         byte = FESC
                     self._escape = False
                 self._buffer.append(byte)
+
+    def _on_command(self, cmd, data):
+        """An RNode's own reports: never fatal, only recorded."""
+        h = self.hw
+        try:
+            n = len(data)
+            if cmd == CMD_DETECT and n and data[0] == DETECT_RESP:
+                h["detected"] = True
+            elif cmd == CMD_FW_VERSION and n >= 2:
+                h["fw"] = "%d.%02d" % (data[0], data[1])
+            elif cmd == CMD_PLATFORM and n:
+                h["platform"] = {0x80: "ESP32", 0x70: "nRF52", 0x90: "AVR"}.get(data[0], hex(data[0]))
+            elif cmd == CMD_STAT_RSSI and n:
+                h["rssi"] = data[0] - RSSI_OFFSET
+            elif cmd == CMD_STAT_SNR and n:
+                v = data[0]
+                h["snr"] = (v - 256 if v > 127 else v) * 0.25
+            elif cmd == CMD_STAT_CHTM and n >= 8:
+                h["airtime"] = ((data[0] << 8) | data[1]) / 100.0
+                h["channel_load"] = ((data[4] << 8) | data[5]) / 100.0
+                if n >= 10:
+                    h["noise"] = data[9] - RSSI_OFFSET
+            elif cmd == CMD_STAT_BAT and n >= 2:
+                h["battery"] = data[1]
+            elif cmd == CMD_STAT_TEMP and n:
+                h["temp"] = data[0] - 120
+            elif cmd == CMD_STAT_RX and n >= 4:
+                h["rx"] = (data[0] << 24) | (data[1] << 16) | (data[2] << 8) | data[3]
+            elif cmd == CMD_STAT_TX and n >= 4:
+                h["tx"] = (data[0] << 24) | (data[1] << 16) | (data[2] << 8) | data[3]
+            elif cmd == CMD_ERROR and n:
+                h["error"] = _ERRORS.get(data[0], "error %s" % hex(data[0]))
+                log("RNode reports: " + h["error"], LOG_ERROR)
+            elif cmd in (CMD_FREQUENCY, CMD_BANDWIDTH) and n >= 4:
+                h["radio"]["frequency" if cmd == CMD_FREQUENCY else "bandwidth"] = \
+                    (data[0] << 24) | (data[1] << 16) | (data[2] << 8) | data[3]
+            elif cmd in (CMD_TXPOWER, CMD_SF, CMD_CR, CMD_RADIO_STATE) and n:
+                h["radio"][{CMD_TXPOWER: "txpower", CMD_SF: "sf", CMD_CR: "cr",
+                            CMD_RADIO_STATE: "on"}[cmd]] = data[0]
+        except Exception:
+            pass
+
+    def status(self):
+        """{"state": "online" | "connecting" | "error", ...} for the status
+        dot, /hw.json and /admin."""
+        h = dict(self.hw)
+        if self.online:
+            state = "online"
+        elif h.get("error") and self._reconnect_count >= 1:
+            state = "error"
+        else:
+            state = "connecting"
+        h.update(state=state, name=self.name, where=str(self.target_host),
+                 kind="wifi", settings={"frequency": self.frequency, "bandwidth": self.bandwidth,
+                                         "txpower": self.txpower, "sf": self.sf, "cr": self.cr})
+        return h
 
     async def poll_loop(self):
         import uasyncio as asyncio
