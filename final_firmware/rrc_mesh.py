@@ -147,12 +147,35 @@ def _remote_dm_lines(h):
     return lines
 
 
+def _has_path(h):
+    try:
+        from urns.transport import Transport
+        return Transport.has_path(bytes.fromhex(h))
+    except Exception:
+        return False
+
+
 def _take_in_chain_stumps(router):
     """Each cycle: Stumps on the chain become peers in #wifi-mesh, and stay
-    while their path is over the chain."""
+    while their path is over the chain; other Stumps heard (over LoRa)
+    become peers in #lora-mesh. Either way #lora-mesh is shared with them
+    (_flush_to_peer)."""
     now = time.time()
     for h in list(rrc._stumps):
         if not _chain_stump(h):
+            if _has_path(h):
+                p = _peers.get(h)
+                if p is None:
+                    name = None
+                    try:
+                        entry = router.peers.get(bytes.fromhex(h))
+                        name = entry.get("name") if entry else None
+                    except Exception:
+                        pass
+                    _get_peer(h, name)
+                else:
+                    p["last_seen"] = now
+                    p["stump"] = True
             continue
         p = _peers.get(h)
         if p is not None:
@@ -162,6 +185,7 @@ def _take_in_chain_stumps(router):
                 rrc.system(p["room"], rrc.ev_leave("~" + p["nick"]))
                 p["stump"], p["room"], p["home_room"] = True, rrc.CHAIN_ROOM, rrc.CHAIN_ROOM
                 p["last_sent_id"] = rrc.since(rrc.CHAIN_ROOM, 0)[-1]["id"] if rrc.since(rrc.CHAIN_ROOM, 0) else 0
+                p["lora_sent_id"] = rrc.since(rrc.MESH_ROOM, 0)[-1]["id"] if rrc.since(rrc.MESH_ROOM, 0) else 0
                 rrc.system(rrc.CHAIN_ROOM, rrc.ev_join("~" + p["nick"]))
                 rrc.touch_user(h, nick=p["nick"], room=rrc.CHAIN_ROOM)
             continue
@@ -174,14 +198,17 @@ def _take_in_chain_stumps(router):
         _get_peer(h, name)
 
 
-def _from_stump(dest_hash_hex, peer, text, router=None):
+def _from_stump(dest_hash_hex, peer, text, router=None, title=""):
     """Lines from another Stump of the chain: "<nick> text" into #wifi-mesh
     as nick@thatstump, "* nick text" as an action, "[DM>rod] <nick> text"
     as a DM to rod here from nick@thatstump, "[DM] <nick>: text" (a DM to
     this Stump itself) into #wifi-mesh, addressed to it. Marked as relayed,
-    so they go no further."""
+    so they go no further. A batch titled "#lora-mesh" lands in
+    #lora-mesh: the radio's room, shared by the Stumps."""
     who = peer["nick"]
     me = (rrc.NODE or {}).get("name") or "?"
+    room = rrc.MESH_ROOM if rrc.canon((title or "").lstrip("#")) == rrc.MESH_ROOM else (
+        rrc.CHAIN_ROOM if peer.get("room") == rrc.CHAIN_ROOM else rrc.MESH_ROOM)
     for line in text.split("\n"):
         line = line.strip()
         if not line:
@@ -199,21 +226,21 @@ def _from_stump(dest_hash_hex, peer, text, router=None):
         if line.startswith("[DM] <") and ">: " in line:
             nick, body = line[6:].split(">: ", 1)
             _remote_seen(dest_hash_hex, nick, who)
-            rrc.post(rrc.CHAIN_ROOM, nick + "@" + who, "@" + me + " " + body, via=dest_hash_hex)
+            rrc.post(room, nick + "@" + who, "@" + me + " " + body, via=dest_hash_hex)
             continue
         if line.startswith("<") and "> " in line:
             nick, body = line[1:].split("> ", 1)
             if nick and " " not in nick:
                 _remote_seen(dest_hash_hex, nick, who)
-                rrc.post(rrc.CHAIN_ROOM, nick + "@" + who, body, via=dest_hash_hex)
+                rrc.post(room, nick + "@" + who, body, via=dest_hash_hex)
                 continue
         if line.startswith("* ") and " " in line[2:]:
             nick, body = line[2:].split(" ", 1)
-            rrc.post(rrc.CHAIN_ROOM, nick + "@" + who, body, kind="action", via=dest_hash_hex)
+            rrc.post(room, nick + "@" + who, body, kind="action", via=dest_hash_hex)
             continue
         if line[:1] in ("✓", "✗", "✎", "→", "⊖", "⊘", "⧗"):
             continue           # an older Stump's room notices: not chat
-        rrc.post(rrc.CHAIN_ROOM, who, line, via=dest_hash_hex)
+        rrc.post(room, who, line, via=dest_hash_hex)
 
 
 # ── Peer state ────────────────────────────────────────────────────────
@@ -269,7 +296,10 @@ def _get_peer(dest_hash_hex, display_name, message=None):
         redirect_reason = None
         ident = plugins.service_lookup("identity")
         stump = _chain_stump(dest_hash_hex)
-        if stump or _on_chain(dest_hash_hex, message):
+        if not stump and rrc.is_stump(dest_hash_hex) and not _on_chain(dest_hash_hex, message):
+            # Another Stump, over LoRa: shares #lora-mesh with this one.
+            room, stump = rrc.MESH_ROOM, True
+        elif stump or _on_chain(dest_hash_hex, message):
             # Over the chain: #wifi-mesh, not #lora-mesh (which is for LoRa).
             room = rrc.CHAIN_ROOM
         elif ident is not None:
@@ -293,6 +323,9 @@ def _get_peer(dest_hash_hex, display_name, message=None):
             "stump": stump,
             "last_seen": now,
             "last_sent_id": 0,
+            # A chain Stump's room is #wifi-mesh; #lora-mesh is shared
+            # with it too, on its own marker (_flush_to_peer).
+            "lora_sent_id": rrc.since(rrc.MESH_ROOM, 0)[-1]["id"] if stump and rrc.since(rrc.MESH_ROOM, 0) else 0,
             # DMs get their own delivery marker, separate from the room
             # one. They used to share last_sent_id, which /join resets
             # to 0 (to replay recent context in the new room) -- so
@@ -550,9 +583,15 @@ def on_message(router, message):
                     peer["room"] = peer["home_room"] = rrc.CHAIN_ROOM
                     rrc.system(rrc.CHAIN_ROOM, rrc.ev_join("~" + peer["nick"]))
                 rrc.touch_user(dest_hash_hex, nick=peer["nick"], room=peer["room"])
+        if not peer.get("stump") and rrc.is_stump(dest_hash_hex):
+            peer["stump"] = True
         if peer.get("stump"):
             if text0:
-                _from_stump(dest_hash_hex, peer, text0, router)
+                try:
+                    t = message.title_as_string() or ""
+                except Exception:
+                    t = ""
+                _from_stump(dest_hash_hex, peer, text0, router, t)
             return
         if first_contact:
             # Landing -- first time, or again after going quiet past
@@ -770,6 +809,8 @@ def _flush_to_peer(router, dest_hash_hex, peer):
     dms     = rrc.dms_since(dest_hash_hex, peer.get("last_dm_id", 0))
 
     remote = _remote_dm_lines(dest_hash_hex) if peer.get("stump") else []
+    if peer.get("stump") and room != rrc.MESH_ROOM:
+        _flush_lora_to_stump(router, dest_hash_hex, peer)
     if not msgs and not dms and not remote:
         return
     try:
@@ -819,6 +860,33 @@ def _flush_to_peer(router, dest_hash_hex, peer):
         # Room lines in this batch belong to `room`; say so in the title.
         # A DM-only batch has no room (its lines name their author).
         _send_queue.append((router, dest_hash_bytes, "\n".join(lines), "#" + room if msgs else ""))
+
+
+def _stump_lines(msgs, skip_nick=None):
+    """A room's lines for another Stump: its own people's only (not what
+    came from other Stumps, no notices)."""
+    out = []
+    for m in msgs:
+        if m["nick"] == skip_nick or m["kind"] == "system" or m.get("via"):
+            continue
+        out.append(("* " + m["nick"] + " " if m["kind"] == "action" else "<" + m["nick"] + "> ") + m["body"])
+    return out
+
+
+def _flush_lora_to_stump(router, dest_hash_hex, peer):
+    """#lora-mesh, shared with a Stump whose own room here is #wifi-mesh
+    (the chain): a batch titled "#lora-mesh" -- that Stump files it in
+    its #lora-mesh. A short message to a Stump one hop away goes out on
+    every interface, the Heltec included."""
+    msgs = rrc.since(rrc.MESH_ROOM, peer.get("lora_sent_id", 0))
+    if not msgs:
+        return
+    if len(msgs) > POLL_LIMIT:
+        msgs = msgs[-POLL_LIMIT:]
+    peer["lora_sent_id"] = msgs[-1]["id"]
+    lines = _stump_lines(msgs, peer["nick"])
+    if lines:
+        _send_queue.append((router, bytes.fromhex(dest_hash_hex), "\n".join(lines), "#" + rrc.MESH_ROOM))
 
 
 # ── Poll loop (scheduled as asyncio task) ─────────────────────────────

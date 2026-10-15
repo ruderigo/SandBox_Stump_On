@@ -437,8 +437,14 @@ itself (`/msg LaBuche text`) shows in that Stump's `#wifi-mesh` as
 (`/rooms` marks it `[LoRa]`): people on LoRa are always in; on the web,
 the computer's owner (on the computer itself) and whom they invite:
 `/lora invite <nick>`, `/lora uninvite <nick>`, `/lora` (who's invited).
-Others get `⊘ #lora-mesh LoRa — …`. It never reaches other Stumps over
-the chain. `LORA_MESH_LOCKED = False` in config.py opens it.
+Others get `⊘ #lora-mesh LoRa — …`; people on another Stump of the
+chain can't join it here. `LORA_MESH_LOCKED = False` in config.py opens it.
+
+**`#lora-mesh` is shared by the Stumps**: each sends its own people's
+lines in it to the other Stumps it knows (on the chain, or heard over
+LoRa), titled `#lora-mesh`, and they show there as `<nick@stump>`, once,
+going no further. A short batch to a Stump one hop away goes out on
+every interface, the Heltec included.
 
 **Test matrix:**
 - [ ] Fresh, unconfigured node: `/rooms` shows both `#main` and `#lora-mesh`, with zero admin action taken
@@ -450,6 +456,7 @@ the chain. `LORA_MESH_LOCKED = False` in config.py opens it.
 - [ ] Re-tier `#lora-mesh` back to `open` → the *next* new mesh peer lands in `#lora-mesh` again (existing peers already placed aren't moved)
 - [ ] Two chained Stumps, started minutes apart: each lists the other in `#wifi-mesh` (🪵, bottom of the column) within ~30 s of the link
 - [ ] A line in `#wifi-mesh` on one shows once on the other as `<nick@stump>`; nothing appears in `#lora-mesh`
+- [ ] A line in `#lora-mesh` on one shows once in the other's `#lora-mesh` as `<nick@stump>`; nothing in `#wifi-mesh`; with Heltecs, `/admin` → *Radio — live* counts it sent
 - [ ] `/msg rod@LaBuche hi` reaches rod privately; rod's answer comes back
 
 ---

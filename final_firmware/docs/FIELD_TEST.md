@@ -265,6 +265,10 @@ See `PC.md`. A Mac or a Windows PC, and a Heltec.
 - [ ] A line in `#wifi-mesh` shows once on the other as
       `<nick@stump>`; nothing new in `#lora-mesh`; no joins or parts
       crossing.
+- [ ] A line in `#lora-mesh` shows once in the other's `#lora-mesh` as
+      `<nick@stump>`, nothing in `#wifi-mesh`; with a Heltec on each,
+      `/admin` → *Radio — live* counts it sent (tx) on one, heard (rx)
+      on the other.
 - [ ] `/msg rod@<other Stump> hi` reaches rod there privately; the
       answer comes back. A DM to the other Stump itself shows in its
       `#wifi-mesh` as `@Stump hi`.

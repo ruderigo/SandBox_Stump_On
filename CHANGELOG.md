@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+- **#lora-mesh crosses between Stumps.** A line in `#lora-mesh` stayed
+  on the Stump it was written on: only LoRa users who had messaged that
+  Stump got it, so with none, nothing reached the Heltec. Now each Stump
+  sends its own people's `#lora-mesh` lines to the other Stumps it
+  knows -- on the chain, or heard over LoRa -- and they show in their
+  `#lora-mesh` as `<nick@stump>`, once. A short batch to a Stump one hop
+  away goes out on every interface, the Heltec included. `#wifi-mesh`
+  is unchanged.
+
 ## 1.0.0-beta.5
 - **Is the radio really there?** A Heltec on USB is now asked "are you an
   RNode?" (the RNode handshake) and its firmware before the Stump calls

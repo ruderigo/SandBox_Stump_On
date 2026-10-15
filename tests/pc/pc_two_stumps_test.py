@@ -1,4 +1,4 @@
-# Two Stumps of a chain talking in #wifi-mesh, end to end: two computer
+# Two Stumps of a chain talking in #wifi-mesh (and #lora-mesh), end to end: two computer
 # Stumps (the real firmware, stump_pc.py), the first one and a second one
 # joining it on the same network, on loopback. Each takes the other in
 # from its beacon -- nobody messages anybody first -- and a line said in
@@ -133,6 +133,23 @@ if up:
         get(who, "/rrc/send", b"/join lora-mesh")      # the poll answers the room you're in
         lora += [m for m in room(who, "lora-mesh")]
     check("#lora-mesh stays quiet", not any("hello" in m["body"] for m in lora), lora)
+    # #lora-mesh is shared by the Stumps too, in its own room
+    get(SECOND, "/rrc/send", b"over the radio room")
+    got = wait(lambda: any(m["body"] == "over the radio room" and m["nick"].endswith("@Secondpc")
+                           for m in room(FIRST, "lora-mesh")), 60)
+    check("a line in #lora-mesh reaches the other Stump's #lora-mesh, as nick@stump", got, room(FIRST, "lora-mesh"))
+    get(FIRST, "/rrc/send", b"radio room back")
+    got = wait(lambda: any(m["body"] == "radio room back" and m["nick"].endswith("@Firstpc")
+                           for m in room(SECOND, "lora-mesh")), 60)
+    check("... and back", got, room(SECOND, "lora-mesh"))
+    time.sleep(12)
+    l2 = room(SECOND, "lora-mesh")
+    check("#lora-mesh: once, never echoed back", sum(m["body"] == "over the radio room" for m in l2) == 1
+          and sum(m["body"] == "radio room back" for m in l2) == 1, l2)
+    for who in (FIRST, SECOND):
+        get(who, "/rrc/send", b"/join wifi-mesh")
+    w = room(FIRST, "wifi-mesh") + room(SECOND, "wifi-mesh")
+    check("#lora-mesh lines stay out of #wifi-mesh", not any("radio room" in m["body"] for m in w), w)
 for name, proc in nodes.items():
     proc.terminate()
     try:
