@@ -22,6 +22,7 @@ import theme, layout, radio
 theme.SITE_THEME_FILE = ROOT + '/site_theme.json'
 layout.LAYOUT_FILE = ROOT + '/layout.json'
 radio.SETTINGS_FILE = ROOT + '/radio.json'
+radio.CHAT_FILE = ROOT + '/radio_chat.json'
 barkeep._check_admin_pw_now = lambda pw: pw == 'pw'
 import uasyncio as asyncio, ujson as json
 
