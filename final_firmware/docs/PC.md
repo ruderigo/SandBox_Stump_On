@@ -48,7 +48,9 @@ and `pyserial`. With start-at-login, the log is `stump.log`.
 **Updating:** `git pull`, then `python3 provisioner.py --pc` again. It
 copies what changed, keeps `config.py`, the identity and everything
 saved, brings the folder's packs up to date, and restarts the Stump if
-it starts at login. `--pc --reconfigure` runs the wizard again.
+it starts at login. It shows the Stump's settings and asks whether to
+change them; a Heltec plugged in by USB since is noticed and offered
+(the other settings stay). `--pc --reconfigure` runs the wizard again.
 
 **Restarting** without updating: with start-at-login, on macOS
 `launchctl unload ~/Library/LaunchAgents/app.stump.node.plist` then

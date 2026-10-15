@@ -322,7 +322,7 @@ EXPECTED_FILE_HASHES = {
     "docs/HOME_BRANDING.md": "e1a1a9cf854dcdce",
     "docs/HTTPS_SETUP.md": "12cbbf2de7c38810",
     "docs/PACKS.md": "2e89e3c28d80d72d",
-    "docs/PC.md": "0fa11194ce30517f",
+    "docs/PC.md": "2bae89ce239320c5",
     "docs/PLUGINS.md": "3f5b4a5ee6844305",
     "example_node.py": "7c33f593d01363fa",
     "features.py": "7fca96873d59d2d3",
@@ -5054,6 +5054,65 @@ def _pc_config_block(profile):
     return "".join(out)
 
 
+def _pc_configure_existing(r, folder):
+    """The Configure section of an update: keeps the settings, but says
+    what they are, notices a Heltec plugged in by USB since (and offers
+    to use it, keeping the rest), and lets them be changed. True if the
+    wizard's questions should run again."""
+    reconfigure = False
+    cfg = _read_folder_config(folder) or {}
+    heltec = _pc_heltec_in_config(cfg)
+    print("This Stump's settings: " + _pc_settings_summary(cfg))
+    usb = [p for p in list_serial_ports() if any(m in p["guess"] for m in _HELTEC_MARKERS)]
+    if heltec != "usb" and usb:
+        print(yellow("A Heltec is plugged in by USB (%s), but this Stump doesn't use one." % usb[0]["device"]))
+        if ask_yes_no("Use it for this Stump (the other settings stay as they are)?", True):
+            _pc_add_usb_heltec(folder)
+            print("  It needs the RNode firmware: a Heltec set up by the Provisioner has it.")
+            r.note("Heltec", "on USB (%s)" % usb[0]["device"])
+            r.end("done", "the Heltec on USB added, the rest kept")
+            heltec = "usb"
+        else:
+            reconfigure = ask_yes_no("Change the other settings instead (the questions again)?", False)
+    elif heltec == "usb" and not usb:
+        print(yellow("This Stump uses a Heltec on USB, and none is plugged in now: it will wait for it."))
+        reconfigure = ask_yes_no("Change the settings (the questions again)?", False)
+    else:
+        reconfigure = ask_yes_no("Change them (the questions again)?", False)
+    if r.state[r.index] == "now" and not reconfigure:
+        r.end("skip", "config.py kept")
+    return reconfigure
+
+
+def _pc_heltec_in_config(cfg):
+    """'usb', 'wifi' or 'none': the Heltec a computer Stump's config.py uses."""
+    kinds = [i.get("type") for i in (cfg.get("CONFIG") or {}).get("interfaces", []) if i.get("enabled", True)]
+    if "RNodeSerialInterface" in kinds:
+        return "usb"
+    return "wifi" if "WiFiSerialInterface" in kinds else "none"
+
+
+def _pc_settings_summary(cfg):
+    heltec = {"usb": "a Heltec on USB", "wifi": "a Heltec over Wi-Fi", "none": "no Heltec"}[_pc_heltec_in_config(cfg)]
+    parts = [str(cfg.get("NODE_NAME") or "?"), heltec]
+    if cfg.get("CHAIN_ENABLED"):
+        parent = cfg.get("PC_CHAIN_PARENT_IP")
+        parts.append("joins the Stump at %s" % parent if parent else "first Stump of a chain")
+    return " · ".join(parts)
+
+
+def _pc_add_usb_heltec(folder):
+    """Switches an existing computer Stump to a Heltec on USB, keeping every
+    other setting: appended to config.py, so it overrides the radio lines
+    above it and nothing else."""
+    block = ("\n# ---- The Heltec on USB (added by the Provisioner; 'auto' finds it) ----\n"
+             "CONFIG['interfaces'] = [i for i in CONFIG['interfaces']\n"
+             "                        if i.get('type') not in ('WiFiSerialInterface', 'RNodeSerialInterface')] + [\n"
+             "    {'type': 'RNodeSerialInterface', 'name': 'Heltec (USB)', 'enabled': True, 'port': 'auto'},\n]\n")
+    with open(Path(folder) / "config.py", "a", encoding="utf-8") as f:
+        f.write(block)
+
+
 def _pc_write_config(fw, folder, profile):
     gen = _generate_config_py(
         fw / "config.py", profile["node_name"], profile["wifi_ssid"], profile["wifi_pass"],
@@ -5484,12 +5543,12 @@ def setup_pc(folder=None, reconfigure=False):
 
     r.start("Configure")
     profile = None
+    if not (first or reconfigure):
+        reconfigure = _pc_configure_existing(r, folder)
     if first or reconfigure:
         profile, _ = config_wizard("pc")
         _pc_write_config(fw, folder, profile)
         r.end("done", "config.py written")
-    else:
-        r.end("skip", "config.py kept (--pc --reconfigure asks again)")
 
     r.start("Packs")
     packs = []

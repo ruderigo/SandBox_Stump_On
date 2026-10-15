@@ -1,6 +1,11 @@
 # Changelog
 
 ## Unreleased
+- **Updating a computer Stump notices a new Heltec.** `--pc` on an
+  existing Stump used to keep `config.py` without a word and go straight
+  to the chain: plugging in a Heltec by USB changed nothing. It now shows
+  the settings (name, Heltec, chain), offers a Heltec found on USB
+  (keeping everything else), and asks whether to change the rest.
 - **The About page says what a Stump is**, in French, English and
   Spanish, as the README now does: its three setups (ESP32-S3-CAM +
   Heltec V3; a macOS/Windows/Linux computer + Heltec V3; a computer

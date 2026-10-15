@@ -279,6 +279,49 @@ with contextlib.redirect_stdout(io.StringIO()) as b2:
     answers("1")
     P.start_menu(["Installs Stump 9.9 (this folder)"])
 check('start menu: shows the release first', "Installs Stump 9.9" in b2.getvalue().split("What are you")[0])
+# A computer Stump updated after a Heltec was plugged in by USB
+pcdir = Path(tempfile.mkdtemp())
+shutil.copy(P.STUMP_APP_DIR / "lora_boards.py", pcdir / "lora_boards.py")   # config.py imports it
+base = open(Path(P.__file__).parent / "tests" / "config.py", encoding="utf-8").read()
+(pcdir / "config.py").write_text(base + P._pc_config_block({"pc_hotspot_name": "x", "pc_heltec": "none",
+                                 "chain": {"enabled": True, "parent_ip": "192.168.0.161"}})
+                                 + "\nCHAIN_ENABLED = True\nNODE_NAME = 'Laptop'\n", encoding="utf-8")
+with contextlib.redirect_stdout(io.StringIO()):
+    cfg = P._read_folder_config(pcdir)
+check('pc: no Heltec read from config.py', P._pc_heltec_in_config(cfg) == "none")
+check('pc: settings summary', P._pc_settings_summary(cfg) == "Laptop · no Heltec · joins the Stump at 192.168.0.161",
+      P._pc_settings_summary(cfg))
+P._pc_add_usb_heltec(pcdir)
+with contextlib.redirect_stdout(io.StringIO()):
+    cfg = P._read_folder_config(pcdir)
+kinds = [i["type"] for i in cfg["CONFIG"]["interfaces"]]
+check('pc: the USB Heltec added, once, the rest kept', P._pc_heltec_in_config(cfg) == "usb"
+      and kinds.count("RNodeSerialInterface") == 1 and "WiFiSerialInterface" not in kinds
+      and cfg["PC_CHAIN_PARENT_IP"] == "192.168.0.161" and cfg["NODE_NAME"] == "Laptop", kinds)
+# ... and through the update's Configure section
+(pcdir / "config.py").write_text(base + P._pc_config_block({"pc_hotspot_name": "x", "pc_heltec": "none"})
+                                 + "\nNODE_NAME = 'Laptop'\n", encoding="utf-8")
+saved_ports = P.list_serial_ports
+P.list_serial_ports = lambda: [{"device": "/dev/cu.usbserial-0001", "description": "CP2102",
+                                "guess": "CP2102 UART bridge — likely the Heltec V3"}]
+answers("")                                   # "Use it?" -> yes
+rt = P.Route("pc", key="pc", steps=[("Configure", "auto", "x")])
+with contextlib.redirect_stdout(io.StringIO()) as said:
+    rt.start("Configure")
+    again = P._pc_configure_existing(rt, pcdir)
+with contextlib.redirect_stdout(io.StringIO()):
+    cfg = P._read_folder_config(pcdir)
+check('pc update: a Heltec plugged in is noticed and used, no questions again', not again
+      and P._pc_heltec_in_config(cfg) == "usb" and "/dev/cu.usbserial-0001" in said.getvalue()
+      and rt.state[0] == "done", said.getvalue()[-400:])
+P.list_serial_ports = lambda: []
+answers("y")                                  # "Change them?" -> yes
+rt = P.Route("pc", key="pc", steps=[("Configure", "auto", "x")])
+with contextlib.redirect_stdout(io.StringIO()) as said:
+    rt.start("Configure")
+    again = P._pc_configure_existing(rt, pcdir)
+check('pc update: says the settings, and can ask again', again and "Laptop" in said.getvalue(), said.getvalue()[-300:])
+P.list_serial_ports = saved_ports
 # remove_plugin refuses core
 check('remove refuses urns', P.remove_plugin('/dev/fake', 'urns') is False)
 print('FAILURES', FAIL)
