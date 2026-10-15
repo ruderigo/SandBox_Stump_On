@@ -1736,6 +1736,39 @@ def parse_system_profiler(text):
     return nets
 
 
+def parse_mac_ports(text):
+    """`networksetup -listallhardwareports`: the Wi-Fi device (en0...)."""
+    port = None
+    for line in text.splitlines():
+        if line.startswith("Hardware Port:"):
+            port = line.split(":", 1)[1].strip()
+        elif line.startswith("Device:") and port in ("Wi-Fi", "AirPort"):
+            return line.split(":", 1)[1].strip()
+    return None
+
+
+def parse_mac_preferred(text):
+    """`networksetup -listpreferredwirelessnetworks en0`: the names, in order."""
+    return [l.strip() for l in text.splitlines()[1:] if l.startswith(("\t", " ")) and l.strip()]
+
+
+def mac_saved_networks(run_cmd=None):
+    """The Wi-Fi networks this Mac has joined before. macOS lets the
+    Terminal list those without Location access (it hides the names of the
+    networks around unless the Terminal has it, and never asks)."""
+    import subprocess
+
+    def out(cmd):
+        if run_cmd:
+            return run_cmd(cmd)
+        try:
+            return subprocess.run(cmd, capture_output=True, text=True, timeout=15).stdout
+        except (OSError, subprocess.SubprocessError):
+            return ""
+    dev = parse_mac_ports(out(["networksetup", "-listallhardwareports"])) or "en0"
+    return parse_mac_preferred(out(["networksetup", "-listpreferredwirelessnetworks", dev]))
+
+
 def scan_wifi():
     """The Wi-Fi networks this computer hears, strongest first:
     [{"ssid", "signal", "open"}]. ([], why) when it can't tell."""
@@ -1764,6 +1797,14 @@ def scan_wifi():
         if name not in best or n["signal"] > best[name]["signal"]:
             best[name] = n
     nets = sorted(best.values(), key=lambda n: -n["signal"])
+    if not nets and sys.platform == "darwin":
+        saved = mac_saved_networks()
+        if saved:
+            nets = [{"ssid": n, "signal": -1, "open": False, "saved": True} for n in saved]
+            for n in nets:
+                WIFI_SCAN.setdefault(n["ssid"], n)
+            return nets, ("macOS hides the networks around from the Terminal, and doesn't ask: "
+                          "these are the ones this Mac has joined before")
     if not nets:
         if hidden:
             return [], ("this system hides Wi-Fi names from the Terminal (recent macOS does): "
@@ -1797,7 +1838,12 @@ def ask_wifi(prompt, default="", scan=None):
             print("  (%s)" % why)
             return ask("%s, typed in" % prompt, default)
         nets = nets[:20]
+        if why:
+            print("  (%s)" % why)
         for i, n in enumerate(nets, 1):
+            if n.get("saved"):
+                print("  %2d) %s" % (i, n["ssid"]))
+                continue
             print("  %2d) %s %s%s" % (i, _bars(n["signal"]), n["ssid"], "" if n["open"] else ("  🔒" if _fancy() else "  (password)")))
         print("   r) look again     or type a name that isn't listed")
         raw = _in("Choose 1-%d%s: " % (len(nets), " [%s]" % default if default else "")).strip()
@@ -5218,7 +5264,12 @@ def _why_unreachable(e):
         return "refused"
     if isinstance(reason, (socket.timeout, TimeoutError)):
         return "timeout"
+    if getattr(reason, "errno", None) in (65, 113) or "No route to host" in str(reason):
+        return "noroute"
     return "other"
+
+
+MAC_LOCAL_NETWORK = "x-apple.systempreferences:com.apple.preference.security?Privacy_LocalNetwork"
 
 
 def _route_ip(dest):
@@ -5314,13 +5365,29 @@ def chain_preflight(parent_ip, secret, ssid="", hello=chain_hello, get=_get_json
         time.sleep(3)
     if err is not None:
         e, kind = err, _why_unreachable(err)
-        if node is None and kind == "refused":
+        if node is None and kind == "noroute" and sys.platform == "darwin":
             out.append((False, "A Stump answers at http://%s/" % parent_ip,
-                        "Its Wi-Fi is up (it gave this computer %s), but its web server refused the "
+                        "macOS stopped this program reaching the local network (\"No route to host\"), "
+                        "even if a browser on this Mac opens http://%s/ fine. It never asks for the "
+                        "Terminal: System Settings > Privacy & Security > Local Network, turn on "
+                        "Terminal (or the app you run this in), then check again. (open \"%s\" "
+                        "goes there.)" % (parent_ip, MAC_LOCAL_NETWORK)))
+        elif node is None and kind == "timeout" and not parent_ip.endswith(".1"):
+            out.append((False, "A Stump answers at http://%s/" % parent_ip,
+                        "No answer from %s (%s). Is the Stump on, and still at that address? On a "
+                        "shared Wi-Fi its address can change when it restarts: with it on USB, "
+                        "python3 provisioner.py --get-ip PORT tells it; then run --pc --reconfigure "
+                        "with the new one." % (parent_ip, e)))
+        elif node is None and kind == "refused":
+            on_its_own = parent_ip.endswith(".1")
+            out.append((False, "A Stump answers at http://%s/" % parent_ip,
+                        ("Its Wi-Fi is up (it gave this computer %s), but " % mine if on_its_own else
+                         "Something is at %s, but " % parent_ip)
+                        + "its web server refused the "
                         "connection, for %d s. Its program has most likely stopped: power-cycle it and "
                         "check again in a minute; if it does it again, its boot log says why "
-                        "(python3 provisioner.py --diag PORT, or a serial monitor). A phone on its "
-                        "Wi-Fi opening http://%s/ shows the same." % (mine, wait, parent_ip)))
+                        "(python3 provisioner.py --diag PORT, or a serial monitor). A phone "
+                        "opening http://%s/ shows the same." % (wait, parent_ip)))
         elif node is None:
             out.append((False, "A Stump answers at http://%s/" % parent_ip,
                         "Nothing answers (%s). Is that Stump on, and is %s its address? A CAM's is "

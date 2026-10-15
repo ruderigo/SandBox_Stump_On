@@ -1,6 +1,15 @@
 # Changelog
 
 ## Unreleased
+- **macOS: Wi-Fi names and the local network.** macOS hides the names
+  of the networks around from the Terminal unless it has Location
+  access, and never asks for it: the Wi-Fi picker now lists the networks
+  this Mac has joined before instead of nothing. And when macOS stops
+  the Terminal reaching the local network ("No route to host", though a
+  browser works), the chain check says so and where to allow it
+  (Privacy & Security > Local Network). A Stump that doesn't answer on a
+  shared Wi-Fi gets "its address may have changed" and `--get-ip`, not
+  advice about its own Wi-Fi.
 - **Updating a computer Stump notices a new Heltec.** `--pc` on an
   existing Stump used to keep `config.py` without a word and go straight
   to the chain: plugging in a Heltec by USB changed nothing. It now shows

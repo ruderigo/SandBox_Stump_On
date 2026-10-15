@@ -322,6 +322,12 @@ with contextlib.redirect_stdout(io.StringIO()) as said:
     again = P._pc_configure_existing(rt, pcdir)
 check('pc update: says the settings, and can ask again', again and "Laptop" in said.getvalue(), said.getvalue()[-300:])
 P.list_serial_ports = saved_ports
+# macOS: the networks this Mac has joined, when it hides the ones around
+ports_txt = "Hardware Port: Ethernet\nDevice: en1\nEthernet Address: x\n\nHardware Port: Wi-Fi\nDevice: en0\nEthernet Address: y\n"
+pref_txt = "Preferred networks on en0:\n\tBob's Glitch\n\tLaBuche-Stump.web.app\n"
+check('mac: the Wi-Fi device', P.parse_mac_ports(ports_txt) == "en0")
+check('mac: saved networks, in order', P.mac_saved_networks(lambda cmd: ports_txt if "-listallhardwareports" in cmd
+      else (pref_txt if cmd[-1] == "en0" else "")) == ["Bob's Glitch", "LaBuche-Stump.web.app"])
 # remove_plugin refuses core
 check('remove refuses urns', P.remove_plugin('/dev/fake', 'urns') is False)
 print('FAILURES', FAIL)
