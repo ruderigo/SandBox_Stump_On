@@ -1,5 +1,6 @@
 # The radio's status for people: /hw.json, the chat poll's "hw" (the
-# status dot), the RRC page's dot and profile, /admin's live section,
+# status dot), the RRC page's profile pop-up and its radio settings
+# (/admin/radio.json, /admin's switch /admin/radiochat), /admin's live section,
 # /node.json's radio settings; and #lora-mesh as the radio's room on a
 # computer with its own Heltec (rrc.LORA_LOCKED).
 import sys
@@ -60,9 +61,44 @@ check("/node.json gives the radio settings (for a computer joining)", n.get("rad
       "bandwidth": 125000, "sf": 8, "cr": 5}, n.get("radio"))
 
 s, ct, b = req('/rrc')
-check("RRC page: the dot left of the navigation, the profile at the bottom of the column",
-      "id='hw' class='hw-dot" in b and b.find("id='hw'") < b.find("class='nav'") and "id='side'" in b
-      and "id='profile'" in b and b.find("id='rooms'") < b.find("id='profile'") < b.find("id='chatcol'"), b[:300])
+check("RRC page: no dot in the navigation; the profile (dot + name) at the foot of the column",
+      "id='hw' class='hw-dot" in b and b.find("id='hw'") > b.find("class='nav'") and "id='side'" in b
+      and "id='me-btn'" in b and "id='pop'" in b
+      and b.find("id='rooms'") < b.find("id='profile'") < b.find("id='chatcol'"), b[:300])
+
+# The radio's settings from the chat's pop-up
+iface.st = {"state": "online"}
+p = json.loads(req('/rrc/poll?room=main&since=0')[2])
+check("a visitor sees the settings, not allowed to change them",
+      "settings" in p["hw"] and p["hw"]["edit"] is False, p["hw"])
+FORM = b'freq=917.112&bw=125000&sf=8&cr=5&txp=17'
+s, ct, b = req('/admin/radio.json', FORM)
+check("a visitor can't apply: 403", s.startswith('403') and json.loads(b)["ok"] is False, (s, b))
+tok = login()
+CK = ('Cookie: stump_admin=' + tok,)
+p = json.loads(req('/rrc/poll?room=main&since=0', headers=CK)[2])
+check("logged in to /admin: may change them", p["hw"].get("edit") is True, p["hw"])
+s, ct, b = req('/admin/radio.json', FORM, headers=CK)
+check("an /admin session applies them", s.startswith('200') and json.loads(b)["ok"] is True
+      and radio.current()["frequency"] == 917112000 and radio.current()["txpower"] == 17, (s, b, radio.current()))
+s, ct, b = req('/admin/radio.json', b'freq=abc&bw=125000&sf=8&cr=5&txp=17', headers=CK)
+check("a bad frequency is refused, saying which field", json.loads(b)["ok"] is False and "requency" in json.loads(b)["message"], b)
+s, ct, b = admin_page()
+check("/admin: the switch for the chat's settings", "action='/admin/radiochat'" in b and "Remove the settings from the chat" in b,
+      b[b.find('radiochat') - 200:][:400])
+req('/admin/radiochat', b'admin_pass=pw&on=0')
+check("switched off: saved", radio.chat_edit() is False)
+p = json.loads(req('/rrc/poll?room=main&since=0', headers=CK)[2])
+check("switched off: the chat shows the state only", "settings" not in p["hw"] and "edit" not in p["hw"], p["hw"])
+s, ct, b = req('/admin/radio.json', FORM, headers=CK)
+check("switched off: even an /admin session can't apply from the chat", s.startswith('403'), (s, b))
+s, ct, b = admin_page()
+check("/admin offers to turn it back on", "Offer the settings in the chat" in b)
+req('/admin/radiochat', b'admin_pass=pw&on=1')
+check("switched on again", radio.chat_edit() is True)
+s, ct, b = req('/admin/radiochat', b'admin_pass=nope&on=0')
+check("the switch needs the password", s.startswith('403') and radio.chat_edit() is True, s)
+
 s, ct, b = admin_page()
 check("/admin: the radio, live", "id='hwlive'" in b and "/hw.json" in b and ("Radio — live" in b or "Radio — en direct" in b),
       b[b.find('hwlive') - 200:][:300])

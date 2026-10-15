@@ -984,13 +984,32 @@ def _render_admin_login_page(lang, error=False, wait=0):
     )
 
 
-def _hw_brief():
-    """The radio's state for the chat's status dot: {"state", "title"}."""
+def _hw_brief(can_edit=False):
+    """The radio for the chat: {"state", "title", "settings", "edit"} --
+    the status dot, a line per radio, the settings in use, and whether
+    this visitor may change them (_radio_editor)."""
     try:
         h = radio.hw()
-        return {"state": h["state"], "title": "\n".join(radio.hw_line(r) for r in h["radios"])}
+        out = {"state": h["state"], "title": "\n".join(radio.hw_line(r) for r in h["radios"])}
+        cur = radio.current()
+        if cur and radio.chat_edit():
+            out["settings"] = cur
+            out["edit"] = bool(can_edit)
+        return out
     except Exception as e:
         return {"state": "error", "title": str(e)}
+
+
+_LOCAL = ("127.0.0.1", "::1", "localhost")
+
+
+def _radio_editor(identifier, headers):
+    """Who may change the radio from the chat: the person on the computer
+    the Stump runs on, or someone logged in to /admin (its session
+    cookie)."""
+    if not radio.chat_edit():
+        return False
+    return identifier in _LOCAL or _session_ok(_cookie(headers, ADMIN_COOKIE))
 
 
 def _release_line():
@@ -1488,6 +1507,12 @@ def _render_admin_radio_section(lang, pw):
                 lambda v: "4/%d" % v) + "</select>")
         + "<button type='submit'>" + i18n.t("admin_radio_save", lang) + "</button>"
         "</form>"
+        "<form method='POST' action='/admin/radiochat' class='post-form'>"
+        "<input type='hidden' name='admin_pass' value='" + billboard._esc(pw) + "'>"
+        "<input type='hidden' name='on' value='" + ("0" if radio.chat_edit() else "1") + "'>"
+        "<p class='sub'>" + i18n.t("admin_radio_chat_on" if radio.chat_edit() else "admin_radio_chat_off", lang) + "</p>"
+        "<button type='submit'>" + i18n.t("admin_radio_chat_turn_off" if radio.chat_edit() else "admin_radio_chat_turn_on", lang)
+        + "</button></form>"
     )
 
 
@@ -2449,7 +2474,7 @@ async def _read_small_body(reader, length, chunk=1024, cap=None):
 # these would break a page still open over HTTP, since the browser
 # refuses a cross-origin redirect for them.
 _NO_REDIRECT = ("/home-file", "/tls-ok", "/rrc/poll", "/rrc/voice", "/rrc/send", "/download", "/codec2", "/opus.", "/billboard.json",
-                "/files.json", "/plugins.json", "/chain.json", "/hw.json", "/fw", "/tool?", "/lang", "/upload", "/post", "/chat")
+                "/files.json", "/plugins.json", "/chain.json", "/hw.json", "/admin/radio.json", "/fw", "/tool?", "/lang", "/upload", "/post", "/chat")
 
 
 def _own_ap_ip():
@@ -2743,6 +2768,55 @@ async def _handle(reader, writer, secure=False):
                 names = fserv._list_files() if fserv.sd_ok else []
                 notice = "<p class='sub'>" + billboard._esc(msg) + "</p>" if msg else ""
                 await _send(writer, "200 OK", _page(notice + _render_admin_file_list_page(lang, names, pw)))
+
+        elif method == "POST" and path.startswith("/admin/radiochat"):
+            # /admin's switch for the radio settings in the chat's pop-up.
+            length = int(headers.get("content-length", "0"))
+            body = await _read_small_body(reader, length)
+            fields = {}
+            for kv in body.decode().split("&"):
+                parts = kv.split("=", 1)
+                if len(parts) == 2:
+                    fields[parts[0]] = billboard._url_decode(parts[1])
+            pw = fields.get("admin_pass", "")
+            if not _admin_ok(pw, identifier):
+                await _send(writer, "403 Forbidden", "Invalid admin password", "text/plain")
+            else:
+                lang = i18n.get_lang(identifier)
+                on = fields.get("on") == "1"
+                ok = radio.set_chat_edit(on)
+                msg = i18n.t(("admin_radio_chat_on" if on else "admin_radio_chat_off") if ok else "admin_radio_not_saved", lang)
+                names = fserv._list_files() if fserv.sd_ok else []
+                notice = "<p class='sub'>" + billboard._esc(msg) + "</p>"
+                await _send(writer, "200 OK", _page(notice + _render_admin_file_list_page(lang, names, pw)))
+
+        elif method == "POST" and path.startswith("/admin/radio.json"):
+            # The radio's settings from the chat's pop-up (rrc_ui): the
+            # person on the computer, or an /admin session. JSON answer.
+            length = int(headers.get("content-length", "0"))
+            body = await _read_small_body(reader, length)
+            lang = i18n.get_lang(identifier)
+            if not _radio_editor(identifier, headers):
+                await _send(writer, "403 Forbidden", json.dumps({"ok": False, "message": i18n.t(
+                    "rrc_radio_owner_only" if radio.chat_edit() else "admin_radio_chat_off", lang)}),
+                            "application/json")
+            else:
+                fields = {}
+                for kv in body.decode().split("&"):
+                    parts = kv.split("=", 1)
+                    if len(parts) == 2:
+                        fields[parts[0]] = billboard._url_decode(parts[1])
+                settings, bad = radio.parse_form(fields)
+                if bad:
+                    label = {"frequency": "radio_freq", "bandwidth": "radio_bw", "txpower": "radio_txp",
+                             "sf": "radio_sf", "cr": "radio_cr"}[bad]
+                    ok, msg = False, i18n.t("admin_radio_invalid", lang, field=i18n.t(label, lang))
+                else:
+                    result = radio.apply(settings)
+                    ok = radio.save(settings)
+                    msg = i18n.t("admin_radio_not_saved" if not ok else {"sent": "admin_radio_sent",
+                                 "pending": "admin_radio_pending"}.get(result, "admin_radio_none"), lang)
+                await _send(writer, "200 OK", json.dumps({"ok": ok, "message": msg}), "application/json")
 
         elif method == "POST" and path.startswith("/admin/radio"):
             # Must come before the generic POST /admin (login) branch
@@ -3057,7 +3131,7 @@ async def _handle(reader, writer, secure=False):
                 # Which of those are other Stump nodes (from their
                 # stump.node beacons), so the UI can label them.
                 "stumps": rrc.stump_nicks(),
-                "hw": _hw_brief(),
+                "hw": _hw_brief(_radio_editor(identifier, headers)),
                 # Which node this is -- a client reaching it over Wi-Fi
                 # and LoRa matches the two by this LXMF address.
                 "node": rrc.NODE,

@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.0.0-beta.5
 - **Is the radio really there?** A Heltec on USB is now asked "are you an
   RNode?" (the RNode handshake) and its firmware before the Stump calls
   it online; one that doesn't answer is an error that says what to
@@ -8,13 +8,24 @@
   are read: RSSI and SNR of the last packet, noise floor, channel load,
   airtime, battery, packets in and out, the settings it confirmed.
   `GET /hw.json` gives all of it; `/admin` shows it live (every 2 s).
-- **The radio's status dot in the chat**, left of the navigation: green
-  online, white no radio, glowing orange connecting, red trouble; on
-  hover, the port and device name (to tell boards apart on a hub),
-  the RNode firmware, or what's wrong.
-- **The chat's column runs to the bottom of the window**, with a profile
-  at its foot: your nickname (change it there), this Stump (name, LXMF
-  address) and its radio. The input line sits under the chat only.
+- **Your profile, at the foot of the chat's column**: the radio's status
+  dot and your nickname. Click it for the details in a pop-up: your
+  nickname (change it there), this Stump (name, LXMF address) and its
+  radio. The dot: green online, white no radio, glowing orange
+  connecting, red trouble; the line under it gives the port and device
+  name (to tell boards apart on a hub), the RNode firmware, or what's
+  wrong. The column runs to the bottom of the window; the input line
+  sits under the chat only. The navigation bar no longer shows who you
+  are or the dot.
+- **Change the radio from the chat.** Click Radio in the pop-up and it
+  opens on the settings: frequency (any value, e.g. 917.112; 915, 868,
+  869.525 and 433 suggested), bandwidth, spreading factor, coding rate,
+  TX power. Apply sends them to the Heltec at once and saves them. Only
+  the person on the computer, or someone logged in to `/admin`, can
+  apply (`POST /admin/radio.json`); others see them greyed out.
+  `/admin` has a switch to take the settings out of the chat (then the
+  pop-up shows the radio's state only, and `/admin` is where they
+  change).
 - **#lora-mesh is the radio's room on a computer with its own Heltec**:
   people on LoRa are always in; on the web, the computer's owner and
   whom they invite (`/lora invite <nick>`, `/lora uninvite <nick>`,

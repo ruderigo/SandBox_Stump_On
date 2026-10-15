@@ -29,6 +29,12 @@ FREQ_MIN, FREQ_MAX = 150000000, 960000000
 
 KEYS = ("frequency", "bandwidth", "txpower", "sf", "cr")
 
+# Whether the chat's profile pop-up offers the radio settings (the Radio
+# row opens into an editor), switched from /admin. On by default; the
+# editor there only works for the person on the computer or an /admin
+# session either way (barkeep._radio_editor).
+CHAT_FILE = "/radio_chat.json"
+
 
 def bridges():
     """The live Heltec Bridge interface(s) on this node, if any."""
@@ -73,7 +79,7 @@ def hw():
 
 def hw_line(r):
     """One radio in one line, for the status dot's hover text."""
-    bits = [r.get("name") or "radio", r.get("state") or "?", r.get("where") or ""]
+    bits = [r.get("name") or "radio", r.get("where") or ""]
     if r.get("device"):
         bits.append(r["device"])
     if r.get("fw"):
@@ -81,6 +87,25 @@ def hw_line(r):
     if r.get("state") != "online" and r.get("error"):
         bits.append(r["error"])
     return " · ".join(b for b in bits if b)
+
+
+def chat_edit():
+    """True unless /admin switched the chat's radio settings off."""
+    try:
+        with open(CHAT_FILE) as f:
+            return json.load(f).get("on", True) is not False
+    except (OSError, ValueError, AttributeError):
+        return True
+
+
+def set_chat_edit(on):
+    try:
+        with open(CHAT_FILE, "w") as f:
+            json.dump({"on": bool(on)}, f)
+        return True
+    except OSError as e:
+        print("[radio] could not save the chat setting:", e)
+        return False
 
 
 def load():

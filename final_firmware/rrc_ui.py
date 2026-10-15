@@ -23,6 +23,7 @@ import rrc
 import theme
 import features
 import i18n
+import radio
 
 STYLE = """
 *{box-sizing:border-box;}
@@ -70,24 +71,45 @@ main{flex:1; display:flex; min-height:0;}
 }
 #rooms{flex:1; overflow-y:auto; min-height:0;}
 #chatcol{flex:1; display:flex; flex-direction:column; min-width:0; min-height:0;}
-#profile{border-top:1px solid var(--border); padding:8px 10px; font-size:12px; color:var(--muted);}
-#profile .ph{font-size:.72rem; text-transform:uppercase; letter-spacing:.06em; color:var(--dim); margin:6px 0 3px;}
-#profile .pv{color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
-#profile form{display:flex; gap:4px;}
-#profile input{flex:1; min-width:0; background:var(--bg); color:var(--text); border:1px solid var(--border);
-  border-radius:4px; padding:4px 6px; font:inherit; font-size:12px;}
-#profile button{padding:4px 8px; font-size:12px;}
-#profile .radio{display:flex; gap:6px; align-items:baseline;}
-#profile .radio span:last-child{overflow-wrap:anywhere;}
-/* The radio's state, left of the navigation: green online, white no
-   radio needed, glowing orange connecting, red trouble. */
-.hw-dot{width:12px; height:12px; border-radius:50%; flex-shrink:0; align-self:center;
-  margin-left:auto; border:1px solid var(--border); background:#f2efe8; cursor:help;}
-.hw-dot + .nav{margin-left:0;}
+#profile{border-top:1px solid var(--border); position:relative;}
+#me-btn{display:flex; align-items:center; gap:8px; width:100%; padding:10px; background:none; border:none;
+  border-radius:0; color:var(--ember-bright); font:inherit; font-weight:bold; text-align:left; cursor:pointer;}
+#me-btn:hover,#me-btn[aria-expanded=true]{background:var(--line);}
+#me{overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0;}
+/* The details, over the chat, anchored to the name. */
+#pop{position:absolute; left:8px; bottom:calc(100% + 6px); z-index:20; width:280px; max-width:calc(100vw - 24px);
+  max-height:calc(100dvh - 140px); overflow-y:auto;
+  background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:12px 14px;
+  box-shadow:0 8px 24px rgba(0,0,0,.35); font-size:12px; color:var(--muted);}
+#pop .ph{font-size:.7rem; text-transform:uppercase; letter-spacing:.06em; color:var(--dim); margin:10px 0 4px;}
+#pop .ph:first-child{margin-top:0;}
+#pop .pv{color:var(--text); overflow-wrap:anywhere;}
+#pop form{display:flex; gap:6px;}
+#pop input{flex:1; min-width:0; background:var(--bg); color:var(--text); border:1px solid var(--border);
+  border-radius:6px; padding:6px 8px; font:inherit;}
+#pop button{padding:6px 10px; font-size:12px;}
+#pop .radio{display:flex; gap:8px; align-items:baseline; color:var(--text); width:100%; text-align:left;
+  background:none; border:none; padding:4px 0; font:inherit; font-size:12px; font-weight:normal; cursor:default;}
+#pop button.radio{cursor:pointer; border-radius:6px;}
+#pop button.radio:hover{background:var(--line);}
+#pop .radio .chev{margin-left:auto; color:var(--ember); white-space:nowrap;}
+#pop .radio-edit{display:grid; gap:6px; margin-top:8px; padding-top:8px; border-top:1px solid var(--line);}
+#pop .radio-edit label{display:grid; gap:2px; color:var(--muted);}
+#pop .radio-edit select{background:var(--bg); color:var(--text); border:1px solid var(--border); border-radius:6px;
+  padding:5px 6px; font:inherit;}
+#pop .radio-edit .note{margin:0; color:var(--muted);}
+#pop .radio-edit small{color:var(--dim);}
+#pop .radio-edit .msg{margin:0; min-height:1em;}
+#pop .radio-edit .msg.ok{color:#3fb950;} #pop .radio-edit .msg.bad{color:var(--err);}
+#pop .radio .hw-dot{position:relative; top:1px;}
+#pop .radio small{display:block; color:var(--muted); overflow-wrap:anywhere;}
+/* The radio's state, by your name: green online, white no radio
+   needed, glowing orange connecting, red trouble. */
+.hw-dot{width:10px; height:10px; border-radius:50%; flex-shrink:0;
+  border:1px solid var(--border); background:#f2efe8;}
 .hw-dot.online{background:#3fb950; border-color:#3fb950;}
 .hw-dot.connecting{background:#f0a030; border-color:#f0a030; animation:hwglow 1.2s ease-in-out infinite;}
 .hw-dot.error{background:#e5534b; border-color:#e5534b;}
-#profile .hw-dot{margin-left:0; width:9px; height:9px; position:relative; top:1px;}
 @keyframes hwglow{0%,100%{box-shadow:0 0 0 0 rgba(240,160,48,.7);}50%{box-shadow:0 0 8px 3px rgba(240,160,48,.9);}}
 #rooms div{padding:7px 10px; cursor:pointer; border-bottom:1px solid var(--line);
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
@@ -246,44 +268,108 @@ function stumpTag(el, name){
   el.insertBefore(t, el.firstChild);
 }
 var lastUsers=[];
-var PROF=I18N_PROFILE, HWT=I18N_HW, nodeInfo=null, hwInfo=null;
+var PROF=I18N_PROFILE, HWT=I18N_HW, RAD=I18N_RADIO, nodeInfo=null, hwInfo=null, radioOpen=false, radioMsg='';
 function setHw(h){
-  // The status dot left of the navigation, and the profile's radio rows.
+  // The status dot by your name, at the foot of the column.
   hwInfo=h;
   var dot=document.getElementById('hw');
-  if(dot){ dot.className='hw-dot '+h.state; dot.title=(HWT[h.state]||h.state)+(h.title?'\\n'+h.title:''); }
+  if(dot){ dot.className='hw-dot '+h.state; dot.title=HWT[h.state]||h.state; }
 }
-function renderProfile(){
-  var p=document.getElementById('profile');
-  if(!p) return;
-  var editing=document.activeElement && document.activeElement.id==='pnick';
-  if(editing) return;          // don't redraw under someone typing
+function renderProfile(force){
+  var me=document.getElementById('me');
+  if(me && me.textContent!==nick) me.textContent=nick;
+  var p=document.getElementById('pop');
+  if(!p || p.hidden) return;
+  // Not under someone typing or setting the radio: polls leave it alone.
+  if(!force && (radioOpen || (document.activeElement && p.contains(document.activeElement)))) return;
   p.innerHTML='';
   function head(t){ var d=document.createElement('div'); d.className='ph'; d.textContent=t; p.appendChild(d); }
-  function val(t, title){ var d=document.createElement('div'); d.className='pv'; d.textContent=t; if(title) d.title=title; p.appendChild(d); return d; }
+  function val(t){ var d=document.createElement('div'); d.className='pv'; d.textContent=t; p.appendChild(d); return d; }
   head(PROF.you);
   var f=document.createElement('form');
   var i=document.createElement('input'); i.id='pnick'; i.value=nick; i.maxLength=16; i.setAttribute('aria-label', PROF.nick);
   var b=document.createElement('button'); b.type='submit'; b.textContent=PROF.set;
   f.appendChild(i); f.appendChild(b);
-  f.onsubmit=function(e){ e.preventDefault(); var v=i.value.trim(); if(v && v!==nick){ send('/nick '+v); } i.blur(); };
+  f.onsubmit=function(e){ e.preventDefault(); var v=i.value.trim(); if(v && v!==nick){ send('/nick '+v); } i.blur(); closePop(); };
   p.appendChild(f);
   if(nodeInfo){
     head(PROF.stump);
     val(nodeInfo.name||'?');
-    if(nodeInfo.lxmf) val('LXMF '+nodeInfo.lxmf.slice(0,8)+'\\u2026', nodeInfo.lxmf);
+    if(nodeInfo.lxmf){ var l=val(nodeInfo.lxmf); l.style.color='var(--muted)'; }
   }
   head(PROF.radio);
   var st=hwInfo?hwInfo.state:'none';
-  var lines=(hwInfo && hwInfo.title)?hwInfo.title.split('\\n'):[];
-  if(!lines.length) lines=[HWT[st]||st];
+  var lines=(hwInfo && hwInfo.title)?hwInfo.title.split('\\n'):[''];
+  var hasRadio=!!(hwInfo && hwInfo.settings);
   lines.forEach(function(l){
-    var r=document.createElement('div'); r.className='radio';
+    var r=document.createElement(hasRadio?'button':'div'); r.className='radio';
+    if(hasRadio){ r.type='button'; r.setAttribute('aria-expanded', radioOpen?'true':'false');
+      r.onclick=function(){ radioOpen=!radioOpen; radioMsg=''; renderProfile(true); }; }
     var d=document.createElement('span'); d.className='hw-dot '+st;
-    var t=document.createElement('span'); t.textContent=l;
-    r.appendChild(d); r.appendChild(t); p.appendChild(r);
+    var t=document.createElement('div'); t.textContent=HWT[st]||st;
+    if(l){ var sm=document.createElement('small'); sm.textContent=l; t.appendChild(sm); }
+    r.appendChild(d); r.appendChild(t);
+    if(hasRadio){ var c=document.createElement('span'); c.className='chev'; c.textContent=radioOpen?'\u25be':RAD.tap+' \u25b8'; r.appendChild(c); }
+    p.appendChild(r);
   });
+  if(hasRadio && radioOpen) p.appendChild(radioEditor(hwInfo.settings, hwInfo.edit));
 }
+function radioEditor(cur, can){
+  // The radio's settings, under its row: the pop-up grows. Only whoever
+  // runs the Stump may apply them (/admin/radio.json checks it again).
+  var box=document.createElement('form'); box.className='radio-edit';
+  var note=document.createElement('p'); note.className='note'; note.textContent=can?RAD.intro:RAD.owner; box.appendChild(note);
+  function row(label, ctl){ var l=document.createElement('label'); l.textContent=label; l.appendChild(ctl); box.appendChild(l); return ctl; }
+  function sel(name, values, value, fmt){
+    var s=document.createElement('select'); s.name=name;
+    values.forEach(function(v){ var o=document.createElement('option'); o.value=v; o.textContent=fmt?fmt(v):v; if(v===value) o.selected=true; s.appendChild(o); });
+    return s;
+  }
+  function range(a,b){ var r=[]; for(var x=a;x<=b;x++) r.push(x); return r; }
+  var f=document.createElement('input'); f.name='freq'; f.inputMode='decimal'; f.value=(cur.frequency/1e6).toFixed(3);
+  f.setAttribute('list','freqs');
+  var dl=document.createElement('datalist'); dl.id='freqs';
+  ['915.000','868.000','869.525','433.000'].forEach(function(v){ var o=document.createElement('option'); o.value=v; dl.appendChild(o); });
+  row(RAD.freq, f); box.appendChild(dl);
+  var hint=document.createElement('small'); hint.textContent=RAD.presets; box.appendChild(hint);
+  row(RAD.bw, sel('bw', RAD.bandwidths, cur.bandwidth, function(v){ return (v/1000)+' kHz'; }));
+  row(RAD.sf, sel('sf', range(RAD.sf_range[0], RAD.sf_range[1]), cur.sf));
+  row(RAD.cr, sel('cr', range(RAD.cr_range[0], RAD.cr_range[1]), cur.cr, function(v){ return '4/'+v; }));
+  var tx=document.createElement('input'); tx.name='txp'; tx.type='number'; tx.min=RAD.txp_range[0]; tx.max=RAD.txp_range[1]; tx.value=cur.txpower;
+  row(RAD.txp, tx);
+  var go=document.createElement('button'); go.type='submit'; go.textContent=RAD.apply; box.appendChild(go);
+  var msg=document.createElement('p'); msg.className='msg'; msg.textContent=radioMsg; box.appendChild(msg);
+  if(!can){ Array.prototype.forEach.call(box.querySelectorAll('input,select,button'), function(e){ e.disabled=true; }); }
+  box.onsubmit=function(e){
+    e.preventDefault();
+    var body=['freq','bw','sf','cr','txp'].map(function(k){ return k+'='+encodeURIComponent(box.elements[k].value); }).join('&');
+    go.disabled=true;
+    fetch('/admin/radio.json',{method:'POST',body:body,credentials:'same-origin',
+      headers:{'Content-Type':'application/x-www-form-urlencoded'}})
+      .then(function(r){ return r.json(); })
+      .then(function(d){ radioMsg=d.message||''; msg.textContent=radioMsg; msg.className='msg '+(d.ok?'ok':'bad'); })
+      .catch(function(){ msg.textContent='\u2715'; })
+      .then(function(){ go.disabled=false; });
+  };
+  return box;
+}
+function closePop(){
+  var p=document.getElementById('pop'), btn=document.getElementById('me-btn');
+  if(p){ p.hidden=true; } if(btn){ btn.setAttribute('aria-expanded','false'); }
+}
+(function(){
+  var btn=document.getElementById('me-btn'), p=document.getElementById('pop');
+  if(!btn || !p) return;
+  btn.setAttribute('aria-expanded','false');
+  btn.onclick=function(e){
+    e.stopPropagation();
+    if(p.hidden){ p.hidden=false; btn.setAttribute('aria-expanded','true'); radioOpen=false; renderProfile(true); }
+    else closePop();
+  };
+  p.onclick=function(e){ e.stopPropagation(); };
+  document.addEventListener('click', closePop);
+  document.addEventListener('keydown', function(e){ if(e.key==='Escape') closePop(); });
+})();
 function renderStumps(){
   // The other Stumps, together at the bottom of the column (with their
   // DM threads, if any), after the people.
@@ -740,7 +826,7 @@ function poll(){
      if(d.node) nodeInfo=d.node;
      if(d.rooms) setRooms(d.rooms, room, d.users); else renderDMSidebar();
      if(d.topic!==undefined) document.getElementById('topic').textContent=d.topic?('— '+d.topic):'';
-     if(d.nick && d.nick!==nick){ nick=d.nick; document.getElementById('me').textContent=nick; }
+     if(d.nick && d.nick!==nick){ nick=d.nick; }
      renderProfile();
      onPollOk();
    })
@@ -1005,6 +1091,13 @@ def render_page(room, nick, lang=None, rec_url=None):
                                             for k in ("you", "nick", "set", "stump", "radio")}))
               .replace("I18N_HW", _js({k: i18n.t("rrc_hw_" + k, lang)
                                        for k in ("none", "online", "connecting", "error")}))
+              .replace("I18N_RADIO", _js(dict(
+                  {k: i18n.t(v, lang) for k, v in (("tap", "rrc_radio_tap"), ("owner", "rrc_radio_owner_only"),
+                                                   ("presets", "rrc_radio_presets"), ("intro", "rrc_radio_same"),
+                                                   ("freq", "radio_freq"), ("bw", "radio_bw"), ("sf", "radio_sf"),
+                                                   ("cr", "radio_cr"), ("txp", "radio_txp"), ("apply", "admin_radio_save"))},
+                  bandwidths=list(radio.BANDWIDTHS), sf_range=[radio.SF_MIN, radio.SF_MAX],
+                  cr_range=[radio.CR_MIN, radio.CR_MAX], txp_range=[radio.TXP_MIN, radio.TXP_MAX])))
               .replace("I18N_NOT_SENT", _js(i18n.t("rrc_not_sent", lang)))
               .replace("I18N_VOICE", _js({"record": i18n.t("voice_record", lang),
                   "unreadable": i18n.t("voice_unreadable", lang), "recording": i18n.t("voice_recording", lang),
@@ -1022,11 +1115,11 @@ def render_page(room, nick, lang=None, rec_url=None):
         "<title>RRC — Stump</title><style>" + theme.CSS + STYLE + "</style>"
         "<script>" + theme.startup_script() + "</script></head><body>"
         "<header><b>RRC</b><span id='topic'></span>"
-        "<span class='me'>" + i18n.t("rrc_you_are", lang) + " <span id='me'>" + _esc(nick) + "</span></span>"
-        + "<span id='hw' class='hw-dot none' title='" + _attr(i18n.t("rrc_hw_none", lang)) + "'></span>"
         + _nav_links(lang) + "</header>"
         + i18n.switcher_html(lang, "/rrc") +
-        "<main><div id='side'><div id='rooms'></div><div id='profile'></div></div>"
+        "<main><div id='side'><div id='rooms'></div><div id='profile'><button id='me-btn' type='button' aria-haspopup='dialog'>"
+        "<span id='hw' class='hw-dot none'></span><span id='me'>" + _esc(nick) + "</span></button>"
+        "<div id='pop' role='dialog' hidden></div></div></div>"
         "<div id='grip' title='\u2194'></div><div id='chatcol'><div id='log'></div>"
         "<footer>"
         "<input id='in' maxlength='" + str(rrc.MAX_MESSAGE_LEN) + "' "

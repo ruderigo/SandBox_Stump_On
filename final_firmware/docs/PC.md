@@ -111,10 +111,13 @@ you give the wizard that address.
 **None:** a computer Stump in a chain reaches the LoRa mesh through a
 Stump that has a Heltec.
 
-**Is the Heltec working?** The chat's status dot (top right, left of the
-navigation) is green when the Heltec answered the RNode handshake,
-glowing orange while it connects, red when something's wrong; hover it
-for the port, the board and the RNode firmware, or the problem. `/admin`
+**Is the Heltec working?** The status dot by your name, at the foot of
+the chat's column, is green when the Heltec answered the RNode
+handshake, glowing orange while it connects, red when something's
+wrong; click your name for the port, the board and the RNode firmware,
+or the problem. Click *Radio* there to change its frequency, bandwidth,
+SF, CR or TX power (you on this computer, or logged in to `/admin`;
+`/admin` can take this out of the chat). `/admin`
 → *Radio — live* shows the signal of the last packet, noise floor,
 channel load, battery and packet counts. On this computer, `#lora-mesh`
 is the radio's room: you, people on LoRa, and whom you `/lora invite`.
