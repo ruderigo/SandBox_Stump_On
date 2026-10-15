@@ -13,21 +13,54 @@ What changed: [CHANGELOG.md](CHANGELOG.md). The stable line is
 
 ![demo](demo.gif)
 
-An off-grid community node. A long-range encrypted mesh radio and a
-local high-bandwidth server, deliberately kept on separate hardware.
+## What a Stump is
 
-```
-[ Mesh ] <--( LoRa )--> [ Heltec V3 ] <--( WiFi/TCP :7633 )--> [ ESP32-S3-CAM ] <--( WiFi )--> [ Local room ]
-                        CONTROL PLANE                          DATA PLANE
-                        RNS identity, LXMF,                    SD storage, chat, files,
-                        routing. Low power.                    billboard, about page, captive portal.
-```
+A Stump is an off-grid community node. Walk up with a phone, join its
+Wi-Fi, and get a chat room, a bulletin board, a file library and an
+About page, in French, English or Spanish. It also holds a
+cryptographic identity on the [Reticulum](https://reticulum.network)
+mesh, so people reachable only over LoRa radio share the same rooms
+as the people standing in front of it.
 
-Walk up with a phone, join the WiFi, and get a chat room, a bulletin
-board, a file library, and an About page explaining the project — in
-French, English, or Spanish. Meanwhile the node holds a cryptographic
-identity on the Reticulum mesh, so people reachable only over LoRa can
-share rooms with the people standing in front of it.
+The same firmware runs on a small board or on a computer, with or
+without a radio.
+
+| Stump | Radio | What it adds | Set up with |
+|---|---|---|---|
+| **ESP32-S3-CAM + Heltec V3** | Heltec V3 over Wi-Fi | The original: a pocket-sized, low-power node with its own Wi-Fi for visitors and an SD card for files | `python3 provisioner.py` → *A Stump CAM*, then *A Heltec for a CAM* |
+| **macOS / Windows / Linux + Heltec V3** | Heltec V3 on USB | A computer as a full node: more storage and speed, on the LoRa mesh directly | `python3 provisioner.py --pc` → the Heltec on USB |
+| **macOS / Windows / Linux** | none | A computer as a node with no radio of its own: it reaches LoRa through another Stump it's chained to | `python3 provisioner.py --pc` → no Heltec |
+
+**Chained Stumps.** Stumps link to each other over Wi-Fi — a CAM's own
+Wi-Fi, or the home Wi-Fi they share — and relay for each other, so a
+Stump without a radio still reaches the LoRa mesh through one that has
+one. They talk among themselves in `#wifi-mesh`; LoRa users land in
+`#lora-mesh`. See [Chained Stumps](#chained-stumps).
+
+## Who connects to a Stump
+
+| Client | How it connects |
+|---|---|
+| **Android** — [FireFly-Android](https://github.com/ruderigo/FireFly-Android) | Over LoRa, through its own Heltec V3, with its own identity; or over Wi-Fi to a Stump, from FireFly's Stump panel |
+| **Handheld** (R36S / R36MAX) — [FireFly for RK3326](https://github.com/ruderigo/FireFly_RK3326_R36MAX_R36S) | Over LoRa, through its own Heltec V3, with its own identity |
+| **Any phone or computer** | A browser on the Stump's Wi-Fi (or the network it's on) |
+
+## Tested so far (14 Oct 2026, 1.0.0-beta.4)
+
+| | On hardware | In the lab only |
+|---|---|---|
+| ESP32-S3-CAM + Heltec V3 | ✓ | |
+| macOS + Heltec V3 | | ✓ (Heltec on USB, simulated) |
+| Windows / Linux + Heltec V3 | | ✓ |
+| macOS, no radio, chained to a CAM over the home Wi-Fi | ✓ | |
+| Windows / Linux, no radio | | ✓ |
+| CAM chained to a CAM | | ✓ |
+| Android (FireFly + Heltec V3) over LoRa | ✓ | |
+| Android over Wi-Fi (FireFly's Stump panel) | ✓ | |
+| Handheld (FireFly + Heltec V3) over LoRa | ✓ | |
+| Browsers: phones, a Windows PC on the home Wi-Fi | ✓ | |
+| `#wifi-mesh` between chained Stumps, DMs across Stumps | ✓ | |
+
 
 ---
 
@@ -59,6 +92,9 @@ assuming you know what "turn on hybrid" does.
 
 ## Contents
 
+- [What a Stump is](#what-a-stump-is)
+- [Who connects to a Stump](#who-connects-to-a-stump)
+- [Tested so far](#tested-so-far-14-oct-2026-100-beta4)
 - [Quick start](#quick-start)
 - [Reading the boot log](#reading-the-boot-log)
 - [Troubleshooting](#troubleshooting)
