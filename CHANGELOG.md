@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.0.0-beta.18
+- **Fixed: after an update the Heltec only came back over Bluetooth once
+  it was rebooted by hand.** A Heltec that still counts a Bluetooth device
+  as connected (the Stump that just stopped, or the Mac itself) stops
+  advertising and ignores everything on its USB -- the reset command
+  beta.17 sent over the cable included. Now:
+  - on the cable, it's restarted through the USB chip's reset line, as
+    flashing tools do: the reset button, by wire, whatever the firmware
+    is doing (at start-up, during a Bluetooth fresh start, and when it
+    isn't seen for a few scans);
+  - on USB too: a Heltec that's there but answers nothing twice in a row
+    is restarted the same way;
+  - on macOS, cable or not: a Heltec the Mac is still connected to (so
+    no scan can see it) is found in the Mac's list of connected devices
+    and used through that link.
+
 ## 1.0.0-beta.17
 - **Fixed: an already paired Heltec stayed silent over Bluetooth after an
   update, until /admin's switch went USB → Bluetooth** -- with or without

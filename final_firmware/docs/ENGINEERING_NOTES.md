@@ -1435,6 +1435,24 @@ needs the cable. Now (beta.17):
   updating the Stump disconnects for real and the Heltec advertises
   again for the next start.
 
+beta.18: still only a reboot by hand helped. The RNode firmware reads
+its USB serial **only while `bt_state != BT_STATE_CONNECTED`**
+(`RNode_Firmware.ino`, the serial loop), and `bt_connect_callback` sets
+CONNECTED for any central -- so a Heltec holding a link (to the Stump
+that just stopped, or to macOS itself, which may keep a link to a bonded
+device) ignores USB, `CMD_RESET` included, and stops advertising.
+- `rnode_serial.hard_reset(port)`: the port opened with DTR and RTS off
+  (no glitch), RTS pulsed (the CP2102's auto-reset circuit pulls EN low),
+  DTR kept off (IO0 high: a normal boot, not the bootloader) -- esptool's
+  hard reset. Used for every cable restart (`CMD_RESET` only if the
+  lines can't be set), and by `RNodeSerialInterface` after two silent
+  handshakes on a port that's there.
+- `_BLEPort._held_by_this_computer()`: when a scan finds nothing, on
+  macOS, CoreBluetooth's `retrieveConnectedPeripheralsWithServices_`
+  (the Nordic UART service) through bleak's `CentralManagerDelegate`,
+  wrapped in a `BLEDevice(address, name, (peripheral, delegate))` for
+  `BleakClient`.
+
 **`#lora-mesh` between Stumps over the radio.** An open LXMF link over
 the chain carried every message, so the Heltec never transmitted.
 `LXMRouter.send_message(..., via=interface)` sends one opportunistic

@@ -229,6 +229,18 @@ asyncio.run(run(rs.HANDSHAKE_S + 1.5))
 st = iface.status()
 check("no answer to the handshake: not online, an error that says what to check", not iface.online
       and st["state"] == "error" and "RNode firmware" in (st["error"] or ""), st)
+# There but deaf twice in a row (e.g. it counts a Bluetooth device as
+# connected, and then ignores USB): restarted through its reset line --
+# the reset button, by wire.
+resets = []
+_hard = rs.hard_reset
+rs.hard_reset = lambda dev: resets.append(dev)
+iface._mute = 0
+for _ in range(2):
+    iface.retry_now()
+    asyncio.run(run(rs.HANDSHAKE_S + 1.0))
+check("deaf twice in a row: restarted through its reset line, once", resets == [iface.port], resets)
+rs.hard_reset = _hard
 
 # Stopping the Stump: the radio off and "the host left", so the RNode
 # doesn't keep transmitting on its own.

@@ -236,13 +236,18 @@ class FakeUSB:
     def close(self):
         kicks.append((self.port, bytes(self.got)))
 
-real_find, real_port, real_boot = rs.find_port, rs._SerialPort, rs.BOOT_WAIT_S
+
+def fake_reset(port):
+    kicks.append((port, "reset line"))
+
+real_find, real_port, real_boot, real_reset = rs.find_port, rs._SerialPort, rs.BOOT_WAIT_S, rs.hard_reset
 rs.find_port, rs._SerialPort, rs.BOOT_WAIT_S = (lambda: "/dev/cu.usbserial-0001"), FakeUSB, 0.05
+rs.hard_reset = fake_reset
 rb.KICK_BOOT_S = 0.1
 radio["around"], radio["answering"] = True, True
 iface2 = rb.RNodeBLEInterface({"target": "RNode 3B87"})
-check("start-up on Bluetooth, the Heltec on USB too: restarted once through the cable (reset command)",
-      kicks == [("/dev/cu.usbserial-0001", bytes([0xC0, 0x55, 0xF8, 0xC0]))], kicks)
+check("start-up on Bluetooth, the Heltec on USB too: restarted once through its reset line",
+      kicks == [("/dev/cu.usbserial-0001", "reset line")], kicks)
 async def run2(i, s):
     t = asyncio.create_task(i.poll_loop())
     await asyncio.sleep(s)
@@ -302,7 +307,15 @@ check("not seen a few scans in a row, on the cable: restarted, then found", kick
 c = radio["client"]
 iface4.close()
 check("on close: disconnected properly, not left hanging", not c.up and not iface4._ble._thread.is_alive())
-rs.find_port, rs._SerialPort, rs.BOOT_WAIT_S = real_find, real_port, real_boot
+# A USB chip whose reset line can't be set: the RNode's reset command.
+def no_line(port):
+    raise OSError("not supported")
+rs.hard_reset = no_line
+kicks.clear()
+iface5 = rb.RNodeBLEInterface({"target": "RNode 3B87"})
+check("no reset line: the RNode's reset command instead", kicks == [("/dev/cu.usbserial-0001", bytes([0xC0, 0x55, 0xF8, 0xC0]))], kicks)
+iface5.close()
+rs.find_port, rs._SerialPort, rs.BOOT_WAIT_S, rs.hard_reset = real_find, real_port, real_boot, real_reset
 
 # No bleak in that Python: says how to get it.
 del sys.modules["bleak"]

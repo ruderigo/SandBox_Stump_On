@@ -96,6 +96,7 @@ class _BLEPort:
         self.probe = False           # pairing check: ask "are you an RNode?" itself
         self.paired = False          # it answered over Bluetooth: the link is encrypted
         self.misses = 0              # scans in a row that didn't see it
+        self._mgr = None             # macOS: to list devices it's already connected to
         self._thread = threading.Thread(target=self._main, daemon=True, name="stump-ble")
         self._thread.start()
 
@@ -163,6 +164,40 @@ class _BLEPort:
             self.error = "Bluetooth stopped: %s" % e
             self.connected = False
 
+    async def _held_by_this_computer(self):
+        """A Heltec this computer is already connected to (macOS keeps a
+        link to a paired device it saw, for itself or a Stump that's gone):
+        it then counts itself connected and stops advertising, so a scan
+        never sees it -- but it can be used through that link. macOS only
+        (CoreBluetooth's list of connected devices); None elsewhere."""
+        import sys
+        if sys.platform != "darwin":
+            return None
+        try:
+            from CoreBluetooth import CBUUID
+            from bleak.backends.device import BLEDevice
+            from bleak.backends.corebluetooth.CentralManagerDelegate import CentralManagerDelegate
+            if self._mgr is None:
+                try:
+                    self._mgr = CentralManagerDelegate()
+                except TypeError:
+                    self._mgr = CentralManagerDelegate.alloc().init()     # older bleak
+                await self._mgr.wait_until_ready()
+            found = self._mgr.central_manager.retrieveConnectedPeripheralsWithServices_(
+                [CBUUID.UUIDWithString_(UART_SERVICE)])
+            for p in list(found or []):
+                dev = BLEDevice(str(p.identifier().UUIDString()), p.name(), (p, self._mgr))
+                class _Adv:
+                    local_name = p.name()
+                    service_uuids = [UART_SERVICE]
+                if _matches(self.target, dev, _Adv()):
+                    log("Bluetooth: %s is already connected to this computer: using that link"
+                        % (dev.name or dev.address), LOG_NOTICE)
+                    return dev
+        except Exception as e:
+            log("Bluetooth: couldn't list this computer's connected devices: %s" % e, LOG_VERBOSE)
+        return None
+
     async def _loop(self):
         import asyncio
         from bleak import BleakClient, BleakScanner
@@ -170,6 +205,8 @@ class _BLEPort:
             try:
                 dev = await BleakScanner.find_device_by_filter(
                     lambda d, a: _matches(self.target, d, a), timeout=SCAN_S)
+                if dev is None:
+                    dev = await self._held_by_this_computer()
                 if dev is None:
                     self.misses += 1
                     self.error = ("no RNode found over Bluetooth%s: is the Heltec on, with Bluetooth on "
@@ -284,8 +321,8 @@ class RNodeBLEInterface(RNodeSerialInterface):
 
     def _usb_kick(self):
         """Restarts the Heltec through its USB cable, if it's plugged in:
-        the port opened (that alone restarts many ESP32 boards), the RNode's
-        reset command, closed. True if done. Never while a Bluetooth
+        its reset line (the reset button, by wire); if that can't be set,
+        the RNode's reset command. True if done. Never while a Bluetooth
         session is up."""
         if self._ble is not None and self._ble.connected and self.online:
             return False
@@ -293,13 +330,19 @@ class RNodeBLEInterface(RNodeSerialInterface):
             port = rnode_serial.find_port()
             if not port:
                 return False
-            s = rnode_serial._SerialPort(port)
             try:
-                time.sleep(rnode_serial.BOOT_WAIT_S)     # if opening restarted it: booted by now
-                s.sendall(_CMD_RESET)
-                time.sleep(0.3)
-            finally:
-                s.close()
+                # The reset line: works even when it counts a Bluetooth device
+                # as connected (then it ignores its USB, reset command too).
+                rnode_serial.hard_reset(port)
+            except Exception as e:
+                log("Reset line on %s didn't work (%s): the RNode's reset command" % (port, e), LOG_VERBOSE)
+                s = rnode_serial._SerialPort(port)
+                try:
+                    time.sleep(rnode_serial.BOOT_WAIT_S)     # if opening restarted it: booted by now
+                    s.sendall(_CMD_RESET)
+                    time.sleep(0.3)
+                finally:
+                    s.close()
             self.hw["kicks"] = self.hw.get("kicks", 0) + 1
             log("Heltec restarted through its USB cable (%s), for a clean Bluetooth start" % port, LOG_NOTICE)
             return True

@@ -155,11 +155,13 @@ from others. **After a restart or an update**, an already paired Heltec
 comes back on its own, cable or not: the Stump encrypts the link with
 the saved pairing before listening on it, and if the Heltec still says
 nothing twice in a row, it starts its Bluetooth side over from nothing
--- what switching USB → Bluetooth by hand used to settle. When stopping,
+-- what switching USB → Bluetooth by hand used to settle. On macOS, a
+Heltec the Mac is still connected to (which no scan can see) is found
+and used through that link. When stopping,
 it disconnects properly so the Heltec is free for the next start.
 **Plugged in by USB only to charge?** Fine, and it helps more: the
-Stump also uses the cable to restart the Heltec (the RNode's reset
-command) when it starts up, during such a fresh start, and when the
+Stump also uses the cable to restart the Heltec (its reset line, the
+reset button by wire) when it starts up, during such a fresh start, and when the
 Heltec hasn't been seen over Bluetooth for a few scans; never during a
 working Bluetooth session. An update never offers to switch it to USB.
 Out of range or switched off, it's red, and it reconnects by itself

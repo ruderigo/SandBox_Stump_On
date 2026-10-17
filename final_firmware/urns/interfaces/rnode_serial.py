@@ -21,7 +21,7 @@ import os
 import time
 from .wifi_serial import (WiFiSerialInterface, FEND, CMD_DETECT, DETECT_REQ, CMD_FW_VERSION,
                           CMD_PLATFORM, CMD_RADIO_STATE, RADIO_STATE_OFF, CMD_LEAVE)
-from ..log import log, LOG_NOTICE, LOG_ERROR
+from ..log import log, LOG_NOTICE, LOG_ERROR, LOG_VERBOSE
 
 HANDSHAKE_S = 3.0     # how long an RNode has to answer "are you an RNode?"
 
@@ -95,6 +95,29 @@ class _SerialPort:
             pass
 
 
+def hard_reset(device):
+    """Restarts the board through its USB-serial chip's reset line (RTS to
+    the ESP32's EN), as flashing tools do -- the reset button, whatever the
+    firmware is doing: an RNode that counts a Bluetooth device as connected
+    ignores everything on its USB, its own reset command included. Opened
+    with DTR and RTS off, so opening doesn't glitch it; DTR stays off, so
+    it boots normally (not into its bootloader)."""
+    import serial
+    s = serial.Serial()
+    s.port, s.baudrate = device, BAUD
+    s.dtr, s.rts = False, False
+    s.open()
+    try:
+        s.rts = True               # EN low: held in reset
+        s.dtr = False              # (some drivers only apply RTS with a DTR write)
+        time.sleep(0.15)
+        s.rts = False              # let go: it boots
+        s.dtr = False
+        time.sleep(0.05)
+    finally:
+        s.close()
+
+
 def port_present(device):
     """Is this serial port still there? (Unplugging a USB board makes its
     port vanish; reads on the open port don't always say so.)"""
@@ -140,6 +163,7 @@ class RNodeSerialInterface(WiFiSerialInterface):
         self._last_presence = 0
         self._last_look = 0
         self._lost_why = None
+        self._mute = 0                         # handshakes in a row that got no answer
         config = dict(config)
         config.setdefault("name", "Heltec (USB)")
         config["target_host"] = port           # WiFiSerialInterface requires one; used in its logs
@@ -210,9 +234,20 @@ class RNodeSerialInterface(WiFiSerialInterface):
         if not self.hw["detected"]:
             s.close()
             self._socket = None
+            if self.KIND == "usb":
+                self._mute += 1
+                if self._mute % 2 == 0:
+                    # There but deaf -- e.g. it counts a Bluetooth device as
+                    # connected (then it ignores USB): the reset button, by wire.
+                    try:
+                        hard_reset(self.port)
+                        log("RNode USB: %s answered nothing twice: restarted it (reset line)" % self.port, LOG_NOTICE)
+                    except Exception as e:
+                        log("RNode USB: couldn't restart %s: %s" % (self.port, e), LOG_VERBOSE)
             raise OSError(5, "%s answered nothing to the RNode handshake: is the RNode firmware on it "
                              "(rnodeconf --autoinstall), and nothing else using it?" % self.where())
         self.online = True
+        self._mute = 0
         self._reconnect_count = 0
         self.hw["lost"] = False
         now = time.time()
