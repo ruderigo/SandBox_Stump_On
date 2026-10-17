@@ -340,6 +340,21 @@ check('pc update: switched to the Heltec over Bluetooth, by name, the rest kept'
       and ifs[0]["target"] == "RNode 3B87" and cfg["NODE_NAME"] == "Laptop"
       and "--bluetooth-pair" in said.getvalue() and rt.state[0] == "done", (ifs, said.getvalue()[-400:]))
 check('pc: the summary says Bluetooth', "a Heltec over Bluetooth" in P._pc_settings_summary(cfg))
+# A Bluetooth Stump with its Heltec plugged in to charge: left on Bluetooth
+P.list_serial_ports = lambda: [{"device": "/dev/cu.usbserial-0001", "description": "CP2102",
+                                "guess": "CP2102 UART bridge — likely the Heltec V3"}]
+_yn2 = iter([False])
+P.ask_yes_no = lambda *a, **k: next(_yn2)
+rt = P.Route("pc", key="pc", steps=[("Configure", "auto", "x")])
+with contextlib.redirect_stdout(io.StringIO()) as said:
+    rt.start("Configure")
+    again = P._pc_configure_existing(rt, pcdir)
+with contextlib.redirect_stdout(io.StringIO()):
+    cfg = P._read_folder_config(pcdir)
+check('pc update: a Bluetooth Heltec plugged in to charge stays on Bluetooth (USB left alone)',
+      P._pc_heltec_in_config(cfg) == "ble" and "charging is fine" in said.getvalue(), said.getvalue()[-300:])
+P.ask_yes_no = _yes_no
+P.list_serial_ports = lambda: []
 block = P._pc_config_block({"pc_hotspot_name": "x", "pc_heltec": "ble", "pc_heltec_ble": "auto",
                             "pc_radio": {"frequency": 917112000}})
 check('pc: a new Stump with the Heltec over Bluetooth', "'type': 'RNodeBLEInterface'" in block

@@ -90,6 +90,8 @@ def reader():
         try:
             data = os.read(master, 4096)
             got.extend(data)
+            if bytes([FEND, 0x46, 0x02, FEND]) in data:
+                os.write(master, kiss(0x62, (482913).to_bytes(4, "big")))     # pairing mode: the PIN
             if answering[0] and bytes([FEND, 0x08, 0x73, FEND]) in data:
                 # DETECT -> DETECT_RESP; FW_VERSION -> 1.78; PLATFORM -> ESP32
                 os.write(master, kiss(0x08, b"\x46") + kiss(0x50, b"\x01\x4e") + kiss(0x48, b"\x80"))
@@ -145,6 +147,19 @@ check("its reports read: RSSI, SNR, channel load, airtime, noise, battery, radio
       st["rssi"] == -92 and st["snr"] == -6.5 and st["channel_load"] == 8.0 and st["airtime"] == 1.5
       and st["noise"] == -118 and st["battery"] == 87 and st["radio"].get("frequency") == 915000000
       and st["radio"].get("on") == 1 and st["last_rx"], st)
+
+# Bluetooth from /admin: on, off, pairing mode -- the PIN comes back, kept
+# out of the public status.
+got.clear()
+ok = iface.bluetooth("on") and iface.bluetooth("off")
+time.sleep(0.3)
+check("bluetooth on/off: sent", ok
+      and frames(got)[-2:] == [(0x46, b"\x01"), (0x46, b"\x00")], frames(got)[-2:])
+check("bluetooth: nonsense refused", not iface.bluetooth("explode"))
+iface.bluetooth("pair")
+asyncio.run(run(0.5))
+check("pairing mode: the RNode's PIN, six digits", iface.bt["pin"] == "482913", iface.bt)
+check("the PIN never in the public status", "482913" not in repr(iface.status()))
 
 # Unplug, the way macOS does it with a CP2102: reads just go quiet, and
 # the port vanishes. Seen every second: offline at once, red, says why.

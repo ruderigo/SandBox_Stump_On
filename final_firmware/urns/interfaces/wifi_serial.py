@@ -103,6 +103,12 @@ CMD_BOARD       = 0x47
 CMD_PLATFORM    = 0x48
 CMD_MCU         = 0x49
 CMD_FW_VERSION  = 0x50
+# Bluetooth (rnodeconf --bluetooth-on/-off/-pair): CMD_BT_CTRL 0x00 off,
+# 0x01 on, 0x02 pairing mode; in pairing mode the RNode reports the PIN to
+# type on the other device (CMD_BT_PIN, 4 bytes).
+CMD_BT_CTRL     = 0x46
+CMD_BT_PIN      = 0x62
+BT_ACTIONS      = {"off": 0x00, "on": 0x01, "pair": 0x02}
 CMD_ERROR       = 0x90
 RSSI_OFFSET     = 157
 _ERRORS = {0x01: "the radio didn't start (bad settings for this board?)", 0x02: "a send failed",
@@ -176,6 +182,10 @@ class WiFiSerialInterface(Interface):
                    "rssi": None, "snr": None, "noise": None, "channel_load": None, "airtime": None,
                    "battery": None, "temp": None, "rx": None, "tx": None, "last_rx": None,
                    "since": None}
+
+        # Bluetooth pairing: the PIN the RNode gave, kept out of self.hw so
+        # it never shows in the public status (/hw.json).
+        self.bt = {"pin": None, "at": 0, "asked": None}
 
         try:
             self._connect()
@@ -306,6 +316,21 @@ class WiFiSerialInterface(Interface):
         radio is still there."""
         if (time.time() - self._last_activity) > self.KEEPALIVE_INTERVAL:
             self._send_keepalive()
+
+    def bluetooth(self, action):
+        """The RNode's Bluetooth: "on", "off", or "pair" (pairing mode; the
+        PIN comes back in self.bt). False if the radio isn't connected."""
+        if action not in BT_ACTIONS or not self.online or not self._socket:
+            return False
+        try:
+            if action == "pair":
+                self.bt.update(pin=None, at=0)
+            self._send_command(CMD_BT_CTRL, bytes([BT_ACTIONS[action]]))
+            self.bt["asked"] = action
+            return True
+        except Exception as e:
+            log("Bluetooth command failed: " + str(e), LOG_ERROR)
+            return False
 
     def retry_now(self):
         """Connect again right away -- the handshake and the radio set-up
@@ -462,6 +487,9 @@ class WiFiSerialInterface(Interface):
                 h["rx"] = (data[0] << 24) | (data[1] << 16) | (data[2] << 8) | data[3]
             elif cmd == CMD_STAT_TX and n >= 4:
                 h["tx"] = (data[0] << 24) | (data[1] << 16) | (data[2] << 8) | data[3]
+            elif cmd == CMD_BT_PIN and n >= 4:
+                self.bt["pin"] = "%06d" % ((data[0] << 24) | (data[1] << 16) | (data[2] << 8) | data[3])
+                self.bt["at"] = time.time()
             elif cmd == CMD_ERROR and n:
                 h["error"] = _ERRORS.get(data[0], "error %s" % hex(data[0]))
                 log("RNode reports: " + h["error"], LOG_ERROR)

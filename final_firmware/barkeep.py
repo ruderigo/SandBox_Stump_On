@@ -210,6 +210,11 @@ details.inner>summary{padding:10px 12px; cursor:pointer; font-weight:bold;}
 details.inner>summary .pk{font-weight:normal; color:var(--muted); font-size:.82rem;}
 details.inner>*:not(summary){margin-left:12px; margin-right:12px;}
 details.inner[open]{padding-bottom:10px;}
+.btrow{display:flex; flex-wrap:wrap; gap:8px; margin:6px 0;}
+#btpin{margin:8px 0; padding:12px; border:1px dashed var(--ember); border-radius:10px; text-align:center;}
+#btpin small{display:block; color:var(--muted);}
+details.tips>summary{cursor:pointer; color:var(--muted); font-size:.88rem;}
+#btpin b{font:bold 2rem ui-monospace,'SF Mono','Courier New',monospace; letter-spacing:.18em; color:var(--ember-bright);}
 i.dot{display:inline-block; width:9px; height:9px; border-radius:50%; background:#f2efe8; margin-right:6px; vertical-align:middle;}
 i.dot.big{width:16px; height:16px; margin:0;}
 i.dot.online{background:#3fb950;} i.dot.connecting{background:#f0a030;} i.dot.error{background:#e5534b;}
@@ -1715,6 +1720,42 @@ async def _power_off_soon():
     _host().power_off()
 
 
+def _render_admin_bt(lang):
+    """The Heltec's Bluetooth from /admin, no terminal: on, off, and pairing
+    mode with the PIN shown here (polled from /admin/bt.json, never in the
+    public status)."""
+    T = lambda k: i18n.t(k, lang)
+    btn = lambda a, k: "<button type='button' data-bt='" + a + "'>" + T(k) + "</button>"
+    return ("<details class='inner' id='bt'><summary>Bluetooth</summary>"
+            "<p class='sub'>" + T("admin_bt_intro") + "</p>"
+            "<div class='btrow'>" + btn("pair", "admin_bt_pair") + btn("on", "admin_bt_on") + btn("off", "admin_bt_off")
+            + "</div><p class='sub' id='btmsg' aria-live='polite'></p><div id='btpin' hidden></div>"
+            "<details class='tips'><summary>" + T("admin_bt_help") + "</summary><p class='sub'>" + T("admin_bt_tips")
+            + "</p></details></details>"
+            "<script>" + _BT_SCRIPT.replace("BT_LABELS", json.dumps({
+                "pairing": T("admin_bt_pairing"), "pin": T("admin_bt_pin"), "gone": T("admin_bt_gone")})) + "</script>")
+
+
+_BT_SCRIPT = """(function(){
+var L=BT_LABELS, msg=document.getElementById('btmsg'), pin=document.getElementById('btpin'), timer=null;
+function poll(until){ fetch('/admin/bt.json').then(function(r){return r.json();}).then(function(d){
+  if(d.pin){ pin.hidden=false; pin.innerHTML='<small></small><b></b>'; pin.firstChild.textContent=L.pin; pin.lastChild.textContent=d.pin; }
+  else if(Date.now()>until){ clearInterval(timer); pin.hidden=true; msg.textContent=L.gone; }
+ }).catch(function(){}); }
+document.querySelectorAll('#bt [data-bt]').forEach(function(b){ b.onclick=function(){
+  var a=b.getAttribute('data-bt'); msg.textContent='\u2026'; pin.hidden=true;
+  fetch('/admin/bluetooth.json',{method:'POST',body:'action='+a}).then(function(r){return r.json();}).then(function(d){
+    msg.textContent=d.message||'';
+    if(a==='pair'&&d.ok){ msg.textContent=L.pairing; var until=Date.now()+180000; clearInterval(timer); timer=setInterval(function(){poll(until);},1000); }
+  }).catch(function(){ msg.textContent='\u2014'; }); }; });
+})();"""
+
+
+def _admin_or_local(identifier, headers):
+    """The person on the computer the Stump runs on, or an /admin session."""
+    return identifier in _LOCAL or _session_ok(_cookie(headers, ADMIN_COOKIE))
+
+
 def _render_admin_radio_section(lang, pw):
     """The Heltec Bridge's radio settings (radio.py). Shows what the
     bridge is using right now; applying sends them to the Heltec at once
@@ -1756,6 +1797,7 @@ def _render_admin_radio_section(lang, pw):
         + radio.hz_to_mhz(cur["frequency"]) + " MHz · " + ("%g" % (cur["bandwidth"] / 1000)) + " kHz · SF"
         + str(cur["sf"]) + " · CR4/" + str(cur["cr"]) + " · " + str(cur["txpower"]) + " dBm</span></summary>"
         + settings + "</details>"
+        + _render_admin_bt(lang) +
         "<form method='POST' action='/admin/radiochat' class='post-form'>"
         "<input type='hidden' name='admin_pass' value='" + billboard._esc(pw) + "'>"
         "<input type='hidden' name='on' value='" + ("0" if radio.chat_edit() else "1") + "'>"
@@ -2725,7 +2767,7 @@ async def _read_small_body(reader, length, chunk=1024, cap=None):
 # these would break a page still open over HTTP, since the browser
 # refuses a cross-origin redirect for them.
 _NO_REDIRECT = ("/home-file", "/tls-ok", "/rrc/poll", "/rrc/voice", "/rrc/send", "/download", "/codec2", "/opus.", "/billboard.json",
-                "/files.json", "/plugins.json", "/chain.json", "/hw.json", "/admin/radio.json", "/admin/poweroff", "/fw", "/tool?", "/lang", "/upload", "/post", "/chat")
+                "/files.json", "/plugins.json", "/chain.json", "/hw.json", "/admin/radio.json", "/admin/poweroff", "/admin/bluetooth.json", "/admin/bt.json", "/fw", "/tool?", "/lang", "/upload", "/post", "/chat")
 
 
 def _own_ap_ip():
@@ -2947,6 +2989,13 @@ async def _handle(reader, writer, secure=False):
             else:
                 await writer.awrite("HTTP/1.1 303 See Other\r\nLocation: /billboard\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
 
+        elif method == "GET" and path.startswith("/admin/bt.json"):
+            # The pairing PIN, while it's fresh: an /admin session only.
+            if not _admin_or_local(identifier, headers):
+                await _send(writer, "403 Forbidden", "{}", "application/json")
+            else:
+                await _send(writer, "200 OK", json.dumps({"pin": radio.bt_pin()}), "application/json")
+
         elif method == "GET" and path.startswith("/admin"):
             # No link anywhere points here on purpose -- see
             # _render_admin_login_page's own docstring. With a live
@@ -3083,6 +3132,21 @@ async def _handle(reader, writer, secure=False):
                 names = fserv._list_files() if fserv.sd_ok else []
                 notice = "<p class='sub'>" + billboard._esc(msg) + "</p>"
                 await _send(writer, "200 OK", _page(notice + _render_admin_file_list_page(lang, names, pw)))
+
+        elif method == "POST" and path.startswith("/admin/bluetooth.json"):
+            # The Heltec's Bluetooth from /admin: on, off, pairing mode.
+            length = int(headers.get("content-length", "0"))
+            body = await _read_small_body(reader, length)
+            lang = i18n.get_lang(identifier)
+            if not _admin_or_local(identifier, headers):
+                await _send(writer, "403 Forbidden", json.dumps({"ok": False, "message": i18n.t("admin_bt_denied", lang)}),
+                            "application/json")
+            else:
+                action = billboard._url_decode(body.decode().split("action=", 1)[-1].split("&")[0]) if b"action=" in body else ""
+                ok = action in ("on", "off", "pair") and radio.bluetooth(action) > 0
+                key = {"on": "admin_bt_done_on", "off": "admin_bt_done_off", "pair": "admin_bt_pairing"}.get(action)
+                await _send(writer, "200 OK", json.dumps({"ok": ok, "message": i18n.t(
+                    key if ok else "admin_bt_offline", lang)}), "application/json")
 
         elif method == "POST" and path.startswith("/admin/radio.json"):
             # The radio's settings from the chat's pop-up (rrc_ui): the

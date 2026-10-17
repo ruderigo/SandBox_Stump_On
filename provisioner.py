@@ -308,7 +308,7 @@ DEFAULT_CREDIT_WEIGHTS = {"video": 3, "music": 2, "document": 1, "other": 1}
 #    for f in sorted(Path('final_firmware').rglob('*')) if f.is_file()]"
 EXPECTED_FILE_HASHES = {
     "_sd_web/billboard.txt": "e3b0c44298fc1c14",
-    "barkeep.py": "e8cab9820315d9e3",
+    "barkeep.py": "bce658f25c978444",
     "billboard.py": "a7d1f3df668997ab",
     "boot_common.py": "d1f60dd4434752bf",
     "captive_portal.py": "35cb3a279ecc42db",
@@ -316,22 +316,22 @@ EXPECTED_FILE_HASHES = {
     "config.py": "ed7b475134824fb3",
     "docs/CHAIN.md": "7d168225a314cfba",
     "docs/CLIENT_QUICKSTART.md": "311802975964d077",
-    "docs/COMMANDS.md": "3d9f0ffac8a4f40a",
+    "docs/COMMANDS.md": "b170b5d41d96a589",
     "docs/ENGINEERING_NOTES.md": "526b3ea96bc44873",
     "docs/FIELD_TEST.md": "44082d4c98adb675",
     "docs/HIDDEN_FEATURES.md": "8f7ee17eabfd0b6a",
     "docs/HOME_BRANDING.md": "e1a1a9cf854dcdce",
     "docs/HTTPS_SETUP.md": "12cbbf2de7c38810",
     "docs/PACKS.md": "2e89e3c28d80d72d",
-    "docs/PC.md": "411fe5a5d41f026e",
+    "docs/PC.md": "30b5221f48561206",
     "docs/PLUGINS.md": "3f5b4a5ee6844305",
-    "example_node.py": "b37d76ec867996df",
+    "example_node.py": "2cfcec8c803833dd",
     "features.py": "7fca96873d59d2d3",
     "flasher_ui.py": "1d3035b1132bc87e",
     "fserv.py": "50cebb82fdd6dce3",
     "fservbot/plugin.json": "4e0137362ff327d0",
     "guard.py": "cde136ce989c5c53",
-    "i18n.py": "c6eefeb07f64d6a1",
+    "i18n.py": "d93d4c99bef51921",
     "layout.py": "fb82a2d1ed9f00da",
     "lib/bz2_fast_xtensawin.mpy": "ac55d9eda2126432",
     "lib/ed25519_fast_xtensawin.mpy": "96e74dac45f91687",
@@ -344,7 +344,7 @@ EXPECTED_FILE_HASHES = {
     "peripherals/adc_reader.py": "50a393bfa61641d4",
     "plugins.py": "7d277aabb19f4291",
     "propagation.py": "e86471653a5036ec",
-    "radio.py": "ac36e29437e0c4a2",
+    "radio.py": "db8317a574741b45",
     "rrc.py": "a8fb0ebdfd8c7ea9",
     "rrc_mesh.py": "c1c122d68f839930",
     "rrc_ui.py": "fbe3c3325cda22af",
@@ -518,7 +518,7 @@ EXPECTED_FILE_HASHES = {
     "urns/interfaces/serial.py": "3c7dda5e4ffb5dec",
     "urns/interfaces/tcp.py": "a29d90caa017764a",
     "urns/interfaces/udp.py": "cc5e30ddc0861737",
-    "urns/interfaces/wifi_serial.py": "bedf3d324e506357",
+    "urns/interfaces/wifi_serial.py": "6ad7408f078a39d7",
     "urns/link.py": "3cb7d2dafe5bdbb6",
     "urns/log.py": "4b5576693991c7a6",
     "urns/lxmf.py": "378cb328aff56946",
@@ -5170,7 +5170,13 @@ def _pc_configure_existing(r, folder):
     heltec = _pc_heltec_in_config(cfg)
     print("This Stump's settings: " + _pc_settings_summary(cfg))
     usb = [p for p in list_serial_ports() if any(m in p["guess"] for m in _HELTEC_MARKERS)]
-    if heltec != "usb" and usb:
+    if heltec == "ble" and usb:
+        # Plugged in to charge: fine. Never offered as USB -- opening its port
+        # restarts the Heltec, which drops its Bluetooth link.
+        print("A Heltec is plugged in by USB (%s): this Stump uses it over Bluetooth, so it leaves the"
+              " USB port alone (charging is fine)." % usb[0]["device"])
+        reconfigure = ask_yes_no("Change the settings (the questions again)?", False)
+    elif heltec != "usb" and usb:
         print(yellow("A Heltec is plugged in by USB (%s), but this Stump doesn't use one." % usb[0]["device"]))
         if ask_yes_no("Use it for this Stump (the other settings stay as they are)?", True):
             radio, src = mesh_radio_settings(cfg.get("PC_CHAIN_PARENT_IP"))

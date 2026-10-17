@@ -35,9 +35,17 @@ class RNodeSerialInterface:
         self.st = st
 
     retried = 0
+    bt = {"pin": None, "at": 0, "asked": None}
 
     def retry_now(self):
         self.retried += 1
+
+    def bluetooth(self, action):
+        self.bt["asked"] = action
+        if action == "pair":
+            import time
+            self.bt.update(pin="482913", at=time.time())
+        return True
 
     def status(self):
         r = {"name": self.name, "kind": "usb", "where": "/dev/cu.usbserial-0001",
@@ -108,6 +116,21 @@ check("reconnecting needs the password", s.startswith('403') and iface.retried =
 s, ct, b = req('/admin/radioretry', b'admin_pass=pw')
 check("reconnect: the radio is told to connect again", iface.retried == 1 and "handshake starts again" in b,
       b[:300])
+# Bluetooth from /admin: buttons, the PIN shown to the admin only.
+s, ct, b = admin_page()
+check("/admin: Bluetooth on/off/pair in the radio card", "id='bt'" in b and "data-bt='pair'" in b
+      and "data-bt='on'" in b and "data-bt='off'" in b)
+s, ct, b = req('/admin/bluetooth.json', b'action=pair')
+check("a visitor can't touch Bluetooth", s.startswith('403') and iface.bt["asked"] is None, (s, b))
+s, ct, b = req('/admin/bt.json')
+check("a visitor never sees the PIN", s.startswith('403') and "482913" not in b, (s, b))
+tok = login()
+CK = ('Cookie: stump_admin=' + tok,)
+s, ct, b = req('/admin/bluetooth.json', b'action=pair', headers=CK)
+check("the admin: pairing mode", s.startswith('200') and json.loads(b)["ok"] and iface.bt["asked"] == "pair", b)
+s, ct, b = req('/admin/bt.json', headers=CK)
+check("the admin: the PIN", json.loads(b)["pin"] == "482913", b)
+check("the PIN never in /hw.json", "482913" not in req('/hw.json')[2])
 s, ct, b = req('/admin/radiochat', b'admin_pass=nope&on=0')
 check("the switch needs the password", s.startswith('403') and radio.chat_edit() is True, s)
 

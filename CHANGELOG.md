@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.0.0-beta.10
+- **Pair the Heltec over Bluetooth from /admin, no terminal.** `/admin`
+  → Radio → Bluetooth: *Pair a device* puts the Heltec in pairing mode
+  and shows the code it gives, big, to type on the phone or computer;
+  *Turn on* / *Turn off*. Over USB on a computer, or over Wi-Fi to a
+  CAM's Heltec. The code is shown to the admin only (`/admin/bt.json`),
+  never in the public status.
+- **A Bluetooth Heltec plugged in to charge stays on Bluetooth**: an
+  update no longer offers to use it over USB (opening its port restarts
+  it and drops its Bluetooth link). `/admin` explains the one-connection
+  rule and the charging case under *Not working?*.
+
 ## 1.0.0-beta.9
 - **#lora-mesh works with no Wi-Fi at all.** A computer Stump off Wi-Fi
   (its Heltec on USB) only learned the other Stumps were Stumps from

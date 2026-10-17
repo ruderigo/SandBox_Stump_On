@@ -129,10 +129,17 @@ When the Stump stops, it switches the Heltec's radio off and tells it
 the computer left, so it doesn't carry on alone.
 
 **Over Bluetooth:** no cable; the Heltec's RNode firmware has Bluetooth
-(the same serial link, over Bluetooth Low Energy). Once, with the
-Heltec on USB: `rnodeconf <port> --bluetooth-on`, then
-`rnodeconf <port> --bluetooth-pair` (its screen shows a PIN), and pair
-"RNode …" from the computer's Bluetooth settings with that PIN. The
+(the same serial link, over Bluetooth Low Energy). Pairing needs no
+terminal: with the Heltec connected (USB, or a CAM's over Wi-Fi),
+`/admin` → Radio → **Bluetooth** → *Pair a device* puts it in pairing
+mode and shows the code to type on the phone or computer (*Turn on* /
+*Turn off* there too). Or with `rnodeconf <port> --bluetooth-on`, then
+`--bluetooth-pair`. It takes one Bluetooth connection at a time: a
+phone already connected to it (FireFly, Sideband) keeps others from
+seeing it -- turn that phone's Bluetooth off first. **Plugged in by USB
+only to charge?** Keep the Stump on Bluetooth: opening the USB port
+restarts the Heltec and drops its Bluetooth link (an update never
+offers the switch for a Bluetooth Stump). The
 wizard asks for its name (`'auto'`: the first RNode found) and installs
 `bleak` (Bluetooth for Python) in the Stump's Python. On macOS, allow
 Python to use Bluetooth when asked (System Settings → Privacy & Security

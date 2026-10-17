@@ -57,6 +57,29 @@ def retry():
     return n
 
 
+BT_PIN_S = 180        # a pairing PIN is shown this long after the RNode gives it
+
+
+def bluetooth(action):
+    """Bluetooth on/off/pair on every connected radio. How many took it."""
+    n = 0
+    for i in bridges():
+        if hasattr(i, "bluetooth") and i.bluetooth(action):
+            n += 1
+    return n
+
+
+def bt_pin(now=None):
+    """The pairing PIN the radio gave (recent), or None. Admin only."""
+    import time
+    now = time.time() if now is None else now
+    for i in bridges():
+        b = getattr(i, "bt", None)
+        if b and b.get("pin") and now - b.get("at", 0) < BT_PIN_S:
+            return b["pin"]
+    return None
+
+
 def current():
     """The settings the bridge is using right now, or None without one."""
     b = bridges()
