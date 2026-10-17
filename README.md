@@ -28,14 +28,21 @@ without a radio.
 | Stump | Radio | What it adds | Set up with |
 |---|---|---|---|
 | **ESP32-S3-CAM + Heltec V3** | Heltec V3 over Wi-Fi | The original: a pocket-sized, low-power node with its own Wi-Fi for visitors and an SD card for files | `python3 provisioner.py` → *A Stump CAM*, then *A Heltec for a CAM* |
-| **macOS / Windows / Linux + Heltec V3** | Heltec V3 on USB | A computer as a full node: more storage and speed, on the LoRa mesh directly | `python3 provisioner.py --pc` → the Heltec on USB |
+| **macOS / Windows / Linux + Heltec V3** | Heltec V3 on USB or Bluetooth | A computer as a full node: more storage and speed, on the LoRa mesh directly; USB ⇄ Bluetooth and pairing from `/admin` | `python3 provisioner.py --pc` → the Heltec on USB |
 | **macOS / Windows / Linux** | none | A computer as a node with no radio of its own: it reaches LoRa through another Stump it's chained to | `python3 provisioner.py --pc` → no Heltec |
+
+**Three rooms, three reaches.** `#main` stays on its Stump.
+`#lora-mesh` is the radio's room: LoRa phones and handhelds land there,
+and the Stumps share it — over the radio first when they have one, even
+with Wi-Fi between them. `#wifi-mesh` is shared by chained Stumps over
+Wi-Fi only.
 
 **Chained Stumps.** Stumps link to each other over Wi-Fi — a CAM's own
 Wi-Fi, or the home Wi-Fi they share — and relay for each other, so a
 Stump without a radio still reaches the LoRa mesh through one that has
-one. They talk among themselves in `#wifi-mesh`; LoRa users land in
-`#lora-mesh`. See [Chained Stumps](#chained-stumps).
+one. A chain is a tree: a new Stump joins whichever is closest, and a CAM
+whose Stump above goes away joins another of the same chain in range.
+See [Chained Stumps](#chained-stumps).
 
 ## Who connects to a Stump
 
@@ -45,17 +52,20 @@ one. They talk among themselves in `#wifi-mesh`; LoRa users land in
 | **Handheld** (R36S / R36MAX) — [FireFly for RK3326](https://github.com/ruderigo/FireFly_RK3326_R36MAX_R36S) | Over LoRa, through its own Heltec V3, with its own identity |
 | **Any phone or computer** | A browser on the Stump's Wi-Fi (or the network it's on) |
 
-## Tested so far (14 Oct 2026, 1.0.0-beta.4)
+## Tested so far (17 Oct 2026, 1.0.0-beta.13)
 
 | | On hardware | In the lab only |
 |---|---|---|
 | ESP32-S3-CAM + Heltec V3 | ✓ | |
-| macOS + Heltec V3 | | ✓ (Heltec on USB, simulated) |
-| macOS / Windows / Linux + Heltec V3 over Bluetooth | | ✓ (simulated) |
+| macOS + Heltec V3 on USB (handshake, status, unplug and replug) | ✓ | |
+| macOS + Heltec V3 over Bluetooth (pairing and switching from `/admin`) | in progress | ✓ (simulated RNode, firmware behaviour read from its source) |
 | Windows / Linux + Heltec V3 | | ✓ |
 | macOS, no radio, chained to a CAM over the home Wi-Fi | ✓ | |
 | Windows / Linux, no radio | | ✓ |
 | CAM chained to a CAM | | ✓ |
+| A CAM joining another Stump when its own goes away | | ✓ (simulated Wi-Fi) |
+| `#lora-mesh` between Stumps over the radio, with and without Wi-Fi | | ✓ (two simulated Heltecs over a simulated air) |
+| Turning a computer Stump off from `/admin`, Start/Stop files | | ✓ |
 | Android (FireFly + Heltec V3) over LoRa | ✓ | |
 | Android over Wi-Fi (FireFly's Stump panel) | ✓ | |
 | Handheld (FireFly + Heltec V3) over LoRa | ✓ | |
@@ -95,7 +105,7 @@ assuming you know what "turn on hybrid" does.
 
 - [What a Stump is](#what-a-stump-is)
 - [Who connects to a Stump](#who-connects-to-a-stump)
-- [Tested so far](#tested-so-far-14-oct-2026-100-beta4)
+- [Tested so far](#tested-so-far-17-oct-2026-100-beta13)
 - [Quick start](#quick-start)
 - [Reading the boot log](#reading-the-boot-log)
 - [Troubleshooting](#troubleshooting)
@@ -315,10 +325,10 @@ final_firmware/              the CAM's firmware (core files hashed in provisione
 ├── rrc_ui.py                  RRC web client (mIRC-style), voice notes
 ├── rrc_mesh.py                 RRC ↔ LXMF bridge; mesh peers join rooms, land per stumpid's setting
 ├── propagation.py               LXMF propagation node (store-and-forward)
-├── radio.py                      Heltec radio settings from /admin
+├── radio.py                      the Heltec from /admin: settings, live state, reconnect, Bluetooth, USB ⇄ Bluetooth
 ├── guard.py                      speed limits and the wrong-password lockout
 ├── librarian.py                  BarKeep as the librarian: questions -> files, notices, apps
-├── chain.py                      a chain of Stumps over Wi-Fi (docs/CHAIN.md)
+├── chain.py                      a chain of Stumps over Wi-Fi: links, the path, joining another Stump (docs/CHAIN.md)
 ├── stump_tls.py                   HTTPS with your own certificate
 ├── billboard.py                 bulletin board storage + rendering
 ├── fserv.py                      file storage, streaming I/O, credit economy, home branding
@@ -334,7 +344,7 @@ final_firmware/              the CAM's firmware (core files hashed in provisione
 ├── peripherals/                          ADC / battery reading (incl. gated-divider boards)
 ├── docs/                                  COMMANDS, CLIENT_QUICKSTART, PLUGINS, PACKS,
 │                                          ENGINEERING_NOTES (how things came to work this way), ...
-└── urns/                                  µReticulum: identity, LXMF, crypto, interfaces
+└── urns/                                  µReticulum: identity, LXMF, crypto, interfaces (the Heltec over Wi-Fi, USB, Bluetooth)
 ```
 
 **Not part of `final_firmware/` at all**: the standalone Heltec V3 transport role runs
@@ -603,11 +613,16 @@ after 30 minutes unused or at restart. After 5 wrong passwords that
 visitor waits 30 s, doubling each time up to 15 minutes. With a
 certificate installed, the page moves to HTTPS.
 
+The page opens on **tiles** — radio, chain, people in the chat, files —
+that open their section. The sections come in groups (*On the air*,
+*Content*, *Look*, *System*), each a card that folds open with a short
+status by its title; the cards left open stay open on that device.
+
 | Section | What it does |
 |---|---|
 | Files | Tick files on the shared shelf; delete them together |
 | Billboard | Tick posts (title and body shown); delete exactly those |
-| Radio (Heltec Bridge) | Frequency, bandwidth, TX power, spreading factor, coding rate: checked, saved in `/radio.json`, sent to the Heltec at once (or at its next connection). All but TX power must match the mesh |
+| Radio (Heltec Bridge) | The radio live first (signal, noise, channel load, battery, packets); **Reconnect the radio**; *Settings*, folded: frequency, bandwidth, TX power, spreading factor, coding rate, checked, saved in `/radio.json`, sent to the Heltec at once (all but TX power must match the mesh); whether the chat's profile pop-up offers them too; **Bluetooth**: *Pair this computer* / *Pair a device* (the code shown here), on, off, *Forget paired devices*, and on a computer a **USB ⇄ Bluetooth** switch |
 | Theme for everyone | Amber, Phosphor, OLED, Paper or a pack's theme, for every visitor, saved in `/site_theme.json`; *As set up* goes back to `THEME` in `config.py` |
 | Order | Drag (arrows on a phone) the navigation buttons and home tiles; hide or show each; saved in `/layout.json` |
 | Home page section | The `home/` branding: where it goes, frame height, shown or not (`docs/HOME_BRANDING.md`) |
@@ -616,6 +631,7 @@ certificate installed, the page moves to HTTPS.
 | Propagation node | On/off, status, a test mailbox, leave a message for an address |
 | Stump chain | This Stump's place, the one above, who's below |
 | HTTPS | Certificate status, expiry, days left |
+| This Stump on the computer | A computer Stump only: **Turn off this Stump** (the radio off first); started again from *Start Stump* in its folder |
 | This browser only | A theme, a five-colour palette and an SVG logo for that one browser (`localStorage`: nothing changes for others) |
 
 How posts are identified, why the radio values are parsed as text, and
@@ -667,9 +683,12 @@ error token. Moderation is on `/admin`. History:
 
 ## Chat and direct messages
 
-Rooms: `#main`, `#lora-mesh` (where LoRa phones and handhelds arrive;
-`#lxmf` before 1.0.0-beta.4, and the old name still works),
-`#wifi-mesh` on a Stump in a chain (below) and any made with `/join`.
+Rooms: `#main` (this Stump only), `#lora-mesh` (where LoRa phones and
+handhelds arrive, shared by the Stumps over the radio first; `#lxmf`
+before 1.0.0-beta.4, and the old name still works), `#wifi-mesh` on a
+Stump in a chain (shared over Wi-Fi only) and any made with `/join`. On
+a computer with its own Heltec, `#lora-mesh` is the radio's room: LoRa
+users, the computer's owner and whom they `/lora invite`.
 Every command and reply is in
 [`docs/COMMANDS.md`](final_firmware/docs/COMMANDS.md).
 
@@ -683,9 +702,18 @@ Every command and reply is in
   `<rod@LaBuche>`; joins and parts stay on their own Stump. People on
   other Stumps are DM contacts as `rod@LaBuche` (`/msg rod@LaBuche ...`
   is private); a DM to a Stump itself shows in its `#wifi-mesh`.
+- **`#lora-mesh` between Stumps:** each Stump sends its own people's
+  lines there to the other Stumps it knows — over its radio when it has
+  one online, one packet each, even when Wi-Fi reaches them too — and
+  they show as `<rod@LaBuche>`, once. With no Wi-Fi at all, Stumps meet
+  over the radio: one announces itself when its radio connects, and
+  answers a Stump it hears for the first time.
 - **The column:** drag the bar between the rooms and the chat to widen
   it. Other Stumps are grouped at the bottom, each with a 🪵, under
-  *Stumps* (*Buches* in French).
+  *Stumps* (*Buches* in French). At its foot, your **profile**: the
+  radio's status dot and your nickname; click it for your nickname, this
+  Stump and its radio (and, for the computer's owner or an admin, the
+  radio's settings).
 - **Speed limit:** lines other people see, 3 at once then one every 2 s
   (`CHAT_BURST`, `CHAT_EVERY`), on the web and over the mesh, where each
   line costs airtime. `/help`, `/names` and other replies only you see
@@ -790,8 +818,8 @@ chat, `!find <words>` asks it on one short line. No language model:
 or the billboard or the apps, and matches the rest against file names
 and notices. Commands and examples: `COMMANDS.md` Part 4.
 
-The Files page also sorts (newest, oldest, name, size) and filters (by
-kind, or as you type; Enter asks BarKeep), and the Billboard searches
+The Files page also sorts (⇅: newest, oldest, name, size) and filters
+(by kind, or as you type; Enter asks BarKeep), and the Billboard searches
 titles and bodies (opening a post whose body matches) and sorts — all in
 the browser, no request to the node. `/files.json` and `/billboard.json`
 take `?q=`, `?cat=` and `?sort=` for apps.
@@ -877,19 +905,34 @@ everything else is in [`docs/CHAIN.md`](final_firmware/docs/CHAIN.md).
   chain without leaving it (and keeps its internet), when that Stump
   has a chain secret (`CHAIN_LAN = True`, the default).
 - **`#wifi-mesh`** is the chain's chat room: the Stumps, their people,
-  and DMs between them (see *Chat and direct messages*). `#lora-mesh`
-  stays for LoRa.
+  and DMs between them (see *Chat and direct messages*), over Wi-Fi only.
+  `#lora-mesh` is shared too, over the radio first.
+- **A tree, not a line:** a new Stump joins whichever Stump is closest.
+  A CAM whose Stump above goes away for a minute joins another Stump of
+  the same chain in range — never one below itself — and tries its own
+  again at the next restart.
 
 ## Stump on a computer
 
 A Windows, macOS or Linux computer can be a Stump, running the same
 firmware: the same pages, chat, plugins, packs, `/admin` and mesh. A
-Heltec plugged in by USB puts it on the LoRa mesh, and it chains with
+Heltec on USB or Bluetooth puts it on the LoRa mesh, and it chains with
 CAM Stumps over Wi-Fi. Set it up with `python3 provisioner.py --pc`
 (Windows: `py provisioner.py --pc`), which asks the CAM wizard's
-questions adapted to a computer and can start it at login. Visitors'
-Wi-Fi, the Heltec, chaining and the limits are in
-[`docs/PC.md`](final_firmware/docs/PC.md).
+questions adapted to a computer and can start it at login.
+
+- **The Heltec, looked after:** unplugged or silent, the dot turns red at
+  once; plugged back in (even under another port name) it reconnects by
+  itself. `/admin` has *Reconnect the radio*, the USB ⇄ Bluetooth switch
+  and Bluetooth pairing with the code shown on the page.
+- **On and off:** it runs in the background; `/admin` → *Turn off this
+  Stump*, or double-click **Stop Stump** / **Start Stump** in its folder.
+  Stopping switches the Heltec's radio off first.
+
+Visitors' Wi-Fi, the Heltec, chaining and the limits are in
+[`docs/PC.md`](final_firmware/docs/PC.md); what the Heltec and its
+Bluetooth expect, in
+[`ENGINEERING_NOTES.md`](final_firmware/docs/ENGINEERING_NOTES.md#the-heltec-on-a-computer-and-the-rooms-between-stumps).
 
 ## Plugins and packs
 
@@ -1078,7 +1121,9 @@ MICROPYTHON=~/micropython-f32/micropython python3 tests/run.py
 
 The whole suite — chat, access control with real Ed25519, the LoRa
 bridge, the plugin API, safe mode, both packs, JSON answers, file names,
-and the Provisioner against a simulated board — runs on every push
+the Provisioner against a simulated board, computer Stumps with
+simulated Heltecs (USB, Bluetooth, two Stumps over a simulated air) and
+chain failover over a simulated Wi-Fi — runs on every push
 (`.github/workflows/tests.yml`) and before every release. See
 `tests/README.md`; after changing a firmware file, run
 `python3 scripts/update_manifest.py`.
@@ -1122,10 +1167,20 @@ controlled file ages; DM retention against controlled timestamps; and
 the DM thread-routing fix by executing the actual client-side
 JavaScript against a mocked DOM, not just reading it.
 
+**Tested against simulated hardware** (the real firmware on regular
+Python): a Heltec on USB as a simulated RNode on a pseudo-terminal
+(handshake, unplug and replug, a freeze, reconnect, radio off on stop);
+Bluetooth through a stand-in for bleak that behaves like the RNode
+firmware (writes with a reply, silence until the link is encrypted, the
+pairing code over USB); two computer Stumps whose simulated Heltecs talk
+over a simulated air, with no Wi-Fi between them; a CAM finding another
+Stump of its chain through a simulated Wi-Fi scan.
+
 **Needs hardware.** Reticulum/LXMF in live operation with a real mesh
 peer exercising the landing-room redirect; real SD card mounting for
 the home page's branding and the app downloads; which crypto backend (`iram`/`xip`/pure
-Python) a given deployed board actually loads.
+Python) a given deployed board actually loads; Bluetooth pairing with a
+real Heltec end to end; chain failover with three real CAMs.
 
 **Known limits.**
 - All three `AUTH_MODE` values and both room-tier systems are

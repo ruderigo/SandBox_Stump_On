@@ -2,7 +2,7 @@
 
 A Windows, macOS or Linux computer can be a Stump: the same pages,
 chat, plugins, packs, `/admin` and mesh as a CAM, running the same
-firmware. With a Heltec plugged in by USB it's on the LoRa mesh, and it
+firmware. With a Heltec on USB or Bluetooth it's on the LoRa mesh, and it
 chains with CAM Stumps over Wi-Fi like any other Stump.
 
 ```
@@ -14,7 +14,8 @@ chains with CAM Stumps over Wi-Fi like any other Stump.
 ## Setting it up
 
 You need Python 3.8 or newer (python.org on Windows and macOS) and
-internet once, for two packages. From the Stump download or your clone:
+internet once, for its packages (cryptography and pyserial; bleak too,
+for Bluetooth, when there's a Heltec). From the Stump download or your clone:
 
 ```
 python3 provisioner.py --pc          # Windows: py provisioner.py --pc
@@ -58,13 +59,12 @@ it starts at login. It shows the Stump's settings and asks whether to
 change them; a Heltec plugged in by USB since is noticed and offered
 (the other settings stay). `--pc --reconfigure` runs the wizard again.
 
-**Restarting** without updating: with start-at-login, on macOS
-`launchctl unload ~/Library/LaunchAgents/app.stump.node.plist` then
-`launchctl load -w` on the same file (Windows: `schtasks /End /TN Stump`
-then `schtasks /Run /TN Stump`; Linux: `systemctl --user restart
-stump`); started by hand, Ctrl+C and run the same command again.
+**Restarting** without updating: **Stop Stump**, then **Start Stump**
+(double-click, in the Stump folder; see *Turning it off and on*);
+started by hand, Ctrl+C and run the same command again.
 
-**Stopping or removing start-at-login:**
+**Stopping or removing start-at-login** from a terminal (the Stop file
+and `/admin` stop it too, the radio off first):
 
 | | Stop | Remove |
 |---|---|---|
@@ -128,36 +128,35 @@ set-up again. `/admin` → Radio → *Reconnect the radio* does it at once.
 When the Stump stops, it switches the Heltec's radio off and tells it
 the computer left, so it doesn't carry on alone.
 
-**Over Bluetooth:** no cable; the Heltec's RNode firmware has Bluetooth
-(the same serial link, over Bluetooth Low Energy). Pairing needs no
-terminal: with the Heltec connected (USB, or a CAM's over Wi-Fi),
-`/admin` → Radio → **Bluetooth** → *Pair a device* turns Bluetooth on,
-puts it in pairing mode, and shows the code when the phone or computer
-asks for it (it's on the Heltec's screen too); *Turn on* / *Turn off*
-there too. **USB ⇄ Bluetooth** in the same box moves the Heltec from
-one to the other, live, and keeps the choice. To pair this computer:
-on USB, **Pair this computer** -- the Heltec goes into pairing mode (it
-lasts 35 s: a countdown shows), the computer reaches for it over
-Bluetooth and asks for a code, the code shows in /admin (the Heltec
-sends it over the USB cable as soon as pairing starts; no button to
-hold), you type it, and once the Heltec answers over Bluetooth the Stump
-switches to it by itself. macOS asks Python, not the browser. **Forget
-paired devices** clears the Heltec's pairings (then forget "RNode …" on
-the devices too). While this computer uses it over Bluetooth, it holds
-the Heltec's one connection: to pair a phone, switch back to USB first. Under *Not working?*, the Heltec's last answers help find out
-why. The
-`--pc` wizard installs Bluetooth support whenever there's a Heltec. It takes one Bluetooth connection at a time: a
-phone already connected to it (FireFly, Sideband) keeps others from
-seeing it -- turn that phone's Bluetooth off first. **Plugged in by USB
-only to charge?** Keep the Stump on Bluetooth: opening the USB port
-restarts the Heltec and drops its Bluetooth link (an update never
-offers the switch for a Bluetooth Stump). The
-wizard asks for its name (`'auto'`: the first RNode found) and installs
-`bleak` (Bluetooth for Python) in the Stump's Python. On macOS, allow
-Python to use Bluetooth when asked (System Settings → Privacy & Security
-→ Bluetooth). Out of range or switched off, it's red and reconnects by
-itself when it's back, as on USB. An update offers Bluetooth when the
-Heltec this Stump used on USB isn't plugged in.
+**Over Bluetooth:** no cable -- the Heltec's RNode firmware carries the
+same link over Bluetooth Low Energy. Everything is in `/admin` → Radio
+→ **Bluetooth**, no terminal:
+
+- **USB ⇄ Bluetooth** moves the Heltec from one to the other, live, with
+  the same radio settings, and keeps the choice (and the USB port) for
+  the next start. Bluetooth support for Python (`bleak`) is installed on
+  the spot if it's missing; `--pc` installs it whenever there's a Heltec.
+- **Pair this computer** (on USB): the Heltec goes into pairing mode --
+  it lasts 35 s, a countdown shows -- the computer reaches for it over
+  Bluetooth and asks for a code, and the Heltec sends that code over the
+  USB cable to the page (no button to hold on the Heltec). Type it; once
+  the Heltec answers over Bluetooth the Stump switches to it by itself.
+  macOS asks Python, not the browser, for Bluetooth (System Settings →
+  Privacy & Security → Bluetooth).
+- **Pair a device** (a phone): pairing mode, and the code on the page
+  (and the Heltec's screen) when the phone asks. *Turn on* / *Turn off*.
+- **Forget paired devices** clears the Heltec's pairings; forget
+  "RNode …" on the devices too, then pair again.
+
+It takes **one Bluetooth connection at a time**: while this computer
+uses it over Bluetooth, no phone can pair or connect (switch back to
+USB first), and a phone connected to it (FireFly, Sideband) hides it
+from others. **Plugged in by USB only to charge?** Fine: a Stump on
+Bluetooth never opens the USB port (opening it restarts the Heltec and
+drops its Bluetooth link), and an update never offers to switch it.
+Out of range or switched off, it's red, and it reconnects by itself
+when it's back, as on USB. Under *Not working?*, the Heltec's last
+answers help find out why.
 
 **Over Wi-Fi:** as with a CAM: the Heltec joins the computer's network
 with a fixed address (`rnodeconf <port> -w STATION --ip <address>`), and
@@ -212,7 +211,9 @@ a router) gives it its own.
 **Talking across the chain:** `/join wifi-mesh` in the chat, on each
 Stump. The other Stumps show at the bottom of the column (🪵), lines
 from their people as `<nick@thatstump>`, and `/msg rod@LaBuche ...`
-reaches someone on another Stump privately.
+reaches someone on another Stump privately. `#lora-mesh` is shared too,
+over the radio when this computer has its Heltec online (even with the
+chain there); with no Wi-Fi at all the Stumps still meet over the radio.
 
 **Checking the link.** The wizard checks it, step by step, and says what
 to fix when a step fails (not on the CAM's Wi-Fi, the CAM's chain off,

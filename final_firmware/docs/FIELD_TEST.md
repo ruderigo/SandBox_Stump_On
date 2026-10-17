@@ -1,4 +1,4 @@
-# Field test — Stump 1.0.0-beta.4 (Beta A)
+# Field test — Stump 1.0.0-beta.13 (Beta A)
 
 What's new since the last field test, in the order you'd check it on
 site, and what to send back. Items marked **(hardware)** are things the
@@ -6,7 +6,7 @@ lab tests could not settle — they need the real board, radio and phones.
 
 ## Before you go
 
-- [ ] Download `Stump-1.0.0-beta.4.zip` and `SHA256SUMS` from the
+- [ ] Download `Stump-1.0.0-beta.13.zip` and `SHA256SUMS` from the
       [release](https://github.com/ruderigo/SandBox_Stump_On/releases),
       check them (`shasum -a 256 -c SHA256SUMS` on a Mac; see
       `docs/RELEASE.md` for the signatures), unzip, and work from that
@@ -230,12 +230,23 @@ See `PC.md`. A Mac or a Windows PC, and a Heltec.
       green; the Heltec's screen shows the radio set up again.
 - [ ] `launchctl unload ~/Library/LaunchAgents/app.stump.node.plist`
       (macOS): the Heltec's radio stops (its screen says so).
-- [ ] **Bluetooth:** `rnodeconf <port> --bluetooth-on`, then
-      `--bluetooth-pair`, pair from the computer's Bluetooth settings,
-      unplug the cable (power it from a battery or a charger), `--pc` →
-      Configure → yes → Over Bluetooth. Dot green, `Bluetooth RNode …`
-      on hover; a DM over LoRa goes out. Switch the Heltec off: red;
-      on again: green by itself.
+- [ ] **Bluetooth, from `/admin` only** (Radio → Bluetooth), the Heltec
+      on USB: *Forget paired devices* (and forget "RNode …" on the Mac
+      and phones), then **Pair this computer**: within the 35 s countdown
+      macOS asks for a code, the page shows it -- type it; the page
+      switches to Bluetooth by itself. Dot green, `Bluetooth RNode …` on
+      hover; a DM over LoRa goes out. If no code shows: note what *Not
+      working?* → *Last answers from the Heltec* says, and send it.
+- [ ] Still on Bluetooth with the USB cable in (charging): the Stump
+      doesn't open the port (the Heltec doesn't restart). Switch the
+      Heltec off: red; on again: green by itself. **USB** in the switch:
+      back on USB, online.
+- [ ] A phone: on USB, *Pair a device*, pick "RNode …" on the phone, type
+      the code from the page.
+- [ ] **No Wi-Fi:** the laptop's Wi-Fi off, the Heltec on: within a
+      few seconds of the dot going green, LaBuche shows under *Buches* in
+      `#lora-mesh`; a line there shows on LaBuche as `you@macOS`, and
+      LaBuche's lines here as `nick@LaBuche` (never `<nick> text`).
 
 ## 12. Hardening (October 2026)
 
@@ -275,12 +286,12 @@ See `PC.md`. A Mac or a Windows PC, and a Heltec.
 - [ ] In the chat (and from FireFly over LoRa): `!find <word>` answers on
       one line.
 
-## 14. The chain's room and the release (new in beta.4)
+## 14. The chain's rooms and the release (beta.4 – beta.13)
 
 - [ ] `python3 provisioner.py --version /dev/cu.<the CAM>`: this folder's
       release, GitHub's, and the CAM's — the same.
 - [ ] The About page (bottom) and `/admin` (top) show `Stump Beta A ·
-      1.0.0-beta.4`.
+      1.0.0-beta.13`, on the CAM and on the computer.
 - [ ] A computer on the same home Wi-Fi as the first CAM (`--pc`, "On
       the Wi-Fi it's on now", the CAM's address there): the chain check
       passes without leaving that Wi-Fi.
@@ -291,9 +302,10 @@ See `PC.md`. A Mac or a Windows PC, and a Heltec.
       `<nick@stump>`; nothing new in `#lora-mesh`; no joins or parts
       crossing.
 - [ ] A line in `#lora-mesh` shows once in the other's `#lora-mesh` as
-      `<nick@stump>`, nothing in `#wifi-mesh`; with a Heltec on each,
+      `<nick@stump>`, nothing in `#wifi-mesh`; with a Heltec on each, it
+      goes over the radio even with the chain up: the Heltec blinks, and
       `/admin` → *Radio — live* counts it sent (tx) on one, heard (rx)
-      on the other.
+      on the other. `#main` stays on its own Stump.
 - [ ] `/msg rod@<other Stump> hi` reaches rod there privately; the
       answer comes back. A DM to the other Stump itself shows in its
       `#wifi-mesh` as `@Stump hi`.
@@ -306,9 +318,12 @@ See `PC.md`. A Mac or a Windows PC, and a Heltec.
 ## What to send back
 
 - The boot log (from power-on to `Announced as`); its first line names
-  the release (`Project Stump -- Beta A (1.0.0-beta.4)`).
-- Screenshots of `/admin` (radio, propagation status) and the home page
-  with branding, phone and laptop.
+  the release (`Project Stump -- Beta A (1.0.0-beta.13)`).
+- Screenshots of `/admin` (tiles, the radio card open, propagation
+  status) and the home page with branding and the firefly open, phone
+  and laptop.
+- From a computer Stump with a Bluetooth Heltec: what *Not working?* →
+  *Last answers from the Heltec* shows after a pairing attempt.
 - The iPhone ♪ answer, the APK download time, the 15 s Opus note time
   over LoRa, and the stamp-check time.
 - The RAM figures from `/admin` → Plugins.

@@ -8,8 +8,33 @@ you hit `AUTH-CHALLENGE` cold and start reverse-engineering source.
 you're looking at (a forwarded zip, an older doc, a snippet someone
 pasted into chat) disagrees with what's there, the repo wins.
 
-**This page matches firmware 1.0.0-beta.4.** What changed for clients
-since 1.0.0-beta.3:
+**This page matches firmware 1.0.0-beta.13.** What changed for clients
+since 1.0.0-beta.4:
+
+- **`#lora-mesh` is shared by the Stumps.** Lines from another Stump's
+  people arrive in your Stump's `#lora-mesh` as `nick@thatstump`, as in
+  `#wifi-mesh`. Between Stumps they travel over the radio first (one
+  packet each), even when Wi-Fi joins them; `#wifi-mesh` stays on Wi-Fi;
+  `#main` never leaves its Stump.
+- **Don't title your own LXMF messages `#lora-mesh` or `#wifi-mesh`.** A
+  Stump now recognises another Stump not only by its `stump.node`
+  beacon but also by a batch titled with one of those rooms, or a line
+  starting `[DM>` — sent by a client, it would be taken for a Stump.
+  Untitled messages, and any other title, are a person's.
+- **More beacons, sometimes:** a Stump announces itself (beacon and LXMF
+  announce) when its radio connects (at most every 10 minutes) and when
+  it hears a Stump for the first time (at most once a minute). Read the
+  beacon as before.
+- **On a computer with its own Heltec, `#lora-mesh` may be the radio's
+  room:** people on LoRa are always in; on the web, the computer's owner
+  and whom they invite (`/lora invite <nick>`). Others get
+  `⊘ #lora-mesh LoRa — …` (`/rooms` marks it `[LoRa]`).
+- `/rrc/poll` carries `hw` (the radio's state for a status light, see
+  below); `GET /hw.json` gives the radios in full (`kind`: `usb`,
+  `ble` or `wifi`); `/node.json` has `radio` (frequency, bandwidth, SF,
+  CR); `/chain.json` gains `chain`, `path` and `fallback`.
+
+What changed since 1.0.0-beta.3 (in beta.4):
 
 - **Rooms renamed.** `#lxmf` is now `#lora-mesh` (LoRa phones and
   handhelds land there). The old name still works — `/join lxmf`,
@@ -208,7 +233,10 @@ the node answers with `lora-mesh`: compare against that.
 to request, nothing to configure. If you're building a mesh-first
 client, **`#lora-mesh` is where your users land by default**; expect it, and
 don't be surprised it exists even on a freshly provisioned node you've
-never touched. `#main` is the general room walk-up WiFi visitors share.
+never touched. `#main` is the general room walk-up WiFi visitors share,
+and it never leaves its Stump. `#lora-mesh` is shared by the Stumps: a
+line said in one Stump's `#lora-mesh` shows in the others' as
+`nick@thatstump`, carried over the radio first.
 
 **`/part` depends on the transport.** Over WiFi/HTTP it always returns
 you to `#main`. Over the mesh it returns you to wherever you actually
@@ -341,7 +369,7 @@ formats: every endpoint, payload and limit a client touches.
 # Reference for client builders
 
 Everything the client teams have been given, in one place. Checked
-against the 1.0.0-beta.4 `barkeep.py`, `rrc.py`, `rrc_mesh.py`,
+against the 1.0.0-beta.13 `barkeep.py`, `rrc.py`, `rrc_mesh.py`,
 `billboard.py`, `fserv.py`, `plugins.py`, `chain.py` and
 `example_node.py` source; the JSON shapes below are the ones the
 firmware's own tests (`tests/`) check.
@@ -368,7 +396,7 @@ Use it to probe and label nodes:
 
 ```json
 {"name": "LaBuche", "lxmf": "53d91d2f…48e4", "version": "Beta A",
- "release": "1.0.0-beta.4", "ap_ip": "192.168.4.1", "chain": null,
+ "release": "1.0.0-beta.13", "ap_ip": "192.168.4.1", "chain": null,
  "features": ["chat", "billboard", "files", "about"]}
 ```
 

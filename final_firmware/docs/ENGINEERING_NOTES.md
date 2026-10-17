@@ -1371,6 +1371,65 @@ The earlier mesh-DM suites still pass.
 
 ---
 
+## The Heltec on a computer, and the rooms between Stumps
+
+Lessons from October 2026 (1.0.0-beta.5 to beta.13), so they aren't
+learned twice.
+
+**A USB Heltec that's gone doesn't always say so.** On macOS a CP2102
+pulled out of the port leaves reads quietly empty, so the radio stayed
+"online". `rnode_serial.py` now looks at the port every second (gone =
+lost) and asks a quiet Heltec "are you an RNode?" (DETECT) every 10 s; no
+answer in 4 s = lost. It reconnects by itself, also when the board comes
+back under another port name. Opening the port restarts most ESP32
+boards (DTR/RTS), hence the 2.5 s wait after opening -- and the reason a
+Heltec used over Bluetooth must never be opened over USB.
+
+**On stop, the radio off.** Like reference RNS's `detach()`: radio off
+(`CMD_RADIO_STATE 0x00`), then `CMD_LEAVE 0xFF`. `stump_pc.py` turns
+SIGTERM into the same path, and its supervisor passes SIGTERM on to the
+child, so `launchctl unload` / the Stop file / `/admin` all switch the
+radio off first. `/admin`'s *Turn off* exits with code 0, which launchd
+(`SuccessfulExit=false`), systemd (`Restart=on-failure`) and the
+supervisor take as "stopped on purpose".
+
+**Bluetooth: read the firmware, not the docs.** From the RNode firmware
+source (`Bluetooth.h`, `BLESerial.cpp`, ESP32 BLE):
+- an unauthenticated central puts it in `BT_STATE_CONNECTED`: pairing
+  mode (`CMD_BT_CTRL 0x02`) is then ignored and it stops advertising. A
+  host retrying every few seconds keeps it hidden -- our first version
+  did, which looked like "it only pairs after a few power cycles".
+  Failed attempts now back off up to 30 s;
+- its RX characteristic is `PROPERTY_WRITE` with
+  `ESP_GATT_PERM_WRITE_ENC_MITM`, and `BLESerial::write` sends nothing
+  until the link is authenticated. A write *without* a reply never makes
+  the central encrypt, so the Heltec stayed silent after pairing (the
+  failed handshake). Writing with a reply makes macOS encrypt with the
+  saved bond, or pair the first time;
+- the passkey is static per pairing session and reported to the host
+  (`CMD_BT_PIN 0x62`, over USB while not connected over BLE) only when
+  the peer starts pairing (`bt_passkey_notify_callback`); pairing mode
+  lasts 35 s (`BT_PAIRING_TIMEOUT`); after a successful pairing it
+  disconnects after 2 s, so the host reconnects; `CMD_BT_UNPAIR 0x70`
+  `0x01` forgets every bond.
+
+**`#lora-mesh` between Stumps over the radio.** An open LXMF link over
+the chain carried every message, so the Heltec never transmitted.
+`LXMRouter.send_message(..., via=interface)` sends one opportunistic
+packet on that interface only; `Packet.pack` keeps a plain header when
+the packet is tied to an interface other than the path's (else it was
+addressed "via" the chain's next hop and dropped on arrival). Lines are
+cut to fit one packet (`RADIO_CHUNK`), each keeping its `<nick>`. Short
+`#wifi-mesh` batches are tied to the chain interface for the opposite
+reason: at one hop an opportunistic packet goes out on every interface.
+
+**Stumps that only meet over the radio** (no Wi-Fi): the half-hourly
+beacon was the only way to learn a Stump was one, so its lines showed as
+`<nick> text` said by the Stump itself. Now a Stump announces itself when
+its radio connects and answers a Stump it hears for the first time, and
+a batch titled `#lora-mesh`/`#wifi-mesh` or a `[DM>` line marks its
+sender as a Stump on any link.
+
 ## Verification and the Provisioner's checks
 
 *Since fixed:* the first item below (an LXMF sender's signature going
