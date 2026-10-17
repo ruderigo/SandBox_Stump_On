@@ -166,6 +166,9 @@ if up(A) and up(B):
     get(A, "/rrc/send", b"the first answers")
     got = wait(lambda: any(m["body"] == "the first answers" and m["nick"].endswith("@Firstr") for m in lora(B)), 30)
     check("... and the first back to the second", got, lora(B)[-5:])
+    names = lambda who: " ".join(json.loads(get(who, "/rrc/send", b"/names"))["replies"])
+    check("/names in #lora-mesh on the first: the second Stump's person too, as nick@Secondr",
+          wait(lambda: "@Secondr" in names(A), 30), names(A))
     get(B, "/rrc/send", b"the second again")
     got = wait(lambda: any(m["body"] == "the second again" for m in lora(A)), 30)
     check("... and the second again", got, lora(A)[-5:])

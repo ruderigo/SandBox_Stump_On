@@ -513,6 +513,44 @@ def users_in_room(room):
     return sorted(u["nick"] for u in _users.values() if u["room"] == room)
 
 
+# Who is in a shared room on the OTHER Stumps (#lora-mesh), as each told
+# this one (rrc_mesh: a "[NAMES] ..." line): stump id -> {"who", "rooms":
+# {room: [nicks]}, "at"}. Kept REMOTE_NAMES_S after the last word.
+_remote_names = {}
+REMOTE_NAMES_S = 900
+MAX_REMOTE_STUMPS = 16
+
+
+def set_remote_names(stump_id, who, room, nicks):
+    room = canon(room)
+    e = _remote_names.get(stump_id)
+    if e is None:
+        if len(_remote_names) >= MAX_REMOTE_STUMPS:
+            _remote_names.pop(min(_remote_names, key=lambda k: _remote_names[k]["at"]))
+        e = _remote_names[stump_id] = {"who": who, "rooms": {}, "at": 0}
+    e["who"], e["at"] = who, time.time()
+    e["rooms"][room] = [n for n in nicks if n][:60]
+
+
+def remote_names(room):
+    """"nick@stump" for everyone the other Stumps say is in this room."""
+    room = canon(room)
+    now = time.time()
+    out = []
+    for k in list(_remote_names):
+        e = _remote_names[k]
+        if now - e["at"] > REMOTE_NAMES_S:
+            _remote_names.pop(k)
+            continue
+        out += [n + "@" + e["who"] for n in e["rooms"].get(room, [])]
+    return out
+
+
+def names_in_room(room):
+    """Who's in a room: here, then on the other Stumps (nick@stump)."""
+    return users_in_room(room) + sorted(remote_names(room))
+
+
 # ---------------------------------------------------------------------
 # Rooms and messages
 # ---------------------------------------------------------------------
@@ -861,7 +899,7 @@ def _handle_core(client_id, room, text, user, lang):
         return [], DEFAULT_ROOM
 
     if cmd == "rooms":
-        return [rooms_line(r, len(users_in_room(r)), topic(r, lang))
+        return [rooms_line(r, len(names_in_room(r)), topic(r, lang))
                 + ("  [LoRa]" if r == MESH_ROOM and LORA_LOCKED[0] else "") for r in room_names()], None
 
     if cmd == "lora":
@@ -889,7 +927,7 @@ def _handle_core(client_id, room, text, user, lang):
         return [i18n.t("lora_room_" + sub + "d", lang, nick=who.strip())], None
 
     if cmd == "names":
-        return [names_line(room, users_in_room(room))], None
+        return [names_line(room, names_in_room(room))], None
 
     if cmd == "topic":
         if not arg:

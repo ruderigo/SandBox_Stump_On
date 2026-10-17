@@ -203,22 +203,19 @@ def _take_in_chain_stumps(router):
             if _has_path(h) or _radio_reachable(h):
                 p = _peers.get(h)
                 if p is None:
-                    name = None
-                    try:
-                        entry = router.peers.get(bytes.fromhex(h))
-                        name = entry.get("name") if entry else None
-                    except Exception:
-                        pass
-                    _get_peer(h, name)
+                    _get_peer(h, _known_name(router, h))
                 else:
                     p["last_seen"] = now
                     p["stump"] = True
+                    _fix_nick(router, h, p)
             continue
         p = _peers.get(h)
         if p is not None:
             p["last_seen"] = now
-            if not p.get("stump"):
-                # Talked to us before it was known as a chain Stump.
+            _fix_nick(router, h, p)
+            if not p.get("stump") or p["room"] != rrc.CHAIN_ROOM:
+                # Talked to us before it was known as a chain Stump (or first
+                # heard over the radio, before its chain link): to #wifi-mesh.
                 rrc.system(p["room"], rrc.ev_leave("~" + p["nick"]))
                 p["stump"], p["room"], p["home_room"] = True, rrc.CHAIN_ROOM, rrc.CHAIN_ROOM
                 p["last_sent_id"] = rrc.since(rrc.CHAIN_ROOM, 0)[-1]["id"] if rrc.since(rrc.CHAIN_ROOM, 0) else 0
@@ -235,6 +232,34 @@ def _take_in_chain_stumps(router):
         _get_peer(h, name)
 
 
+def _known_name(router, h):
+    try:
+        entry = router.peers.get(bytes.fromhex(h))
+        return entry.get("name") if entry else None
+    except Exception:
+        return None
+
+
+def _fix_nick(router, h, p):
+    """A Stump met before its name was known goes by "mesh-xxxx": once its
+    announce gives the name, it goes by that (its lines then show as
+    nick@ThatStump, not nick@mesh-xxxx)."""
+    if not p["nick"].startswith("mesh-"):
+        return
+    name = _known_name(router, h)
+    if not name:
+        return
+    nick = _make_nick(name, h)
+    if nick and nick != p["nick"]:
+        old = p["nick"]
+        p["nick"] = nick
+        rrc.system(p["room"], rrc.ev_rename("~" + old, "~" + nick))
+        rrc.touch_user(h, nick=nick, room=p["room"])
+        for cid, r in list(_remote.items()):
+            if r["h"] == h:
+                rrc.set_reachable(cid, r["nick"] + "@" + nick)
+
+
 def _from_stump(dest_hash_hex, peer, text, router=None, title=""):
     """Lines from another Stump of the chain: "<nick> text" into #wifi-mesh
     as nick@thatstump, "* nick text" as an action, "[DM>rod] <nick> text"
@@ -249,6 +274,14 @@ def _from_stump(dest_hash_hex, peer, text, router=None, title=""):
     for line in text.split("\n"):
         line = line.strip()
         if not line:
+            continue
+        if line.startswith("[NAMES]"):
+            # Who's in that room on that Stump (for /names here); each one
+            # a DM contact as nick@thatstump.
+            nicks = [n for n in line[7:].split() if n != "-" and "@" not in n]
+            rrc.set_remote_names(dest_hash_hex, who, room, nicks)
+            for n in nicks[:20]:
+                _remote_seen(dest_hash_hex, n, who)
             continue
         if line.startswith("[DM>") and "] <" in line and "> " in line:
             to, rest = line[4:].split("] <", 1)
@@ -824,11 +857,11 @@ def _handle(dest_hash_hex, peer, text):
         return [], None
 
     if text.lower() == "/rooms":
-        return [rrc.rooms_line(r, len(rrc.users_in_room(r)), rrc.topic(r, lang)) + _tier_suffix(r)
+        return [rrc.rooms_line(r, len(rrc.names_in_room(r)), rrc.topic(r, lang)) + _tier_suffix(r)
                 for r in rrc.room_names()], None
 
     if text.lower() in ("/names", "/who"):
-        names = rrc.users_in_room(room)
+        names = rrc.names_in_room(room)
         return [rrc.names_line(room, names)], None
 
     if text.lower() == "/part":
@@ -1027,14 +1060,31 @@ def _flush_lora_to_stump(router, dest_hash_hex, peer):
     its #lora-mesh. A short message to a Stump one hop away goes out on
     every interface, the Heltec included."""
     msgs = rrc.since(rrc.MESH_ROOM, peer.get("lora_sent_id", 0))
-    if not msgs:
-        return
     if len(msgs) > POLL_LIMIT:
         msgs = msgs[-POLL_LIMIT:]
-    peer["lora_sent_id"] = _lora_marks[dest_hash_hex] = msgs[-1]["id"]
-    lines = _stump_lines(msgs, peer["nick"])
+    lines = []
+    if msgs:
+        peer["lora_sent_id"] = _lora_marks[dest_hash_hex] = msgs[-1]["id"]
+        lines = _stump_lines(msgs, peer["nick"])
+    # Who's in #lora-mesh here, for that Stump's /names: when it changes,
+    # and every NAMES_EVERY s (it forgets after rrc.REMOTE_NAMES_S).
+    roster = " ".join(_lora_roster())
+    now = time.time()
+    if roster != peer.get("lora_roster") or now - peer.get("lora_roster_at", 0) > NAMES_EVERY:
+        peer["lora_roster"], peer["lora_roster_at"] = roster, now
+        lines.append("[NAMES] " + (roster or "-"))
     if lines:
         _queue_lora(router, dest_hash_hex, lines)
+
+
+NAMES_EVERY = 600
+
+
+def _lora_roster():
+    """The people in #lora-mesh on THIS Stump (not the other Stumps, not
+    people this one only knows from them)."""
+    stumps = set(p["nick"] for p in _peers.values() if p.get("stump"))
+    return [n for n in rrc.users_in_room(rrc.MESH_ROOM) if n not in stumps and "@" not in n][:60]
 
 
 # ── Poll loop (scheduled as asyncio task) ─────────────────────────────

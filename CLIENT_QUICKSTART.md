@@ -13,7 +13,8 @@ since 1.0.0-beta.4:
 
 - **`#lora-mesh` is shared by the Stumps.** Lines from another Stump's
   people arrive in your Stump's `#lora-mesh` as `nick@thatstump`, as in
-  `#wifi-mesh`. Between Stumps they travel over the radio first (one
+  `#wifi-mesh`, and `/names` there lists the other Stumps' people too
+  (`nick@stump`). Between Stumps they travel over the radio first (one
   packet each), even when Wi-Fi joins them; `#wifi-mesh` stays on Wi-Fi;
   `#main` never leaves its Stump.
 - **Don't title your own LXMF messages `#lora-mesh` or `#wifi-mesh`.** A

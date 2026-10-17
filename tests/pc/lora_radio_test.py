@@ -115,6 +115,8 @@ rrc_mesh._peers[h] = {"nick": "LaBuche", "room": rrc.CHAIN_ROOM, "home_room": rr
                       "last_seen": time.time(), "last_sent_id": 0, "lora_sent_id": 10 ** 9, "last_dm_id": 0}
 rrc.touch_user("127.0.0.1", nick="rod", room=rrc.CHAIN_ROOM)
 rrc.post(rrc.CHAIN_ROOM, "rod", "on the wifi")
+rrc_mesh._peers[h]["lora_roster"] = " ".join(rrc_mesh._lora_roster())   # names already told: only #wifi-mesh here
+rrc_mesh._peers[h]["lora_roster_at"] = time.time()
 rrc_mesh._flush_to_peer(me, h, rrc_mesh._peers[h])
 q = list(rrc_mesh._send_queue)
 check("#wifi-mesh: queued for the chain interface", q and q[-1][3] == "#" + rrc.CHAIN_ROOM and q[-1][5] is chain_if, q)
@@ -175,13 +177,34 @@ check("... the line written while it was away goes, over the radio", any("writte
       and len(i) == 6 and i[5] is radio_if for i in q), q)
 del rrc_mesh._send_queue[:]
 rrc_mesh._flush_to_peer(me, oh, p)
-check("... once", not rrc_mesh._send_queue, rrc_mesh._send_queue)
+check("... once", not any("written while it was away" in i[2] for i in rrc_mesh._send_queue), rrc_mesh._send_queue)
 rrc_mesh._peers.pop(oh, None)
 rrc_mesh._take_in_chain_stumps(me)
 p = rrc_mesh._peers.get(oh)
 rrc_mesh._flush_to_peer(me, oh, p)
-check("dropped and back again: not sent twice (where it left off)", not rrc_mesh._send_queue, rrc_mesh._send_queue)
+check("dropped and back again: not sent twice (where it left off)",
+      not any("written while it was away" in i[2] for i in rrc_mesh._send_queue), rrc_mesh._send_queue)
 del rrc_mesh._send_queue[:]
+
+# /names in #lora-mesh: everyone in it, on every Stump. This Stump tells
+# the others who's in its #lora-mesh ("[NAMES] ..."), when it changes;
+# what the others tell it shows as nick@stump.
+p = rrc_mesh._peers.get(oh)
+p.pop("lora_roster", None)
+del rrc_mesh._send_queue[:]
+rrc_mesh._flush_to_peer(me, oh, p)
+q = list(rrc_mesh._send_queue)
+check("names: this Stump's #lora-mesh people sent to the other Stump", any("[NAMES]" in i[2] and "rod" in i[2] for i in q), q)
+del rrc_mesh._send_queue[:]
+rrc_mesh._flush_to_peer(me, oh, p)
+check("names: not again while nothing changed", not any("[NAMES]" in i[2] for i in rrc_mesh._send_queue), rrc_mesh._send_queue)
+del rrc_mesh._send_queue[:]
+rrc_mesh.on_message(me, Msg(stranger, "#lora-mesh", "[NAMES] ana bob"))
+names = rrc.handle_input("127.0.0.1", rrc.MESH_ROOM, "/names")[0][0]
+check("/names in #lora-mesh: here, then the other Stumps' people as nick@stump",
+      "rod" in names and "ana@Radioz" in names and "bob@Radioz" in names, names)
+check("... and they're DM contacts", "ana@Radioz" in rrc.reachable_nicks(), rrc.reachable_nicks())
+check("... no '[NAMES]' line shown in the room", not any("[NAMES]" in m["body"] for m in rrc.since(rrc.MESH_ROOM, 0)))
 
 # Off Wi-Fi, Stumps only meet over the radio: the radio coming up, and a
 # Stump heard for the first time, make this one introduce itself soon

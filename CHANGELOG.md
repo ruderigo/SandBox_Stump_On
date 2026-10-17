@@ -11,6 +11,13 @@
   Stumps get `#lora-mesh` the radio-first way, and how far each has been
   sent is kept: lines written while one was away (the last 5 minutes) go
   when it's back, never twice.
+- **`/names` in `#lora-mesh` shows everyone in it, on every Stump**: each
+  Stump tells the others who's in its `#lora-mesh` (a `[NAMES]` line,
+  when it changes and every 10 minutes); the other Stumps' people show as
+  `nick@stump` (also in `/rooms`' counts) and are DM contacts.
+- Fixed: a chained Stump first heard over the radio, before its
+  introduction, stayed out of `#wifi-mesh` and kept a `mesh-xxxx` name;
+  it now moves to `#wifi-mesh`, and takes its name once it's known.
 
 ## 1.0.0-beta.14
 - The same firmware as 1.0.0-beta.13, with the docs brought up to it: the README (the three rooms, the
