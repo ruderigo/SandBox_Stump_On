@@ -338,7 +338,8 @@ ifs = [i for i in cfg["CONFIG"]["interfaces"] if i.get("type", "").startswith("R
 check('pc update: switched to the Heltec over Bluetooth, by name, the rest kept', not again
       and P._pc_heltec_in_config(cfg) == "ble" and [i["type"] for i in ifs] == ["RNodeBLEInterface"]
       and ifs[0]["target"] == "RNode 3B87" and cfg["NODE_NAME"] == "Laptop"
-      and "--bluetooth-pair" in said.getvalue() and rt.state[0] == "done", (ifs, said.getvalue()[-400:]))
+      and "/admin" in said.getvalue() and "--bluetooth" not in said.getvalue() and rt.state[0] == "done",
+      (ifs, said.getvalue()[-400:]))
 check('pc: the summary says Bluetooth', "a Heltec over Bluetooth" in P._pc_settings_summary(cfg))
 # A Bluetooth Stump with its Heltec plugged in to charge: left on Bluetooth
 P.list_serial_ports = lambda: [{"device": "/dev/cu.usbserial-0001", "description": "CP2102",

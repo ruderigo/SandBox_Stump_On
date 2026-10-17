@@ -131,10 +131,14 @@ the computer left, so it doesn't carry on alone.
 **Over Bluetooth:** no cable; the Heltec's RNode firmware has Bluetooth
 (the same serial link, over Bluetooth Low Energy). Pairing needs no
 terminal: with the Heltec connected (USB, or a CAM's over Wi-Fi),
-`/admin` → Radio → **Bluetooth** → *Pair a device* puts it in pairing
-mode and shows the code to type on the phone or computer (*Turn on* /
-*Turn off* there too). Or with `rnodeconf <port> --bluetooth-on`, then
-`--bluetooth-pair`. It takes one Bluetooth connection at a time: a
+`/admin` → Radio → **Bluetooth** → *Pair a device* turns Bluetooth on,
+puts it in pairing mode, and shows the code when the phone or computer
+asks for it (it's on the Heltec's screen too); *Turn on* / *Turn off*
+there too. **USB ⇄ Bluetooth** in the same box moves the Heltec from
+one to the other, live, and keeps the choice. To pair this computer:
+start on USB, *Pair a device*, then switch to Bluetooth (macOS asks for
+the code on the Heltec's screen; it asks Python, not the browser). The
+`--pc` wizard installs Bluetooth support whenever there's a Heltec. It takes one Bluetooth connection at a time: a
 phone already connected to it (FireFly, Sideband) keeps others from
 seeing it -- turn that phone's Bluetooth off first. **Plugged in by USB
 only to charge?** Keep the Stump on Bluetooth: opening the USB port

@@ -561,6 +561,7 @@ accepts the certificate (it fetches `/tls-ok` first).
 | POST | `/admin/radio.json` | The radio's settings from the chat: `freq` (MHz), `bw`, `sf`, `cr`, `txp`; the computer's owner or an `/admin` session, while `/admin` allows it; `{"ok", "message"}`, or 403 |
 | POST | `/admin/poweroff` | A computer Stump only: turns it off (radio off, then a clean exit the login service doesn't restart). `admin_pass`, or none from the computer itself (the Stop file). Started again by the Start file in its folder, or at the next login |
 | POST | `/admin/bluetooth.json` | The Heltec's Bluetooth: `action=on`/`off`/`pair` (pairing mode); the computer's owner or an `/admin` session; `{"ok", "message"}` |
+| POST | `/admin/radiolink.json` | A computer's Heltec: `link=usb`/`ble`, switched live and kept (`radio_link.json`); the computer's owner or an `/admin` session; `{"ok", "message"}` |
 | GET | `/admin/bt.json` | The pairing code the Heltec gave (`{"pin"}`, for 3 minutes); the computer's owner or an `/admin` session only, never in `/hw.json` |
 | POST | `/admin/radioretry` | `/admin`'s *Reconnect the radio*: `admin_pass`; the Heltec (USB, Bluetooth or Wi-Fi) connects again now, handshake and radio set-up |
 | POST | `/admin/radiochat` | `/admin`'s switch for the radio settings in the chat: `admin_pass`, `on=1`/`0`; saved (`radio_chat.json`) |

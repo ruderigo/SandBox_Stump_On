@@ -184,6 +184,7 @@ def main():
     # Stump on a computer (docs/PC.md): the same firmware on regular Python.
     # Needs the cryptography and pyserial packages (CI installs them).
     for name, script in (("pc_rnode_serial", "rnode_serial_test.py"), ("pc_rnode_ble", "rnode_ble_test.py"),
+                         ("pc_radio_link", "radio_link_test.py"),
                          ("pc_lora_radio", "lora_radio_test.py"),
                          ("pc_chain", "pc_chain_test.py"),
                          ("pc_joins_cam", "pc_joins_cam_test.py"), ("pc_two_stumps", "pc_two_stumps_test.py"),
@@ -195,7 +196,7 @@ def main():
         if missing:
             print("skip  %s (needs: pip install cryptography pyserial)" % name)
             continue
-        if name == "pc_rnode_serial" and os.name == "nt":
+        if name in ("pc_rnode_serial", "pc_radio_link") and os.name == "nt":
             print("skip  %s (uses a pseudo-terminal: Linux and macOS)" % name)
             continue
         env = dict(os.environ, MICROPYTHON=MP)

@@ -211,6 +211,9 @@ details.inner>summary .pk{font-weight:normal; color:var(--muted); font-size:.82r
 details.inner>*:not(summary){margin-left:12px; margin-right:12px;}
 details.inner[open]{padding-bottom:10px;}
 .btrow{display:flex; flex-wrap:wrap; gap:8px; margin:6px 0;}
+.seg{display:inline-flex; border:1px solid var(--border); border-radius:999px; overflow:hidden; margin:2px 0 6px;}
+.seg button{border:none; border-radius:0; background:var(--panel); color:var(--text); font-weight:normal; padding:8px 16px;}
+.seg button.on{background:var(--ember); color:var(--bg); font-weight:bold;}
 #btpin{margin:8px 0; padding:12px; border:1px dashed var(--ember); border-radius:10px; text-align:center;}
 #btpin small{display:block; color:var(--muted);}
 details.tips>summary{cursor:pointer; color:var(--muted); font-size:.88rem;}
@@ -1726,14 +1729,26 @@ def _render_admin_bt(lang):
     public status)."""
     T = lambda k: i18n.t(k, lang)
     btn = lambda a, k: "<button type='button' data-bt='" + a + "'>" + T(k) + "</button>"
-    return ("<details class='inner' id='bt'><summary>Bluetooth</summary>"
+    now = radio.link()
+    seg = ""
+    if now:
+        # A Heltec on this computer: USB or Bluetooth, switched live.
+        seg = ("<p class='sub'><b>" + T("admin_link_title") + "</b></p><div class='seg' role='group'>"
+               + "".join("<button type='button' data-link='" + k + "' aria-pressed='" + ("true" if now == k else "false")
+                         + "'" + (" class='on'" if now == k else "") + ">" + lbl + "</button>"
+                         for k, lbl in (("usb", "USB"), ("ble", "Bluetooth")))
+               + "</div><p class='sub'>" + T("admin_link_" + now) + "</p>")
+    return ("<details class='inner' id='bt'" + (" open" if now == "ble" else "") + "><summary>Bluetooth"
+            + (" <span class='pk'>" + ("USB" if now == "usb" else "Bluetooth") + "</span>" if now else "") + "</summary>"
+            + seg +
             "<p class='sub'>" + T("admin_bt_intro") + "</p>"
             "<div class='btrow'>" + btn("pair", "admin_bt_pair") + btn("on", "admin_bt_on") + btn("off", "admin_bt_off")
             + "</div><p class='sub' id='btmsg' aria-live='polite'></p><div id='btpin' hidden></div>"
             "<details class='tips'><summary>" + T("admin_bt_help") + "</summary><p class='sub'>" + T("admin_bt_tips")
             + "</p></details></details>"
             "<script>" + _BT_SCRIPT.replace("BT_LABELS", json.dumps({
-                "pairing": T("admin_bt_pairing"), "pin": T("admin_bt_pin"), "gone": T("admin_bt_gone")})) + "</script>")
+                "pairing": T("admin_bt_pairing"), "pin": T("admin_bt_pin"), "gone": T("admin_bt_gone"),
+                "switching": T("admin_link_switching")})) + "</script>")
 
 
 _BT_SCRIPT = """(function(){
@@ -1742,6 +1757,11 @@ function poll(until){ fetch('/admin/bt.json').then(function(r){return r.json();}
   if(d.pin){ pin.hidden=false; pin.innerHTML='<small></small><b></b>'; pin.firstChild.textContent=L.pin; pin.lastChild.textContent=d.pin; }
   else if(Date.now()>until){ clearInterval(timer); pin.hidden=true; msg.textContent=L.gone; }
  }).catch(function(){}); }
+document.querySelectorAll('#bt [data-link]').forEach(function(b){ b.onclick=function(){
+  if(b.classList.contains('on')) return; msg.textContent=L.switching;
+  fetch('/admin/radiolink.json',{method:'POST',body:'link='+b.getAttribute('data-link')}).then(function(r){return r.json();})
+   .then(function(d){ msg.textContent=d.message||''; if(d.ok) setTimeout(function(){ location.reload(); },2500); })
+   .catch(function(){ msg.textContent='\u2014'; }); }; });
 document.querySelectorAll('#bt [data-bt]').forEach(function(b){ b.onclick=function(){
   var a=b.getAttribute('data-bt'); msg.textContent='\u2026'; pin.hidden=true;
   fetch('/admin/bluetooth.json',{method:'POST',body:'action='+a}).then(function(r){return r.json();}).then(function(d){
@@ -2767,7 +2787,7 @@ async def _read_small_body(reader, length, chunk=1024, cap=None):
 # these would break a page still open over HTTP, since the browser
 # refuses a cross-origin redirect for them.
 _NO_REDIRECT = ("/home-file", "/tls-ok", "/rrc/poll", "/rrc/voice", "/rrc/send", "/download", "/codec2", "/opus.", "/billboard.json",
-                "/files.json", "/plugins.json", "/chain.json", "/hw.json", "/admin/radio.json", "/admin/poweroff", "/admin/bluetooth.json", "/admin/bt.json", "/fw", "/tool?", "/lang", "/upload", "/post", "/chat")
+                "/files.json", "/plugins.json", "/chain.json", "/hw.json", "/admin/radio.json", "/admin/poweroff", "/admin/bluetooth.json", "/admin/bt.json", "/admin/radiolink.json", "/fw", "/tool?", "/lang", "/upload", "/post", "/chat")
 
 
 def _own_ap_ip():
@@ -2988,6 +3008,20 @@ async def _handle(reader, writer, secure=False):
                     await _result(writer, True, "507 Insufficient Storage", "storage", "the post couldn't be saved")
             else:
                 await writer.awrite("HTTP/1.1 303 See Other\r\nLocation: /billboard\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
+
+        elif method == "POST" and path.startswith("/admin/radiolink.json"):
+            # USB or Bluetooth for the Heltec on this computer, switched live.
+            length = int(headers.get("content-length", "0"))
+            body = await _read_small_body(reader, length)
+            lang = i18n.get_lang(identifier)
+            if not _admin_or_local(identifier, headers):
+                await _send(writer, "403 Forbidden", json.dumps({"ok": False, "message": i18n.t("admin_bt_denied", lang)}),
+                            "application/json")
+            else:
+                kind = body.decode().split("link=", 1)[-1].split("&")[0] if b"link=" in body else ""
+                r = radio.switch_link(kind)
+                await _send(writer, "200 OK", json.dumps({"ok": r in ("done", "same"), "message": i18n.t(
+                    "admin_link_r_" + r, lang)}), "application/json")
 
         elif method == "GET" and path.startswith("/admin/bt.json"):
             # The pairing PIN, while it's fresh: an /admin session only.

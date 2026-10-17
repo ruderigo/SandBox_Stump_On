@@ -85,6 +85,9 @@ jobs:
       - name: The Heltec on USB, against a simulated RNode
         if: runner.os == 'macOS'
         run: python tests/pc/rnode_serial_test.py
+      - name: USB <-> Bluetooth switch, against simulated RNodes
+        if: runner.os == 'macOS'
+        run: python tests/pc/radio_link_test.py
       - name: The Heltec over Bluetooth, against a simulated RNode
         run: python tests/pc/rnode_ble_test.py
       - name: "#lora-mesh between Stumps over the radio"

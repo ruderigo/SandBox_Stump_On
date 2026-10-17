@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.0.0-beta.11
+- **USB ⇄ Bluetooth switch in /admin** (Radio → Bluetooth), for the
+  Heltec on a computer: live, no restart -- the old link is closed
+  properly (radio off), the new one comes up with the same radio
+  settings, and the choice is kept (the USB port too). Bluetooth support
+  for Python is installed on the spot if it's missing.
+- **Pairing fixed:** *Pair a device* turns Bluetooth on first (pairing
+  mode did nothing while it was off), and says the truth: the code shows
+  when the phone or computer asks for it (and on the Heltec's screen).
+  To pair the computer itself: USB, *Pair a device*, then switch to
+  Bluetooth.
+- **The Provisioner no longer explains pairing**: it points to /admin,
+  and installs Bluetooth support whenever there's a Heltec.
+
 ## 1.0.0-beta.10
 - **Pair the Heltec over Bluetooth from /admin, no terminal.** `/admin`
   → Radio → Bluetooth: *Pair a device* puts the Heltec in pairing mode

@@ -131,6 +131,10 @@ check("the admin: pairing mode", s.startswith('200') and json.loads(b)["ok"] and
 s, ct, b = req('/admin/bt.json', headers=CK)
 check("the admin: the PIN", json.loads(b)["pin"] == "482913", b)
 check("the PIN never in /hw.json", "482913" not in req('/hw.json')[2])
+s, ct, b = admin_page()
+check("/admin: the USB / Bluetooth switch, USB on", "data-link='usb' aria-pressed='true'" in b and "data-link='ble'" in b)
+s, ct, b = req('/admin/radiolink.json', b'link=ble')
+check("a visitor can't switch the link", s.startswith('403'), (s, b))
 s, ct, b = req('/admin/radiochat', b'admin_pass=nope&on=0')
 check("the switch needs the password", s.startswith('403') and radio.chat_edit() is True, s)
 

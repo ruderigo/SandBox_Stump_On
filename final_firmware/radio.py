@@ -238,11 +238,134 @@ def apply(settings):
     return "sent" if sent else "pending"
 
 
+# ── USB or Bluetooth (a Stump on a computer) ─────────────────────────
+# /admin switches the Heltec's link live; the choice is kept here and
+# applied at boot over config.py's entry.
+LINK_FILE = "/radio_link.json"
+_LINKS = {"usb": "RNodeSerialInterface", "ble": "RNodeBLEInterface"}
+_bleak = {"state": None}          # None, "installing", "failed"
+
+
+def link():
+    """"usb", "ble", or None (no Heltec on this computer)."""
+    for i in bridges():
+        for k, v in _LINKS.items():
+            if i.__class__.__name__ == v:
+                return k
+    return None
+
+
+def _link_saved():
+    try:
+        with open(LINK_FILE) as f:
+            d = json.load(f)
+        return d if d.get("link") in _LINKS else None
+    except (OSError, ValueError, AttributeError):
+        return None
+
+
+def _link_overlay(config):
+    d = _link_saved()
+    if not d:
+        return False
+    for entry in config.get("interfaces", []):
+        if entry.get("type") in _LINKS.values() and entry.get("type") != _LINKS[d["link"]]:
+            entry["type"] = _LINKS[d["link"]]
+            entry["name"] = "Heltec (Bluetooth)" if d["link"] == "ble" else "Heltec (USB)"
+            if d["link"] == "ble":
+                entry["target"] = d.get("target") or "auto"
+            else:
+                entry["port"] = d.get("port") or "auto"
+            print("[radio] the Heltec over %s (chosen in /admin)" % ("Bluetooth" if d["link"] == "ble" else "USB"))
+            return True
+    return False
+
+
+def ble_ready():
+    """Can this computer's Python do Bluetooth (bleak)? If not, starts
+    installing it (once, in the background: it needs the internet)."""
+    try:
+        import bleak  # noqa: F401
+        return True
+    except ImportError:
+        pass
+    if _bleak["state"] is None:
+        _bleak["state"] = "installing"
+        try:
+            import sys, subprocess, _thread
+
+            def go():
+                r = subprocess.run([sys.executable, "-m", "pip", "install", "--quiet", "bleak"],
+                                   capture_output=True)
+                _bleak["state"] = None if r.returncode == 0 else "failed"
+            _thread.start_new_thread(go, ())
+        except Exception:
+            _bleak["state"] = "failed"
+    return False
+
+
+def switch_link(kind, target="auto"):
+    """Moves the Heltec to USB or Bluetooth now: the old link told the
+    radio is off and closed, the new one set up in its place (handshake,
+    radio settings), and the choice kept for the next start. Returns
+    "done", "same", "none" (no Heltec on a computer here), "bleak"
+    (Bluetooth support still installing) or "failed"."""
+    if kind not in _LINKS:
+        return "failed"
+    now = link()
+    if now is None:
+        return "none"
+    if now == kind:
+        return "same"
+    if kind == "ble" and not ble_ready():
+        return "bleak"
+    try:
+        import uasyncio as asyncio
+        from urns.transport import Transport
+        old = [i for i in bridges() if i.__class__.__name__ in _LINKS.values()][0]
+        cfg = {"frequency": old.frequency, "bandwidth": old.bandwidth, "txpower": old.txpower,
+               "spreadingfactor": old.sf, "codingrate": old.cr}
+        saved = _link_saved() or {}
+        # The USB port it had (set by name, or found): back to it later.
+        port = getattr(old, "port_setting", None) if now == "usb" else saved.get("port")
+        if now == "usb" and port == "auto" and getattr(old, "port", "auto") not in ("auto", None):
+            port = old.port
+        if kind == "ble":
+            from urns.interfaces.rnode_ble import RNodeBLEInterface as Cls
+            cfg.update(name="Heltec (Bluetooth)", target=target or "auto")
+        else:
+            from urns.interfaces.rnode_serial import RNodeSerialInterface as Cls
+            cfg.update(name="Heltec (USB)", port=port or "auto")
+        try:
+            old.close()                  # radio off, "the host left"
+        except Exception:
+            pass
+        new = Cls(cfg)
+        new.setup_ifac(cfg)
+        new.gravity = getattr(old, "gravity", 0)
+        idx = Transport.interfaces.index(old) if old in Transport.interfaces else len(Transport.interfaces)
+        Transport.deregister_interface(old)
+        Transport.interfaces.insert(idx, new)
+        asyncio.create_task(new.poll_loop())
+        print("[radio] switched to %s" % ("Bluetooth" if kind == "ble" else "USB"))
+    except Exception as e:
+        print("[radio] couldn't switch:", e)
+        return "failed"
+    try:
+        with open(LINK_FILE, "w") as f:
+            json.dump({"link": kind, "target": target or "auto", "port": port or "auto"}, f)
+    except OSError as e:
+        print("[radio] couldn't keep the choice:", e)
+    return "done"
+
+
 def overlay(config):
     """At boot, BEFORE the interfaces are created: writes the saved
     settings into config.py's bridge entry, so the Heltec's very first
     connection already gets them. (Applying them after the bridge had
-    connected briefly sent config.py's values -- 7 dBm -- first.)"""
+    connected briefly sent config.py's values -- 7 dBm -- first.) Also the
+    USB/Bluetooth choice made in /admin."""
+    _link_overlay(config)
     s = load()
     if not s:
         return False

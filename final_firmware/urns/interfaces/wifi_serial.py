@@ -325,6 +325,8 @@ class WiFiSerialInterface(Interface):
         try:
             if action == "pair":
                 self.bt.update(pin=None, at=0)
+                # Bluetooth on first: pairing mode does nothing while it's off.
+                self._send_command(CMD_BT_CTRL, bytes([BT_ACTIONS["on"]]))
             self._send_command(CMD_BT_CTRL, bytes([BT_ACTIONS[action]]))
             self.bt["asked"] = action
             return True
