@@ -1,7 +1,7 @@
 # Changelog
 
-## Unreleased
-- Docs brought up to 1.0.0-beta.13: the README (the three rooms, the
+## 1.0.0-beta.14
+- The same firmware as 1.0.0-beta.13, with the docs brought up to it: the README (the three rooms, the
   chain as a tree, the computer's Heltec on USB or Bluetooth, on/off,
   the /admin layout, tested so far), the client guide (what changed for
   clients since beta.4, and not to title messages `#lora-mesh` or
