@@ -467,8 +467,8 @@ stays on its Stump.
 ## Part 4 — BarKeep, the librarian (`/chat` — separate from RRC)
 
 BarKeep answers questions about what's on the node: files on the shelf,
-billboard notices, the apps on the card. Asked from the **Ask BarKeep**
-drawer on `/files` and `/billboard`, from `/concierge`, with `POST /chat`
+billboard notices, the apps on the card. Asked from the **firefly** in
+the corner of `/files`, `/billboard` and `/`, from `/concierge`, with `POST /chat`
 (raw text body; `Accept: application/json` gives `{"reply", "found"}`),
 or in the chat with `!find <words>` (aliases `!search`, `!cherche`,
 `!busca`; one short line, for LoRa). Its replies are in the asker's
@@ -558,7 +558,7 @@ accepts the certificate (it fetches `/tls-ok` first).
 | POST | `/admin/poweroff` | A computer Stump only: turns it off (radio off, then a clean exit the login service doesn't restart). `admin_pass`, or none from the computer itself (the Stop file). Started again by the Start file in its folder, or at the next login |
 | POST | `/admin/radioretry` | `/admin`'s *Reconnect the radio*: `admin_pass`; the Heltec (USB, Bluetooth or Wi-Fi) connects again now, handshake and radio set-up |
 | POST | `/admin/radiochat` | `/admin`'s switch for the radio settings in the chat: `admin_pass`, `on=1`/`0`; saved (`radio_chat.json`) |
-| GET | `/chain.json` | This Stump's place in a chain over Wi-Fi: `{"enabled", "role", "ap_ip", "lan_ip", "channel", "secret", "uplink", "below"}`; `lan_ip`: the first Stump's address on the Wi-Fi it joined, where it also takes chain links (else `null`) (see `CHAIN.md`) |
+| GET | `/chain.json` | This Stump's place in a chain over Wi-Fi: `{"enabled", "role", "ap_ip", "lan_ip", "channel", "secret", "chain", "path", "fallback", "uplink", "below"}`; `chain`: an id made from the secret (the same on every Stump of the chain); `path`: the Stumps' addresses from the first one down to this one (`[]` while cut off); `fallback`: the Stump it joined after the one set up went away; `lan_ip`: the first Stump's address on the Wi-Fi it joined, where it also takes chain links (else `null`) (see `CHAIN.md`) |
 | GET | `/plugins.json` | What the plugins add: `{"api", "trigger", "plugins": [{"name","version","commands","pages"}]}` (see `PLUGINS.md`) |
 | GET, POST | `/p/<plugin>/…` | A plugin's own pages. Any address under `/p/` that no running plugin answers shows the home page, like any unknown address |
 | GET | `/home-file?f=` | A file from the card's `home/` folder, for the home page's own section (see `HOME_BRANDING.md`) |

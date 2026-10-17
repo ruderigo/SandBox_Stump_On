@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.0.0-beta.8
+- **A CAM finds another Stump when its own goes away.** Its Stump above
+  gone for a minute, a CAM looks for another Stump of the same chain in
+  range and joins the strongest -- never one below itself (a circle),
+  another chain, or one cut off from the first Stump. Nothing fits: it
+  tries the one it was set up with again, and looks again every 3
+  minutes. `/chain.json` gains `chain` (an id from the secret), `path`
+  and `fallback`. A new Stump can join any Stump in range: a tree.
+- **/admin, redone:** tiles at the top (radio, chain, people in the
+  chat, files) that open their section; the sections in groups (On the
+  air, Content, Look, System), each a card that folds open with a short
+  status by its title; the radio card leads with the live readout and
+  keeps the settings folded. Open cards stay open on that device.
+- **The librarian is a firefly** in the corner of the Files, Billboard
+  and home pages (like a help chat): an ASCII firefly that glows
+  and drifts, pulsing faster while it thinks (still with reduced motion), opening into a chat
+  with BarKeep and suggestions to tap. Long names wrap inside their
+  bubble. On phones the Files list gives names the whole width.
+- **Sort is one ⇅** on Files and Billboard, the same in every language;
+  the choices open translated.
+
 ## 1.0.0-beta.7
 - **#lora-mesh goes over the radio between Stumps.** A Stump with its
   Heltec online sends its `#lora-mesh` lines to the other Stumps over

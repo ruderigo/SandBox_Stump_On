@@ -32,7 +32,28 @@ DEFAULT_SUBNET = 4
 DEFAULT_PORT = 4242
 
 _state = {"sta_ip": None, "parent_ip": None, "ap_ip": None, "uplink": None, "hub": None,
-          "hubs": [], "lan_ip": None, "new_link": False}
+          "hubs": [], "lan_ip": None, "new_link": False,
+          # The Stumps from the first one down to this one (their own Wi-Fi
+          # addresses), learned from the Stump above; [] while cut off.
+          # Another Stump looking for a new Stump to join reads it here
+          # (/chain.json) so it never joins one below itself (a circle).
+          "path": None, "path_at": 0,
+          # Joined instead of CHAIN_UPLINK_SSID after it went away (or None).
+          "fallback": None, "lost_since": None, "bad": {}, "last_look": 0}
+
+
+def chain_id(s=None):
+    """Which chain this is, without giving its secret away: the same on
+    every Stump with the same CHAIN_SECRET (in /chain.json)."""
+    s = s or settings()
+    if not s:
+        return None
+    import hashlib
+    try:
+        import ubinascii as binascii
+    except ImportError:
+        import binascii
+    return binascii.hexlify(hashlib.sha256(b"stump-chain:" + s["secret"].encode()).digest()[:6]).decode()
 
 
 def link_event():
@@ -258,14 +279,37 @@ async def watch_loop(rns):
     while True:
         await asyncio.sleep(15)
         up = _state["uplink"]
+        now = time.time()
         if stump_host is not None and up is not None:
             try:
-                _follow_parent(up, stump_host, time.time(), started)
+                _follow_parent(up, stump_host, now, started)
             except Exception as e:
                 print("[chain] follow:", e)
         try:
             sta = network.WLAN(network.STA_IF)
-            if not sta.isconnected():
+            sta_up = sta.isconnected()
+            if stump_host is None:
+                # A CAM: keep the path fresh, and find another Stump to
+                # join when the one above is gone.
+                if sta_up and up is not None and up.parent_seen and now - _state["path_at"] > PATH_EVERY:
+                    p = refresh_path()
+                    if p:
+                        _state["known_path"] = p
+                if _lost(up, sta_up, now, max(started, _state.get("moved_at", 0))):
+                    if _state["lost_since"] is None:
+                        _state["lost_since"] = now
+                        _state["path"] = []             # cut off: nobody joins this one meanwhile
+                        _state["path_at"] = 0           # asked again as soon as it's back
+                    if now - _state["lost_since"] > LOST_S and now - _state["last_look"] > RETRY_S:
+                        _state["last_look"] = now
+                        print("[chain] the Stump above is gone; looking for another")
+                        if await find_new_parent(s):
+                            _state["lost_since"] = None
+                            _state["path_at"] = 0
+                        sta_up = sta.isconnected()
+                else:
+                    _state["lost_since"] = None
+            if not sta_up:
                 continue
             ip, mask, gw, dns = sta.ifconfig()
             _state["sta_ip"], _state["parent_ip"] = ip, gw
@@ -276,11 +320,182 @@ async def watch_loop(rns):
                 print("[chain] uplink address changed: %s via %s" % (ip, gw))
                 up.listen_ip = ip
                 up.forward_ip = gw
+                # Another Stump (or the same at a new address): heard
+                # afresh -- its first answer re-introduces this Stump
+                # (link event), and it gets time to answer.
+                up.parent_seen = 0
+                _state["moved_at"] = time.time()
+                _state["path_at"] = 0
                 from urns.interfaces.udp import _resolve_addr
                 up._forward_addr = _resolve_addr(gw, up.forward_port)
                 up._recreate_socket()
         except Exception as e:
             print("[chain] watch:", e)
+
+
+# ── Finding another Stump to join ───────────────────────────────────
+# A CAM joins the Stump set in CHAIN_UPLINK_SSID. If that one goes away
+# (off, moved, out of range) for LOST_S, it looks for another Stump of the
+# same chain in range and joins the strongest: open Wi-Fi networks, tried
+# by signal, each asked for its /chain.json -- the same chain (chain_id),
+# still reaching the first Stump (a path), and not one of this Stump's own
+# below it (this Stump in its path). At the next restart it tries
+# CHAIN_UPLINK_SSID first again.
+
+LOST_S = 60          # the Stump above gone this long: look for another
+PATH_EVERY = 120     # how often the path is asked of the Stump above
+MAX_TRIES = 6        # open networks tried per look (each takes a few seconds)
+JOIN_S = 10
+RETRY_S = 180        # nothing found: look again after this
+BAD_S = 1800         # a network that wasn't a Stump of this chain: skipped this long
+
+
+def _http_json(ip, path, timeout=2):
+    """GET http://ip/path -> the JSON, or None. Small and blocking (a
+    couple of seconds at most)."""
+    import socket
+    import ujson
+    s = None
+    try:
+        addr = socket.getaddrinfo(ip, 80)[0][-1]
+        s = socket.socket()
+        s.settimeout(timeout)
+        s.connect(addr)
+        s.send(("GET %s HTTP/1.0\r\nHost: %s\r\n\r\n" % (path, ip)).encode())
+        data = b""
+        while len(data) < 8192:
+            chunk = s.recv(1024)
+            if not chunk:
+                break
+            data += chunk
+        body = data.split(b"\r\n\r\n", 1)[1] if b"\r\n\r\n" in data else b""
+        return ujson.loads(body)
+    except Exception:
+        return None
+    finally:
+        if s is not None:
+            try:
+                s.close()
+            except Exception:
+                pass
+
+
+def path():
+    """[first Stump, ..., this one] (Wi-Fi addresses), or [] when cut off
+    from the first Stump."""
+    s = settings()
+    if not s:
+        return []
+    if is_root(s):
+        return [ap_ip(s)]
+    return list(_state["path"] or [])
+
+
+def refresh_path(get=None):
+    """Asks the Stump above for its path; this Stump's is that plus itself."""
+    get = get or _http_json
+    up = _state["uplink"]
+    if up is None:
+        _state["path"] = []
+        return []
+    d = get(up.forward_ip, "/chain.json")
+    p = d.get("path") if isinstance(d, dict) else None
+    me = _state["ap_ip"] or ap_ip()
+    _state["path"] = (list(p) + [me]) if p and me not in p else []
+    _state["path_at"] = time.time()
+    return _state["path"]
+
+
+def _good_parent(d, s, me, root):
+    if not isinstance(d, dict) or not d.get("enabled"):
+        return False, "not a Stump in a chain"
+    if d.get("chain") != chain_id(s):
+        return False, "another chain"
+    p = d.get("path") or []
+    if not p:
+        return False, "cut off from the first Stump itself"
+    if me in p:
+        return False, "one of this Stump's own, below it"
+    if root and p[0] != root:
+        return False, "reaches another first Stump"
+    return True, ""
+
+
+async def find_new_parent(s, net=None, get=None, own_ssid=None):
+    """Looks for another Stump of this chain in range and joins the
+    strongest that fits. Returns (ssid, sta_ip, parent_ip) or None (then
+    it goes back to trying CHAIN_UPLINK_SSID)."""
+    import uasyncio as asyncio
+    if net is None:
+        import network as net
+    get = get or _http_json
+    sta = net.WLAN(net.STA_IF)
+    me = _state["ap_ip"] or ap_ip(s)
+    known = _state.get("known_path") or []
+    root = known[0] if known else None
+    if own_ssid is None:
+        try:
+            own_ssid = net.WLAN(net.AP_IF).config("essid")
+        except Exception:
+            own_ssid = ""
+    now = time.time()
+    try:
+        found = sta.scan()
+    except Exception as e:
+        print("[chain] couldn't scan:", e)
+        return None
+    seen = {}
+    for n in found:
+        ssid = n[0].decode("utf-8", "replace") if isinstance(n[0], bytes) else str(n[0])
+        if not ssid or ssid == own_ssid or n[4] != 0:      # Stumps' Wi-Fi is open
+            continue
+        if now - _state["bad"].get(ssid, -BAD_S) < BAD_S:
+            continue
+        if ssid not in seen or n[3] > seen[ssid]:
+            seen[ssid] = n[3]
+    order = sorted(seen, key=lambda k: -seen[k])[:MAX_TRIES]
+    if order:
+        print("[chain] looking for another Stump of this chain: %s" % ", ".join(
+            "%s (%d dBm)" % (k, seen[k]) for k in order))
+    for ssid in order:
+        try:
+            sta.disconnect()
+        except Exception:
+            pass
+        sta.connect(ssid)
+        t0 = time.time()
+        while not sta.isconnected() and time.time() - t0 < JOIN_S:
+            await asyncio.sleep(0.5)
+        if not sta.isconnected():
+            _state["bad"][ssid] = time.time()
+            continue
+        ip, mask, gw, dns = sta.ifconfig()
+        ok, why = _good_parent(get(gw, "/chain.json"), s, me, root)
+        if ok:
+            print("[chain] joining %r (%d dBm) instead of %r" % (ssid, seen[ssid], s["uplink_ssid"]))
+            _state["fallback"] = ssid
+            return ssid, ip, gw
+        print("[chain] %r: %s" % (ssid, why))
+        _state["bad"][ssid] = time.time()
+    try:
+        sta.disconnect()
+        sta.connect(s["uplink_ssid"], s["uplink_pass"])
+    except Exception:
+        pass
+    if order:
+        print("[chain] no other Stump of this chain in range; trying %r again" % s["uplink_ssid"])
+    return None
+
+
+def _lost(up, sta_up, now, started):
+    """Is the Stump above gone? Its Wi-Fi gone, or there but the Stump
+    silent."""
+    if not sta_up:
+        return True
+    if up is None:
+        return now - started > LOST_S
+    seen = up.parent_seen or started
+    return now - seen > QUIET_S
 
 
 def status():
@@ -303,5 +518,8 @@ def status():
             "parent_heard_s": int(now - up.parent_seen) if up and up.parent_seen else None,
         },
         "lan_ip": _state["lan_ip"],
+        "chain": chain_id(s),
+        "path": path(),
+        "fallback": _state["fallback"],
         "below": sorted(set(ip for h in (_state["hubs"] or ([hub] if hub else [])) for ip in h.peers)),
     }

@@ -92,6 +92,21 @@ If a Stump starts before the one it joins, it keeps trying, and links up
 when the other appears. If the Stump above it restarts, it rejoins by
 itself.
 
+**A tree, not a line.** A new Stump joins whichever Stump is closest;
+any Stump takes several below it (its Wi-Fi holds 10 devices, phones
+included). A Stump on a computer further down only joins: it has one
+Wi-Fi radio.
+
+**When the Stump above goes away** (off, moved, out of range) for a
+minute, a CAM looks for another Stump of the same chain in range and
+joins the strongest: it tries the open networks by signal and asks
+each one's `/chain.json` -- the same chain (`chain`, made from the
+secret without giving it away), still reaching the first Stump (`path`),
+and not one of its own below it (that would make a circle). Nothing
+fits: it goes back to trying the Stump it was set up with, and looks
+again every 3 minutes. At its next restart it tries that one first.
+`/chain.json` → `fallback` names the Stump it joined instead.
+
 ### A PC on the chain
 
 A PC on a Stump's Wi-Fi joins the chain with Reticulum's ordinary UDP

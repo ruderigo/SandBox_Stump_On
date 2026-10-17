@@ -119,7 +119,12 @@ for lang in ('fr', 'en', 'es'):
           "id='bsearch'" in b and "id='bsort'" in b and "id='askq'" in b and "data-ts=" in b and "ul class='board'" in b, lang)
 i18n.set_lang(IP, 'fr')
 s, ct, b = req('/files')
-check("French placeholder whole, inside its attribute", "placeholder='Demande à BarKeep : « As-tu un film ? »" in b, b[:100])
+check("French placeholder whole, inside its attribute", "placeholder='Demande-moi un film, un livre…'" in b
+      and "title='Demander à BarKeep'" in b, b[b.find("ff-btn") - 100:][:300])
+check("sort: one icon in any language, the translated choices in its list", "class='sortbox'" in b
+      and "Plus récents" in b and "content:'\\21C5'" in b)
+check("the librarian: a firefly that opens into a chat, with suggestions", "class='ff-btn'" in b
+      and "id='ffp'" in b and " hidden>" in b[b.find("id='ffp'"):][:200] and "As-tu un film ?</button>" in b)
 for lang, h2 in (('fr', 'Un Stump, trois montages'), ('en', 'One Stump, three setups'), ('es', 'Un Stump, tres montajes')):
     i18n.set_lang(IP, lang)
     s, ct, b = req('/about')

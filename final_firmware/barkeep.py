@@ -115,24 +115,104 @@ ul.files a{
   display:flex; align-items:center; gap:10px; flex:1; min-width:0;
   padding:14px 4px; text-decoration:none; min-height:44px;
 }
-ul.files a span{overflow-wrap:break-word; word-break:break-word;}
-ul.files small{flex-shrink:0; padding-left:8px; text-align:right;}
+ul.files a span{overflow-wrap:anywhere; min-width:0;}
+ul.files a svg{flex:none;}
+ul.files small{flex-shrink:0; padding-left:8px; text-align:right; max-width:40%;}
+/* Phones: the name gets the whole width, its details go under it. */
+@media (max-width:560px){
+  ul.files li{flex-wrap:wrap; gap:0;}
+  ul.files a{flex-basis:100%; padding-bottom:2px;}
+  ul.files small{max-width:none; text-align:left; padding:0 4px 12px 38px;}
+}
 /* BarKeep the librarian, and the sort / filter bar (/files, /billboard) */
-details.ask{margin:10px 0;}
-details.ask summary{cursor:pointer; font-weight:bold; color:var(--ember-bright); padding:4px 0;}
-#askout:empty{display:none;}
-#askout ul{margin:4px 0 8px;}
-#askout li{padding:3px 0; border:none;}
+/* BarKeep the librarian: a firefly in the corner that opens into a chat */
+body.has-ff{padding-bottom:96px;}
+.ask{position:fixed; right:16px; bottom:16px; z-index:50; display:flex; flex-direction:column; align-items:flex-end; gap:10px;}
+.ff-btn{width:66px; height:66px; border-radius:50%; padding:0; border:1px solid var(--border); cursor:pointer;
+  background:radial-gradient(circle at 50% 50%, rgba(216,255,122,.22), transparent 62%), var(--panel);
+  box-shadow:0 6px 22px rgba(0,0,0,.45); display:flex; align-items:center; justify-content:center;}
+.ff-btn:hover{border-color:var(--ember);}
+.ff-btn .bug{margin-top:10px;}
+.bug{display:inline-block; white-space:pre; line-height:.95; font:16px/0.95 ui-monospace,'SF Mono','Courier New',monospace;
+  color:var(--muted); text-align:center; animation:ffdrift 4.5s ease-in-out infinite;}
+.bug .c{color:#d8ff7a; text-shadow:0 0 5px #d8ff7a, 0 0 12px #9be33c, 0 0 22px #6fbf1f; animation:ffglow 2.6s ease-in-out infinite;}
+.bug .t{color:var(--dim); font-size:.8em; animation:fftrail 2.6s ease-in-out infinite;}
+.ask.busy .bug .c{animation-duration:.7s;}
+@keyframes ffglow{0%,100%{opacity:1}50%{opacity:.55}}
+@keyframes fftrail{0%,100%{opacity:.2}50%{opacity:.8}}
+@keyframes ffdrift{0%,100%{transform:translate(0,0)}25%{transform:translate(2px,-3px)}50%{transform:translate(0,-5px)}75%{transform:translate(-2px,-2px)}}
+@media (prefers-reduced-motion:reduce){.bug,.bug *{animation:none!important;}}
+.ff-panel{width:min(360px, calc(100vw - 32px)); max-height:min(560px, calc(100dvh - 120px)); display:flex; flex-direction:column;
+  background:var(--panel); border:1px solid var(--border); border-radius:16px; box-shadow:0 10px 34px rgba(0,0,0,.5); overflow:hidden;}
+.ff-panel[hidden]{display:none;}
+.ff-head{display:flex; align-items:center; gap:10px; padding:10px 12px; border-bottom:1px solid var(--line); background:var(--panel-2);}
+.ff-head .bug{font-size:12px;}
+.ff-head div{display:flex; flex-direction:column; min-width:0; line-height:1.2;}
+.ff-head small{color:var(--muted);}
+.ff-x{margin-left:auto; background:none; color:var(--muted); border:none; font-size:1.4rem; padding:0 6px; cursor:pointer;}
+.ff-log{flex:1; overflow-y:auto; padding:12px; display:flex; flex-direction:column; gap:8px; min-height:120px;}
+.ff-log .m{max-width:92%; padding:8px 11px; border-radius:14px; overflow-wrap:anywhere; word-break:break-word; font-size:.93rem; line-height:1.4;}
+.ff-log .m p{margin:0 0 6px;} .ff-log .m p:last-child{margin:0;}
+.ff-log .bot{background:var(--panel-2); border:1px solid var(--line); border-bottom-left-radius:4px; align-self:flex-start;}
+.ff-log .you{background:var(--ember); color:var(--bg); border-bottom-right-radius:4px; align-self:flex-end;}
+.ff-log ul{list-style:none; padding:0; margin:4px 0 6px;}
+.ff-log li{padding:3px 0; border:none;}
+.ff-log li a{word-break:break-all;}
+.ff-log small{color:var(--muted); white-space:nowrap;}
+.ff-chips{display:flex; flex-wrap:wrap; gap:6px; padding:0 12px 8px;}
+.ff-chips button{padding:5px 10px; font-size:.82rem; font-weight:normal; background:var(--panel-2); color:var(--text);
+  border:1px solid var(--border); border-radius:999px;}
+.ff-in{display:flex; gap:6px; padding:10px 12px; border-top:1px solid var(--line);}
+.ff-in input{flex:1; min-width:0;}
+.ff-in button{padding:0 14px;}
 .finder{display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:8px 0;}
 .finder input{flex:1; min-width:140px;}
 .finder select{font-family:inherit; font-size:1rem; padding:9px; border-radius:6px;
   border:1px solid var(--border); background:var(--panel); color:var(--text);}
+/* Sort: one ⇅ in any language; the browser's own list (translated) opens on tap. */
+.sortbox{position:relative; flex:none; width:48px; height:44px;}
+.sortbox::before{content:'\\21C5'; position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+  font-size:1.3rem; color:var(--text); pointer-events:none; border:1px solid var(--border); border-radius:6px; background:var(--panel);}
+.sortbox:focus-within::before{border-color:var(--ember);}
+.finder .sortbox select{position:absolute; inset:0; width:100%; height:100%; opacity:0; cursor:pointer; padding:0;}
 .pills{display:flex; flex-wrap:wrap; gap:6px; width:100%;}
 .pills button{padding:6px 12px; font-weight:normal; background:var(--panel); color:var(--text);
   border:1px solid var(--border);}
 .pills button.on{background:var(--ember); color:var(--bg); border-color:var(--ember);}
 /* /admin */
 .admin-head{display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;}
+.admin-wide{max-width:640px; margin:0 auto;}
+.atiles{display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; margin:14px 0 6px;}
+@media (max-width:560px){.atiles{grid-template-columns:repeat(2,minmax(0,1fr));}}
+.atile{display:flex; flex-direction:column; align-items:flex-start; gap:2px; padding:12px 14px; background:var(--panel);
+  border:1px solid var(--border); border-radius:12px; color:var(--text); text-decoration:none; min-width:0;}
+a.atile:hover{border-color:var(--ember);}
+.atile .ti{font-size:1.3rem; line-height:1.2; height:1.6rem; display:flex; align-items:center;}
+.atile b{font-size:1.05rem; line-height:1.25; overflow-wrap:anywhere;}
+.atile small{color:var(--muted); font-size:.8rem; overflow-wrap:anywhere;}
+h2.grp{font-family:ui-monospace,'SF Mono','Courier New',monospace; font-size:.75rem; letter-spacing:.12em;
+  text-transform:uppercase; color:var(--dim); margin:22px 0 8px; font-weight:normal;}
+details.card{background:var(--panel); border:1px solid var(--border); border-radius:12px; margin:0 0 8px; overflow:hidden;}
+details.card>summary{display:flex; align-items:center; gap:10px; padding:12px 14px; cursor:pointer; list-style:none;}
+details.card>summary::-webkit-details-marker{display:none;}
+details.card>summary::after{content:'\u25b8'; color:var(--muted); margin-left:auto; transition:transform .15s;}
+details.card[open]>summary::after{transform:rotate(90deg);}
+details.card[open]>summary{border-bottom:1px solid var(--line);}
+details.card .ic{font-size:1.15rem; width:1.6rem; text-align:center; flex:none;}
+details.card .tx{display:flex; flex-direction:column; min-width:0; line-height:1.3;}
+details.card .ct{font-weight:bold; color:var(--text);}
+details.card>summary::after{flex:none;}
+details.card .pk{color:var(--muted); font-size:.82rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0;}
+details.card .cb{padding:4px 14px 14px;}
+details.card .cb h2.sub{font-size:.95rem; margin:16px 0 6px;}
+details.inner{border:1px solid var(--line); border-radius:10px; margin:10px 0; background:var(--panel-2);}
+details.inner>summary{padding:10px 12px; cursor:pointer; font-weight:bold;}
+details.inner>summary .pk{font-weight:normal; color:var(--muted); font-size:.82rem;}
+details.inner>*:not(summary){margin-left:12px; margin-right:12px;}
+details.inner[open]{padding-bottom:10px;}
+i.dot{display:inline-block; width:9px; height:9px; border-radius:50%; background:#f2efe8; margin-right:6px; vertical-align:middle;}
+i.dot.big{width:16px; height:16px; margin:0;}
+i.dot.online{background:#3fb950;} i.dot.connecting{background:#f0a030;} i.dot.error{background:#e5534b;}
 .admin-head h1{margin:0;}
 form.logout{margin:16px 0;}
 .admin-head form.logout{margin:0;}
@@ -599,36 +679,54 @@ def _librarian(text, lang):
     return "".join(out) or i18n.t("lib_hello", lang), r
 
 
+_FIREFLY = ("<span class='bug' aria-hidden='true'><span class='c'>(\u25cf)</span>\n"
+            "<span class='t'>\u02d9 \u00b7</span></span>")
+
+
 def _ask_drawer(lang, open_=False):
-    """"Ask BarKeep": a drawer on /files and /billboard (and the Concierge
-    page), answering through POST /chat. Labelled with what BarKeep does,
-    so nobody takes it for the people's chat room."""
+    """BarKeep the librarian, as a firefly in the corner (like a help chat):
+    tap it and it opens into a small chat that answers through POST /chat --
+    what's on this node: files, notices, apps. On /files, /billboard and
+    the home page."""
     name = _esc_name(BOT_NAME)
+    chips = "".join("<button type='button'>" + billboard._esc(c) + "</button>"
+                    for c in i18n.t("ask_chips", lang).split("|") if c)
     return (
-        "<details class='ask'" + (" open" if open_ else "") + "><summary>" + i18n.t("ask_title", lang, bot=name)
-        + "</summary><p class='sub'>" + i18n.t("ask_hint", lang, bot=name) + "</p>"
-        "<div class='row'><input id='askq' maxlength='200' placeholder='"
-        + billboard._esc(i18n.t("ask_placeholder", lang, bot=BOT_NAME)) + "'>"
-        "<button id='askgo'>" + i18n.t("ask_button", lang) + "</button></div>"
-        "<div id='askout' class='panel' aria-live='polite'></div></details>"
-        "<script>" + _ASK_SCRIPT + "</script>"
+        "<div class='ask' id='ask'>"
+        "<div class='ff-panel' id='ffp' role='dialog' aria-label='" + _attr_esc(i18n.t("ask_title", lang, bot=BOT_NAME)) + "'"
+        + ("" if open_ else " hidden") + ">"
+        "<div class='ff-head'>" + _FIREFLY + "<div><b>" + name + "</b><small>" + i18n.t("ask_role", lang)
+        + "</small></div><button type='button' class='ff-x' id='ffx' aria-label='\u00d7'>\u00d7</button></div>"
+        "<div class='ff-log' id='askout' aria-live='polite'><div class='m bot'>" + i18n.t("lib_hello", lang) + "</div></div>"
+        "<div class='ff-chips' id='ffc'>" + chips + "</div>"
+        "<div class='ff-in'><input id='askq' maxlength='200' autocomplete='off' placeholder='"
+        + billboard._esc(i18n.t("ask_short", lang)) + "'>"
+        "<button id='askgo' aria-label='" + _attr_esc(i18n.t("ask_button", lang)) + "'>\u2192</button></div></div>"
+        "<button type='button' class='ff-btn' id='ffb' aria-expanded='" + ("true" if open_ else "false")
+        + "' aria-controls='ffp' title='" + _attr_esc(i18n.t("ask_title", lang, bot=BOT_NAME)) + "'>" + _FIREFLY + "</button>"
+        "</div><script>" + _ASK_SCRIPT + "</script>"
     )
 
 
-_ASK_SCRIPT = """
-function askBK(q){
-  var input=document.getElementById('askq'), out=document.getElementById('askout');
-  q=(q||input.value||'').trim(); if(!q) return;
-  out.parentNode.open=true; input.value=q;
-  var you=document.createElement('p'); you.innerHTML='<small></small>'; you.firstChild.textContent='\u203a '+q;
-  out.innerHTML=''; out.appendChild(you);
-  var ans=document.createElement('div'); ans.textContent='\u2026'; out.appendChild(ans);
-  fetch('/chat',{method:'POST',body:q}).then(function(r){return r.text();})
-    .then(function(t){ ans.innerHTML=t; }, function(){ ans.textContent='\u2014'; });
-}
+_ASK_SCRIPT = """(function(){
+var box=document.getElementById('ask'), p=document.getElementById('ffp'), b=document.getElementById('ffb'),
+    q=document.getElementById('askq'), out=document.getElementById('askout');
+document.body.classList.add('has-ff');
+function show(on){ p.hidden=!on; b.setAttribute('aria-expanded',on?'true':'false'); if(on){ q.focus(); out.scrollTop=out.scrollHeight; } }
+function say(cls,html,text){ var m=document.createElement('div'); m.className='m '+cls;
+  if(text!==undefined) m.textContent=text; else m.innerHTML=html; out.appendChild(m); out.scrollTop=out.scrollHeight; return m; }
+window.askBK=function(t){ t=(t||q.value||'').trim(); if(!t) return; show(true); q.value='';
+  say('you',null,t); var a=say('bot',null,'\u2026'); box.classList.add('busy');
+  fetch('/chat',{method:'POST',body:t}).then(function(r){return r.text();})
+    .then(function(h){ a.innerHTML=h; }, function(){ a.textContent='\u2014'; })
+    .then(function(){ box.classList.remove('busy'); out.scrollTop=out.scrollHeight; }); };
+b.onclick=function(){ show(p.hidden); };
+document.getElementById('ffx').onclick=function(){ show(false); b.focus(); };
 document.getElementById('askgo').onclick=function(){ askBK(); };
-document.getElementById('askq').addEventListener('keydown',function(e){ if(e.key==='Enter') askBK(); });
-"""
+q.addEventListener('keydown',function(e){ if(e.key==='Enter') askBK(); });
+document.addEventListener('keydown',function(e){ if(e.key==='Escape'&&!p.hidden) show(false); });
+document.querySelectorAll('#ffc button').forEach(function(c){ c.onclick=function(){ askBK(c.textContent); }; });
+})();"""
 
 
 def _process_command(text, identifier, lang):
@@ -1059,29 +1157,136 @@ def _render_admin_file_list_page(lang, names, pw):
 
     # Sections for features this node doesn't offer are left out (their
     # delete routes answer 404 anyway); theme and logo settings always show.
-    files_part = ("<p class='sub'>" + i18n.t("admin_select_intro", lang) + "</p>" + file_section
+    files_part = ("<h2 class='sub'>" + i18n.t("admin_files_header", lang) + "</h2>"
+                  "<p class='sub'>" + i18n.t("admin_select_intro", lang) + "</p>" + file_section
                   if features.enabled("files") else "")
     board_part = _render_admin_billboard_section(lang, pw) if features.enabled("billboard") else ""
+    T = lambda k, **kw: i18n.t(k, lang, **kw)
+    radio_cur = radio.current()
+    hw = radio.hw()
+    import chain
+    ch = chain.status()
+    on_air = (
+        _card("radio", "\U0001f4fb", _render_admin_radio_section(lang, pw),
+              _radio_peek(hw, radio_cur, lang))
+        + _card("chain", "\U0001f517", _render_admin_chain_section(lang), _chain_peek(ch, lang))
+        + _card("pn", "\U0001f4ec", _render_admin_pn_section(lang, pw), ""))
+    content = (
+        _card("files", "\U0001f4c1", files_part, T("admin_peek_files", n=len(names)))
+        + _card("board", "\U0001f4cc", board_part, "")
+        + _card("home", "\U0001f3e0", _render_admin_home_section(lang, pw), "")
+        + _card("tools", "\U0001f9f0", _render_admin_tools_section(lang, pw), ""))
+    look = _card("look", "\U0001f3a8", _render_admin_site_theme_section(lang, pw)
+                 + _render_admin_layout_section(lang, pw) + _render_admin_settings_section(lang),
+                 _theme_label(theme.admin_choice(), lang) if theme.admin_choice() else "")
+    system = (
+        _card("plugins", "\U0001f9e9", _render_admin_plugins_section(lang, pw), _plugins_peek(lang))
+        + _card("https", "\U0001f512", _render_admin_tls_line(lang), "")
+        + _card("power", "\u23fb", _render_admin_power_section(lang, pw), ""))
     return (
-        "<div class='admin-head'><h1>" + i18n.t("admin_header", lang) + "</h1>"
+        "<div class='admin-wide'>"
+        "<div class='admin-head'><h1>" + T("admin_header") + "</h1>"
         + _admin_logout_form(lang, pw) + "</div>"
         + _release_line()
-        + _render_admin_power_section(lang, pw)
-        + files_part
-        + board_part
-        + _render_admin_tools_section(lang, pw)
-        + _render_admin_tls_line(lang)
-        + _render_admin_home_section(lang, pw)
-        + _render_admin_radio_section(lang, pw)
-        + _render_admin_radio_live(lang)
-        + _render_admin_pn_section(lang, pw)
-        + _render_admin_chain_section(lang)
-        + _render_admin_plugins_section(lang, pw)
-        + _render_admin_site_theme_section(lang, pw)
-        + _render_admin_layout_section(lang, pw)
-        + _render_admin_settings_section(lang)
+        + _admin_tiles(lang, hw, radio_cur, ch, len(names))
+        + _group(T("admin_group_air"), on_air)
+        + _group(T("admin_group_content"), content)
+        + _group(T("admin_group_look"), look)
+        + _group(T("admin_group_system"), system)
         + _admin_logout_form(lang, pw)
+        + "</div><script>" + _ADMIN_CARDS_SCRIPT + "</script>"
     )
+
+
+# ── /admin's layout: tiles at the top, then cards that open ──────────
+# Each section (its own renderer, unchanged) goes in a card: its first
+# heading becomes the card's title, a short line beside it says how it
+# stands, and the rest opens on a tap. The tiles at the top show the
+# Stump at a glance and open their card.
+
+def _card(cid, icon, body, peek="", open_=False):
+    if not body:
+        return ""
+    title = ""
+    if body.startswith("<h2 class='sub'>"):
+        end = body.find("</h2>")
+        title, body = body[16:end], body[end + 5:]
+    return ("<details class='card' id='c-" + cid + "'" + (" open" if open_ else "") + "><summary>"
+            "<span class='ic' aria-hidden='true'>" + icon + "</span><span class='tx'><span class='ct'>" + title + "</span>"
+            + ("<span class='pk'>" + peek + "</span>" if peek else "")
+            + "</span></summary><div class='cb'>" + body + "</div></details>")
+
+
+def _group(label, cards):
+    return ("<h2 class='grp'>" + label + "</h2>" + cards) if cards else ""
+
+
+def _radio_peek(hw, cur, lang):
+    if hw["state"] == "none":
+        return i18n.t("admin_peek_noradio", lang)
+    txt = i18n.t("rrc_hw_" + hw["state"], lang)
+    if cur:
+        txt += " · " + radio.hz_to_mhz(cur["frequency"]) + " MHz"
+    return "<i class='dot " + hw["state"] + "'></i>" + txt
+
+
+def _chain_peek(ch, lang):
+    if not ch.get("enabled"):
+        return ""
+    n = len(ch.get("below") or [])
+    role = i18n.t("admin_peek_root" if ch["role"] == "root" else "admin_peek_member", lang)
+    return role + " · " + i18n.t("admin_peek_below", lang, n=n)
+
+
+def _plugins_peek(lang):
+    try:
+        items = plugins.status()
+        on = sum(1 for p in items if p.get("state") == "on")
+        return i18n.t("admin_peek_plugins", lang, n=on, total=len(items))
+    except Exception:
+        return ""
+
+
+def _admin_tiles(lang, hw, cur, ch, nfiles):
+    """The Stump at a glance: radio, chain, people in the chat, files --
+    each opens its card below."""
+    T = lambda k, **kw: i18n.t(k, lang, **kw)
+    tiles = []
+    if hw["state"] != "none":
+        tiles.append(("radio", "<i class='dot big " + hw["state"] + "'></i>", T("rrc_hw_" + hw["state"]),
+                      (radio.hz_to_mhz(cur["frequency"]) + " MHz") if cur else T("admin_tile_radio")))
+    else:
+        tiles.append(("radio", "\U0001f4fb", T("admin_peek_noradio"), T("admin_tile_radio")))
+    if ch.get("enabled"):
+        tiles.append(("chain", "\U0001f517", T("admin_peek_root" if ch["role"] == "root" else "admin_peek_member"),
+                      T("admin_peek_below", n=len(ch.get("below") or []))))
+    try:
+        rrc._prune_users()
+        people = len(rrc._users)
+    except Exception:
+        people = 0
+    tiles.append(("", "\U0001f465", str(people), T("admin_tile_people")))
+    if features.enabled("files"):
+        tiles.append(("files", "\U0001f4c1", str(nfiles), T("admin_tile_files")))
+    out = []
+    for cid, icon, big, small in tiles:
+        inner = ("<span class='ti'>" + icon + "</span><b>" + big + "</b><small>" + small + "</small>")
+        out.append(("<a class='atile' href='#c-" + cid + "'>" + inner + "</a>") if cid
+                   else "<div class='atile'>" + inner + "</div>")
+    return "<div class='atiles'>" + "".join(out) + "</div>"
+
+
+# Opens the card a tile (or #c-...) points to, and remembers which cards
+# were open on this device (try/catch: storage may be off).
+_ADMIN_CARDS_SCRIPT = """(function(){
+function op(h){var d=h&&document.getElementById(h.slice(1));if(d&&d.tagName==='DETAILS'){d.open=true;d.scrollIntoView({block:'start'});}}
+var K='stumpAdminOpen',s=[];try{s=JSON.parse(localStorage.getItem(K)||'[]');}catch(e){}
+document.querySelectorAll('details.card').forEach(function(d){
+ if(s.indexOf(d.id)>=0)d.open=true;
+ d.addEventListener('toggle',function(){var o=[];document.querySelectorAll('details.card[open]').forEach(function(x){o.push(x.id);});
+  try{localStorage.setItem(K,JSON.stringify(o));}catch(e){}});});
+document.querySelectorAll('a.atile').forEach(function(a){a.addEventListener('click',function(e){e.preventDefault();op(a.getAttribute('href'));});});
+op(location.hash);})();"""
 
 
 def _theme_label(name, lang):
@@ -1456,7 +1661,7 @@ tick();
 })();</script>"""
 
 
-def _render_admin_radio_live(lang):
+def _render_admin_radio_live(lang, heading=True):
     """The radio, live: whether the RNode answered, its firmware, the
     settings it echoed back, signal of the last packet, noise floor,
     channel load, battery -- refreshed every 2 s from /hw.json."""
@@ -1466,8 +1671,8 @@ def _render_admin_radio_live(lang):
         "title", "none", "where", "error", "set", "echo", "on", "noise", "load", "airtime",
         "battery", "temp", "counts", "last", "since")}
     labels.update({k: i18n.t("rrc_hw_" + k, lang) for k in ("online", "connecting", "error")})
-    return ("<h2 class='sub'>" + labels["title"] + "</h2>"
-            "<style>.hwt{border-collapse:collapse;margin:6px 0 14px;font-size:.85rem}"
+    return (("<h2 class='sub'>" + labels["title"] + "</h2>" if heading else "")
+            + "<style>.hwt{border-collapse:collapse;margin:6px 0 14px;font-size:.85rem}"
             ".hwt caption{text-align:left;font-weight:bold;padding:4px 0}"
             ".hwt th{text-align:left;color:var(--muted);font-weight:normal;padding:2px 12px 2px 0;white-space:nowrap}"
             ".hwt td{padding:2px 0}.hw-dot{display:inline-block;width:10px;height:10px;border-radius:50%;"
@@ -1526,8 +1731,7 @@ def _render_admin_radio_section(lang, pw):
     def field(label_key, control):
         return "<label>" + i18n.t(label_key, lang) + "<br>" + control + "</label>"
 
-    return (
-        head +
+    settings = (
         "<p class='sub'>" + i18n.t("admin_radio_intro", lang) + "</p>"
         "<form method='POST' action='/admin/radio' class='post-form' autocomplete='off'>"
         "<input type='hidden' name='admin_pass' value='" + billboard._esc(pw) + "'>"
@@ -1540,11 +1744,18 @@ def _render_admin_radio_section(lang, pw):
         + field("radio_cr", "<select name='cr'>" + opts(range(radio.CR_MIN, radio.CR_MAX + 1), cur["cr"],
                 lambda v: "4/%d" % v) + "</select>")
         + "<button type='submit'>" + i18n.t("admin_radio_save", lang) + "</button>"
-        "</form>"
-        "<form method='POST' action='/admin/radioretry' class='post-form'>"
+        "</form>")
+    return (
+        head
+        + _render_admin_radio_live(lang, heading=False) +
+        "<form method='POST' action='/admin/radioretry' class='post-form inline'>"
         "<input type='hidden' name='admin_pass' value='" + billboard._esc(pw) + "'>"
         "<p class='sub'>" + i18n.t("admin_radio_retry_intro", lang) + "</p>"
         "<button type='submit'>" + i18n.t("admin_radio_retry", lang) + "</button></form>"
+        "<details class='inner'><summary>" + i18n.t("admin_radio_settings", lang) + " <span class='pk'>"
+        + radio.hz_to_mhz(cur["frequency"]) + " MHz · " + ("%g" % (cur["bandwidth"] / 1000)) + " kHz · SF"
+        + str(cur["sf"]) + " · CR4/" + str(cur["cr"]) + " · " + str(cur["txpower"]) + " dBm</span></summary>"
+        + settings + "</details>"
         "<form method='POST' action='/admin/radiochat' class='post-form'>"
         "<input type='hidden' name='admin_pass' value='" + billboard._esc(pw) + "'>"
         "<input type='hidden' name='on' value='" + ("0" if radio.chat_edit() else "1") + "'>"
@@ -1849,7 +2060,8 @@ def _render_files_page(lang):
             "<div class='finder'><input id='flt' type='search' placeholder='"
             + billboard._esc(i18n.t("filter_placeholder", lang, bot=BOT_NAME)) + "' aria-label='"
             + billboard._esc(i18n.t("filter_placeholder", lang, bot=BOT_NAME)) + "'>"
-            "<select id='srt' aria-label='" + billboard._esc(i18n.t("sort_label", lang)) + "'>" + sorts + "</select>"
+            "<span class='sortbox' title='" + billboard._esc(i18n.t("sort_label", lang)) + "'>"
+            "<select id='srt' aria-label='" + billboard._esc(i18n.t("sort_label", lang)) + "'>" + sorts + "</select></span>"
             "<div class='pills'>" + pills + "</div></div>"
         )
     return (
@@ -2259,7 +2471,8 @@ def _render_billboard_page(lang):
         "<div class='finder'><input id='bsearch' type='search' placeholder='"
         + billboard._esc(i18n.t("search_placeholder", lang)) + "' aria-label='"
         + billboard._esc(i18n.t("search_placeholder", lang)) + "'>"
-        "<select id='bsort' aria-label='" + billboard._esc(i18n.t("sort_label", lang)) + "'>" + sorts + "</select></div>"
+        "<span class='sortbox' title='" + billboard._esc(i18n.t("sort_label", lang)) + "'>"
+        "<select id='bsort' aria-label='" + billboard._esc(i18n.t("sort_label", lang)) + "'>" + sorts + "</select></span></div>"
     )
     return (billboard._render_page(lang, tools,
                                    "<p id='bnone' class='sub' style='display:none'>" + i18n.t("filter_none", lang) + "</p>")
@@ -3621,7 +3834,9 @@ async def _handle(reader, writer, secure=False):
                                                   + _nav_except(lang, None)))
 
         else:
-            await _send(writer, "200 OK", _page(_render_chat_page(i18n.get_lang(identifier))))
+            lang = i18n.get_lang(identifier)
+            await _send(writer, "200 OK", _page(_render_chat_page(lang) + (
+                _ask_drawer(lang) if features.enabled("files") or features.enabled("billboard") else "")))
 
     except Exception as e:
         print("[barkeep] request error:", e)

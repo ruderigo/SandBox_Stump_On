@@ -260,10 +260,16 @@ See `PC.md`. A Mac or a Windows PC, and a Heltec.
 
 ## 13. BarKeep, the librarian
 
-- [ ] Files page: *Ask BarKeep*, "do you have a movie?" (and in French,
-      "as-tu un livre ?"): the right files, linked; a download works.
-- [ ] Type in the filter: rows narrow as you type; a kind pill; sort by
-      size. Enter on a whole question answers in the drawer.
+- [ ] Files page: tap the firefly (bottom right), "do you have a movie?"
+      (and in French, "as-tu un livre ?"), or a suggestion: the right
+      files, linked; a download works; long names stay in their bubble.
+- [ ] Type in the filter: rows narrow as you type; a kind pill; ⇅ sorts
+      by size. Enter on a whole question opens the firefly's chat.
+- [ ] `/admin`: the tiles at the top open their card; cards fold open;
+      reload: the ones left open are still open.
+- [ ] A chain of three CAMs, A ← B ← C: switch B off. Within ~2 min C
+      joins A by itself (`/chain.json` on C: `fallback`); B back on and
+      C restarted: C joins B again.
 - [ ] Billboard: search a word that's only in a post's body: that post
       opens. Sort by title.
 - [ ] In the chat (and from FireFly over LoRa): `!find <word>` answers on

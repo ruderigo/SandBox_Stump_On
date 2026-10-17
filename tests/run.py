@@ -41,6 +41,7 @@ TESTS = [
     ("relay_fastpath", "assert", []),
     ("chain", "chain", []),
     ("chain_config", "assert", []),
+    ("chain_failover", "assert", []),
     ("json_api", "snapshot", []),
     ("latin1_names", "snapshot", []),
     ("tools_sections", "assert", []),

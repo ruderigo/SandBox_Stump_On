@@ -153,8 +153,8 @@ element and its JS wiring, and the now-unreferenced
 ## HF-003 — The Concierge (BarKeep) chat box — **brought back (October 2026)**
 
 No longer hidden: BarKeep is the node's **librarian** now. Visitors ask
-it what's on the node in French, English or Spanish, from an *Ask
-BarKeep* drawer on the Files and Billboard pages (and `/concierge`,
+it what's on the node in French, English or Spanish, from the firefly
+in the corner of the Files, Billboard and home pages (and `/concierge`,
 still there); `POST /chat` answers, and `!find` asks it from the chat.
 It was hidden because visitors took the box for the people's chat room;
 it now lives where people look for things, labelled with what it does,

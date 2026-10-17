@@ -781,9 +781,10 @@ How each came to be, with its tests:
 Visitors ask BarKeep what's on the node, in French, English or Spanish —
 *"do you have a movie?"*, *"as-tu un livre sur le jardinage ?"*,
 *"¿qué hay en el tablón?"* — and get the matching files (linked), notices
-and apps. It's an **Ask BarKeep** drawer at the top of the Files and
-Billboard pages (and `/concierge`); not on the home page, and labelled
-with what it does, so nobody takes it for the people's chat room. In the
+and apps. It's a **firefly** in the bottom-right corner of the Files,
+Billboard and home pages (like a help chat) that opens into a small
+chat with BarKeep, with suggestions to tap (and `/concierge`); labelled
+"the librarian", so nobody takes it for the people's chat room. In the
 chat, `!find <words>` asks it on one short line. No language model:
 `librarian.py` folds accents, drops filler words, spots the kind of file
 or the billboard or the apps, and matches the rest against file names
