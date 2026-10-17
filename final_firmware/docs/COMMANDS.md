@@ -550,8 +550,9 @@ accepts the certificate (it fetches `/tls-ok` first).
 | GET | `/tools.json` | The same as JSON: `{"sd", "apps": [{"app","file","version","size","url"}], "files": [{"name","size","section","url"}], "sections": [{"dir","title","summary","readme","files"}]}` |
 | GET | `/tool?f=` | Download a tool file: `name`, or `folder/name` one folder down |
 | GET | `/node.json` | Who this node is, without joining the chat: `{"name", "lxmf", "version", "release", "ap_ip", "chain", "features"}`; `chain` is `null` or the `/chain.json` object (see `CLIENT_QUICKSTART.md`) |
-| GET | `/hw.json` | The radio(s): `{"state": "none"|"online"|"connecting"|"error", "radios": [{"name", "kind": "usb"|"wifi", "where", "device", "fw", "platform", "error", "settings", "radio", "rssi", "snr", "noise", "channel_load", "airtime", "battery", "rx", "tx", "last_rx", "since"}]}` |
+| GET | `/hw.json` | The radio(s): `{"state": "none"|"online"|"connecting"|"error", "radios": [{"name", "kind": "usb"|"ble"|"wifi", "where", "device", "fw", "platform", "error", "settings", "radio", "rssi", "snr", "noise", "channel_load", "airtime", "battery", "rx", "tx", "last_rx", "since"}]}` |
 | POST | `/admin/radio.json` | The radio's settings from the chat: `freq` (MHz), `bw`, `sf`, `cr`, `txp`; the computer's owner or an `/admin` session, while `/admin` allows it; `{"ok", "message"}`, or 403 |
+| POST | `/admin/radioretry` | `/admin`'s *Reconnect the radio*: `admin_pass`; the Heltec (USB, Bluetooth or Wi-Fi) connects again now, handshake and radio set-up |
 | POST | `/admin/radiochat` | `/admin`'s switch for the radio settings in the chat: `admin_pass`, `on=1`/`0`; saved (`radio_chat.json`) |
 | GET | `/chain.json` | This Stump's place in a chain over Wi-Fi: `{"enabled", "role", "ap_ip", "lan_ip", "channel", "secret", "uplink", "below"}`; `lan_ip`: the first Stump's address on the Wi-Fi it joined, where it also takes chain links (else `null`) (see `CHAIN.md`) |
 | GET | `/plugins.json` | What the plugins add: `{"api", "trigger", "plugins": [{"name","version","commands","pages"}]}` (see `PLUGINS.md`) |

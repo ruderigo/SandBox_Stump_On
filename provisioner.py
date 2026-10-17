@@ -308,7 +308,7 @@ DEFAULT_CREDIT_WEIGHTS = {"video": 3, "music": 2, "document": 1, "other": 1}
 #    for f in sorted(Path('final_firmware').rglob('*')) if f.is_file()]"
 EXPECTED_FILE_HASHES = {
     "_sd_web/billboard.txt": "e3b0c44298fc1c14",
-    "barkeep.py": "fe283426fe52d6d9",
+    "barkeep.py": "90c8fd20e4315b92",
     "billboard.py": "a7d1f3df668997ab",
     "boot_common.py": "d1f60dd4434752bf",
     "captive_portal.py": "35cb3a279ecc42db",
@@ -316,22 +316,22 @@ EXPECTED_FILE_HASHES = {
     "config.py": "ed7b475134824fb3",
     "docs/CHAIN.md": "edbf92b02da1e9cb",
     "docs/CLIENT_QUICKSTART.md": "311802975964d077",
-    "docs/COMMANDS.md": "8f9c7aa7aa91e547",
+    "docs/COMMANDS.md": "953e38e93127d238",
     "docs/ENGINEERING_NOTES.md": "526b3ea96bc44873",
-    "docs/FIELD_TEST.md": "69666efc61d57406",
+    "docs/FIELD_TEST.md": "16caf337e4866f77",
     "docs/HIDDEN_FEATURES.md": "b1e2a0e9bcaa0b1b",
     "docs/HOME_BRANDING.md": "e1a1a9cf854dcdce",
     "docs/HTTPS_SETUP.md": "12cbbf2de7c38810",
     "docs/PACKS.md": "2e89e3c28d80d72d",
-    "docs/PC.md": "f9c64ffa1b3edf4d",
+    "docs/PC.md": "d7687db73a6929bb",
     "docs/PLUGINS.md": "3f5b4a5ee6844305",
-    "example_node.py": "98a95231632be84a",
+    "example_node.py": "3006d0669d39404f",
     "features.py": "7fca96873d59d2d3",
     "flasher_ui.py": "1d3035b1132bc87e",
     "fserv.py": "50cebb82fdd6dce3",
     "fservbot/plugin.json": "4e0137362ff327d0",
     "guard.py": "cde136ce989c5c53",
-    "i18n.py": "370b319d73ac608f",
+    "i18n.py": "f366dcce22343f4a",
     "layout.py": "fb82a2d1ed9f00da",
     "lib/bz2_fast_xtensawin.mpy": "ac55d9eda2126432",
     "lib/ed25519_fast_xtensawin.mpy": "96e74dac45f91687",
@@ -344,7 +344,7 @@ EXPECTED_FILE_HASHES = {
     "peripherals/adc_reader.py": "50a393bfa61641d4",
     "plugins.py": "7d277aabb19f4291",
     "propagation.py": "e86471653a5036ec",
-    "radio.py": "ef53773d4308166a",
+    "radio.py": "ac36e29437e0c4a2",
     "rrc.py": "a8fb0ebdfd8c7ea9",
     "rrc_mesh.py": "c43f848d5185c18e",
     "rrc_ui.py": "fbe3c3325cda22af",
@@ -513,17 +513,18 @@ EXPECTED_FILE_HASHES = {
     "urns/interfaces/chain.py": "987643f122d08df9",
     "urns/interfaces/e32.py": "4cc3c2994c2d7972",
     "urns/interfaces/lora.py": "34ce816fe69c0b43",
-    "urns/interfaces/rnode_serial.py": "b6a42e6d7eb0ad35",
+    "urns/interfaces/rnode_ble.py": "61704fb1d861a38d",
+    "urns/interfaces/rnode_serial.py": "9de23abb1b741dc1",
     "urns/interfaces/serial.py": "3c7dda5e4ffb5dec",
     "urns/interfaces/tcp.py": "a29d90caa017764a",
     "urns/interfaces/udp.py": "cc5e30ddc0861737",
-    "urns/interfaces/wifi_serial.py": "f832a6b5ae8e6994",
+    "urns/interfaces/wifi_serial.py": "433780346e0f7197",
     "urns/link.py": "3cb7d2dafe5bdbb6",
     "urns/log.py": "4b5576693991c7a6",
     "urns/lxmf.py": "ddc9239bb6ad665c",
     "urns/packet.py": "f29d9a1a8ebedc0e",
     "urns/resource.py": "97b1fa47b676a517",
-    "urns/reticulum.py": "70fb6d00a6d43661",
+    "urns/reticulum.py": "8d4ae9c856668df8",
     "urns/transport.py": "a7953742ea0ca57c",
     "urns/umsgpack.py": "7df3983d6abcf149",
     "web/codec2.js": "2caf391c54505c61",
@@ -3631,14 +3632,21 @@ def config_wizard(board_type):
         if board_type == "pc":
             link = ask_choice("The Heltec (LoRa radio)", [
                 "Plugged into this computer by USB",
+                "Over Bluetooth (paired with this computer, no cable)",
                 "Over Wi-Fi (the Heltec joins this computer's network)",
                 "None (this Stump reaches the LoRa mesh through the chain, or not at all)",
             ])
             has_heltec = not link.startswith("None")
-            profile["pc_heltec"] = "usb" if link.startswith("Plugged") else ("wifi" if has_heltec else "none")
+            profile["pc_heltec"] = ("usb" if link.startswith("Plugged") else "ble" if link.startswith("Over Bluetooth")
+                                    else "wifi" if has_heltec else "none")
             if profile["pc_heltec"] == "usb":
                 port = ask("  Its USB port ('auto' finds it)", "auto")
                 profile["pc_heltec_port"] = port or "auto"
+            elif profile["pc_heltec"] == "ble":
+                _print_ble_pairing()
+                profile["pc_heltec_ble"] = ask("  Its Bluetooth name, e.g. RNode 3B87 ('auto': the first RNode found)",
+                                               "auto") or "auto"
+            if profile["pc_heltec"] in ("usb", "ble"):
                 radio, src = mesh_radio_settings((chain_cfg or {}).get("parent_ip"))
                 print("  Radio: %s (%s)" % (_radio_text(radio), "the same as the Stump at %s" % src if src
                                              else "the Provisioner's defaults: they must match the mesh's"))
@@ -4960,6 +4968,30 @@ def interactive_wizard():
 
 PC_SOURCE = Path(__file__).resolve().parent / "pc"
 PC_PACKAGES = ("cryptography", "pyserial")
+PC_BLE_PACKAGE = "bleak"          # only for a Heltec over Bluetooth
+
+
+def _print_ble_pairing():
+    print("  On the Heltec, once (with it on USB): Bluetooth on, then pair it with this computer:")
+    print("    rnodeconf <its port> --bluetooth-on")
+    print("    rnodeconf <its port> --bluetooth-pair     (its screen shows a PIN)")
+    print("  then pair \"RNode ...\" from this computer's Bluetooth settings with that PIN.")
+    if sys.platform == "darwin":
+        print("  macOS asks once whether Python may use Bluetooth: allow it"
+              " (System Settings > Privacy & Security > Bluetooth).")
+
+
+def _pc_ensure_bleak(folder):
+    """bleak in the folder's Python, for a Heltec over Bluetooth. True if there."""
+    py = _pc_python(folder)
+    if subprocess.run([str(py), "-c", "import bleak"], capture_output=True).returncode == 0:
+        return True
+    print("  Installing bleak (Bluetooth) into this Stump's Python (needs internet, this once) ...")
+    r = subprocess.run([str(py), "-m", "pip", "install", "--quiet", "--upgrade", PC_BLE_PACKAGE])
+    if r.returncode != 0:
+        print("  " + red("pip couldn't install bleak.") + " Connect to the internet and run --pc again.")
+        return False
+    return True
 PC_SERVICE_LABEL = "app.stump.node"
 
 
@@ -5109,7 +5141,14 @@ def _pc_config_block(profile):
     if chain.get("parent_ip"):
         out.append("PC_CHAIN_PARENT_IP = %r   # the Stump this one joins\n" % chain["parent_ip"])
     heltec = profile.get("pc_heltec", "none")
-    if heltec == "usb":
+    if heltec == "ble":
+        out.append("# The Heltec over Bluetooth ('auto': the first paired RNode); radio settings: /admin -> Radio.\n")
+        out.append("CONFIG['interfaces'] = [i for i in CONFIG['interfaces'] if i.get('type') != 'WiFiSerialInterface'] + [\n")
+        radio = profile.get("pc_radio") or {}
+        out.append("    {'type': 'RNodeBLEInterface', 'name': 'Heltec (Bluetooth)', 'enabled': True,\n")
+        out.append("     'target': %r%s},\n]\n" % (profile.get("pc_heltec_ble", "auto"),
+                                                 "".join(", %r: %r" % kv for kv in sorted(radio.items()))))
+    elif heltec == "usb":
         out.append("# The Heltec on USB ('auto' finds it); radio settings: /admin -> Radio.\n")
         out.append("CONFIG['interfaces'] = [i for i in CONFIG['interfaces'] if i.get('type') != 'WiFiSerialInterface'] + [\n")
         radio = profile.get("pc_radio") or {}
@@ -5145,8 +5184,20 @@ def _pc_configure_existing(r, folder):
         else:
             reconfigure = ask_yes_no("Change the other settings instead (the questions again)?", False)
     elif heltec == "usb" and not usb:
-        print(yellow("This Stump uses a Heltec on USB, and none is plugged in now: it will wait for it."))
-        reconfigure = ask_yes_no("Change the settings (the questions again)?", False)
+        print(yellow("This Stump uses a Heltec on USB, and none is plugged in now: it will wait for it"
+                     " (and connect by itself when it's plugged in)."))
+        if ask_yes_no("Use a Heltec over Bluetooth instead (the other settings stay as they are)?", False):
+            _print_ble_pairing()
+            target = ask("  Its Bluetooth name, e.g. RNode 3B87 ('auto': the first RNode found)", "auto") or "auto"
+            radio, src = mesh_radio_settings(cfg.get("PC_CHAIN_PARENT_IP"))
+            print("  Radio: %s (%s)" % (_radio_text(radio), "the same as the Stump at %s" % src if src
+                                         else "the Provisioner's defaults: they must match the mesh's"))
+            _pc_add_heltec(folder, radio, "ble", target)
+            r.note("Heltec", "over Bluetooth (%s)" % target)
+            r.end("done", "the Heltec over Bluetooth, the rest kept")
+            heltec = "ble"
+        else:
+            reconfigure = ask_yes_no("Change the settings (the questions again)?", False)
     else:
         reconfigure = ask_yes_no("Change them (the questions again)?", False)
     if r.state[r.index] == "now" and not reconfigure:
@@ -5155,15 +5206,18 @@ def _pc_configure_existing(r, folder):
 
 
 def _pc_heltec_in_config(cfg):
-    """'usb', 'wifi' or 'none': the Heltec a computer Stump's config.py uses."""
+    """'usb', 'ble', 'wifi' or 'none': the Heltec a computer Stump's config.py uses."""
     kinds = [i.get("type") for i in (cfg.get("CONFIG") or {}).get("interfaces", []) if i.get("enabled", True)]
     if "RNodeSerialInterface" in kinds:
         return "usb"
+    if "RNodeBLEInterface" in kinds:
+        return "ble"
     return "wifi" if "WiFiSerialInterface" in kinds else "none"
 
 
 def _pc_settings_summary(cfg):
-    heltec = {"usb": "a Heltec on USB", "wifi": "a Heltec over Wi-Fi", "none": "no Heltec"}[_pc_heltec_in_config(cfg)]
+    heltec = {"usb": "a Heltec on USB", "ble": "a Heltec over Bluetooth", "wifi": "a Heltec over Wi-Fi",
+              "none": "no Heltec"}[_pc_heltec_in_config(cfg)]
     parts = [str(cfg.get("NODE_NAME") or "?"), heltec]
     if cfg.get("CHAIN_ENABLED"):
         parent = cfg.get("PC_CHAIN_PARENT_IP")
@@ -5192,16 +5246,27 @@ def _radio_text(r):
 
 
 def _pc_add_usb_heltec(folder, radio=None):
-    """Switches an existing computer Stump to a Heltec on USB, keeping every
+    _pc_add_heltec(folder, radio, "usb")
+
+
+def _pc_add_heltec(folder, radio=None, kind="usb", target="auto"):
+    """Switches an existing computer Stump to a Heltec on USB (kind "usb")
+    or over Bluetooth ("ble", target: its name or "auto"), keeping every
     other setting: appended to config.py, so it overrides the radio lines
     above it and nothing else. radio: the mesh's settings (every node of a
     mesh needs the same frequency, bandwidth, SF and CR)."""
     extra = "".join(", %r: %r" % (k, v) for k, v in sorted((radio or {}).items()))
-    block = ("\n# ---- The Heltec on USB (added by the Provisioner; 'auto' finds it) ----\n"
+    if kind == "ble":
+        head, entry = ("over Bluetooth", "{'type': 'RNodeBLEInterface', 'name': 'Heltec (Bluetooth)', 'enabled': True, "
+                       "'target': %r%s}" % (target, extra))
+    else:
+        head, entry = ("on USB", "{'type': 'RNodeSerialInterface', 'name': 'Heltec (USB)', 'enabled': True, "
+                       "'port': 'auto'%s}" % extra)
+    block = ("\n# ---- The Heltec %s (added by the Provisioner) ----\n"
              "CONFIG['interfaces'] = [i for i in CONFIG['interfaces']\n"
-             "                        if i.get('type') not in ('WiFiSerialInterface', 'RNodeSerialInterface')] + [\n"
-             "    {'type': 'RNodeSerialInterface', 'name': 'Heltec (USB)', 'enabled': True, 'port': 'auto'%s},\n]\n"
-             % extra)
+             "                        if i.get('type') not in ('WiFiSerialInterface', 'RNodeSerialInterface',"
+             " 'RNodeBLEInterface')] + [\n"
+             "    %s,\n]\n" % (head, entry))
     with open(Path(folder) / "config.py", "a", encoding="utf-8") as f:
         f.write(block)
 
@@ -5686,7 +5751,7 @@ def setup_pc(folder=None, reconfigure=False):
         ("Chain", "if it joins another Stump: checks the link, says what to fix"),
         ("Start", "now, and whenever you log in (if you want)"),
     ], needs=["Python 3.8 or newer (this one: %s)" % sys.version.split()[0],
-              "a Heltec on USB, or over Wi-Fi, or none (a chain can bring LoRa)",
+              "a Heltec on USB, Bluetooth or Wi-Fi, or none (a chain can bring LoRa)",
               "to join a CAM: this computer on the CAM's Wi-Fi, and the chain secret"],
         subtitle="Updating? The same route: settings, identity and files are kept.")
     r.show()
@@ -5724,6 +5789,9 @@ def setup_pc(folder=None, reconfigure=False):
         profile, _ = config_wizard("pc")
         _pc_write_config(fw, folder, profile)
         r.end("done", "config.py written")
+
+    if _pc_heltec_in_config(_read_folder_config(folder) or {}) == "ble":
+        _pc_ensure_bleak(folder)
 
     r.start("Packs")
     packs = []

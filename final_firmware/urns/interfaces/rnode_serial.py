@@ -17,9 +17,10 @@
 #    "frequency": 915000000, "bandwidth": 125000, "txpower": 7,
 #    "spreadingfactor": 8, "codingrate": 5}
 
+import os
 import time
 from .wifi_serial import (WiFiSerialInterface, FEND, CMD_DETECT, DETECT_REQ, CMD_FW_VERSION,
-                          CMD_PLATFORM)
+                          CMD_PLATFORM, CMD_RADIO_STATE, RADIO_STATE_OFF, CMD_LEAVE)
 from ..log import log, LOG_NOTICE, LOG_ERROR
 
 HANDSHAKE_S = 3.0     # how long an RNode has to answer "are you an RNode?"
@@ -94,29 +95,77 @@ class _SerialPort:
             pass
 
 
+def port_present(device):
+    """Is this serial port still there? (Unplugging a USB board makes its
+    port vanish; reads on the open port don't always say so.)"""
+    if not device or device == "auto":
+        return False
+    if os.name != "nt" and device.startswith("/dev/"):
+        return os.path.exists(device)
+    try:
+        from serial.tools import list_ports
+        return any(p.device == device for p in list_ports.comports())
+    except Exception:
+        return True            # can't tell: the probe (below) still will
+
+
 class RNodeSerialInterface(WiFiSerialInterface):
     # USB doesn't drop an idle link the way the Heltec's Wi-Fi mode does: no
     # keepalive frames needed (or wanted -- nothing should go to the radio
     # that isn't a packet).
     KEEPALIVE_INTERVAL = 10 ** 9
+    KIND = "usb"
+    # Is the radio still there? The port is looked at every second (an
+    # unplugged board's port vanishes), and a quiet radio is asked "are you
+    # an RNode?" every PROBE_EVERY s: no answer in PROBE_WAIT s and it's
+    # gone (frozen, reset, cable half out).
+    PRESENCE_EVERY = 1.0
+    PROBE_EVERY = 10.0
+    PROBE_WAIT = 4.0
+    # Reconnecting: while the port isn't there, looking is cheap, so every
+    # LOOK_EVERY s; when it is but the handshake fails, backing off up to
+    # MAX_RECONNECT_WAIT (each try holds the node for a few seconds).
+    LOOK_EVERY = 2.0
+    RECONNECT_WAIT = 2
+    MAX_RECONNECT_WAIT = 20
 
     def __init__(self, config):
         port = config.get("port", "auto")
-        if port in (None, "", "auto"):
+        self.port_setting = port if port not in (None, "") else "auto"
+        if self.port_setting == "auto":
             port = find_port() or "auto"
         self.port = port
+        self._last_heard = 0
+        self._probe_at = 0
+        self._last_presence = 0
+        self._last_look = 0
+        self._lost_why = None
         config = dict(config)
         config.setdefault("name", "Heltec (USB)")
         config["target_host"] = port           # WiFiSerialInterface requires one; used in its logs
         super().__init__(config)
 
-    def _connect(self):
-        port = self.port
-        if port == "auto":
-            port = find_port()
-            if not port:
-                raise OSError(19, "no RNode found on USB (plug the Heltec in)")
-            self.port = self.target_host = port
+    # -- the port underneath (RNodeBLEInterface changes these) --------------
+
+    def _find(self):
+        """The port to use now, or None: the one set, or -- if it's gone
+        (a board plugged back in can come back under another name) or set
+        to "auto" -- the first that looks like an RNode."""
+        if self.port_setting != "auto" and port_present(self.port_setting):
+            return self.port_setting
+        if self.port != "auto" and port_present(self.port):
+            return self.port
+        return find_port()
+
+    def _present(self):
+        return port_present(self.port)
+
+    def _open(self):
+        """Opens the radio's port: a socket-like object (_SerialPort)."""
+        port = self._find()
+        if not port:
+            raise OSError(19, "no RNode found on USB (plug the Heltec in)")
+        self.port = self.target_host = port
         self.hw["device"] = describe_port(port)
         s = _SerialPort(port)
         time.sleep(BOOT_WAIT_S)
@@ -124,6 +173,15 @@ class RNodeSerialInterface(WiFiSerialInterface):
             s.s.reset_input_buffer()           # the board's boot messages aren't KISS
         except Exception:
             pass
+        return s
+
+    def _lost_text(self):
+        return "unplugged from %s (it reconnects by itself when it's back)" % self.port
+
+    # -- connecting ----------------------------------------------------------
+
+    def _connect(self):
+        s = self._open()
         self._socket = s
         self._in_frame = False
         self._escape = False
@@ -148,24 +206,101 @@ class RNodeSerialInterface(WiFiSerialInterface):
             s.close()
             self._socket = None
             raise OSError(5, "%s answered nothing to the RNode handshake: is the RNode firmware on it "
-                             "(rnodeconf --autoinstall), and nothing else using the port?" % port)
+                             "(rnodeconf --autoinstall), and nothing else using it?" % self.where())
         self.online = True
         self._reconnect_count = 0
-        self._last_activity = time.time()
+        self.hw["lost"] = False
+        now = time.time()
+        self._last_activity = self._last_heard = self._last_presence = now
+        self._probe_at = 0
         self.hw["error"] = None
-        self.hw["since"] = time.time()
-        log("RNode on USB: %s (%s), firmware %s" % (port, self.hw.get("device") or "?",
-                                                    self.hw.get("fw") or "?"), LOG_NOTICE)
+        self.hw["since"] = now
+        log("RNode %s: %s (%s), firmware %s" % (self.KIND.upper(), self.where(), self.hw.get("device") or "?",
+                                               self.hw.get("fw") or "?"), LOG_NOTICE)
         self._init_radio()
+
+    def _reconnect(self):
+        now = time.time()
+        if not self._present() and not self._find():
+            # Nothing to connect to: say so, look again soon, no backoff.
+            if now - self._last_look >= self.LOOK_EVERY:
+                self._last_look = now
+                self._open_failed_text()
+                self._reconnect_count = max(self._reconnect_count, 1)
+            return
+        WiFiSerialInterface._reconnect(self)
+        if not self.online and self.hw.get("lost"):
+            # It worked until it was lost: keep saying why, not "is the
+            # RNode firmware on it?" (a failed handshake while it recovers).
+            self.hw["error"] = self._lost_why
+
+    def _open_failed_text(self):
+        if not self.hw.get("error") or not self.hw.get("lost"):
+            self.hw["error"] = "no RNode found on USB (plug the Heltec in)"
+
+    # -- while online: is it still there? -------------------------------------
+
+    def _process_byte(self, byte):
+        self._last_heard = time.time()
+        WiFiSerialInterface._process_byte(self, byte)
+
+    def _lost(self, why):
+        log("RNode %s lost: %s" % (self.KIND.upper(), why), LOG_ERROR)
+        self._close_socket()
+        self.online = False
+        self.hw["detected"] = False
+        self.hw["error"] = self._lost_why = why
+        self.hw["lost"] = True
+        self._reconnect_count = max(self._reconnect_count, 1)   # "error" (red) until it's back
+        self._last_reconnect = 0                                # look again right away
+
+    def _health(self):
+        now = time.time()
+        if now - self._last_presence >= self.PRESENCE_EVERY:
+            self._last_presence = now
+            if not self._present():
+                self._lost(self._lost_text())
+                return
+        if self._probe_at and self._last_heard < self._probe_at:
+            if now - self._probe_at > self.PROBE_WAIT:
+                self._lost("stopped answering on %s (it reconnects by itself)" % self.where())
+            return
+        if now - self._last_heard > self.PROBE_EVERY:
+            try:
+                self._probe_at = now
+                self._send_command(CMD_DETECT, bytes([DETECT_REQ]))
+            except Exception as e:
+                self._lost("can't write to %s: %s" % (self.where(), e))
+
+    def retry_now(self):
+        WiFiSerialInterface.retry_now(self)
+        self._last_look = 0
+        self.hw["lost"] = False
 
     def prime(self):
         pass
 
+    def close(self):
+        """On the way out: the radio off, and "the host left", as reference
+        RNS does (detach) -- an RNode left on its own otherwise keeps its
+        radio going with nothing behind it."""
+        if self.online and self._socket:
+            try:
+                self._send_command(CMD_RADIO_STATE, bytes([RADIO_STATE_OFF]))
+                self._send_command(CMD_LEAVE, b"\xff")
+            except Exception:
+                pass
+        WiFiSerialInterface.close(self)
+
+    def where(self):
+        return self.port
+
     def status(self):
         h = WiFiSerialInterface.status(self)
-        h["kind"] = "usb"
-        h["where"] = self.port
+        h.pop("lost", None)
+        h["kind"] = self.KIND
+        h["where"] = self.where()
         return h
 
     def __str__(self):
-        return "RNodeSerialInterface[" + self.name + "]"
+        return self.__class__.__name__ + "[" + self.name + "]"

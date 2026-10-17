@@ -1507,6 +1507,10 @@ def _render_admin_radio_section(lang, pw):
                 lambda v: "4/%d" % v) + "</select>")
         + "<button type='submit'>" + i18n.t("admin_radio_save", lang) + "</button>"
         "</form>"
+        "<form method='POST' action='/admin/radioretry' class='post-form'>"
+        "<input type='hidden' name='admin_pass' value='" + billboard._esc(pw) + "'>"
+        "<p class='sub'>" + i18n.t("admin_radio_retry_intro", lang) + "</p>"
+        "<button type='submit'>" + i18n.t("admin_radio_retry", lang) + "</button></form>"
         "<form method='POST' action='/admin/radiochat' class='post-form'>"
         "<input type='hidden' name='admin_pass' value='" + billboard._esc(pw) + "'>"
         "<input type='hidden' name='on' value='" + ("0" if radio.chat_edit() else "1") + "'>"
@@ -2767,6 +2771,25 @@ async def _handle(reader, writer, secure=False):
                     msg = ""
                 names = fserv._list_files() if fserv.sd_ok else []
                 notice = "<p class='sub'>" + billboard._esc(msg) + "</p>" if msg else ""
+                await _send(writer, "200 OK", _page(notice + _render_admin_file_list_page(lang, names, pw)))
+
+        elif method == "POST" and path.startswith("/admin/radioretry"):
+            # /admin's "Reconnect the radio": the handshake again, now.
+            length = int(headers.get("content-length", "0"))
+            body = await _read_small_body(reader, length)
+            fields = {}
+            for kv in body.decode().split("&"):
+                parts = kv.split("=", 1)
+                if len(parts) == 2:
+                    fields[parts[0]] = billboard._url_decode(parts[1])
+            pw = fields.get("admin_pass", "")
+            if not _admin_ok(pw, identifier):
+                await _send(writer, "403 Forbidden", "Invalid admin password", "text/plain")
+            else:
+                lang = i18n.get_lang(identifier)
+                msg = i18n.t("admin_radio_retrying" if radio.retry() else "admin_radio_none", lang)
+                names = fserv._list_files() if fserv.sd_ok else []
+                notice = "<p class='sub'>" + billboard._esc(msg) + "</p>"
                 await _send(writer, "200 OK", _page(notice + _render_admin_file_list_page(lang, names, pw)))
 
         elif method == "POST" and path.startswith("/admin/radiochat"):

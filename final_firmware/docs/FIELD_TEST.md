@@ -217,6 +217,20 @@ See `PC.md`. A Mac or a Windows PC, and a Heltec.
       computer.
 - [ ] Log out, restart the computer: the Stump comes back by itself.
 - [ ] `git pull` and `--pc` again: settings kept, the Stump restarts.
+- [ ] Heltec on USB, dot green: pull the cable. Within ~2 s the dot is
+      red, "unplugged from …". Plug it back in: green again by itself
+      within a few seconds (no Provisioner). `/admin` → *Radio — live*
+      shows it back.
+- [ ] `/admin` → Radio → *Reconnect the radio*: the dot goes orange, then
+      green; the Heltec's screen shows the radio set up again.
+- [ ] `launchctl unload ~/Library/LaunchAgents/app.stump.node.plist`
+      (macOS): the Heltec's radio stops (its screen says so).
+- [ ] **Bluetooth:** `rnodeconf <port> --bluetooth-on`, then
+      `--bluetooth-pair`, pair from the computer's Bluetooth settings,
+      unplug the cable (power it from a battery or a charger), `--pc` →
+      Configure → yes → Over Bluetooth. Dot green, `Bluetooth RNode …`
+      on hover; a DM over LoRa goes out. Switch the Heltec off: red;
+      on again: green by itself.
 
 ## 12. Hardening (October 2026)
 

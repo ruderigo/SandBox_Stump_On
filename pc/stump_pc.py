@@ -69,6 +69,33 @@ def _open_log():
     return open(LOG, "a", buffering=1, encoding="utf-8", errors="replace")
 
 
+def _close_radios():
+    """The Heltec on USB or Bluetooth, told on the way out: radio off, the
+    host left (an RNode left alone keeps its radio on otherwise)."""
+    t = sys.modules.get("urns.transport")
+    if t is None:
+        return
+    for i in list(t.Transport.interfaces):
+        if i.__class__.__name__ in ("RNodeSerialInterface", "RNodeBLEInterface"):
+            try:
+                i.close()
+            except Exception:
+                pass
+
+
+def _stop_on_sigterm():
+    """launchctl unload, systemctl stop, a scheduled task ending: SIGTERM,
+    handled like Ctrl-C so the radio is switched off first."""
+    import signal
+
+    def stop(*_):
+        raise KeyboardInterrupt
+    try:
+        signal.signal(signal.SIGTERM, stop)
+    except (ValueError, AttributeError, OSError):
+        pass
+
+
 def service():
     """Runs the node in a child process, logging to stump.log, and starts
     it again if it stops on an error (with a growing pause, up to a
@@ -80,10 +107,18 @@ def service():
     while True:
         log.write("\n[stump] starting %s\n" % time.strftime("%Y-%m-%d %H:%M:%S"))
         t0 = time.time()
+        child = None
         try:
-            code = subprocess.call([sys.executable, "-u", os.path.abspath(__file__)],
-                                   cwd=HERE, stdout=log, stderr=subprocess.STDOUT)
+            child = subprocess.Popen([sys.executable, "-u", os.path.abspath(__file__)],
+                                     cwd=HERE, stdout=log, stderr=subprocess.STDOUT)
+            code = child.wait()
         except KeyboardInterrupt:
+            if child is not None and child.poll() is None:
+                child.terminate()          # it switches the radio off, then stops
+                try:
+                    child.wait(timeout=10)
+                except Exception:
+                    child.kill()
             log.write("[stump] stopped\n")
             return
         if code == 0:
@@ -100,6 +135,7 @@ def service():
 
 
 if __name__ == "__main__":
+    _stop_on_sigterm()
     if "--service" in sys.argv:
         service()
     else:
@@ -109,3 +145,5 @@ if __name__ == "__main__":
             main()
         except KeyboardInterrupt:
             pass
+        finally:
+            _close_radios()

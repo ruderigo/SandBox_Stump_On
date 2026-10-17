@@ -460,7 +460,7 @@ def main():
         if locked is None:
             try:
                 import stump_host  # noqa: F401  (a computer)
-                locked = any(i.get("enabled", True) and i.get("type") == "RNodeSerialInterface"
+                locked = any(i.get("enabled", True) and i.get("type") in ("RNodeSerialInterface", "RNodeBLEInterface")
                              for i in rns.config.get("interfaces", []))
             except ImportError:
                 locked = False

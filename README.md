@@ -51,6 +51,7 @@ one. They talk among themselves in `#wifi-mesh`; LoRa users land in
 |---|---|---|
 | ESP32-S3-CAM + Heltec V3 | ✓ | |
 | macOS + Heltec V3 | | ✓ (Heltec on USB, simulated) |
+| macOS / Windows / Linux + Heltec V3 over Bluetooth | | ✓ (simulated) |
 | Windows / Linux + Heltec V3 | | ✓ |
 | macOS, no radio, chained to a CAM over the home Wi-Fi | ✓ | |
 | Windows / Linux, no radio | | ✓ |

@@ -1,6 +1,8 @@
 # RNodeSerialInterface (a Heltec on USB, for Stump on a computer) against a
 # simulated RNode on a pseudo-terminal: the radio set-up it sends on
-# connect, a packet out, a packet in, and an unplug and replug.
+# connect, a packet out, a packet in, an unplug and replug (also under
+# another name), a radio that freezes, /admin's retry, and the radio off
+# on close.
 # Linux/macOS (pty). Run: python3 tests/pc/rnode_serial_test.py
 import os, sys, pty, time, threading
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -142,47 +144,81 @@ check("its reports read: RSSI, SNR, channel load, airtime, noise, battery, radio
       and st["noise"] == -118 and st["battery"] == 87 and st["radio"].get("frequency") == 915000000
       and st["radio"].get("on") == 1 and st["last_rx"], st)
 
-# Unplug: the serial port starts failing, as pyserial does when the USB
-# device goes away (a closed pseudo-terminal doesn't on macOS, so the
-# failure is made at the serial layer); the interface goes offline.
-import serial
-
-
-class Gone:
-    @property
-    def in_waiting(self):
-        raise serial.SerialException("device disconnected")
-
-    def write(self, data):
-        raise serial.SerialException("device disconnected")
-
-    def close(self):
-        pass
-
+# Unplug, the way macOS does it with a CP2102: reads just go quiet, and
+# the port vanishes. Seen every second: offline at once, red, says why.
 real_port = iface.port
-iface._socket.s = Gone()
-iface.port = iface.target_host = "/dev/stump-test-no-such-port"     # and the port is gone
-iface.reconnect_wait = 0.05
-asyncio.run(run(0.6))
-check("unplugged: offline, and stays so while the port is gone", not iface.online)
-iface.port = iface.target_host = real_port                         # plugged back in
-iface._last_reconnect = 0
+_present = rs.port_present
+plugged = [True]
+rs.port_present = lambda d: plugged[0] and d == real_port and _present(d)
+plugged[0] = False
+asyncio.run(run(1.6))
+st = iface.status()
+check("unplugged (port gone, reads quiet): offline within a second or two, red, says so",
+      not iface.online and st["state"] == "error" and "unplugged" in (st["error"] or ""), st)
+asyncio.run(run(2.5))
+check("... and stays so while it's gone (no handshake tried)", not iface.online
+      and "unplugged" in (iface.status()["error"] or ""), iface.status())
+plugged[0] = True
 got.clear()
-asyncio.run(run(1.5))
-check("plugged back in: reconnects and sets the radio up again", iface.online
+asyncio.run(run(rs.RNodeSerialInterface.LOOK_EVERY + 1.5))
+check("plugged back in: reconnects by itself, handshake and radio set-up again", iface.online
+      and [c for c, p in frames(got)][:3] == [0x08, 0x50, 0x48]
       and [c for c, p in frames(got) if c not in (0x08, 0x50, 0x48)][:6] == [0x01, 0x02, 0x03, 0x04, 0x05, 0x06],
       frames(got)[:9])
+
+# Plugged back in under another name (macOS: usbserial-0001 -> -0002;
+# Windows: another COM): found again ("auto" finding).
+plugged[0] = False
+asyncio.run(run(1.5))
+iface.port_setting = "/dev/stump-test-old-name"
+_find_port = rs.find_port
+rs.find_port = lambda: real_port
+plugged[0] = True
+asyncio.run(run(rs.RNodeSerialInterface.LOOK_EVERY + 1.5))
+check("back under another name: found and connected", iface.online and iface.port == real_port, iface.status())
+rs.find_port = _find_port
+iface.port_setting = real_port
+
+# A radio that freezes (plugged in, port there, answers nothing): the
+# "are you there?" probe finds it.
+iface.PROBE_EVERY, iface.PROBE_WAIT = 0.5, 0.5
+answering[0] = False
+asyncio.run(run(1.6))
+st = iface.status()
+check("stops answering: offline, red, says so", not iface.online and st["state"] == "error"
+      and "stopped answering" in (st["error"] or ""), st)
+answering[0] = True
+asyncio.run(run(9))
+check("answers again: back online by itself", iface.online, iface.status())
+iface.PROBE_EVERY, iface.PROBE_WAIT = 10.0, 4.0
+
+# /admin's "Reconnect the radio": the handshake again, now.
+got.clear()
+iface.retry_now()
+check("retry: offline at once", not iface.online)
+asyncio.run(run(1.5))
+check("retry: handshake and set-up again, online", iface.online and [c for c, p in frames(got)][:3] == [0x08, 0x50, 0x48],
+      frames(got)[:4])
 
 # A board that doesn't answer the handshake (not the RNode firmware): never
 # "online", and the status says why.
 answering[0] = False
-iface._socket.s = Gone()
-asyncio.run(run(0.3))
-iface._last_reconnect = 0
+iface.retry_now()
 asyncio.run(run(rs.HANDSHAKE_S + 1.5))
 st = iface.status()
 check("no answer to the handshake: not online, an error that says what to check", not iface.online
       and st["state"] == "error" and "RNode firmware" in (st["error"] or ""), st)
+
+# Stopping the Stump: the radio off and "the host left", so the RNode
+# doesn't keep transmitting on its own.
+answering[0] = True
+iface.retry_now()
+asyncio.run(run(1.5))
+got.clear()
+iface.close()
+time.sleep(0.3)
+check("on close: radio off, then leave", frames(got) == [(0x06, b"\x00"), (0x0A, b"\xff")], frames(got))
+rs.port_present = _present
 stop.set()
 print("FAILURES", FAIL)
 sys.exit(1 if FAIL else 0)

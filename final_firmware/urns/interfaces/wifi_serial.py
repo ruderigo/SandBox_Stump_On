@@ -83,6 +83,8 @@ CMD_SF          = 0x04
 CMD_CR          = 0x05
 CMD_RADIO_STATE = 0x06
 RADIO_STATE_ON  = 0x01
+RADIO_STATE_OFF = 0x00
+CMD_LEAVE       = 0x0A
 CMD_ST_ALOCK    = 0x0B
 CMD_LT_ALOCK    = 0x0C
 # What an RNode reports back (RNS.Interfaces.RNodeInterface's KISS class):
@@ -293,6 +295,23 @@ class WiFiSerialInterface(Interface):
             # useful and leaving the interface's own state stale.
             self.online = False
 
+    def _health(self):
+        """Each poll while online: keep the link alive (the Heltec's Wi-Fi
+        mode drops a quiet one). RNodeSerialInterface also checks the
+        radio is still there."""
+        if (time.time() - self._last_activity) > self.KEEPALIVE_INTERVAL:
+            self._send_keepalive()
+
+    def retry_now(self):
+        """Connect again right away -- the handshake and the radio set-up
+        from scratch (/admin's "Reconnect the radio"), skipping the
+        backoff."""
+        self._close_socket()
+        self.online = False
+        self._reconnect_count = 0
+        self._last_reconnect = 0
+        self.hw["detected"] = False
+
     def prime(self):
         """Sends a keepalive right now, unconditionally (not waiting for
         KEEPALIVE_INTERVAL to elapse) -- for a caller about to do
@@ -494,8 +513,8 @@ class WiFiSerialInterface(Interface):
             except Exception as e:
                 log("WiFi Serial poll error: " + str(e), LOG_ERROR)
 
-            if self.online and (time.time() - self._last_activity) > self.KEEPALIVE_INTERVAL:
-                self._send_keepalive()
+            if self.online:
+                self._health()
 
             await asyncio.sleep(0.01)
 

@@ -34,6 +34,11 @@ class RNodeSerialInterface:
     def __init__(self, st):
         self.st = st
 
+    retried = 0
+
+    def retry_now(self):
+        self.retried += 1
+
     def status(self):
         r = {"name": self.name, "kind": "usb", "where": "/dev/cu.usbserial-0001",
              "device": "CP2102 USB to UART Bridge Controller", "fw": "1.78", "error": None,
@@ -96,6 +101,13 @@ s, ct, b = admin_page()
 check("/admin offers to turn it back on", "Offer the settings in the chat" in b)
 req('/admin/radiochat', b'admin_pass=pw&on=1')
 check("switched on again", radio.chat_edit() is True)
+s, ct, b = admin_page()
+check("/admin: a button to reconnect the radio", "action='/admin/radioretry'" in b and "Reconnect the radio" in b)
+s, ct, b = req('/admin/radioretry', b'admin_pass=nope')
+check("reconnecting needs the password", s.startswith('403') and iface.retried == 0, s)
+s, ct, b = req('/admin/radioretry', b'admin_pass=pw')
+check("reconnect: the radio is told to connect again", iface.retried == 1 and "handshake starts again" in b,
+      b[:300])
 s, ct, b = req('/admin/radiochat', b'admin_pass=nope&on=0')
 check("the switch needs the password", s.startswith('403') and radio.chat_edit() is True, s)
 

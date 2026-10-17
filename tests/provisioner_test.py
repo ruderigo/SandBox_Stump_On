@@ -315,12 +315,35 @@ check('pc update: a Heltec plugged in is noticed and used, no questions again', 
       and P._pc_heltec_in_config(cfg) == "usb" and "/dev/cu.usbserial-0001" in said.getvalue()
       and rt.state[0] == "done", said.getvalue()[-400:])
 P.list_serial_ports = lambda: []
-answers("y")                                  # "Change them?" -> yes
+_yes_no = P.ask_yes_no
+_yn = iter([False, True])                     # "Bluetooth instead?" -> no; "Change them?" -> yes
+P.ask_yes_no = lambda *a, **k: next(_yn)
 rt = P.Route("pc", key="pc", steps=[("Configure", "auto", "x")])
 with contextlib.redirect_stdout(io.StringIO()) as said:
     rt.start("Configure")
     again = P._pc_configure_existing(rt, pcdir)
 check('pc update: says the settings, and can ask again', again and "Laptop" in said.getvalue(), said.getvalue()[-300:])
+check('pc update: the USB Heltec unplugged: it waits for it, and reconnects by itself',
+      "connect by itself" in said.getvalue(), said.getvalue()[-400:])
+# ... or the Heltec over Bluetooth instead, the rest kept
+P.ask_yes_no = _yes_no                         # "Bluetooth instead?" -> yes
+answers("RNode 3B87")
+rt = P.Route("pc", key="pc", steps=[("Configure", "auto", "x")])
+with contextlib.redirect_stdout(io.StringIO()) as said:
+    rt.start("Configure")
+    again = P._pc_configure_existing(rt, pcdir)
+with contextlib.redirect_stdout(io.StringIO()):
+    cfg = P._read_folder_config(pcdir)
+ifs = [i for i in cfg["CONFIG"]["interfaces"] if i.get("type", "").startswith("RNode")]
+check('pc update: switched to the Heltec over Bluetooth, by name, the rest kept', not again
+      and P._pc_heltec_in_config(cfg) == "ble" and [i["type"] for i in ifs] == ["RNodeBLEInterface"]
+      and ifs[0]["target"] == "RNode 3B87" and cfg["NODE_NAME"] == "Laptop"
+      and "--bluetooth-pair" in said.getvalue() and rt.state[0] == "done", (ifs, said.getvalue()[-400:]))
+check('pc: the summary says Bluetooth', "a Heltec over Bluetooth" in P._pc_settings_summary(cfg))
+block = P._pc_config_block({"pc_hotspot_name": "x", "pc_heltec": "ble", "pc_heltec_ble": "auto",
+                            "pc_radio": {"frequency": 917112000}})
+check('pc: a new Stump with the Heltec over Bluetooth', "'type': 'RNodeBLEInterface'" in block
+      and "'target': 'auto'" in block and "917112000" in block, block)
 P.list_serial_ports = saved_ports
 # macOS: the networks this Mac has joined, when it hides the ones around
 ports_txt = "Hardware Port: Ethernet\nDevice: en1\nEthernet Address: x\n\nHardware Port: Wi-Fi\nDevice: en0\nEthernet Address: y\n"

@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased
+- **The Heltec on USB, lost and found by itself.** Unplugged, the radio
+  stayed "online" (macOS reads just go quiet) until the Provisioner was
+  run again. Now the port is looked at every second and a quiet Heltec
+  is asked "are you an RNode?" every 10 s: gone, or no answer, and the
+  dot turns red with why. Plugged back in -- even under another port
+  name -- it reconnects by itself (handshake, radio set-up).
+- **/admin → Radio → Reconnect the radio**: the handshake again, now
+  (`POST /admin/radioretry`).
+- **The radio off when the Stump stops**: the Heltec's radio is switched
+  off and told the computer left (as reference RNS does), so it doesn't
+  carry on alone. Stopping the login service (launchctl, systemd) now
+  reaches the Stump itself, which does this first.
+- **A Heltec over Bluetooth on a computer** (`RNodeBLEInterface`): the
+  RNode firmware's Bluetooth serial link, no cable. The Provisioner
+  offers it (and installs `bleak`), with the pairing steps
+  (`rnodeconf --bluetooth-on`, `--bluetooth-pair`); an update offers it
+  when the USB Heltec isn't plugged in. Lost and found by itself like
+  USB. Tested against a simulated RNode, not yet on hardware.
+
 ## 1.0.0-beta.6
 - **#lora-mesh crosses between Stumps.** A line in `#lora-mesh` stayed
   on the Stump it was written on: only LoRa users who had messaged that

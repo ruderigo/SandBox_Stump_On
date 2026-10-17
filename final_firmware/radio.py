@@ -17,8 +17,9 @@ it's connected, or at its next connection otherwise.
 import ujson as json
 
 SETTINGS_FILE = "/radio.json"
-# The Heltec bridge: over Wi-Fi (the CAM), or on USB (Stump on a computer).
-BRIDGE_TYPES = ("WiFiSerialInterface", "RNodeSerialInterface")
+# The Heltec bridge: over Wi-Fi (the CAM), or on USB or Bluetooth (Stump on
+# a computer).
+BRIDGE_TYPES = ("WiFiSerialInterface", "RNodeSerialInterface", "RNodeBLEInterface")
 
 # What the Heltec V3's SX1262 and RNode firmware accept.
 BANDWIDTHS = (7800, 10400, 15600, 20800, 31250, 41700, 62500, 125000, 250000, 500000)
@@ -43,6 +44,17 @@ def bridges():
     except ImportError:
         return []
     return [i for i in Transport.interfaces if i.__class__.__name__ in BRIDGE_TYPES]
+
+
+def retry():
+    """Every radio connects again now, handshake and set-up from scratch
+    (/admin's "Reconnect the radio"). How many were told."""
+    n = 0
+    for i in bridges():
+        if hasattr(i, "retry_now"):
+            i.retry_now()
+            n += 1
+    return n
 
 
 def current():

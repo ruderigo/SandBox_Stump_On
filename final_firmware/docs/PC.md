@@ -25,7 +25,7 @@ same questions as a CAM's wizard, adapted to a computer:
 
 - the Wi-Fi name visitors join, for the About page;
 - whether this Stump is in a chain, and its place there;
-- the Heltec: **on USB**, **over Wi-Fi**, or **none**;
+- the Heltec: **on USB**, **over Bluetooth**, **over Wi-Fi**, or **none**;
 - packs, the bot's name and greeting, plugins, credits, features, the
   propagation node, the theme.
 
@@ -103,6 +103,26 @@ On Windows it's a `COM` port, on macOS `/dev/cu.usbserial-…`. The radio
 settings come from `/admin` → Radio, as on a CAM. If the Heltec was set
 to Wi-Fi mode for a CAM and doesn't answer on USB, switch that mode off
 with `rnodeconf` (its `--help` lists the Wi-Fi options).
+
+**Unplugged, or it stops answering?** The Stump notices within a second
+or two (its port is gone, or a quiet Heltec doesn't answer "are you an
+RNode?"): the dot turns red and says why. Plug it back in, even under
+another port name, and it reconnects by itself: handshake and radio
+set-up again. `/admin` → Radio → *Reconnect the radio* does it at once.
+When the Stump stops, it switches the Heltec's radio off and tells it
+the computer left, so it doesn't carry on alone.
+
+**Over Bluetooth:** no cable; the Heltec's RNode firmware has Bluetooth
+(the same serial link, over Bluetooth Low Energy). Once, with the
+Heltec on USB: `rnodeconf <port> --bluetooth-on`, then
+`rnodeconf <port> --bluetooth-pair` (its screen shows a PIN), and pair
+"RNode …" from the computer's Bluetooth settings with that PIN. The
+wizard asks for its name (`'auto'`: the first RNode found) and installs
+`bleak` (Bluetooth for Python) in the Stump's Python. On macOS, allow
+Python to use Bluetooth when asked (System Settings → Privacy & Security
+→ Bluetooth). Out of range or switched off, it's red and reconnects by
+itself when it's back, as on USB. An update offers Bluetooth when the
+Heltec this Stump used on USB isn't plugged in.
 
 **Over Wi-Fi:** as with a CAM: the Heltec joins the computer's network
 with a fixed address (`rnodeconf <port> -w STATION --ip <address>`), and
