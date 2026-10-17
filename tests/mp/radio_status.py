@@ -136,7 +136,8 @@ check("/admin: the USB / Bluetooth switch, USB on", "data-link='usb' aria-presse
 s, ct, b = req('/admin/radiolink.json', b'link=ble')
 check("a visitor can't switch the link", s.startswith('403'), (s, b))
 s, ct, b = admin_page()
-check("/admin: Pair this computer (on USB), and what the Heltec answered", "data-bt='computer'" in b and "id='btheard'" in b)
+check("/admin: Pair this computer (on USB), forget devices, and what the Heltec answered", "data-bt='computer'" in b
+      and "data-bt='unpair'" in b and "id='btheard'" in b)
 s, ct, b = req('/admin/radiochat', b'admin_pass=nope&on=0')
 check("the switch needs the password", s.startswith('403') and radio.chat_edit() is True, s)
 

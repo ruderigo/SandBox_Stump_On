@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.0.0-beta.13
+- **Bluetooth pairing that works with the RNode firmware as it is** (read
+  from its source):
+  - The Stump no longer occupies the Heltec: a Bluetooth connection that
+    goes nowhere made it count as "connected", so it ignored pairing mode
+    and hid from other devices (the on/off dance). Failed attempts now
+    back off, up to 30 s.
+  - Writes go WITH a reply, as the RNode's channel requires: that is what
+    makes the computer encrypt the link (or ask the code the first time).
+    Without it the Heltec never answered after pairing -- the failed
+    handshake.
+  - Pair this computer: the code comes over USB when pairing starts, a
+    35 s countdown matches the Heltec's window, and once it answers over
+    Bluetooth the Stump switches by itself.
+  - **Forget paired devices** (`CMD_BT_UNPAIR`), for a Heltec paired with
+    something else before.
+  - On Bluetooth, *Pair a device* gives way to a note: this computer
+    holds the Heltec's one connection; switch to USB to pair a phone.
+
 ## 1.0.0-beta.12
 - **Fixed: lines from another Stump showed as `<Stump> <nick> text`**
   instead of `nick@Stump` when that Stump's beacon hadn't been heard

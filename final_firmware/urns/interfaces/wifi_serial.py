@@ -108,6 +108,7 @@ CMD_FW_VERSION  = 0x50
 # type on the other device (CMD_BT_PIN, 4 bytes).
 CMD_BT_CTRL     = 0x46
 CMD_BT_PIN      = 0x62
+CMD_BT_UNPAIR   = 0x70        # 0x01: forget every paired device
 BT_ACTIONS      = {"off": 0x00, "on": 0x01, "pair": 0x02}
 CMD_ERROR       = 0x90
 RSSI_OFFSET     = 157
@@ -320,9 +321,13 @@ class WiFiSerialInterface(Interface):
     def bluetooth(self, action):
         """The RNode's Bluetooth: "on", "off", or "pair" (pairing mode; the
         PIN comes back in self.bt). False if the radio isn't connected."""
-        if action not in BT_ACTIONS or not self.online or not self._socket:
+        if action not in BT_ACTIONS and action != "unpair" or not self.online or not self._socket:
             return False
         try:
+            if action == "unpair":
+                self._send_command(CMD_BT_UNPAIR, b"\x01")
+                self.bt["asked"] = action
+                return True
             if action == "pair":
                 self.bt.update(pin=None, at=0)
                 # Bluetooth on first: pairing mode does nothing while it's off.

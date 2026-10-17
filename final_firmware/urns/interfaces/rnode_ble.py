@@ -38,6 +38,12 @@ RETRY_S = 3.0
 # 2 s), and a longer handshake than on USB (it waits 5 s over BLE).
 SETTLE_S = 1.5
 HANDSHAKE_BLE_S = 6.0
+# While a Bluetooth connection here goes nowhere (not paired yet, the
+# wrong device), the Heltec counts itself "connected": it ignores pairing
+# mode and hides from other devices. So attempts that fail back off.
+MAX_RETRY_S = 30.0
+_DETECT = bytes([0xC0, 0x08, 0x73, 0xC0])
+_DETECT_RESP = bytes([0xC0, 0x08, 0x46])
 
 
 def _matches(target, device, adv):
@@ -65,6 +71,9 @@ class _BLEPort:
         self._run = True
         self._drop = False
         self.connected_at = 0
+        self.fails = 0               # Bluetooth attempts in a row that went nowhere
+        self.probe = False           # pairing check: ask "are you an RNode?" itself
+        self.paired = False          # it answered over Bluetooth: the link is encrypted
         self._thread = threading.Thread(target=self._main, daemon=True, name="stump-ble")
         self._thread.start()
 
@@ -150,11 +159,21 @@ class _BLEPort:
                 def on_rx(_char, data):
                     with self._lock:
                         self._rx += data
+                        if _DETECT_RESP in bytes(self._rx[-64:]):
+                            self.paired = True     # it answers: encrypted, paired
+                            self.fails = 0
 
                 async with BleakClient(dev, disconnected_callback=on_disconnect, timeout=CONNECT_S) as c:
                     rx = c.services.get_service(UART_SERVICE).get_characteristic(UART_RX)
                     await c.start_notify(UART_TX, on_rx)
                     size = max(20, getattr(rx, "max_write_without_response_size", 20) or 20)
+                    # The RNode's RX takes writes WITH a reply (and needs an
+                    # encrypted link): writing so makes the computer encrypt
+                    # with the saved pairing, or pair (ask the code) the first
+                    # time. A write without reply there was never answered.
+                    props = [p.lower() for p in (getattr(rx, "properties", None) or [])]
+                    reply = "write-without-response" not in props
+                    last_ask = 0
                     self.reset()
                     self.error = None
                     self._drop = False
@@ -165,7 +184,10 @@ class _BLEPort:
                             chunk = bytes(self._tx[:size])
                             del self._tx[:size]
                         if chunk:
-                            await c.write_gatt_char(rx, chunk, response=False)
+                            await c.write_gatt_char(rx, chunk, response=reply)
+                        elif self.probe and not self.paired and time.time() - last_ask > 2:
+                            last_ask = time.time()
+                            await c.write_gatt_char(rx, _DETECT, response=reply)
                         else:
                             await asyncio.sleep(0.02)
                 self.connected = False
@@ -175,10 +197,12 @@ class _BLEPort:
                     self.error = "the Bluetooth link to %s dropped (it reconnects by itself)" % (self.name or "the Heltec")
             except Exception as e:
                 self.connected = False
-                self.error = ("Bluetooth: %s -- paired? (rnodeconf <port> --bluetooth-pair shows a PIN; "
-                              "pair from this computer's Bluetooth settings)" % (str(e) or e.__class__.__name__))
+                self.error = ("Bluetooth: %s -- paired? (/admin -> Radio -> Bluetooth -> Pair this computer)"
+                              % (str(e) or e.__class__.__name__))
             if self._run:
-                await asyncio.sleep(RETRY_S)
+                if not self.paired:
+                    self.fails += 1
+                await asyncio.sleep(min(MAX_RETRY_S, RETRY_S * (2 ** min(self.fails, 4))) if self.fails else RETRY_S)
 
 
 class RNodeBLEInterface(RNodeSerialInterface):
@@ -226,6 +250,7 @@ class RNodeBLEInterface(RNodeSerialInterface):
             if self._ble is not None and self._ble.connected and "handshake" in str(e):
                 # Connected but nothing came back: start the Bluetooth link
                 # over (a subscription made before the bond is dropped).
+                self._ble.fails += 1
                 self._ble.drop()
                 raise OSError(5, "the Heltec answered nothing over Bluetooth yet (reconnecting it); "
                                  "if it keeps on: forget it in this computer's Bluetooth settings and pair again")

@@ -136,7 +136,7 @@ async def scenario():
 r = aio.run(scenario())
 check("pair this computer: started over USB", r["pair"] == "done", r["pair"])
 check("... the code comes over USB, shown in /admin", r["pin"] == "482913", r["pin"])
-check("... the computer reaches it over Bluetooth meanwhile", r["probe"] == "connected", r["probe"])
+check("... the computer reaches it over Bluetooth, and it answers there: paired", r["probe"] == "paired", r["probe"])
 check("... USB stays up, its 'still there?' paused while pairing", r["usb_still"] and r["quiet"])
 check("... and the attempt makes way when switching", radio._probe["port"] is None)
 check("switched to Bluetooth: done, the only radio now", r["to_ble"] == "done" and len(r["ble"]) == 1

@@ -1743,37 +1743,47 @@ def _render_admin_bt(lang):
             + seg +
             "<p class='sub'>" + T("admin_bt_intro") + "</p>"
             "<div class='btrow'>" + (btn("computer", "admin_bt_computer") if now == "usb" else "")
-            + btn("pair", "admin_bt_pair") + btn("on", "admin_bt_on") + btn("off", "admin_bt_off")
-            + "</div><p class='sub' id='btmsg' aria-live='polite'></p><div id='btpin' hidden></div>"
+            + (btn("pair", "admin_bt_pair") if now != "ble" else "") + btn("on", "admin_bt_on") + btn("off", "admin_bt_off")
+            + btn("unpair", "admin_bt_unpair")
+            + "</div>" + ("<p class='sub'>" + T("admin_bt_ble_note") + "</p>" if now == "ble" else "")
+            + "<p class='sub' id='btmsg' aria-live='polite'></p><div id='btpin' hidden></div>"
             "<p class='sub' id='btprobe'></p>"
             "<details class='tips'><summary>" + T("admin_bt_help") + "</summary><p class='sub'>" + T("admin_bt_tips")
             + "</p><p class='sub'><small>" + T("admin_bt_heard") + " <code id='btheard'>\u2014</code></small></p></details></details>"
             "<script>" + _BT_SCRIPT.replace("BT_LABELS", json.dumps({
                 "pairing": T("admin_bt_pairing"), "pin": T("admin_bt_pin"), "gone": T("admin_bt_gone"),
                 "switching": T("admin_link_switching"), "computer": T("admin_bt_computer_go"),
-                "searching": T("admin_bt_probe_searching"), "connected": T("admin_bt_probe_connected")})) + "</script>")
+                "searching": T("admin_bt_probe_searching"), "connected": T("admin_bt_probe_connected"),
+                "paired": T("admin_bt_probe_paired"), "left": T("admin_bt_left"),
+                "unpair": T("admin_bt_unpair_confirm")})) + "</script>")
 
 
 _BT_SCRIPT = """(function(){
 var L=BT_LABELS, msg=document.getElementById('btmsg'), pin=document.getElementById('btpin'),
-    probe=document.getElementById('btprobe'), heard=document.getElementById('btheard'), timer=null;
-function poll(until){ fetch('/admin/bt.json').then(function(r){return r.json();}).then(function(d){
-  if(d.pin){ pin.hidden=false; pin.innerHTML='<small></small><b></b>'; pin.firstChild.textContent=L.pin; pin.lastChild.textContent=d.pin; }
-  probe.textContent = d.probe==='connected' ? L.connected : d.probe==='searching' ? L.searching : (d.probe||'');
-  if(d.heard&&d.heard.length) heard.textContent=d.heard.join(' ');
-  if(Date.now()>until){ clearInterval(timer); if(!d.pin){ pin.hidden=true; msg.textContent=L.gone; } }
- }).catch(function(){}); }
-function watch(){ var until=Date.now()+180000; clearInterval(timer); timer=setInterval(function(){poll(until);},1000); }
-document.querySelectorAll('#bt [data-link]').forEach(function(b){ b.onclick=function(){
-  if(b.classList.contains('on')) return; msg.textContent=L.switching;
-  fetch('/admin/radiolink.json',{method:'POST',body:'link='+b.getAttribute('data-link')}).then(function(r){return r.json();})
+    probe=document.getElementById('btprobe'), heard=document.getElementById('btheard'), timer=null, switched=false;
+function link(k){ msg.textContent=L.switching;
+  return fetch('/admin/radiolink.json',{method:'POST',body:'link='+k}).then(function(r){return r.json();})
    .then(function(d){ msg.textContent=d.message||''; if(d.ok) setTimeout(function(){ location.reload(); },2500); })
-   .catch(function(){ msg.textContent='\\u2014'; }); }; });
+   .catch(function(){ msg.textContent='\\u2014'; }); }
+function poll(t0, base){ var left=Math.max(0, 35-Math.round((Date.now()-t0)/1000));
+  fetch('/admin/bt.json').then(function(r){return r.json();}).then(function(d){
+  if(d.pin){ pin.hidden=false; pin.innerHTML='<small></small><b></b>'; pin.firstChild.textContent=L.pin; pin.lastChild.textContent=d.pin; }
+  var p = d.probe==='paired' ? L.paired : d.probe==='connected' ? L.connected : d.probe==='searching' ? L.searching : (d.probe||'');
+  probe.textContent=p;
+  if(d.heard&&d.heard.length) heard.textContent=d.heard.join(' ');
+  if(d.probe==='paired'&&!switched){ switched=true; clearInterval(timer); link('ble'); return; }
+  msg.textContent = left>0 ? base+' '+L.left.replace('{s}',left) : L.gone;
+  if(Date.now()-t0>60000){ clearInterval(timer); }
+ }).catch(function(){}); }
+function watch(base){ var t0=Date.now(); clearInterval(timer); timer=setInterval(function(){poll(t0, base);},1000); }
+document.querySelectorAll('#bt [data-link]').forEach(function(b){ b.onclick=function(){
+  if(!b.classList.contains('on')) link(b.getAttribute('data-link')); }; });
 document.querySelectorAll('#bt [data-bt]').forEach(function(b){ b.onclick=function(){
-  var a=b.getAttribute('data-bt'); msg.textContent='\\u2026'; pin.hidden=true; probe.textContent='';
+  var a=b.getAttribute('data-bt'); if(a==='unpair'&&!confirm(L.unpair)) return;
+  msg.textContent='\\u2026'; pin.hidden=true; probe.textContent='';
   fetch('/admin/bluetooth.json',{method:'POST',body:'action='+a}).then(function(r){return r.json();}).then(function(d){
     msg.textContent=d.message||'';
-    if((a==='pair'||a==='computer')&&d.ok){ msg.textContent=a==='computer'?L.computer:L.pairing; watch(); }
+    if((a==='pair'||a==='computer')&&d.ok){ watch(a==='computer'?L.computer:L.pairing); }
   }).catch(function(){ msg.textContent='\\u2014'; }); }; });
 })();"""
 
@@ -3190,8 +3200,9 @@ async def _handle(reader, writer, secure=False):
                     ok, key = r == "done", {"done": "admin_bt_computer_go", "usb": "admin_bt_computer_usb",
                                             "bleak": "admin_link_r_bleak"}.get(r, "admin_bt_offline")
                 else:
-                    ok = action in ("on", "off", "pair") and radio.bluetooth(action) > 0
-                    key = {"on": "admin_bt_done_on", "off": "admin_bt_done_off", "pair": "admin_bt_pairing"}.get(action)
+                    ok = action in ("on", "off", "pair", "unpair") and radio.bluetooth(action) > 0
+                    key = {"on": "admin_bt_done_on", "off": "admin_bt_done_off", "pair": "admin_bt_pairing",
+                           "unpair": "admin_bt_done_unpair"}.get(action)
                     key = key if ok else "admin_bt_offline"
                 await _send(writer, "200 OK", json.dumps({"ok": ok, "message": i18n.t(key, lang)}), "application/json")
 

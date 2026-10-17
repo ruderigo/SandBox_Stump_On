@@ -70,7 +70,7 @@ def bluetooth(action):
 
 
 _probe = {"port": None, "until": 0}
-PROBE_S = 180
+PROBE_S = 60                  # the Heltec's pairing window is 35 s
 
 
 def pair_computer():
@@ -93,7 +93,9 @@ def pair_computer():
         i.quiet_until = time.time() + PROBE_S
     _probe_stop()
     from urns.interfaces.rnode_ble import _BLEPort
-    _probe["port"] = _BLEPort("auto")
+    p = _BLEPort("auto")
+    p.probe = True                # it asks the Heltec itself: an answer = paired
+    _probe["port"] = p
     _probe["until"] = time.time() + PROBE_S
     return "done"
 
@@ -120,6 +122,8 @@ def probe_state(now=None):
     if now > _probe["until"]:
         _probe_stop()
         return None
+    if p.paired:
+        return "paired"
     if p.connected:
         return "connected"
     return p.error or "searching"

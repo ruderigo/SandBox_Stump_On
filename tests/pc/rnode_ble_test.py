@@ -78,6 +78,7 @@ class Scanner:
 
 class Char:
     max_write_without_response_size = 20
+    properties = ["write"]                  # the RNode's RX: writes with a reply only
 
 
 class Service:
@@ -112,6 +113,7 @@ class Client:
         self.notify = cb
 
     async def write_gatt_char(self, char, data, response=False):
+        radio.setdefault("replies", []).append(response)
         radio["writes"].append(len(data))
         radio["written"].extend(data)
         # Answers each "are you an RNode?" once, however it was cut up.
@@ -158,6 +160,8 @@ radio["writes"].clear()
 pkt = bytes(range(100)) + bytes([FEND])
 iface.process_outgoing(pkt)
 asyncio.run(run(0.5))
+check("written WITH a reply (what makes the computer encrypt the link)", radio["replies"] and all(radio["replies"]),
+      radio["replies"][:5])
 check("a packet goes out whole, cut to the link's size", frames(radio["written"]) == [(0, pkt)]
       and max(radio["writes"]) <= 20 and len(radio["writes"]) > 1, (frames(radio["written"]), radio["writes"]))
 incoming = bytes(range(50)) + b"in"
