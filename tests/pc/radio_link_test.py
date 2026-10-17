@@ -47,6 +47,8 @@ def usb_rnode():
             usb_got.extend(data)
             if HELLO in data:
                 os.write(master, ANSWER)
+            if bytes([FEND, 0x46, 0x02, FEND]) in data:
+                os.write(master, kiss(0x62, (482913).to_bytes(4, "big")))     # the code, over USB
         except (BlockingIOError, OSError):
             time.sleep(0.02)
 
@@ -111,6 +113,15 @@ check("on USB to start with", radio.link() == "usb" and usb.online, radio.hw())
 
 async def scenario():
     out = {}
+    poll = aio.create_task(usb.poll_loop())          # the Stump reads the USB link all along
+    # Pair this computer: pairing mode over USB, a Bluetooth attempt from
+    # here, the code shown from USB.
+    out["pair"] = radio.pair_computer()
+    await aio.sleep(1.5)
+    out["probe"] = radio.probe_state()
+    out["pin"] = radio.bt_pin()
+    out["quiet"] = getattr(usb, "quiet_until", 0) > time.time()
+    out["usb_still"] = usb.online
     usb_got.clear()
     out["to_ble"] = radio.switch_link("ble")
     await aio.sleep(rb.RNodeBLEInterface.LOOK_EVERY + 1.5)
@@ -123,6 +134,11 @@ async def scenario():
     return out
 
 r = aio.run(scenario())
+check("pair this computer: started over USB", r["pair"] == "done", r["pair"])
+check("... the code comes over USB, shown in /admin", r["pin"] == "482913", r["pin"])
+check("... the computer reaches it over Bluetooth meanwhile", r["probe"] == "connected", r["probe"])
+check("... USB stays up, its 'still there?' paused while pairing", r["usb_still"] and r["quiet"])
+check("... and the attempt makes way when switching", radio._probe["port"] is None)
 check("switched to Bluetooth: done, the only radio now", r["to_ble"] == "done" and len(r["ble"]) == 1
       and radio.link() in ("ble", "usb") and len(Transport.interfaces) == 1, (r["to_ble"], Transport.interfaces))
 check("the USB link was closed properly: radio off, then leave", kiss(0x06, b"\x00") + kiss(0x0A, b"\xff") in r["usb_closed"],

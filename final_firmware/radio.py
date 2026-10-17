@@ -69,6 +69,70 @@ def bluetooth(action):
     return n
 
 
+_probe = {"port": None, "until": 0}
+PROBE_S = 180
+
+
+def pair_computer():
+    """Pairs this computer with the Heltec while it's still on USB: pairing
+    mode over USB, and a Bluetooth connection attempt from this computer
+    (which makes the computer ask for the code); the Heltec sends the code
+    over USB, so /admin shows it. Then switch_link("ble"). Returns "done",
+    "usb" (not on USB), "bleak" (Bluetooth support installing), "offline"."""
+    import time
+    if link() != "usb":
+        return "usb"
+    if not ble_ready():
+        return "bleak"
+    if bluetooth("pair") < 1:
+        return "offline"
+    for i in bridges():
+        # While this computer pairs over Bluetooth the Heltec may stop
+        # answering on USB: don't take that for a lost radio (reopening the
+        # port restarts it, which would end the pairing).
+        i.quiet_until = time.time() + PROBE_S
+    _probe_stop()
+    from urns.interfaces.rnode_ble import _BLEPort
+    _probe["port"] = _BLEPort("auto")
+    _probe["until"] = time.time() + PROBE_S
+    return "done"
+
+
+def _probe_stop():
+    p = _probe["port"]
+    if p is not None:
+        try:
+            p.stop()
+            p.drop()
+        except Exception:
+            pass
+    _probe["port"] = None
+
+
+def probe_state(now=None):
+    """The pairing attempt from this computer: None, "searching",
+    "connected", or an error line."""
+    import time
+    now = time.time() if now is None else now
+    p = _probe["port"]
+    if p is None:
+        return None
+    if now > _probe["until"]:
+        _probe_stop()
+        return None
+    if p.connected:
+        return "connected"
+    return p.error or "searching"
+
+
+def bt_heard():
+    """The last few things the Heltec said that aren't status reports."""
+    out = []
+    for i in bridges():
+        out += list((getattr(i, "bt", None) or {}).get("heard", []))
+    return out[-8:]
+
+
 def bt_pin(now=None):
     """The pairing PIN the radio gave (recent), or None. Admin only."""
     import time
@@ -319,6 +383,7 @@ def switch_link(kind, target="auto"):
         return "same"
     if kind == "ble" and not ble_ready():
         return "bleak"
+    _probe_stop()                 # the pairing attempt's connection makes way
     try:
         import uasyncio as asyncio
         from urns.transport import Transport

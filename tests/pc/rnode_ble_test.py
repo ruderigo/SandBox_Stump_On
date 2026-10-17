@@ -56,7 +56,7 @@ def kiss(cmd, payload):
 
 # ---- a stand-in for bleak, with an RNode behind it -------------------------
 UART = "6e400001-b5a3-f393-e0a9-e50e24dcca9e"
-radio = {"around": True, "answering": True, "written": bytearray(), "writes": [], "client": None, "seen": b""}
+radio = {"around": True, "answering": True, "mute": 0, "connects": 0, "written": bytearray(), "writes": [], "client": None, "seen": b""}
 DETECT = bytes([FEND, 0x08, 0x73, FEND])
 
 
@@ -100,6 +100,9 @@ class Client:
     async def __aenter__(self):
         self.up = True
         radio["client"] = self
+        radio["connects"] += 1
+        self.mute = radio["mute"] > 0          # a subscription lost to the first pairing
+        radio["mute"] = max(0, radio["mute"] - 1)
         return self
 
     async def __aexit__(self, *a):
@@ -113,7 +116,7 @@ class Client:
         radio["written"].extend(data)
         # Answers each "are you an RNode?" once, however it was cut up.
         seen = radio["seen"] + bytes(data)
-        if radio["answering"] and DETECT in seen:
+        if radio["answering"] and DETECT in seen and not self.mute:
             self.notify(None, bytearray(kiss(0x08, b"\x46") + kiss(0x50, b"\x01\x4e") + kiss(0x48, b"\x80")))
             seen = seen[seen.rindex(DETECT) + len(DETECT):]
         radio["seen"] = seen[-8:]
@@ -178,6 +181,18 @@ radio["written"].clear()
 asyncio.run(run(2.5))
 check("back in range: reconnects by itself, handshake and set-up again", iface.online
       and [c for c, p in frames(radio["written"])][:3] == [0x08, 0x50, 0x48], (iface.status(), frames(radio["written"])[:4]))
+
+# Just paired: connected, but nothing comes back (the subscription made
+# before the bond was dropped): the link is started over, then it works.
+rb.RNodeBLEInterface.HANDSHAKE_WAIT = 1.5
+radio["mute"] = 1
+before = radio["connects"]
+iface._ble.drop()                       # a fresh connection -- the muted one
+iface.retry_now()
+asyncio.run(run(16))
+check("connected but silent after pairing: the Bluetooth link is started over, then online",
+      iface.online and radio["connects"] >= before + 2, (iface.status().get("error"), radio["connects"] - before))
+rb.RNodeBLEInterface.HANDSHAKE_WAIT = rb.HANDSHAKE_BLE_S
 
 # /admin's retry works the same way.
 iface.retry_now()

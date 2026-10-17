@@ -185,7 +185,7 @@ class WiFiSerialInterface(Interface):
 
         # Bluetooth pairing: the PIN the RNode gave, kept out of self.hw so
         # it never shows in the public status (/hw.json).
-        self.bt = {"pin": None, "at": 0, "asked": None}
+        self.bt = {"pin": None, "at": 0, "asked": None, "heard": []}
 
         try:
             self._connect()
@@ -501,6 +501,12 @@ class WiFiSerialInterface(Interface):
             elif cmd in (CMD_TXPOWER, CMD_SF, CMD_CR, CMD_RADIO_STATE) and n:
                 h["radio"][{CMD_TXPOWER: "txpower", CMD_SF: "sf", CMD_CR: "cr",
                             CMD_RADIO_STATE: "on"}[cmd]] = data[0]
+            elif cmd not in (CMD_STAT_RSSI, CMD_STAT_SNR, CMD_BOARD, CMD_MCU, CMD_DETECT):
+                # Anything else it says, kept (the last few) for /admin's
+                # Bluetooth box: what the Heltec answered while pairing.
+                heard = self.bt["heard"]
+                heard.append("%02x:%s" % (cmd, "".join("%02x" % b for b in data[:8])))
+                del heard[:-8]
         except Exception:
             pass
 

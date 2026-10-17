@@ -1742,32 +1742,39 @@ def _render_admin_bt(lang):
             + (" <span class='pk'>" + ("USB" if now == "usb" else "Bluetooth") + "</span>" if now else "") + "</summary>"
             + seg +
             "<p class='sub'>" + T("admin_bt_intro") + "</p>"
-            "<div class='btrow'>" + btn("pair", "admin_bt_pair") + btn("on", "admin_bt_on") + btn("off", "admin_bt_off")
+            "<div class='btrow'>" + (btn("computer", "admin_bt_computer") if now == "usb" else "")
+            + btn("pair", "admin_bt_pair") + btn("on", "admin_bt_on") + btn("off", "admin_bt_off")
             + "</div><p class='sub' id='btmsg' aria-live='polite'></p><div id='btpin' hidden></div>"
+            "<p class='sub' id='btprobe'></p>"
             "<details class='tips'><summary>" + T("admin_bt_help") + "</summary><p class='sub'>" + T("admin_bt_tips")
-            + "</p></details></details>"
+            + "</p><p class='sub'><small>" + T("admin_bt_heard") + " <code id='btheard'>\u2014</code></small></p></details></details>"
             "<script>" + _BT_SCRIPT.replace("BT_LABELS", json.dumps({
                 "pairing": T("admin_bt_pairing"), "pin": T("admin_bt_pin"), "gone": T("admin_bt_gone"),
-                "switching": T("admin_link_switching")})) + "</script>")
+                "switching": T("admin_link_switching"), "computer": T("admin_bt_computer_go"),
+                "searching": T("admin_bt_probe_searching"), "connected": T("admin_bt_probe_connected")})) + "</script>")
 
 
 _BT_SCRIPT = """(function(){
-var L=BT_LABELS, msg=document.getElementById('btmsg'), pin=document.getElementById('btpin'), timer=null;
+var L=BT_LABELS, msg=document.getElementById('btmsg'), pin=document.getElementById('btpin'),
+    probe=document.getElementById('btprobe'), heard=document.getElementById('btheard'), timer=null;
 function poll(until){ fetch('/admin/bt.json').then(function(r){return r.json();}).then(function(d){
   if(d.pin){ pin.hidden=false; pin.innerHTML='<small></small><b></b>'; pin.firstChild.textContent=L.pin; pin.lastChild.textContent=d.pin; }
-  else if(Date.now()>until){ clearInterval(timer); pin.hidden=true; msg.textContent=L.gone; }
+  probe.textContent = d.probe==='connected' ? L.connected : d.probe==='searching' ? L.searching : (d.probe||'');
+  if(d.heard&&d.heard.length) heard.textContent=d.heard.join(' ');
+  if(Date.now()>until){ clearInterval(timer); if(!d.pin){ pin.hidden=true; msg.textContent=L.gone; } }
  }).catch(function(){}); }
+function watch(){ var until=Date.now()+180000; clearInterval(timer); timer=setInterval(function(){poll(until);},1000); }
 document.querySelectorAll('#bt [data-link]').forEach(function(b){ b.onclick=function(){
   if(b.classList.contains('on')) return; msg.textContent=L.switching;
   fetch('/admin/radiolink.json',{method:'POST',body:'link='+b.getAttribute('data-link')}).then(function(r){return r.json();})
    .then(function(d){ msg.textContent=d.message||''; if(d.ok) setTimeout(function(){ location.reload(); },2500); })
-   .catch(function(){ msg.textContent='\u2014'; }); }; });
+   .catch(function(){ msg.textContent='\\u2014'; }); }; });
 document.querySelectorAll('#bt [data-bt]').forEach(function(b){ b.onclick=function(){
-  var a=b.getAttribute('data-bt'); msg.textContent='\u2026'; pin.hidden=true;
+  var a=b.getAttribute('data-bt'); msg.textContent='\\u2026'; pin.hidden=true; probe.textContent='';
   fetch('/admin/bluetooth.json',{method:'POST',body:'action='+a}).then(function(r){return r.json();}).then(function(d){
     msg.textContent=d.message||'';
-    if(a==='pair'&&d.ok){ msg.textContent=L.pairing; var until=Date.now()+180000; clearInterval(timer); timer=setInterval(function(){poll(until);},1000); }
-  }).catch(function(){ msg.textContent='\u2014'; }); }; });
+    if((a==='pair'||a==='computer')&&d.ok){ msg.textContent=a==='computer'?L.computer:L.pairing; watch(); }
+  }).catch(function(){ msg.textContent='\\u2014'; }); }; });
 })();"""
 
 
@@ -3028,7 +3035,8 @@ async def _handle(reader, writer, secure=False):
             if not _admin_or_local(identifier, headers):
                 await _send(writer, "403 Forbidden", "{}", "application/json")
             else:
-                await _send(writer, "200 OK", json.dumps({"pin": radio.bt_pin()}), "application/json")
+                await _send(writer, "200 OK", json.dumps({"pin": radio.bt_pin(), "probe": radio.probe_state(),
+                                                          "heard": radio.bt_heard()}), "application/json")
 
         elif method == "GET" and path.startswith("/admin"):
             # No link anywhere points here on purpose -- see
@@ -3177,10 +3185,15 @@ async def _handle(reader, writer, secure=False):
                             "application/json")
             else:
                 action = billboard._url_decode(body.decode().split("action=", 1)[-1].split("&")[0]) if b"action=" in body else ""
-                ok = action in ("on", "off", "pair") and radio.bluetooth(action) > 0
-                key = {"on": "admin_bt_done_on", "off": "admin_bt_done_off", "pair": "admin_bt_pairing"}.get(action)
-                await _send(writer, "200 OK", json.dumps({"ok": ok, "message": i18n.t(
-                    key if ok else "admin_bt_offline", lang)}), "application/json")
+                if action == "computer":
+                    r = radio.pair_computer()
+                    ok, key = r == "done", {"done": "admin_bt_computer_go", "usb": "admin_bt_computer_usb",
+                                            "bleak": "admin_link_r_bleak"}.get(r, "admin_bt_offline")
+                else:
+                    ok = action in ("on", "off", "pair") and radio.bluetooth(action) > 0
+                    key = {"on": "admin_bt_done_on", "off": "admin_bt_done_off", "pair": "admin_bt_pairing"}.get(action)
+                    key = key if ok else "admin_bt_offline"
+                await _send(writer, "200 OK", json.dumps({"ok": ok, "message": i18n.t(key, lang)}), "application/json")
 
         elif method == "POST" and path.startswith("/admin/radio.json"):
             # The radio's settings from the chat's pop-up (rrc_ui): the

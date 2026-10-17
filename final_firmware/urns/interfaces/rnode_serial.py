@@ -193,7 +193,12 @@ class RNodeSerialInterface(WiFiSerialInterface):
         self._send_command(CMD_FW_VERSION, b"\x00")
         self._send_command(CMD_PLATFORM, b"\x00")
         t0 = time.time()
-        while not self.hw["detected"] and time.time() - t0 < HANDSHAKE_S:
+        limit = getattr(self, "HANDSHAKE_WAIT", None) or HANDSHAKE_S
+        again = False
+        while not self.hw["detected"] and time.time() - t0 < limit:
+            if not again and time.time() - t0 > limit / 2:
+                again = True                   # asked once more, halfway
+                self._send_command(CMD_DETECT, bytes([DETECT_REQ]))
             try:
                 n = s.readinto(self._recv_buf)
                 for i in range(n):
@@ -261,6 +266,8 @@ class RNodeSerialInterface(WiFiSerialInterface):
             if not self._present():
                 self._lost(self._lost_text())
                 return
+        if now < getattr(self, "quiet_until", 0):
+            return                 # pairing over Bluetooth: no "still there?" meanwhile
         if self._probe_at and self._last_heard < self._probe_at:
             if now - self._probe_at > self.PROBE_WAIT:
                 self._lost("stopped answering on %s (it reconnects by itself)" % self.where())

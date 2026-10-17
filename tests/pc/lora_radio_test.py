@@ -123,6 +123,36 @@ for item in q:
 check("#wifi-mesh: sent on the chain only, nothing on the radio", chain_if.sent and not radio_if.sent,
       (len(chain_if.sent), len(radio_if.sent)))
 del rrc_mesh._send_queue[:]
+# A Stump not known yet (its beacon missed) sends a #lora-mesh batch over
+# the radio: it's taken for a Stump by the title, and its lines show as
+# nick@stump -- not as "<nick> text" said by the Stump itself.
+class Msg:
+    def __init__(self, src, title, text):
+        self.source_hash, self._t, self._c = src, title, text
+        self.receiving_interface = radio_if
+        self.signature_validated = True
+        self.fields = {}
+
+    def title_as_string(self):
+        return self._t
+
+    def content_as_string(self):
+        return self._c
+
+stranger = bytes(range(16))
+me.peers[stranger] = {"name": "Radioz"}
+rrc.create_room(rrc.MESH_ROOM)
+before = rrc.since(rrc.MESH_ROOM, 0)[-1]["id"] if rrc.since(rrc.MESH_ROOM, 0) else 0
+rrc_mesh.on_message(me, Msg(stranger, "#lora-mesh", "<ana> hello over the air"))
+new = rrc.since(rrc.MESH_ROOM, before)
+check("an unknown Stump's #lora-mesh batch: shown as nick@stump", any(m["nick"] == "ana@Radioz"
+      and m["body"] == "hello over the air" for m in new) and not any(m["body"].startswith("<ana>") for m in new), new)
+check("... and it's known as a Stump from now on", rrc.is_stump(stranger.hex()))
+plain = bytes(range(16, 32))
+me.peers[plain] = {"name": "phone"}
+rrc_mesh.on_message(me, Msg(plain, "", "hi from a phone"))
+check("a LoRa phone's message is still a person's", not rrc.is_stump(plain.hex()))
+
 # Off Wi-Fi, Stumps only meet over the radio: the radio coming up, and a
 # Stump heard for the first time, make this one introduce itself soon
 # (its beacon and LXMF announce), not more often than set.

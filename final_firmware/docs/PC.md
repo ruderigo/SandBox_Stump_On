@@ -136,8 +136,12 @@ puts it in pairing mode, and shows the code when the phone or computer
 asks for it (it's on the Heltec's screen too); *Turn on* / *Turn off*
 there too. **USB ⇄ Bluetooth** in the same box moves the Heltec from
 one to the other, live, and keeps the choice. To pair this computer:
-start on USB, *Pair a device*, then switch to Bluetooth (macOS asks for
-the code on the Heltec's screen; it asks Python, not the browser). The
+on USB, **Pair this computer** -- the Heltec goes into pairing mode, the
+computer reaches for it over Bluetooth and asks for a code, and the code
+shows in /admin (sent over the USB cable; no button to hold on the
+Heltec); type it, then switch to Bluetooth. macOS asks Python, not the
+browser. Under *Not working?*, the Heltec's last answers help find out
+why. The
 `--pc` wizard installs Bluetooth support whenever there's a Heltec. It takes one Bluetooth connection at a time: a
 phone already connected to it (FireFly, Sideband) keeps others from
 seeing it -- turn that phone's Bluetooth off first. **Plugged in by USB

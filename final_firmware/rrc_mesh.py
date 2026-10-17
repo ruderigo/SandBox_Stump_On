@@ -593,6 +593,22 @@ def on_message(router, message):
                     peer["room"] = peer["home_room"] = rrc.CHAIN_ROOM
                     rrc.system(rrc.CHAIN_ROOM, rrc.ev_join("~" + peer["nick"]))
                 rrc.touch_user(dest_hash_hex, nick=peer["nick"], room=peer["room"])
+        if not peer.get("stump") and not rrc.is_stump(dest_hash_hex):
+            # Over the radio too, another Stump shows by what it sends, before
+            # its beacon is heard: a batch titled with a Stumps' room, or a
+            # DM line. (Missed, its "<nick> text" lines showed as said by the
+            # Stump itself.)
+            try:
+                t = message.title_as_string() or ""
+            except Exception:
+                t = ""
+            if t in ("#" + rrc.MESH_ROOM, "#" + rrc.CHAIN_ROOM) or text0.startswith("[DM>"):
+                rrc.mark_stump(dest_hash_hex)
+                try:
+                    import chain
+                    chain.stump_heard()      # and introduce this one back
+                except Exception:
+                    pass
         if not peer.get("stump") and rrc.is_stump(dest_hash_hex):
             peer["stump"] = True
         if peer.get("stump"):

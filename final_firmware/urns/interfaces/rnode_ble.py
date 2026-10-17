@@ -34,6 +34,10 @@ UART_TX = "6e400003-b5a3-f393-e0a9-e50e24dcca9e"     # it notifies here
 SCAN_S = 5.0
 CONNECT_S = 15.0
 RETRY_S = 3.0
+# After connecting, a moment before the handshake (reference RNS waits
+# 2 s), and a longer handshake than on USB (it waits 5 s over BLE).
+SETTLE_S = 1.5
+HANDSHAKE_BLE_S = 6.0
 
 
 def _matches(target, device, adv):
@@ -59,6 +63,8 @@ class _BLEPort:
         self._tx = bytearray()
         self._lock = threading.Lock()
         self._run = True
+        self._drop = False
+        self.connected_at = 0
         self._thread = threading.Thread(target=self._main, daemon=True, name="stump-ble")
         self._thread.start()
 
@@ -99,6 +105,12 @@ class _BLEPort:
 
     def stop(self):
         self._run = False
+
+    def drop(self):
+        """Disconnect and connect again from scratch: after a first pairing,
+        macOS may have dropped the subscription made before the bond, so
+        the link is up but carries nothing (reference RNS reconnects too)."""
+        self._drop = True
 
     # -- the Bluetooth side (its own thread and asyncio loop) ---------------
 
@@ -145,8 +157,10 @@ class _BLEPort:
                     size = max(20, getattr(rx, "max_write_without_response_size", 20) or 20)
                     self.reset()
                     self.error = None
+                    self._drop = False
+                    self.connected_at = time.time()
                     self.connected = True
-                    while self._run and not gone.is_set():
+                    while self._run and not gone.is_set() and not self._drop:
                         with self._lock:
                             chunk = bytes(self._tx[:size])
                             del self._tx[:size]
@@ -155,7 +169,9 @@ class _BLEPort:
                         else:
                             await asyncio.sleep(0.02)
                 self.connected = False
-                if self._run:
+                if self._drop:
+                    self._drop = False
+                elif self._run:
                     self.error = "the Bluetooth link to %s dropped (it reconnects by itself)" % (self.name or "the Heltec")
             except Exception as e:
                 self.connected = False
@@ -167,6 +183,7 @@ class _BLEPort:
 
 class RNodeBLEInterface(RNodeSerialInterface):
     KIND = "ble"
+    HANDSHAKE_WAIT = HANDSHAKE_BLE_S
     # Bluetooth is slower to say it's gone than a USB port: the link's own
     # disconnect, or the probe, whichever comes first.
     PROBE_WAIT = 6.0
@@ -195,9 +212,24 @@ class RNodeBLEInterface(RNodeSerialInterface):
         b = self._link()
         if not b.connected:
             raise OSError(19, b.error or "looking for the Heltec over Bluetooth...")
+        wait = SETTLE_S - (time.time() - b.connected_at)
+        if wait > 0:
+            time.sleep(wait)
         self.hw["device"] = b.name
         b.reset()
         return b
+
+    def _connect(self):
+        try:
+            RNodeSerialInterface._connect(self)
+        except OSError as e:
+            if self._ble is not None and self._ble.connected and "handshake" in str(e):
+                # Connected but nothing came back: start the Bluetooth link
+                # over (a subscription made before the bond is dropped).
+                self._ble.drop()
+                raise OSError(5, "the Heltec answered nothing over Bluetooth yet (reconnecting it); "
+                                 "if it keeps on: forget it in this computer's Bluetooth settings and pair again")
+            raise
 
     def _open_failed_text(self):
         b = self._link()

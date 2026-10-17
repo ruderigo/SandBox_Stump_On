@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.0.0-beta.12
+- **Fixed: lines from another Stump showed as `<Stump> <nick> text`**
+  instead of `nick@Stump` when that Stump's beacon hadn't been heard
+  (over the radio, no chain). A batch titled `#lora-mesh` or
+  `#wifi-mesh`, or a DM line, now marks its sender as a Stump wherever it
+  comes from -- and this Stump introduces itself back.
+- **Pair this computer** (`/admin` → Radio → Bluetooth, on USB): pairing
+  mode over USB, a Bluetooth attempt from the computer, and the code the
+  Heltec gives shown in /admin -- no boot button to hold. Then switch to
+  Bluetooth. The USB "still there?" check pauses meanwhile (reopening the
+  port would restart the Heltec mid-pairing).
+- **Bluetooth handshake after pairing:** a short wait after connecting,
+  a longer handshake (asked twice), and when the link is up but silent
+  (macOS drops a subscription made before the bond) it's started over,
+  as reference RNS does.
+- `/admin` shows the Heltec's last answers under *Not working?*, to find
+  out what it does while pairing.
+
 ## 1.0.0-beta.11
 - **USB ⇄ Bluetooth switch in /admin** (Radio → Bluetooth), for the
   Heltec on a computer: live, no restart -- the old link is closed
