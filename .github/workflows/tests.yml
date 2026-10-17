@@ -87,3 +87,5 @@ jobs:
         run: python tests/pc/rnode_serial_test.py
       - name: The Heltec over Bluetooth, against a simulated RNode
         run: python tests/pc/rnode_ble_test.py
+      - name: Turning the Stump off from /admin
+        run: python tests/pc/pc_power_test.py

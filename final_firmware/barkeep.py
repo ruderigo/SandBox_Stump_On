@@ -1066,6 +1066,7 @@ def _render_admin_file_list_page(lang, names, pw):
         "<div class='admin-head'><h1>" + i18n.t("admin_header", lang) + "</h1>"
         + _admin_logout_form(lang, pw) + "</div>"
         + _release_line()
+        + _render_admin_power_section(lang, pw)
         + files_part
         + board_part
         + _render_admin_tools_section(lang, pw)
@@ -1474,6 +1475,39 @@ def _render_admin_radio_live(lang):
             ".hw-dot.connecting{background:#f0a030}.hw-dot.error{background:#e5534b}</style>"
             "<div id='hwlive'><p class='sub'>…</p></div>"
             + _HW_LIVE_SCRIPT.replace("HW_LABELS", json.dumps(labels)))
+
+
+def _host():
+    """The computer this Stump runs on (pc_compat's stump_host), or None on
+    a board."""
+    try:
+        import stump_host
+        return stump_host if getattr(stump_host, "IS_PC", False) else None
+    except ImportError:
+        return None
+
+
+def _render_admin_power_section(lang, pw):
+    """On a computer: turn this Stump off (it runs in the background, from
+    the login service). Started again from the Start file in its folder,
+    or at the next login."""
+    h = _host()
+    if h is None:
+        return ""
+    where = billboard._esc(getattr(h, "START_FILE", "Start Stump"))
+    return ("<h2 class='sub'>" + i18n.t("admin_power_header", lang) + "</h2>"
+            "<form method='POST' action='/admin/poweroff' class='post-form' onsubmit=\"return confirm("
+            + billboard._esc(json.dumps(i18n.t("admin_power_confirm", lang))) + ")\">"
+            "<input type='hidden' name='admin_pass' value='" + billboard._esc(pw) + "'>"
+            "<p class='sub'>" + i18n.t("admin_power_intro", lang, start=where) + "</p>"
+            "<button type='submit'>" + i18n.t("admin_power_off", lang) + "</button></form>")
+
+
+async def _power_off_soon():
+    """After the answer has gone out: turn the Stump off."""
+    import uasyncio as asyncio
+    await asyncio.sleep(1)
+    _host().power_off()
 
 
 def _render_admin_radio_section(lang, pw):
@@ -2478,7 +2512,7 @@ async def _read_small_body(reader, length, chunk=1024, cap=None):
 # these would break a page still open over HTTP, since the browser
 # refuses a cross-origin redirect for them.
 _NO_REDIRECT = ("/home-file", "/tls-ok", "/rrc/poll", "/rrc/voice", "/rrc/send", "/download", "/codec2", "/opus.", "/billboard.json",
-                "/files.json", "/plugins.json", "/chain.json", "/hw.json", "/admin/radio.json", "/fw", "/tool?", "/lang", "/upload", "/post", "/chat")
+                "/files.json", "/plugins.json", "/chain.json", "/hw.json", "/admin/radio.json", "/admin/poweroff", "/fw", "/tool?", "/lang", "/upload", "/post", "/chat")
 
 
 def _own_ap_ip():
@@ -2772,6 +2806,30 @@ async def _handle(reader, writer, secure=False):
                 names = fserv._list_files() if fserv.sd_ok else []
                 notice = "<p class='sub'>" + billboard._esc(msg) + "</p>" if msg else ""
                 await _send(writer, "200 OK", _page(notice + _render_admin_file_list_page(lang, names, pw)))
+
+        elif method == "POST" and path.startswith("/admin/poweroff"):
+            # Turn this Stump off (a computer): /admin's button with the
+            # password, or the Stop file on the computer itself (local).
+            length = int(headers.get("content-length", "0"))
+            body = await _read_small_body(reader, length)
+            fields = {}
+            for kv in body.decode().split("&"):
+                parts = kv.split("=", 1)
+                if len(parts) == 2:
+                    fields[parts[0]] = billboard._url_decode(parts[1])
+            h = _host()
+            lang = i18n.get_lang(identifier)
+            if h is None:
+                await _send(writer, "404 Not Found", "Not a computer Stump", "text/plain")
+            elif not (identifier in _LOCAL or _admin_ok(fields.get("admin_pass", ""), identifier)):
+                await _send(writer, "403 Forbidden", "Invalid admin password", "text/plain")
+            else:
+                folder = billboard._esc(str(getattr(h, "ROOT", "") or ""))
+                await _send(writer, "200 OK", _page(
+                    "<h1>" + i18n.t("admin_power_bye_title", lang) + "</h1><p class='sub'>"
+                    + i18n.t("admin_power_bye", lang, start=billboard._esc(h.START_FILE), folder=folder) + "</p>"))
+                import uasyncio as asyncio
+                asyncio.create_task(_power_off_soon())
 
         elif method == "POST" and path.startswith("/admin/radioretry"):
             # /admin's "Reconnect the radio": the handshake again, now.

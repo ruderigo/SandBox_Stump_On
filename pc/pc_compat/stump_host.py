@@ -27,6 +27,38 @@ ROOT = None
 IS_PC = True
 
 
+# The double-clickable files the Provisioner puts in the Stump folder to
+# start and stop it (provisioner.py: _pc_launchers).
+if sys.platform == "darwin":
+    START_FILE, STOP_FILE = "Start Stump.command", "Stop Stump.command"
+elif os.name == "nt":
+    START_FILE, STOP_FILE = "Start Stump.bat", "Stop Stump.bat"
+else:
+    START_FILE, STOP_FILE = "start-stump.sh", "stop-stump.sh"
+
+
+def power_off():
+    """Turns this Stump off (/admin's button, or the Stop file): the radio
+    off and told the computer left, then a clean exit -- code 0, which the
+    login service (launchd, systemd, the scheduled task) and stump_pc's
+    supervisor take as "stopped on purpose", so nothing starts it again
+    until it's started (the Start file, or the next login)."""
+    t = sys.modules.get("urns.transport")
+    if t is not None:
+        for i in list(t.Transport.interfaces):
+            if i.__class__.__name__ in ("RNodeSerialInterface", "RNodeBLEInterface"):
+                try:
+                    i.close()
+                except Exception:
+                    pass
+    print("[stump] turned off", flush=True)
+    try:
+        sys.stdout.flush()
+    except Exception:
+        pass
+    os._exit(0)
+
+
 def setting(name, default):
     try:
         import config

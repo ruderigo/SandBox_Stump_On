@@ -145,4 +145,32 @@ check("uninvited: out of the room", rrc.get_user(W)['room'] == 'main')
 p = json.loads(req('/rrc/poll?room=lora-mesh&since=0')[2])
 check("a web client not allowed is kept out by the poll", p["room"] != 'lora-mesh', p["room"])
 rrc.LORA_LOCKED[0] = False
+
+# Turning the Stump off: only on a computer (stump_host), never on a board.
+s, ct, b = admin_page()
+check("a board: no turn-off button", "/admin/poweroff" not in b)
+s, ct, b = req('/admin/poweroff', b'admin_pass=pw')
+check("a board: no turn-off route", s.startswith('404'), s)
+
+
+class FakeHost:
+    IS_PC = True
+    ROOT = "/Users/rg/Stump"
+    START_FILE = "Start Stump.command"
+    off = []
+
+    @staticmethod
+    def power_off():
+        FakeHost.off.append(1)
+
+sys.modules['stump_host'] = FakeHost
+s, ct, b = admin_page()
+check("a computer: /admin can turn it off, says how to start it again", "action='/admin/poweroff'" in b
+      and "Start Stump.command" in b and "confirm(" in b, b[b.find('poweroff') - 200:][:400])
+s, ct, b = req('/admin/poweroff', b'admin_pass=nope')
+check("a visitor without the password can't turn it off", s.startswith('403') and not FakeHost.off, s)
+s, ct, b = req('/admin/poweroff', b'admin_pass=pw')
+check("with the password: it says it's turning off, and where the Start file is", s.startswith('200')
+      and "Start Stump.command" in b and "/Users/rg/Stump" in b, b[:300])
+del sys.modules['stump_host']
 print('FAILURES:', FAIL)

@@ -308,7 +308,7 @@ DEFAULT_CREDIT_WEIGHTS = {"video": 3, "music": 2, "document": 1, "other": 1}
 #    for f in sorted(Path('final_firmware').rglob('*')) if f.is_file()]"
 EXPECTED_FILE_HASHES = {
     "_sd_web/billboard.txt": "e3b0c44298fc1c14",
-    "barkeep.py": "90c8fd20e4315b92",
+    "barkeep.py": "211eecf93d567e1b",
     "billboard.py": "a7d1f3df668997ab",
     "boot_common.py": "d1f60dd4434752bf",
     "captive_portal.py": "35cb3a279ecc42db",
@@ -316,14 +316,14 @@ EXPECTED_FILE_HASHES = {
     "config.py": "ed7b475134824fb3",
     "docs/CHAIN.md": "edbf92b02da1e9cb",
     "docs/CLIENT_QUICKSTART.md": "311802975964d077",
-    "docs/COMMANDS.md": "953e38e93127d238",
+    "docs/COMMANDS.md": "53e98c5599c13400",
     "docs/ENGINEERING_NOTES.md": "526b3ea96bc44873",
-    "docs/FIELD_TEST.md": "16caf337e4866f77",
+    "docs/FIELD_TEST.md": "6fdc60b52c2f38f2",
     "docs/HIDDEN_FEATURES.md": "b1e2a0e9bcaa0b1b",
     "docs/HOME_BRANDING.md": "e1a1a9cf854dcdce",
     "docs/HTTPS_SETUP.md": "12cbbf2de7c38810",
     "docs/PACKS.md": "2e89e3c28d80d72d",
-    "docs/PC.md": "d7687db73a6929bb",
+    "docs/PC.md": "411fe5a5d41f026e",
     "docs/PLUGINS.md": "3f5b4a5ee6844305",
     "example_node.py": "3006d0669d39404f",
     "features.py": "7fca96873d59d2d3",
@@ -331,7 +331,7 @@ EXPECTED_FILE_HASHES = {
     "fserv.py": "50cebb82fdd6dce3",
     "fservbot/plugin.json": "4e0137362ff327d0",
     "guard.py": "cde136ce989c5c53",
-    "i18n.py": "f366dcce22343f4a",
+    "i18n.py": "dd2dd994c617836e",
     "layout.py": "fb82a2d1ed9f00da",
     "lib/bz2_fast_xtensawin.mpy": "ac55d9eda2126432",
     "lib/ed25519_fast_xtensawin.mpy": "96e74dac45f91687",
@@ -5291,6 +5291,84 @@ def _pc_write_config(fw, folder, profile):
     (Path(folder) / "config.py").write_text(gen + _pc_config_block(profile), encoding="utf-8")
 
 
+def _pc_launchers(folder):
+    """Double-clickable files in the Stump folder: Start (the login service
+    if there is one, else the Stump on its own, then the page opens) and
+    Stop (asks the Stump to turn off -- the radio off first -- else stops
+    the service). The same names stump_host.START_FILE/STOP_FILE gives
+    /admin. Returns (start, stop) paths."""
+    folder = Path(folder).resolve()
+    py, launcher = _pc_python(folder), folder / "stump_pc.py"
+    py_bg = _pc_python(folder, windowless=True)
+    if sys.platform == "darwin":
+        names = ("Start Stump.command", "Stop Stump.command")
+        label = PC_SERVICE_LABEL
+        start = """#!/bin/bash
+# Starts this Stump (made by the Provisioner): double-click it.
+PLIST="$HOME/Library/LaunchAgents/%(label)s.plist"
+if [ -f "$PLIST" ]; then
+  launchctl kickstart "gui/$(id -u)/%(label)s" 2>/dev/null || launchctl load -w "$PLIST"
+else
+  nohup "%(py)s" "%(launcher)s" --service >/dev/null 2>&1 &
+fi
+echo "Stump is starting..."
+sleep 5
+open "http://localhost/"
+""" % dict(label=label, py=py, launcher=launcher)
+        stop = """#!/bin/bash
+# Turns this Stump off (made by the Provisioner): double-click it.
+# The Stump switches the radio off first; it starts again with "Start Stump"
+# or at the next login.
+for port in 80 8080; do
+  if curl -s -m 3 -X POST -d "" "http://127.0.0.1:$port/admin/poweroff" >/dev/null; then
+    echo "Stump is turning off."; exit 0
+  fi
+done
+launchctl kill TERM "gui/$(id -u)/%(label)s" 2>/dev/null || pkill -TERM -f "%(launcher)s"
+echo "Stump stopped."
+""" % dict(label=label, launcher=launcher)
+    elif os.name == "nt":
+        names = ("Start Stump.bat", "Stop Stump.bat")
+        start = ("@echo off\r\nrem Starts this Stump (made by the Provisioner): double-click it.\r\n"
+                 "schtasks /Run /TN Stump >nul 2>&1 || start \"\" \"%s\" \"%s\" --service\r\n"
+                 "echo Stump is starting...\r\ntimeout /t 5 >nul\r\nstart \"\" http://localhost/\r\n"
+                 % (py_bg, launcher))
+        stop = ("@echo off\r\nrem Turns this Stump off (made by the Provisioner): double-click it.\r\n"
+                "rem The Stump switches the radio off first; \"Start Stump\" starts it again.\r\n"
+                "curl -s -m 3 -X POST -d \"\" http://127.0.0.1/admin/poweroff >nul 2>&1 && goto done\r\n"
+                "curl -s -m 3 -X POST -d \"\" http://127.0.0.1:8080/admin/poweroff >nul 2>&1 && goto done\r\n"
+                "schtasks /End /TN Stump >nul 2>&1\r\n:done\r\necho Stump is turning off.\r\n"
+                "timeout /t 3 >nul\r\n")
+    else:
+        names = ("start-stump.sh", "stop-stump.sh")
+        start = """#!/bin/sh
+# Starts this Stump (made by the Provisioner).
+systemctl --user start stump 2>/dev/null || nohup "%s" "%s" --service >/dev/null 2>&1 &
+echo "Stump is starting..."
+sleep 5
+xdg-open "http://localhost/" >/dev/null 2>&1 || true
+""" % (py, launcher)
+        stop = """#!/bin/sh
+# Turns this Stump off (made by the Provisioner); the radio off first.
+for port in 80 8080; do
+  if curl -s -m 3 -X POST -d "" "http://127.0.0.1:$port/admin/poweroff" >/dev/null; then
+    echo "Stump is turning off."; exit 0
+  fi
+done
+systemctl --user stop stump 2>/dev/null || pkill -TERM -f "%s"
+echo "Stump stopped."
+""" % launcher
+    paths = []
+    for name, text in zip(names, (start, stop)):
+        p = folder / name
+        with open(p, "w", encoding="utf-8", newline="") as f:
+            f.write(text)
+        if os.name != "nt":
+            os.chmod(p, 0o755)
+        paths.append(p)
+    return tuple(paths)
+
+
 def _pc_autostart(folder):
     """Starts this Stump at login: a LaunchAgent on macOS, a scheduled task
     on Windows, a systemd user service on Linux. True if set up."""
@@ -5317,7 +5395,7 @@ def _pc_autostart(folder):
             print("  " + red("launchctl: ") + (r.stderr or r.stdout).strip())
             return False
         print("  Starts at login (%s); running now. Log: %s" % (plist, folder / "stump.log"))
-        print("  Stop it: launchctl unload %s" % plist)
+        print("  Remove it from login: launchctl unload -w %s" % plist)
         return True
     if os.name == "nt":
         cmd = '"%s" "%s" --service' % (_pc_python(folder, windowless=True), launcher)
@@ -5844,6 +5922,13 @@ def setup_pc(folder=None, reconfigure=False):
     r.start("Start")
     started = False
     run_cmd = "%s %s" % (_pc_python(folder), folder / "stump_pc.py")
+    try:
+        start_file, stop_file = _pc_launchers(folder)
+        print("  To turn it off and on: /admin -> \"Turn off this Stump\", or double-click")
+        print("  \"%s\" / \"%s\" in %s" % (start_file.name, stop_file.name, folder))
+        r.note("On / off", "/admin, or %s / %s" % (start_file.name, stop_file.name))
+    except OSError as e:
+        print("  " + yellow("Couldn't write the Start/Stop files: %s" % e))
     if ask_yes_no("Start this Stump automatically when you log in?", True):
         started = _pc_autostart(folder)
         r.note("Log", str(folder / "stump.log"))

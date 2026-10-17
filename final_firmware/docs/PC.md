@@ -95,6 +95,22 @@ Stump finds the hotspot's address by itself (the ones in the table, or
 the computer's own address); the boot log says which: `visitors reach it
 at http://…/`. If port 80 is taken, it uses 8080 and says so.
 
+## Turning it off and on
+
+It runs in the background (started at login), so there's no window to
+close. To turn it off: `/admin` → *This Stump on the computer* → **Turn
+off this Stump** (it asks first), or double-click **Stop Stump** in the
+Stump folder. The radio is switched off first; nothing starts it again
+until you double-click **Start Stump** in the same folder (it opens the
+page once it's up), or you log in again.
+
+The files are `Start Stump.command` / `Stop Stump.command` on macOS,
+`Start Stump.bat` / `Stop Stump.bat` on Windows, `start-stump.sh` /
+`stop-stump.sh` on Linux; `--pc` writes them. To stop it starting at
+login altogether: `launchctl unload -w ~/Library/LaunchAgents/app.stump.node.plist`
+(macOS), `schtasks /Delete /TN Stump /F` (Windows),
+`systemctl --user disable stump` (Linux).
+
 ## The Heltec
 
 **On USB:** keep the Heltec's RNode firmware as it is and plug it in;

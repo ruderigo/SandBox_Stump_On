@@ -221,6 +221,11 @@ See `PC.md`. A Mac or a Windows PC, and a Heltec.
       red, "unplugged from …". Plug it back in: green again by itself
       within a few seconds (no Provisioner). `/admin` → *Radio — live*
       shows it back.
+- [ ] `/admin` → *Turn off this Stump* → OK: the page says it's turning
+      off; the Heltec's radio stops; http://localhost/ no longer answers,
+      and a minute later still doesn't. Double-click **Start Stump** in
+      the Stump folder: the page opens on its own. **Stop Stump** turns
+      it off the same way.
 - [ ] `/admin` → Radio → *Reconnect the radio*: the dot goes orange, then
       green; the Heltec's screen shows the radio set up again.
 - [ ] `launchctl unload ~/Library/LaunchAgents/app.stump.node.plist`

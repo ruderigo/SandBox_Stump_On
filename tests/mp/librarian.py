@@ -20,7 +20,11 @@ shelf = [("Le_jardinage_bio.pdf", 3000), ("Big Buck Bunny.mp4", 900000), ("Nuit 
          ("garden-tips.epub", 2000), ("photo_marché.jpg", 40000), ("notes.zip", 10),
          ("résumé été 🌲.txt", 120), ("l'astuce.pdf", 500)]
 for i, (n, size) in enumerate(shelf):
-    open(ROOT + '/shared/' + n, 'w').write('x' * size)
+    with open(ROOT + '/shared/' + n, 'w') as f:
+        # In pieces: one 900 KB string needs a 900 KB gap in the test's
+        # 2 MB heap, which the setup shouldn't depend on.
+        for k in range(0, size, 8192):
+            f.write('x' * min(8192, size - k))
     time.sleep(0.01)
 billboard._append_entry("Vélo à réparer", "Atelier samedi, apportez vos chambres à air.", "a")
 billboard._append_entry("Soupe partagée", "Jeudi soir.\nApporte un bol.", "b")

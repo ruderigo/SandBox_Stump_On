@@ -1,6 +1,14 @@
 # Changelog
 
 ## Unreleased
+- **Turn a computer Stump off from /admin.** It runs in the background,
+  so stopping it took a terminal command. Now `/admin` → *This Stump on
+  the computer* → **Turn off this Stump** (it asks first): the radio off,
+  then a clean exit that the login service doesn't restart. `--pc` puts
+  **Start Stump** and **Stop Stump** in the Stump folder to double-click
+  (`.command` on macOS, `.bat` on Windows, `.sh` on Linux); Start opens
+  the page once it's up. (`POST /admin/poweroff`; from the computer
+  itself, no password.)
 - **The Heltec on USB, lost and found by itself.** Unplugged, the radio
   stayed "online" (macOS reads just go quiet) until the Provisioner was
   run again. Now the port is looked at every second and a quiet Heltec
