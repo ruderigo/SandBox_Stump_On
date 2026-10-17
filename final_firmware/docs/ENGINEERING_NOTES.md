@@ -1413,6 +1413,13 @@ source (`Bluetooth.h`, `BLESerial.cpp`, ESP32 BLE):
   disconnects after 2 s, so the host reconnects; `CMD_BT_UNPAIR 0x70`
   `0x01` forgets every bond.
 
+**A fresh start through the cable.** After a restart the Bluetooth link
+could stay flaky until /admin's switch went USB → Bluetooth: opening the
+USB port restarts the Heltec, clearing what it kept from the last
+session. `RNodeBLEInterface` does that itself when the board is also on
+USB -- at start-up and after `KICK_AFTER` silent handshakes -- and never
+while a Bluetooth session works.
+
 **`#lora-mesh` between Stumps over the radio.** An open LXMF link over
 the chain carried every message, so the Heltec never transmitted.
 `LXMRouter.send_message(..., via=interface)` sends one opportunistic

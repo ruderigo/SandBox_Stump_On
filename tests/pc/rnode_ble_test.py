@@ -210,6 +210,46 @@ time.sleep(0.5)
 check("on close: radio off, then leave", frames(radio["written"]) == [(0x06, b"\x00"), (0x0A, b"\xff")],
       frames(radio["written"]))
 
+# Starting on Bluetooth with the Heltec also on USB (charging): restarted
+# once through the cable first (what switching USB -> Bluetooth did by
+# hand); again only after KICK_AFTER silent handshakes in a row.
+import urns.interfaces.rnode_serial as rs
+kicks = []
+
+
+class FakeUSB:
+    def __init__(self, port):
+        kicks.append(port)
+
+    def close(self):
+        pass
+
+real_find, real_port = rs.find_port, rs._SerialPort
+rs.find_port, rs._SerialPort = (lambda: "/dev/cu.usbserial-0001"), FakeUSB
+rb.KICK_BOOT_S = 0.1
+radio["around"], radio["answering"] = True, True
+iface2 = rb.RNodeBLEInterface({"target": "RNode 3B87"})
+check("start-up on Bluetooth, the Heltec on USB too: restarted once through the cable", kicks == ["/dev/cu.usbserial-0001"], kicks)
+async def run2(i, s):
+    t = asyncio.create_task(i.poll_loop())
+    await asyncio.sleep(s)
+    t.cancel()
+asyncio.run(run2(iface2, 3))
+check("... then online over Bluetooth, no more restarts", iface2.online and len(kicks) == 1, (iface2.status().get("error"), kicks))
+rb.RNodeBLEInterface.HANDSHAKE_WAIT = 1.0
+radio["answering"] = False
+iface2.retry_now()
+asyncio.run(run2(iface2, 14))
+check("silent over Bluetooth twice in a row: restarted through the cable again", len(kicks) >= 2, kicks)
+radio["answering"] = True
+rb.RNodeBLEInterface.HANDSHAKE_WAIT = rb.HANDSHAKE_BLE_S
+iface2.close()
+rs.find_port, rs._SerialPort = real_find, real_port
+kicks.clear()
+iface3 = rb.RNodeBLEInterface({"target": "RNode 3B87"})
+check("no USB cable: nothing to restart, Bluetooth as before", kicks == [])
+iface3.close()
+
 # No bleak in that Python: says how to get it.
 del sys.modules["bleak"]
 import builtins

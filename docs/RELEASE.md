@@ -7,7 +7,7 @@ build-provenance attestation.
 
 ```
 sha256sum -c SHA256SUMS                       # the files are what was published
-gh attestation verify Stump-1.0.0-beta.15.zip --repo ruderigo/SandBox_Stump_On
+gh attestation verify Stump-1.0.0-beta.16.zip --repo ruderigo/SandBox_Stump_On
 ```
 
 The second proves the file was built by this repository's release
@@ -36,16 +36,16 @@ the tagged commit gives byte-identical files: same `SHA256SUMS`.
 ## Making a release
 
 1. Set `STUMP_RELEASE` in `final_firmware/example_node.py` (e.g.
-   `1.0.0-beta.15`). Changing any firmware file means rebuilding the
+   `1.0.0-beta.16`). Changing any firmware file means rebuilding the
    Provisioner's manifest (`tests/README.md`).
-2. Add a `## 1.0.0-beta.15` section at the top of `CHANGELOG.md`: it
+2. Add a `## 1.0.0-beta.16` section at the top of `CHANGELOG.md`: it
    becomes the release notes.
 3. `python3 tests/run.py` passes.
 4. Commit, then tag and push:
 
    ```
-   git tag -a v1.0.0-beta.15 -m "Stump 1.0.0-beta.15"     # or -s to sign the tag with your GPG/SSH key
-   git push origin main v1.0.0-beta.15
+   git tag -a v1.0.0-beta.16 -m "Stump 1.0.0-beta.16"     # or -s to sign the tag with your GPG/SSH key
+   git push origin main v1.0.0-beta.16
    ```
 
 The **Release** workflow refuses a tag that doesn't match

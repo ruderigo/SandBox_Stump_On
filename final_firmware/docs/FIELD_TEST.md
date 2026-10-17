@@ -1,4 +1,4 @@
-# Field test — Stump 1.0.0-beta.15 (Beta A)
+# Field test — Stump 1.0.0-beta.16 (Beta A)
 
 What's new since the last field test, in the order you'd check it on
 site, and what to send back. Items marked **(hardware)** are things the
@@ -6,7 +6,7 @@ lab tests could not settle — they need the real board, radio and phones.
 
 ## Before you go
 
-- [ ] Download `Stump-1.0.0-beta.15.zip` and `SHA256SUMS` from the
+- [ ] Download `Stump-1.0.0-beta.16.zip` and `SHA256SUMS` from the
       [release](https://github.com/ruderigo/SandBox_Stump_On/releases),
       check them (`shasum -a 256 -c SHA256SUMS` on a Mac; see
       `docs/RELEASE.md` for the signatures), unzip, and work from that
@@ -237,8 +237,10 @@ See `PC.md`. A Mac or a Windows PC, and a Heltec.
       switches to Bluetooth by itself. Dot green, `Bluetooth RNode …` on
       hover; a DM over LoRa goes out. If no code shows: note what *Not
       working?* → *Last answers from the Heltec* says, and send it.
-- [ ] Still on Bluetooth with the USB cable in (charging): the Stump
-      doesn't open the port (the Heltec doesn't restart). Switch the
+- [ ] On Bluetooth with the USB cable in (charging), restart the Stump
+      (Stop, then Start Stump): the Heltec restarts once (its screen),
+      then the dot goes green over Bluetooth by itself -- no toggling in
+      `/admin`. While it works, the Heltec doesn't restart. Switch the
       Heltec off: red; on again: green by itself. **USB** in the switch:
       back on USB, online.
 - [ ] A phone: on USB, *Pair a device*, pick "RNode …" on the phone, type
@@ -291,7 +293,7 @@ See `PC.md`. A Mac or a Windows PC, and a Heltec.
 - [ ] `python3 provisioner.py --version /dev/cu.<the CAM>`: this folder's
       release, GitHub's, and the CAM's — the same.
 - [ ] The About page (bottom) and `/admin` (top) show `Stump Beta A ·
-      1.0.0-beta.15`, on the CAM and on the computer.
+      1.0.0-beta.16`, on the CAM and on the computer.
 - [ ] A computer on the same home Wi-Fi as the first CAM (`--pc`, "On
       the Wi-Fi it's on now", the CAM's address there): the chain check
       passes without leaving that Wi-Fi.
@@ -318,7 +320,7 @@ See `PC.md`. A Mac or a Windows PC, and a Heltec.
 ## What to send back
 
 - The boot log (from power-on to `Announced as`); its first line names
-  the release (`Project Stump -- Beta A (1.0.0-beta.15)`).
+  the release (`Project Stump -- Beta A (1.0.0-beta.16)`).
 - Screenshots of `/admin` (tiles, the radio card open, propagation
   status) and the home page with branding and the firefly open, phone
   and laptop.

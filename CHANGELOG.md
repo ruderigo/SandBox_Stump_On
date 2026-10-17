@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.0-beta.16
+- **Bluetooth settles on its own after a restart.** After an update or a
+  restart it could stay flaky until /admin's switch went USB → Bluetooth
+  -- which restarts the Heltec through its USB port. The Stump now does
+  that by itself when the Heltec is also on USB (charging): at start-up,
+  and when Bluetooth stays silent twice in a row; never during a working
+  Bluetooth session. Without the cable, reconnecting and backing off as
+  before.
+
 ## 1.0.0-beta.15
 - **Fixed: `#lora-mesh` from a second Stump waited for the first to
   speak.** A Stump only pushed to the Stumps it held as peers, and lost

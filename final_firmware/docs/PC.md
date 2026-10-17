@@ -151,9 +151,12 @@ same link over Bluetooth Low Energy. Everything is in `/admin` → Radio
 It takes **one Bluetooth connection at a time**: while this computer
 uses it over Bluetooth, no phone can pair or connect (switch back to
 USB first), and a phone connected to it (FireFly, Sideband) hides it
-from others. **Plugged in by USB only to charge?** Fine: a Stump on
-Bluetooth never opens the USB port (opening it restarts the Heltec and
-drops its Bluetooth link), and an update never offers to switch it.
+from others. **Plugged in by USB only to charge?** Fine, and it helps: a
+Stump on Bluetooth uses the cable only to give the Heltec a fresh start
+-- opening the port restarts it -- when it starts up, and when Bluetooth
+stays silent twice in a row (what switching USB → Bluetooth by hand used
+to settle); never during a working Bluetooth session. An update never
+offers to switch it to USB.
 Out of range or switched off, it's red, and it reconnects by itself
 when it's back, as on USB. Under *Not working?*, the Heltec's last
 answers help find out why.

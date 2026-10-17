@@ -24,8 +24,10 @@
 
 import threading
 import time
+from . import rnode_serial
 from .rnode_serial import RNodeSerialInterface
 from .wifi_serial import WiFiSerialInterface, CMD_RADIO_STATE, RADIO_STATE_OFF, CMD_LEAVE
+from ..log import log, LOG_NOTICE, LOG_VERBOSE
 
 UART_SERVICE = "6e400001-b5a3-f393-e0a9-e50e24dcca9e"
 UART_RX = "6e400002-b5a3-f393-e0a9-e50e24dcca9e"     # we write here
@@ -42,6 +44,13 @@ HANDSHAKE_BLE_S = 6.0
 # wrong device), the Heltec counts itself "connected": it ignores pairing
 # mode and hides from other devices. So attempts that fail back off.
 MAX_RETRY_S = 30.0
+# A fresh start for the Heltec when it's also on USB (charging): opening
+# its USB port restarts it (DTR/RTS), clearing whatever Bluetooth state it
+# kept from before -- what switching USB -> Bluetooth in /admin did by
+# hand. At start-up, and after KICK_AFTER handshakes in a row that got no
+# answer over Bluetooth. Then BOOT_S for it to boot and advertise.
+KICK_AFTER = 2
+KICK_BOOT_S = 4.0
 _DETECT = bytes([0xC0, 0x08, 0x73, 0xC0])
 _DETECT_RESP = bytes([0xC0, 0x08, 0x46])
 
@@ -218,6 +227,8 @@ class RNodeBLEInterface(RNodeSerialInterface):
         config.setdefault("name", "Heltec (Bluetooth)")
         self.target = config.get("target") or "auto"
         self._ble = None
+        self._kicked = False
+        self._silent = 0
         config["port"] = "ble://" + self.target      # for RNodeSerialInterface's bookkeeping
         RNodeSerialInterface.__init__(self, config)
 
@@ -243,14 +254,48 @@ class RNodeBLEInterface(RNodeSerialInterface):
         b.reset()
         return b
 
+    def _usb_kick(self):
+        """Restarts the Heltec through its USB cable, if it's plugged in:
+        open the port (that alone restarts an ESP32 board), close it, let it
+        boot. True if done. Never while a Bluetooth session is up."""
+        if self._ble is not None and self._ble.connected and self.online:
+            return False
+        try:
+            port = rnode_serial.find_port()
+            if not port:
+                return False
+            s = rnode_serial._SerialPort(port)
+            time.sleep(0.3)
+            s.close()
+            self.hw["kicks"] = self.hw.get("kicks", 0) + 1
+            log("Heltec restarted through its USB cable (%s), for a clean Bluetooth start" % port, LOG_NOTICE)
+            time.sleep(KICK_BOOT_S)
+            if self._ble is not None:
+                self._ble.drop()           # connect afresh to the restarted Heltec
+            return True
+        except Exception as e:
+            log("Couldn't restart the Heltec through USB: %s" % e, LOG_VERBOSE)
+            return False
+
     def _connect(self):
+        if not self._kicked:
+            # At start-up: the cycle that settled it by hand (USB, then
+            # Bluetooth), on its own -- when the cable's there.
+            self._kicked = True
+            self._usb_kick()
         try:
             RNodeSerialInterface._connect(self)
+            self._silent = 0
         except OSError as e:
             if self._ble is not None and self._ble.connected and "handshake" in str(e):
                 # Connected but nothing came back: start the Bluetooth link
-                # over (a subscription made before the bond is dropped).
+                # over (a subscription made before the bond is dropped); every
+                # KICK_AFTER such times, restart the Heltec too (USB cable).
                 self._ble.fails += 1
+                self._silent += 1
+                if self._silent % KICK_AFTER == 0 and self._usb_kick():
+                    raise OSError(5, "the Heltec answered nothing over Bluetooth: restarted it through "
+                                     "its USB cable, connecting again")
                 self._ble.drop()
                 raise OSError(5, "the Heltec answered nothing over Bluetooth yet (reconnecting it); "
                                  "if it keeps on: forget it in this computer's Bluetooth settings and pair again")
