@@ -445,7 +445,10 @@ lines in it to the other Stumps it knows (on the chain, or heard over
 LoRa), titled `#lora-mesh`, and they show there as `<nick@stump>`, once,
 going no further. **Radio first:** a Stump with its radio online sends
 them over the radio only, in single packets, even when Wi-Fi reaches the
-other Stump too; without one, over the chain. With no Wi-Fi between them
+other Stump too; without one, over the chain. A Stump keeps sending to
+the others it knows over its radio even when the route to them is gone
+(the radio blinked offline), and lines written meanwhile (the last 5
+minutes) still go when they're back. With no Wi-Fi between them
 at all (a computer off Wi-Fi with its Heltec), Stumps meet over the
 radio: a Stump announces itself as soon as its radio connects (at most
 every 10 minutes), and answers a Stump it hears for the first time (at

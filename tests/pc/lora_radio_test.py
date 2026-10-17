@@ -153,6 +153,36 @@ me.peers[plain] = {"name": "phone"}
 rrc_mesh.on_message(me, Msg(plain, "", "hi from a phone"))
 check("a LoRa phone's message is still a person's", not rrc.is_stump(plain.hex()))
 
+# The radio blinked offline: every path through it is gone, and the other
+# Stump would drop out until it spoke first. With the radio back and its
+# keys known, it stays a #lora-mesh destination; lines written while it
+# was missing still go (recent ones).
+oh = other.hash.hex()
+rrc.mark_stump(oh)
+rrc_mesh._peers.pop(oh, None)
+Transport.path_table.pop(other.hash, None)
+radio_if.online = True
+rrc.touch_user("127.0.0.1", nick="rod", room=rrc.MESH_ROOM)
+rrc.post(rrc.MESH_ROOM, "rod", "written while it was away")
+rrc_mesh._take_in_chain_stumps(me)
+p = rrc_mesh._peers.get(oh)
+check("no path, radio online, keys known: still a Stump to send to", p is not None and p.get("stump"), p)
+del rrc_mesh._send_queue[:]
+radio_if.sent.clear()
+rrc_mesh._flush_to_peer(me, oh, p)
+q = list(rrc_mesh._send_queue)
+check("... the line written while it was away goes, over the radio", any("written while it was away" in i[2]
+      and len(i) == 6 and i[5] is radio_if for i in q), q)
+del rrc_mesh._send_queue[:]
+rrc_mesh._flush_to_peer(me, oh, p)
+check("... once", not rrc_mesh._send_queue, rrc_mesh._send_queue)
+rrc_mesh._peers.pop(oh, None)
+rrc_mesh._take_in_chain_stumps(me)
+p = rrc_mesh._peers.get(oh)
+rrc_mesh._flush_to_peer(me, oh, p)
+check("dropped and back again: not sent twice (where it left off)", not rrc_mesh._send_queue, rrc_mesh._send_queue)
+del rrc_mesh._send_queue[:]
+
 # Off Wi-Fi, Stumps only meet over the radio: the radio coming up, and a
 # Stump heard for the first time, make this one introduce itself soon
 # (its beacon and LXMF announce), not more often than set.

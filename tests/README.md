@@ -30,6 +30,7 @@ on the board. Each firmware test runs in a fresh copy of
 | `pc_lora_radio` | `#lora-mesh` lines to another Stump go on the radio only (one packet, plain header), `#wifi-mesh` on the chain only; a Stump recognised by its room-titled batch; introductions over the radio |
 | `pc_chain`, `pc_joins_cam`, `pc_two_stumps`, `pc_parent_moves` | Computer Stumps: a folder made by the Provisioner joined by a CAM; the chain checks; two computer Stumps talking in `#wifi-mesh` and `#lora-mesh`; following a parent whose address moves |
 | `pc_radio_only` | Two computer Stumps with no Wi-Fi between them, their simulated Heltecs joined over a simulated air: they meet over the radio and share `#lora-mesh` |
+| `pc_chain_radio` | The LaBuche + laptop setup: two computer Stumps in a chain, each with a simulated Heltec over a simulated air; the second writes in `#lora-mesh` first and it reaches the first, over the radio, both ways |
 | `pc_power` | `/admin` → *Turn off this Stump* under the real supervisor: a clean exit that nothing restarts; the Start/Stop files |
 | `json_api`, `latin1_names` | JSON answers; accented, Latin-1 and emoji file names |
 | `config.py` | The fixed configuration every firmware test runs with (not the repository's own `final_firmware/config.py`, which is a real node's) |

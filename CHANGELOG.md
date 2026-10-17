@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.0.0-beta.15
+- **Fixed: `#lora-mesh` from a second Stump waited for the first to
+  speak.** A Stump only pushed to the Stumps it held as peers, and lost
+  one when the route to it was gone -- every route through the radio is
+  dropped when the radio blinks offline. A message from the other Stump
+  brought it back, so writing on the first Stump "unblocked" it. Now a
+  Stump with its radio online keeps every Stump whose keys it knows as a
+  `#lora-mesh` destination, route or not (a radio send needs none), all
+  Stumps get `#lora-mesh` the radio-first way, and how far each has been
+  sent is kept: lines written while one was away (the last 5 minutes) go
+  when it's back, never twice.
+
 ## 1.0.0-beta.14
 - The same firmware as 1.0.0-beta.13, with the docs brought up to it: the README (the three rooms, the
   chain as a tree, the computer's Heltec on USB or Bluetooth, on/off,

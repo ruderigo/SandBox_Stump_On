@@ -155,6 +155,43 @@ def _has_path(h):
         return False
 
 
+def _radio_reachable(h):
+    """Another Stump this one can still reach over its own radio: the radio
+    online and the other's keys known. No path needed -- a radio send goes
+    out on the radio whatever the path table says (it loses every path
+    through the radio when the radio blinks offline, and the other Stump
+    then dropped out until it spoke first)."""
+    if _radio() is None:
+        return False
+    try:
+        from urns.identity import Identity
+        return Identity.recall(bytes.fromhex(h)) is not None
+    except Exception:
+        return False
+
+
+# How far #lora-mesh has gone to each other Stump, kept while it's away
+# (a peer can drop and come back): lines written meanwhile still go, if
+# recent enough (LORA_BACKLOG_S).
+_lora_marks = {}
+LORA_BACKLOG_S = 300
+
+
+def _lora_start(h):
+    """Where #lora-mesh starts for Stump h: where it left off, else the
+    last LORA_BACKLOG_S seconds."""
+    msgs = rrc.since(rrc.MESH_ROOM, 0)
+    if not msgs:
+        return 0
+    cutoff = time.time() - LORA_BACKLOG_S
+    floor = 0
+    for m in msgs:
+        if m.get("ts", 0) >= cutoff:
+            break
+        floor = m["id"]
+    return max(_lora_marks.get(h, floor), floor)
+
+
 def _take_in_chain_stumps(router):
     """Each cycle: Stumps on the chain become peers in #wifi-mesh, and stay
     while their path is over the chain; other Stumps heard (over LoRa)
@@ -163,7 +200,7 @@ def _take_in_chain_stumps(router):
     now = time.time()
     for h in list(rrc._stumps):
         if not _chain_stump(h):
-            if _has_path(h):
+            if _has_path(h) or _radio_reachable(h):
                 p = _peers.get(h)
                 if p is None:
                     name = None
@@ -185,7 +222,7 @@ def _take_in_chain_stumps(router):
                 rrc.system(p["room"], rrc.ev_leave("~" + p["nick"]))
                 p["stump"], p["room"], p["home_room"] = True, rrc.CHAIN_ROOM, rrc.CHAIN_ROOM
                 p["last_sent_id"] = rrc.since(rrc.CHAIN_ROOM, 0)[-1]["id"] if rrc.since(rrc.CHAIN_ROOM, 0) else 0
-                p["lora_sent_id"] = rrc.since(rrc.MESH_ROOM, 0)[-1]["id"] if rrc.since(rrc.MESH_ROOM, 0) else 0
+                p["lora_sent_id"] = _lora_start(h)
                 rrc.system(rrc.CHAIN_ROOM, rrc.ev_join("~" + p["nick"]))
                 rrc.touch_user(h, nick=p["nick"], room=rrc.CHAIN_ROOM)
             continue
@@ -325,7 +362,7 @@ def _get_peer(dest_hash_hex, display_name, message=None):
             "last_sent_id": 0,
             # A chain Stump's room is #wifi-mesh; #lora-mesh is shared
             # with it too, on its own marker (_flush_to_peer).
-            "lora_sent_id": rrc.since(rrc.MESH_ROOM, 0)[-1]["id"] if stump and rrc.since(rrc.MESH_ROOM, 0) else 0,
+            "lora_sent_id": _lora_start(dest_hash_hex) if stump else 0,
             # DMs get their own delivery marker, separate from the room
             # one. They used to share last_sent_id, which /join resets
             # to 0 (to replay recent context in the new room) -- so
@@ -835,8 +872,15 @@ def _flush_to_peer(router, dest_hash_hex, peer):
     dms     = rrc.dms_since(dest_hash_hex, peer.get("last_dm_id", 0))
 
     remote = _remote_dm_lines(dest_hash_hex) if peer.get("stump") else []
-    if peer.get("stump") and room != rrc.MESH_ROOM:
+    if peer.get("stump"):
+        # #lora-mesh to another Stump always goes the radio-first way
+        # (_flush_lora_to_stump), whatever room it sits in here; so its
+        # room lines don't go a second time below.
         _flush_lora_to_stump(router, dest_hash_hex, peer)
+        if room == rrc.MESH_ROOM:
+            if msgs:
+                peer["last_sent_id"] = msgs[-1]["id"]
+            msgs = []
     if not msgs and not dms and not remote:
         return
     try:
@@ -987,7 +1031,7 @@ def _flush_lora_to_stump(router, dest_hash_hex, peer):
         return
     if len(msgs) > POLL_LIMIT:
         msgs = msgs[-POLL_LIMIT:]
-    peer["lora_sent_id"] = msgs[-1]["id"]
+    peer["lora_sent_id"] = _lora_marks[dest_hash_hex] = msgs[-1]["id"]
     lines = _stump_lines(msgs, peer["nick"])
     if lines:
         _queue_lora(router, dest_hash_hex, lines)
