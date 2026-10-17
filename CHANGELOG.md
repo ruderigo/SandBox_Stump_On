@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.0.0-beta.17
+- **Fixed: an already paired Heltec stayed silent over Bluetooth after an
+  update, until /admin's switch went USB → Bluetooth** -- with or without
+  the cable. beta.16 copied only the switch's USB half (a Heltec
+  restart, which needs the cable). Now, cable or not: the link is
+  encrypted with the saved pairing before the Stump listens on it (what
+  left answers unheard); still silent twice in a row, this computer's
+  Bluetooth side is started over from nothing, as the switch did;
+  stopping or updating the Stump disconnects properly, so the Heltec is
+  free for the next start. With the cable, the Heltec is also restarted
+  (the RNode's reset command, more reliable than opening the port), and
+  when it hasn't been seen over Bluetooth for a few scans.
+
 ## 1.0.0-beta.16
 - **Bluetooth settles on its own after a restart.** After an update or a
   restart it could stay flaky until /admin's switch went USB → Bluetooth

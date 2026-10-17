@@ -97,6 +97,8 @@ class Client:
         self.services = Services()
         self.notify = None
         self.up = False
+        self.first = None
+        self.first_before_notify = False
 
     async def __aenter__(self):
         self.up = True
@@ -113,6 +115,10 @@ class Client:
         self.notify = cb
 
     async def write_gatt_char(self, char, data, response=False):
+        if self.first is None:
+            self.first, self.first_before_notify = bytes(data), self.notify is None
+        if self.notify is None:
+            return
         radio.setdefault("replies", []).append(response)
         radio["writes"].append(len(data))
         radio["written"].extend(data)
@@ -211,44 +217,92 @@ check("on close: radio off, then leave", frames(radio["written"]) == [(0x06, b"\
       frames(radio["written"]))
 
 # Starting on Bluetooth with the Heltec also on USB (charging): restarted
-# once through the cable first (what switching USB -> Bluetooth did by
-# hand); again only after KICK_AFTER silent handshakes in a row.
+# once through the cable first (the RNode's reset command); after
+# KICK_AFTER silent handshakes in a row, a whole fresh start (what
+# switching USB -> Bluetooth did by hand): this computer's Bluetooth link
+# started over from nothing, the Heltec restarted too when on the cable.
 import urns.interfaces.rnode_serial as rs
 kicks = []
 
 
 class FakeUSB:
     def __init__(self, port):
-        kicks.append(port)
+        self.port = port
+        self.got = bytearray()
+
+    def sendall(self, data):
+        self.got.extend(data)
 
     def close(self):
-        pass
+        kicks.append((self.port, bytes(self.got)))
 
-real_find, real_port = rs.find_port, rs._SerialPort
-rs.find_port, rs._SerialPort = (lambda: "/dev/cu.usbserial-0001"), FakeUSB
+real_find, real_port, real_boot = rs.find_port, rs._SerialPort, rs.BOOT_WAIT_S
+rs.find_port, rs._SerialPort, rs.BOOT_WAIT_S = (lambda: "/dev/cu.usbserial-0001"), FakeUSB, 0.05
 rb.KICK_BOOT_S = 0.1
 radio["around"], radio["answering"] = True, True
 iface2 = rb.RNodeBLEInterface({"target": "RNode 3B87"})
-check("start-up on Bluetooth, the Heltec on USB too: restarted once through the cable", kicks == ["/dev/cu.usbserial-0001"], kicks)
+check("start-up on Bluetooth, the Heltec on USB too: restarted once through the cable (reset command)",
+      kicks == [("/dev/cu.usbserial-0001", bytes([0xC0, 0x55, 0xF8, 0xC0]))], kicks)
 async def run2(i, s):
     t = asyncio.create_task(i.poll_loop())
     await asyncio.sleep(s)
     t.cancel()
 asyncio.run(run2(iface2, 3))
 check("... then online over Bluetooth, no more restarts", iface2.online and len(kicks) == 1, (iface2.status().get("error"), kicks))
+check("encrypted before subscribing: a lone frame end written with a reply first",
+      radio["client"].first == b"\xc0" and radio["client"].first_before_notify, radio["client"].first)
 rb.RNodeBLEInterface.HANDSHAKE_WAIT = 1.0
 radio["answering"] = False
+first_port = iface2._ble
 iface2.retry_now()
 asyncio.run(run2(iface2, 14))
-check("silent over Bluetooth twice in a row: restarted through the cable again", len(kicks) >= 2, kicks)
+check("silent over Bluetooth twice in a row: a fresh start -- restarted through the cable",
+      len(kicks) >= 2, kicks)
+check("... and this computer's Bluetooth started over from nothing (a new link, the old one ended)",
+      iface2._ble is not first_port and not first_port._thread.is_alive())
 radio["answering"] = True
-rb.RNodeBLEInterface.HANDSHAKE_WAIT = rb.HANDSHAKE_BLE_S
+asyncio.run(run2(iface2, 6))
+check("... then online again", iface2.online, iface2.status().get("error"))
 iface2.close()
-rs.find_port, rs._SerialPort = real_find, real_port
+
+# No USB cable, already paired: the same fresh start on this computer's
+# side (that part never needed the cable), no restart.
+rs.find_port = lambda: None
 kicks.clear()
 iface3 = rb.RNodeBLEInterface({"target": "RNode 3B87"})
-check("no USB cable: nothing to restart, Bluetooth as before", kicks == [])
+check("no USB cable: nothing to restart at start-up", kicks == [])
+asyncio.run(run2(iface3, 3))
+check("... online over Bluetooth", iface3.online, iface3.status().get("error"))
+radio["answering"] = False
+first_port = iface3._ble
+iface3.retry_now()
+asyncio.run(run2(iface3, 14))
+check("no cable, silent twice: Bluetooth started over from nothing all the same", iface3._ble is not first_port
+      and kicks == [], kicks)
+radio["answering"] = True
+asyncio.run(run2(iface3, 6))
+check("... then online again, no cable needed", iface3.online, iface3.status().get("error"))
+
+# Not seen at all for a while, on the cable (holding on to a link that's
+# gone, not advertising): a fresh start, then found.
+rs.find_port = lambda: "/dev/cu.usbserial-0001"
 iface3.close()
+radio["around"] = False
+iface4 = rb.RNodeBLEInterface({"target": "RNode 3B87"})
+kicks.clear()
+asyncio.run(run2(iface4, 4))
+iface4._ble.misses = rb.MISS_KICK
+radio["around"] = True
+asyncio.run(run2(iface4, 5))
+check("not seen a few scans in a row, on the cable: restarted, then found", kicks and iface4.online,
+      (kicks, iface4.status().get("error")))
+
+# Stopping: the Bluetooth link ends properly (the Heltec sees the computer
+# leave and advertises again for the next start).
+c = radio["client"]
+iface4.close()
+check("on close: disconnected properly, not left hanging", not c.up and not iface4._ble._thread.is_alive())
+rs.find_port, rs._SerialPort, rs.BOOT_WAIT_S = real_find, real_port, real_boot
 
 # No bleak in that Python: says how to get it.
 del sys.modules["bleak"]

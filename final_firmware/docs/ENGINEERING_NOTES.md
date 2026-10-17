@@ -1413,12 +1413,27 @@ source (`Bluetooth.h`, `BLESerial.cpp`, ESP32 BLE):
   disconnects after 2 s, so the host reconnects; `CMD_BT_UNPAIR 0x70`
   `0x01` forgets every bond.
 
-**A fresh start through the cable.** After a restart the Bluetooth link
-could stay flaky until /admin's switch went USB → Bluetooth: opening the
-USB port restarts the Heltec, clearing what it kept from the last
-session. `RNodeBLEInterface` does that itself when the board is also on
-USB -- at start-up and after `KICK_AFTER` silent handshakes -- and never
-while a Bluetooth session works.
+**A fresh start, cable or not.** After a restart the Bluetooth link to
+an already paired Heltec could stay silent until /admin's switch went
+USB → Bluetooth. That switch did two things: it ended the computer's
+Bluetooth side (thread, bleak client) and made a new one, and the USB
+half restarted the Heltec. 1.0.0-beta.16 copied only the second, which
+needs the cable. Now (beta.17):
+- `_BLEPort` writes a lone `FEND` with a reply *before* `start_notify`:
+  that write needs an encrypted link, so the computer encrypts with the
+  saved bond first; subscribed before encryption, macOS can drop the
+  subscription and the RNode's answers never arrive.
+- `RNodeBLEInterface._fresh()` after `KICK_AFTER` silent handshakes: the
+  old `_BLEPort` stopped (joined, so it really disconnects) and a new
+  one made -- with the Heltec reset over USB in between if it's plugged
+  in (`CMD_RESET 0x55 0xF8`, after the port open's own reset, if any,
+  has booted; DTR/RTS behaviour on open differs between OSes and
+  drivers). Also on the cable after `MISS_KICK` scans that didn't see
+  it (a Heltec holding on to a gone link doesn't advertise), at most
+  every `FRESH_EVERY` s.
+- `close()` joins the Bluetooth thread (`stop(3)`), so stopping or
+  updating the Stump disconnects for real and the Heltec advertises
+  again for the next start.
 
 **`#lora-mesh` between Stumps over the radio.** An open LXMF link over
 the chain carried every message, so the Heltec never transmitted.

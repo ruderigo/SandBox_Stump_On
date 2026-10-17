@@ -8,7 +8,7 @@ you hit `AUTH-CHALLENGE` cold and start reverse-engineering source.
 you're looking at (a forwarded zip, an older doc, a snippet someone
 pasted into chat) disagrees with what's there, the repo wins.
 
-**This page matches firmware 1.0.0-beta.16.** What changed for clients
+**This page matches firmware 1.0.0-beta.17.** What changed for clients
 since 1.0.0-beta.4:
 
 - **`#lora-mesh` is shared by the Stumps.** Lines from another Stump's
@@ -370,7 +370,7 @@ formats: every endpoint, payload and limit a client touches.
 # Reference for client builders
 
 Everything the client teams have been given, in one place. Checked
-against the 1.0.0-beta.16 `barkeep.py`, `rrc.py`, `rrc_mesh.py`,
+against the 1.0.0-beta.17 `barkeep.py`, `rrc.py`, `rrc_mesh.py`,
 `billboard.py`, `fserv.py`, `plugins.py`, `chain.py` and
 `example_node.py` source; the JSON shapes below are the ones the
 firmware's own tests (`tests/`) check.
@@ -397,7 +397,7 @@ Use it to probe and label nodes:
 
 ```json
 {"name": "LaBuche", "lxmf": "53d91d2f…48e4", "version": "Beta A",
- "release": "1.0.0-beta.16", "ap_ip": "192.168.4.1", "chain": null,
+ "release": "1.0.0-beta.17", "ap_ip": "192.168.4.1", "chain": null,
  "features": ["chat", "billboard", "files", "about"]}
 ```
 
