@@ -443,8 +443,11 @@ chain can't join it here. `LORA_MESH_LOCKED = False` in config.py opens it.
 **`#lora-mesh` is shared by the Stumps**: each sends its own people's
 lines in it to the other Stumps it knows (on the chain, or heard over
 LoRa), titled `#lora-mesh`, and they show there as `<nick@stump>`, once,
-going no further. A short batch to a Stump one hop away goes out on
-every interface, the Heltec included.
+going no further. **Radio first:** a Stump with its radio online sends
+them over the radio only, in single packets, even when Wi-Fi reaches the
+other Stump too; without one, over the chain. `#wifi-mesh` is the
+opposite: always over Wi-Fi (the chain), never on the radio. `#main`
+stays on its Stump.
 
 **Test matrix:**
 - [ ] Fresh, unconfigured node: `/rooms` shows both `#main` and `#lora-mesh`, with zero admin action taken

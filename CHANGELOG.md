@@ -1,6 +1,13 @@
 # Changelog
 
-## Unreleased
+## 1.0.0-beta.7
+- **#lora-mesh goes over the radio between Stumps.** A Stump with its
+  Heltec online sends its `#lora-mesh` lines to the other Stumps over
+  the radio only -- one packet each, cut to fit -- even when Wi-Fi
+  reaches them too. Before, an open link over the chain carried them,
+  so the Heltec never transmitted. Without a radio, they still go over
+  the chain. `#wifi-mesh` now stays on Wi-Fi (a short batch used to go
+  out on the radio as well); `#main` stays on its Stump.
 - **Turn a computer Stump off from /admin.** It runs in the background,
   so stopping it took a terminal command. Now `/admin` → *This Stump on
   the computer* → **Turn off this Stump** (it asks first): the radio off,

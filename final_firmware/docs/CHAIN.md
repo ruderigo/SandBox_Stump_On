@@ -31,7 +31,9 @@ rest reach the LoRa mesh through the chain.
   from their people show as `<nick@thatstump>`, and people on different
   Stumps can DM each other (`/msg rod@LaBuche ...`). `#lora-mesh` is
   for LoRa phones and handhelds; the Stumps share it too (lines from
-  another Stump's `#lora-mesh` show there as `<nick@thatstump>`).
+  another Stump's `#lora-mesh` show there as `<nick@thatstump>`), over
+  the radio when the Stump has one online, even with Wi-Fi there.
+  `#wifi-mesh` always goes over Wi-Fi; `#main` stays on its Stump.
 - **The chain secret** keeps the chain to Stumps (and PCs) that know it.
   Each one says hello to the Stump above it with a code made from the
   secret, and a Stump only sends to, and accepts from, those that have.

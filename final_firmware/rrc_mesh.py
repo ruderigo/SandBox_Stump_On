@@ -859,7 +859,14 @@ def _flush_to_peer(router, dest_hash_hex, peer):
     if lines:
         # Room lines in this batch belong to `room`; say so in the title.
         # A DM-only batch has no room (its lines name their author).
-        _send_queue.append((router, dest_hash_bytes, "\n".join(lines), "#" + room if msgs else ""))
+        text, title = "\n".join(lines), ("#" + room if msgs else "")
+        chain_if = _chain_iface(dest_hash_bytes) if stump and room == rrc.CHAIN_ROOM else None
+        if chain_if is not None and len((text + title).encode()) <= RADIO_CHUNK:
+            # #wifi-mesh stays on Wi-Fi: a short batch to a Stump one hop
+            # away would otherwise go out on every interface, the radio too.
+            _send_queue.append((router, dest_hash_bytes, text, title, None, chain_if))
+        else:
+            _send_queue.append((router, dest_hash_bytes, text, title))
 
 
 def _stump_lines(msgs, skip_nick=None):
@@ -871,6 +878,77 @@ def _stump_lines(msgs, skip_nick=None):
             continue
         out.append(("* " + m["nick"] + " " if m["kind"] == "action" else "<" + m["nick"] + "> ") + m["body"])
     return out
+
+
+# One radio packet holds about 295 bytes of LXMF content; #lora-mesh lines
+# for another Stump go in pieces well under that (title included).
+RADIO_CHUNK = 200
+
+
+def _radio():
+    """This Stump's own radio, if it's online (the Heltec on USB, Bluetooth
+    or the CAM's bridge), else None."""
+    try:
+        import radio
+        for i in radio.bridges():
+            if getattr(i, "online", False):
+                return i
+    except Exception:
+        pass
+    return None
+
+
+def _chain_iface(dest_hash_bytes):
+    """The chain interface the path to this Stump comes in on, or None."""
+    try:
+        from urns.transport import Transport
+        from urns import const
+        e = Transport.path_table.get(bytes(dest_hash_bytes))
+        i = e[const.IDX_PT_RECV_IF] if e is not None else None
+        if i is not None and type(i).__name__.startswith("Chain"):
+            return i
+    except Exception:
+        pass
+    return None
+
+
+def _radio_pieces(lines, limit=RADIO_CHUNK):
+    """Lines grouped into texts of at most `limit` bytes; a longer line is
+    cut, each piece keeping its "<nick> " so the other side files it."""
+    out, cur = [], ""
+    for line in lines:
+        pieces = [line]
+        if len(line.encode()) > limit:
+            head = line[:line.index("> ") + 2] if line.startswith("<") and "> " in line else ""
+            body, pieces = line[len(head):], []
+            step = max(20, (limit - len(head.encode())) // 2)    # utf-8: up to 2+ bytes a char
+            while body:
+                pieces.append(head + body[:step])
+                body = body[step:]
+        for p in pieces:
+            if cur and len((cur + "\n" + p).encode()) > limit:
+                out.append(cur)
+                cur = p
+            else:
+                cur = (cur + "\n" + p) if cur else p
+    if cur:
+        out.append(cur)
+    return out
+
+
+def _queue_lora(router, dest_hash_hex, lines):
+    """#lora-mesh lines for another Stump: over this Stump's radio when it
+    has one online -- even when Wi-Fi reaches that Stump too, #lora-mesh is
+    the radio's room -- in single packets; without a radio, the usual way
+    (the chain)."""
+    dest = bytes.fromhex(dest_hash_hex)
+    title = "#" + rrc.MESH_ROOM
+    r = _radio()
+    if r is None:
+        _send_queue.append((router, dest, "\n".join(lines), title))
+        return
+    for text in _radio_pieces(lines):
+        _send_queue.append((router, dest, text, title, None, r))
 
 
 def _flush_lora_to_stump(router, dest_hash_hex, peer):
@@ -886,7 +964,7 @@ def _flush_lora_to_stump(router, dest_hash_hex, peer):
     peer["lora_sent_id"] = msgs[-1]["id"]
     lines = _stump_lines(msgs, peer["nick"])
     if lines:
-        _send_queue.append((router, bytes.fromhex(dest_hash_hex), "\n".join(lines), "#" + rrc.MESH_ROOM))
+        _queue_lora(router, dest_hash_hex, lines)
 
 
 # ── Poll loop (scheduled as asyncio task) ─────────────────────────────
@@ -899,6 +977,7 @@ def _send_item(item):
     rtr, dest_hash_bytes, text = item[0], item[1], item[2]
     title = item[3] if len(item) > 3 else ""
     fields = item[4] if len(item) > 4 else None
+    via = item[5] if len(item) > 5 else None
     # Each send signs and encrypts without yielding: reset the Heltec
     # link's quiet timer right before it, not once per cycle, so no run of
     # sends can add up to the ~7 s of silence that drops the link.
@@ -909,7 +988,9 @@ def _send_item(item):
     except Exception:
         pass
     try:
-        if fields:
+        if via is not None:
+            rtr.send_message(dest_hash_bytes, text, title=title, via=via)
+        elif fields:
             rtr.send_message(dest_hash_bytes, text, title=title, fields=fields)
         elif title:
             rtr.send_message(dest_hash_bytes, text, title=title)

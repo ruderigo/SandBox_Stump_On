@@ -200,8 +200,10 @@ class LXMessage:
 
         self.method = self.desired_method
 
-    def send(self):
-        """Send the message via the chosen method"""
+    def send(self, attached_interface=None):
+        """Send the message via the chosen method. attached_interface: an
+        opportunistic message goes out on that interface only (the radio,
+        for #lora-mesh between Stumps -- rrc_mesh)."""
         if not self.packed:
             self.pack()
 
@@ -209,7 +211,7 @@ class LXMessage:
             # For opportunistic, we send to the destination directly
             # The packet data excludes the destination hash (inferred from packet header)
             data = self.packed[self.DESTINATION_LENGTH:]
-            pkt = Packet(self._destination, data)
+            pkt = Packet(self._destination, data, attached_interface=attached_interface)
             pkt.send()
             self.state = LXMessage.SENT
             self.transport_encrypted = True
@@ -425,7 +427,7 @@ class LXMRouter:
         return umsgpack.packb([dn, None, []])
 
     def send_message(self, destination_hash, content, title="",
-                     fields=None, desired_method=None):
+                     fields=None, desired_method=None, via=None):
         """Send an LXMF message to a destination hash.
 
         Resilient delivery chain:
@@ -438,6 +440,9 @@ class LXMRouter:
         or None on hard failure (reachable but identity still unknown).
         """
         from .transport import Transport
+
+        if via is not None:
+            return self._send_via(destination_hash, content, title, fields, via)
 
         have_link = self._find_active_link_for(destination_hash) is not None
 
@@ -489,6 +494,28 @@ class LXMRouter:
         elif msg.method == LXMessage.DIRECT:
             self._send_direct(msg, dest)
 
+        return msg
+
+    def _send_via(self, destination_hash, content, title, fields, interface):
+        """One packet on one interface (the radio), whatever links or paths
+        exist elsewhere: an open link over the Wi-Fi chain would otherwise
+        carry it, and the radio would never transmit. Only what fits in a
+        single packet (the caller cuts it up); returns the LXMessage, or
+        None (too big, or the peer's keys not known yet)."""
+        dest_identity = Identity.recall(destination_hash)
+        if dest_identity is None:
+            log("Cannot send LXMF on " + str(interface) + ": unknown identity for "
+                + destination_hash.hex()[:8], LOG_ERROR)
+            return None
+        dest = Destination(dest_identity, Destination.OUT, Destination.SINGLE, APP_NAME, "delivery")
+        source = Destination(self.delivery_identity, Destination.OUT, Destination.SINGLE, APP_NAME, "delivery")
+        msg = LXMessage(destination=dest, source=source, content=content, title=title,
+                        fields=fields, desired_method=LXMessage.OPPORTUNISTIC)
+        msg.pack()
+        if msg.method != LXMessage.OPPORTUNISTIC:
+            log("LXMF message too big for one packet on " + str(interface), LOG_ERROR)
+            return None
+        msg.send(attached_interface=interface)
         return msg
 
     def _find_active_link_for(self, destination_hash):

@@ -144,7 +144,12 @@ class Packet:
                 and self.packet_type in (const.PKT_DATA, const.PKT_LINKREQUEST)):
             from .transport import Transport
             _entry = Transport.path_table.get(self.destination_hash)
-            if _entry is not None and _entry[const.IDX_PT_HOPS] > 1:
+            # A packet tied to one interface (the radio, for #lora-mesh
+            # between Stumps) goes straight to the destination there, not
+            # "via" a next hop learned on another interface (the chain).
+            if (_entry is not None and _entry[const.IDX_PT_HOPS] > 1
+                    and (self.attached_interface is None
+                         or _entry[const.IDX_PT_RECV_IF] is self.attached_interface)):
                 self.header_type = const.HDR_2
                 self.transport_type = const.TRANSPORT_TRANSPORT
                 self.transport_id = _entry[const.IDX_PT_NEXT_HOP]
