@@ -401,7 +401,17 @@ def _note_stump_beacon(router, app_data, packet):
         lxmf_hash = bytes(fields[3])
         own = router.delivery_destination
         if own is None or lxmf_hash != bytes(own.hash):
-            rrc.mark_stump(lxmf_hash.hex())
+            h = lxmf_hash.hex()
+            if not rrc.is_stump(h):
+                # A Stump new to this one: answer with this one's beacon,
+                # so it learns this Stump too (over the radio alone there's
+                # no chain link to do it).
+                try:
+                    import chain
+                    chain.stump_heard()
+                except Exception:
+                    pass
+            rrc.mark_stump(h)
         return True
     except Exception:
         return False

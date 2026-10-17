@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.0-beta.9
+- **#lora-mesh works with no Wi-Fi at all.** A computer Stump off Wi-Fi
+  (its Heltec on USB) only learned the other Stumps were Stumps from
+  their half-hourly beacon, so `#lora-mesh` had nobody to send to for up
+  to 30 minutes. Now a Stump announces itself as soon as its radio
+  connects, and answers a Stump it hears for the first time with its own
+  beacon -- they meet within seconds, over the radio alone. Tested with
+  two computer Stumps whose simulated Heltecs talk to each other.
+
 ## 1.0.0-beta.8
 - **A CAM finds another Stump when its own goes away.** Its Stump above
   gone for a minute, a CAM looks for another Stump of the same chain in

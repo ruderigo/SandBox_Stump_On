@@ -64,6 +64,38 @@ def link_event():
     _state["new_link"] = True
 
 
+# Introductions over the radio, for Stumps with no Wi-Fi between them (a
+# computer off Wi-Fi with its Heltec, a CAM out of range): the radio
+# coming up, or a Stump heard for the first time, makes this Stump
+# announce itself soon (the same as a new chain link) -- not more often
+# than these, to spare the airtime.
+RADIO_UP_EVERY = 600
+NEW_STUMP_EVERY = 60
+_intro = {"radio": -10 ** 9, "stump": -10 ** 9}
+
+
+def radio_up(now=None):
+    """The radio just connected (handshake done, set up): introduce this
+    Stump on it."""
+    now = time.time() if now is None else now
+    if now - _intro["radio"] >= RADIO_UP_EVERY:
+        _intro["radio"] = now
+        link_event()
+        return True
+    return False
+
+
+def stump_heard(now=None):
+    """A Stump this one didn't know just introduced itself: answer, so it
+    learns this one too (over the radio there's no chain to tell it)."""
+    now = time.time() if now is None else now
+    if now - _intro["stump"] >= NEW_STUMP_EVERY:
+        _intro["stump"] = now
+        link_event()
+        return True
+    return False
+
+
 def take_link_event():
     if _state["new_link"]:
         _state["new_link"] = False

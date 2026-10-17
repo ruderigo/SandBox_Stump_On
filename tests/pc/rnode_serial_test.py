@@ -110,6 +110,8 @@ check("the handshake answered: online, its firmware and port in the status", st[
 cmds = [c for c, p in f]
 # RNode commands: FREQUENCY 0x01, BANDWIDTH 0x02, TXPOWER 0x03, SF 0x04, CR 0x05, RADIO_STATE 0x06
 check("online after connect", iface.online)
+import chain
+check("connected: this Stump introduces itself on the radio (beacon soon)", chain.take_link_event())
 check("radio set up on connect, in order", cmds[:6] == [0x01, 0x02, 0x03, 0x04, 0x05, 0x06], cmds)
 check("frequency 915 MHz", f[0][1] == (915000000).to_bytes(4, "big"), f[0])
 check("bandwidth 125 kHz", f[1][1] == (125000).to_bytes(4, "big"))

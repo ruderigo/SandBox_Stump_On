@@ -123,5 +123,16 @@ for item in q:
 check("#wifi-mesh: sent on the chain only, nothing on the radio", chain_if.sent and not radio_if.sent,
       (len(chain_if.sent), len(radio_if.sent)))
 del rrc_mesh._send_queue[:]
+# Off Wi-Fi, Stumps only meet over the radio: the radio coming up, and a
+# Stump heard for the first time, make this one introduce itself soon
+# (its beacon and LXMF announce), not more often than set.
+import chain
+chain._intro.update(radio=-10 ** 9, stump=-10 ** 9)
+chain.take_link_event()
+check("radio up: introduce this Stump", chain.radio_up(1000) and chain.take_link_event())
+check("radio up again soon: not again (airtime)", not chain.radio_up(1100) and not chain.take_link_event())
+check("radio up 10 min later: again", chain.radio_up(1000 + chain.RADIO_UP_EVERY) and chain.take_link_event())
+check("a new Stump heard: answer it", chain.stump_heard(5000) and chain.take_link_event())
+check("another within a minute: once is enough", not chain.stump_heard(5030) and not chain.take_link_event())
 print("FAILURES", FAIL)
 sys.exit(1 if FAIL else 0)

@@ -249,6 +249,11 @@ class WiFiSerialInterface(Interface):
                 self._send_command(CMD_ST_ALOCK, bytes([(at >> 8) & 0xFF, at & 0xFF]))
             log("WiFi Serial radio configured: %d Hz / %d Hz / SF%d / CR%d / %ddBm" % (
                 self.frequency, self.bandwidth, self.sf, self.cr, self.txpower), LOG_NOTICE)
+            try:
+                import chain            # introduce this Stump on the radio (beacon soon)
+                chain.radio_up()
+            except Exception:
+                pass
         except Exception as e:
             log("WiFi Serial radio config failed: " + str(e), LOG_ERROR)
             self.online = False
