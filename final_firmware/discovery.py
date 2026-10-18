@@ -55,12 +55,22 @@ def addresses():
             out.append(ip)
     try:
         import stump_host
-        add(stump_host.hotspot_ip())
-        for ip in stump_host.local_ips():
-            add(ip)
-        return out
     except ImportError:
-        pass
+        stump_host = None
+    if stump_host is not None:
+        # No name lookups here: resolving the computer's own hostname can
+        # hang for many seconds (macOS), and this runs every WATCH_S and on
+        # every question. The hotspot address set in config.py, the
+        # well-known hotspot addresses this computer holds, and the address
+        # of its default route.
+        want = stump_host.setting("PC_HOTSPOT_IP", "auto")
+        if want and want != "auto":
+            add(want)
+        for ip in getattr(stump_host, "WELL_KNOWN", ()):
+            if _is_mine(ip):
+                add(ip)
+        add(_route_ip())
+        return out
     try:
         import network
         for itf in (network.STA_IF, network.AP_IF):
@@ -70,6 +80,33 @@ def addresses():
     except Exception:
         pass
     return out
+
+
+def _is_mine(ip):
+    """Is this address one of this computer's? (Binding to it only works if
+    so -- no name lookup.)"""
+    import socket
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        s.bind((ip, 0))
+        return True
+    except OSError:
+        return False
+    finally:
+        s.close()
+
+
+def _route_ip():
+    """The address of this computer's default route (sends nothing)."""
+    import socket
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        s.connect(("10.255.255.255", 1))
+        return s.getsockname()[0]
+    except OSError:
+        return None
+    finally:
+        s.close()
 
 
 def urls(ips=None):

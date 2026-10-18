@@ -315,7 +315,7 @@ EXPECTED_FILE_HASHES = {
     "captive_portal.py": "35cb3a279ecc42db",
     "chain.py": "3727f30a928f3478",
     "config.py": "ed7b475134824fb3",
-    "discovery.py": "ab66b6c293ae24d2",
+    "discovery.py": "d01cc2a1bf23f2ac",
     "docs/CHAIN.md": "7d168225a314cfba",
     "docs/CLIENT_QUICKSTART.md": "1aff52705cdd9eac",
     "docs/COMMANDS.md": "3d5bfe18fbbaccf1",
