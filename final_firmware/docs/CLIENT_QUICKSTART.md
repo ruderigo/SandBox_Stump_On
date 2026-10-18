@@ -177,13 +177,14 @@ almost certainly why.
 the same way. Verified end to end over the mesh bridge with a real
 signature.
 
-**Nothing is automatic.** A mesh sender is known to the node only by its
-LXMF address, and the node does not turn that into a verified identity
-by itself. It couldn't safely today either: whether it checks the
-signature on an incoming LXMF message depends on the board having
-native Ed25519 (`verify_signatures = ed25519.have_native()` in the
-node's `urns/lxmf.py`), and without it the check is skipped — and
-unchecked messages are delivered all the same. So `/auth` is the proof.
+**Over LoRa, in `hybrid`, your signature is enough.** The node checks the
+signature on every incoming LXMF message (always, with or without native
+Ed25519), and a node that isn't `open` only takes signed messages from a
+sender whose announce it has heard. So in `hybrid` a FireFly over LoRa
+counts as verified for the rooms beyond `#main` and `#wifi-mesh`, with
+no `/auth`. In `mandatory`, and for your credits and nick to follow you
+as a person, `/auth` is still the proof. Over Wi-Fi (HTTP), `/auth` is
+always what verifies you.
 
 **Do you need it?** Only if the node's access mode is `hybrid` or
 `mandatory`, or you want to enter a `minted` or `hybrid` room. The

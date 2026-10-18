@@ -316,7 +316,7 @@ EXPECTED_FILE_HASHES = {
     "chain.py": "3727f30a928f3478",
     "config.py": "ed7b475134824fb3",
     "docs/CHAIN.md": "7d168225a314cfba",
-    "docs/CLIENT_QUICKSTART.md": "ce7830347b629bb6",
+    "docs/CLIENT_QUICKSTART.md": "4228dc31d5698d52",
     "docs/COMMANDS.md": "3d5bfe18fbbaccf1",
     "docs/ENGINEERING_NOTES.md": "ba2e17c5a7d06fdf",
     "docs/FIELD_TEST.md": "221191c588bfe294",
