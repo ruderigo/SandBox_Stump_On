@@ -266,16 +266,24 @@ _real_statvfs = getattr(os, "statvfs", None)     # before install() replaces it
 
 
 def _disk_free(path):
-    """Bytes really free on the disk holding `path`. Not through
-    shutil.disk_usage: on macOS and Linux that calls os.statvfs, which is
-    _statvfs below once installed -- it called itself until Python gave
-    up, the firmware read that as "no card" and refused every upload
-    (507). Windows has no statvfs: shutil asks the system directly."""
+    """Bytes really free on the disk holding `path`. Never through
+    os.statvfs once install() has run -- that's _statvfs below; on macOS
+    and Linux shutil.disk_usage went there, which called itself until
+    Python gave up, and the firmware read that as "no card" and refused
+    every upload (507)."""
     if _real_statvfs is not None:
         st = _real_statvfs(path)
         return st.f_bavail * st.f_frsize
-    import shutil
-    return shutil.disk_usage(path).free
+    try:
+        import nt                                   # Windows
+        return nt._getdiskusage(path)[1]
+    except (ImportError, AttributeError):
+        pass
+    import ctypes                                   # Windows, without nt._getdiskusage
+    free = ctypes.c_ulonglong(0)
+    if not ctypes.windll.kernel32.GetDiskFreeSpaceExW(ctypes.c_wchar_p(path), ctypes.byref(free), None, None):
+        raise OSError("GetDiskFreeSpaceExW failed for %s" % path)
+    return free.value
 
 
 def _statvfs(path):
@@ -286,7 +294,8 @@ def _statvfs(path):
     used = _dir_size(real)
     try:
         disk_free = _disk_free(real)
-    except (OSError, ValueError):
+    except Exception as e:
+        print("[stump] couldn't read the disk's free space (%r): counting on the PC_STORAGE_MB quota" % (e,))
         disk_free = quota
     free = max(0, min(quota - used, disk_free))
     total = used + free

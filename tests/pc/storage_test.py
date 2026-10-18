@@ -86,7 +86,8 @@ if up:
         print(info)
         if os.environ.get("GITHUB_ACTIONS"):
             print("::error::" + info)
-    check("... it's in sd/shared", os.path.getsize(os.path.join(folder, "sd", "shared", "small.bin")) == 20000)
+    kept = os.path.join(folder, "sd", "shared", "small.bin")
+    check("... it's in sd/shared", os.path.exists(kept) and os.path.getsize(kept) == 20000)
     code, r = upload("huge.bin", 1800 * 1024)
     check("past 75% of PC_STORAGE_MB: refused (507), nothing kept",
           code == 507 and not os.path.exists(os.path.join(folder, "sd", "shared", "huge.bin")), (code, r))

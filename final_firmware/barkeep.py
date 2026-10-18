@@ -4282,11 +4282,8 @@ async def _handle(reader, writer, secure=False):
                 # shared file -- that's a real "no room" answer, not a
                 # bug.
                 await fserv.drain(reader, length)
-                total, free, _ = fserv.get_storage_stats()
                 await _result(writer, as_json, "507 Insufficient Storage", "full",
-                              "Card capacity exceeded (75% threshold limit).",
-                              {"total": total, "free": free, "need": length,
-                               "limit": int(total * fserv.MAX_SD_RATIO)})
+                              "Card capacity exceeded (75% threshold limit).")
             else:
                 table = fserv._awaiting()
                 is_slot = bool(hash_hex) and hash_hex in table and not table[hash_hex]["fulfilled"]
