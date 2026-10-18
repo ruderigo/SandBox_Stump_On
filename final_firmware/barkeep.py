@@ -24,6 +24,7 @@ import theme
 import layout
 import features
 import radio
+import settings as stump_settings     # ("settings" is a local name in places here)
 import propagation
 import stump_tls as tls  # not "tls": MicroPython has a built-in module by that name
 import flasher_ui
@@ -278,6 +279,14 @@ fieldset.opts{border:1px solid var(--border); border-radius:6px; padding:8px 12p
   display:flex; flex-direction:column; gap:6px;}
 fieldset.opts legend{color:var(--muted); padding:0 4px;}
 label.opt{display:flex; align-items:center; gap:8px; cursor:pointer;}
+form.setup details.inner{padding:0 12px;}
+form.setup details.inner[open]{padding-bottom:10px;}
+form.setup details.inner>summary{margin:0 -12px;}
+form.setup label:not(.opt){display:block; margin:10px 0;}
+form.setup input:not([type=radio]):not([type=checkbox]), form.setup textarea{width:100%; max-width:30rem; box-sizing:border-box;}
+form.setup .weights{display:grid; grid-template-columns:repeat(auto-fill,minmax(7rem,1fr)); gap:0 12px;}
+form.setup .weights p{grid-column:1/-1;}
+form.setup .weights label{margin:4px 0;}
 .home-layout.side .home-brand{margin:0;}
 @media (min-width:760px){
   .home-layout.side{display:grid; grid-template-columns:1fr 1fr; gap:24px; align-items:start;}
@@ -695,7 +704,9 @@ def _ask_drawer(lang, open_=False):
     """BarKeep the librarian, as a firefly in the corner (like a help chat):
     tap it and it opens into a small chat that answers through POST /chat --
     what's on this node: files, notices, apps. On /files, /billboard and
-    the home page."""
+    the home page -- unless /admin turned it off (Stump settings)."""
+    if not stump_settings.librarian_on():
+        return ""
     name = _esc_name(BOT_NAME)
     chips = "".join("<button type='button'>" + billboard._esc(c) + "</button>"
                     for c in i18n.t("ask_chips", lang).split("|") if c)
@@ -1188,7 +1199,8 @@ def _render_admin_file_list_page(lang, names, pw):
                  + _render_admin_layout_section(lang, pw) + _render_admin_settings_section(lang),
                  _theme_label(theme.admin_choice(), lang) if theme.admin_choice() else "")
     system = (
-        _card("plugins", "\U0001f9e9", _render_admin_plugins_section(lang, pw), _plugins_peek(lang))
+        _card("setup", "\u2699\ufe0f", _render_admin_setup_section(lang, pw), _setup_peek(lang))
+        + _card("plugins", "\U0001f9e9", _render_admin_plugins_section(lang, pw), _plugins_peek(lang))
         + _card("https", "\U0001f512", _render_admin_tls_line(lang), "")
         + _card("power", "\u23fb", _render_admin_power_section(lang, pw), ""))
     return (
@@ -1705,15 +1717,100 @@ def _render_admin_power_section(lang, pw):
     the login service). Started again from the Start file in its folder,
     or at the next login."""
     h = _host()
+    restart = ("<p class='sub'>" + i18n.t("admin_restart_intro", lang) + "</p>" + _render_admin_restart_form(lang, pw))
     if h is None:
-        return ""
+        return "<h2 class='sub'>" + i18n.t("admin_power_header_cam", lang) + "</h2>" + restart
     where = billboard._esc(getattr(h, "START_FILE", "Start Stump"))
-    return ("<h2 class='sub'>" + i18n.t("admin_power_header", lang) + "</h2>"
+    return ("<h2 class='sub'>" + i18n.t("admin_power_header", lang) + "</h2>" + restart +
             "<form method='POST' action='/admin/poweroff' class='post-form' onsubmit=\"return confirm("
             + billboard._esc(json.dumps(i18n.t("admin_power_confirm", lang))) + ")\">"
             "<input type='hidden' name='admin_pass' value='" + billboard._esc(pw) + "'>"
             "<p class='sub'>" + i18n.t("admin_power_intro", lang, start=where) + "</p>"
             "<button type='submit'>" + i18n.t("admin_power_off", lang) + "</button></form>")
+
+
+def _setup_peek(lang):
+    s = stump_settings.current()
+    bits = [billboard._esc(s["NODE_NAME"]), i18n.t("admin_setup_" + stump_settings.economy(s), lang).split(" — ")[0]]
+    if stump_settings.has_access_modes():
+        bits.append(i18n.t("admin_setup_" + s["AUTH_MODE"], lang).split(" — ")[0])
+    return " · ".join(bits)
+
+
+_FEATURE_LABELS = {"chat": "nav_chat", "billboard": "nav_board", "files": "nav_files", "about": "nav_about"}
+
+
+def _render_admin_setup_section(lang, pw, notice=""):
+    """The Provisioner's answers, changed in place (settings.py): name and
+    bot, the file-sharing economy, who may enter, the features. Folded
+    groups, one Save; what waits for a restart says so, with the button."""
+    T = lambda k, **kw: i18n.t(k, lang, **kw)
+    S = stump_settings
+    s = S.current()
+    esc = billboard._esc
+    eco = S.economy(s)
+
+    def radio_row(name, value, checked, label):
+        return ("<label class='opt'><input type='radio' name='" + name + "' value='" + value + "'"
+                + (" checked" if checked else "") + "> " + label + "</label>")
+
+    names = ("<details class='inner'><summary>" + T("admin_setup_names") + " <span class='pk'>" + esc(s["NODE_NAME"])
+             + " · " + esc(s["BOT_NAME"]) + "</span></summary>"
+             "<label>" + T("admin_setup_node") + "<br><input name='node_name' maxlength='" + str(S.NAME_MAX)
+             + "' required value='" + esc(s["NODE_NAME"]) + "'></label>"
+             "<p class='sub'><small>" + T("admin_setup_node_note") + "</small></p>"
+             "<label>" + T("admin_setup_bot") + "<br><input name='bot_name' maxlength='" + str(S.BOT_MAX)
+             + "' required value='" + esc(s["BOT_NAME"]) + "'></label>"
+             "<label>" + T("admin_setup_greeting", n=S.GREETING_MAX) + "<br><textarea name='greeting' rows='3' maxlength='"
+             + str(S.GREETING_MAX) + "'>" + esc(s["MESH_GREETING"]) + "</textarea></label></details>")
+    w = s["CREDIT_WEIGHTS"]
+    files = ("<details class='inner'><summary>" + T("admin_setup_files") + " <span class='pk'>"
+             + T("admin_setup_" + eco).split(" — ")[0] + "</span></summary>"
+             + radio_row("economy", "free", eco == "free", T("admin_setup_free"))
+             + radio_row("economy", "standard", eco == "standard", T("admin_setup_standard"))
+             + radio_row("economy", "custom", eco == "custom", T("admin_setup_custom"))
+             + "<div class='weights' id='setupw'><p class='sub'><small>" + T("admin_setup_weights") + "</small></p>"
+             + "".join("<label>" + T("admin_setup_w_" + k) + "<br><input name='w_" + k + "' type='number' min='0' max='"
+                       + str(S.WEIGHT_MAX) + "' value='" + str(w.get(k, 1)) + "'></label>" for k in S.WEIGHT_CLASSES)
+             + "</div></details>")
+    access = ""
+    if S.has_access_modes():
+        access = ("<details class='inner'><summary>" + T("admin_setup_access") + " <span class='pk'>"
+                  + T("admin_setup_" + s["AUTH_MODE"]).split(" — ")[0] + "</span></summary>"
+                  + "".join(radio_row("auth_mode", m, s["AUTH_MODE"] == m, T("admin_setup_" + m)) for m in S.MODES)
+                  + "</details>")
+    on = s["FEATURES"]
+    feats = ("<details class='inner'><summary>" + T("admin_setup_features") + " <span class='pk'>"
+             + (" · ".join(T(_FEATURE_LABELS[f]) for f in on) or T("admin_setup_f_none")) + "</span></summary>"
+             + "".join("<label class='opt'><input type='checkbox' name='f_" + f + "' value='1'"
+                       + (" checked" if f in on else "") + "> " + T(_FEATURE_LABELS[f]) + "</label>" for f in S.FEATURES)
+             + "<label class='opt'><input type='checkbox' name='librarian' value='1'"
+             + (" checked" if s["LIBRARIAN"] else "") + "> " + T("admin_setup_librarian", bot=esc(s["BOT_NAME"])) + "</label>"
+             + "</details>")
+    return ("<h2 class='sub'>" + T("admin_setup_header") + "</h2>" + notice
+            + "<p class='sub'>" + T("admin_setup_intro") + "</p>"
+            "<form method='POST' action='/admin/setup' class='post-form setup' autocomplete='off'>"
+            "<input type='hidden' name='admin_pass' value='" + esc(pw) + "'>"
+            + names + files + access + feats
+            + "<button type='submit'>" + T("admin_setup_save") + "</button></form>"
+            "<script>(function(){var w=document.getElementById('setupw');function f(){"
+            "var c=document.querySelector(\"input[name=economy]:checked\");var on=c&&c.value==='custom';"
+            "w.style.opacity=on?'':'.5';w.querySelectorAll('input').forEach(function(i){i.disabled=!on;});}"
+            "document.querySelectorAll('input[name=economy]').forEach(function(r){r.onchange=f;});f();})();</script>")
+
+
+def _render_admin_restart_form(lang, pw):
+    return ("<form method='POST' action='/admin/restart' class='post-form' onsubmit=\"return confirm("
+            + billboard._esc(json.dumps(i18n.t("admin_setup_restart_confirm", lang))) + ")\">"
+            "<input type='hidden' name='admin_pass' value='" + billboard._esc(pw) + "'>"
+            "<button type='submit'>" + i18n.t("admin_setup_restart", lang) + "</button></form>")
+
+
+async def _restart_soon():
+    """After the answer has gone out: start the Stump again."""
+    import uasyncio as asyncio
+    await asyncio.sleep(1)
+    stump_settings.restart()
 
 
 async def _power_off_soon():
@@ -3121,6 +3218,54 @@ async def _handle(reader, writer, secure=False):
                     msg = ""
                 names = fserv._list_files() if fserv.sd_ok else []
                 notice = "<p class='sub'>" + billboard._esc(msg) + "</p>" if msg else ""
+                await _send(writer, "200 OK", _page(notice + _render_admin_file_list_page(lang, names, pw)))
+
+        elif method == "POST" and (path.startswith("/admin/setup") or path.startswith("/admin/restart")):
+            # The Provisioner's answers changed from /admin (settings.py),
+            # and the restart that applies the rest.
+            length = int(headers.get("content-length", "0"))
+            body = await _read_small_body(reader, length)
+            fields = {}
+            for kv in body.decode().split("&"):
+                parts = kv.split("=", 1)
+                if len(parts) == 2:
+                    fields[parts[0]] = billboard._url_decode(parts[1])
+            pw = fields.get("admin_pass", "")
+            lang = i18n.get_lang(identifier)
+            if not _admin_ok(pw, identifier):
+                await _send(writer, "403 Forbidden", "Invalid admin password", "text/plain")
+            elif path.startswith("/admin/restart"):
+                await _send(writer, "200 OK", _page(
+                    "<h1>" + i18n.t("admin_setup_restart", lang) + "</h1><p class='sub'>"
+                    + i18n.t("admin_setup_restarting", lang) + "</p>"
+                    "<script>setTimeout(function(){location.href='/admin';},20000);</script>"))
+                import uasyncio as asyncio
+                asyncio.create_task(_restart_soon())
+            else:
+                changes, bad = stump_settings.parse_form(fields)
+                later = []
+                if bad:
+                    label = {"node_name": "admin_setup_node", "bot_name": "admin_setup_bot",
+                             "greeting": "admin_setup_names", "economy": "admin_setup_files",
+                             "auth_mode": "admin_setup_access"}.get(bad) or "admin_setup_w_" + bad[2:]
+                    msg = i18n.t("admin_setup_invalid", lang, field=i18n.t(label, lang).split(" (")[0])
+                else:
+                    before = stump_settings.current()
+                    saved, later = stump_settings.apply(changes)
+                    if not saved:
+                        msg = i18n.t("admin_setup_not_saved", lang)
+                    elif all(before.get(k) == v for k, v in changes.items()):
+                        msg = i18n.t("admin_setup_unchanged", lang)
+                    elif later:
+                        msg = None
+                    else:
+                        msg = i18n.t("admin_setup_saved", lang)
+                labels = {"NODE_NAME": "admin_setup_node", "BOT_NAME": "admin_setup_bot",
+                          "MESH_GREETING": "admin_setup_names", "FEATURES": "admin_setup_features",
+                          "CREDIT_WEIGHTS": "admin_setup_files", "AUTH_MODE": "admin_setup_access"}
+                what = ", ".join(i18n.t(labels.get(k, k), lang).split(" (")[0] for k in later)
+                notice = "<p class='sub'><b>" + billboard._esc(msg or i18n.t("admin_setup_later", lang, what=what)) + "</b></p>"
+                names = fserv._list_files() if fserv.sd_ok else []
                 await _send(writer, "200 OK", _page(notice + _render_admin_file_list_page(lang, names, pw)))
 
         elif method == "POST" and path.startswith("/admin/poweroff"):

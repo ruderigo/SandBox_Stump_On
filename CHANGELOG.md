@@ -1,6 +1,16 @@
 # Changelog
 
 ## 1.0.0-beta.18
+- **/admin → System → Stump settings: the Provisioner's answers, changed
+  in place** -- the name, the bot's name and auto-reply, file sharing
+  (free, standard economy, custom weights), who may enter (open, hybrid,
+  mandatory), the features, and the librarian's firefly bubble (on or
+  off). Written into config.py (an update keeps them); the economy, the
+  access mode, the features and the firefly apply at once, the rest with
+  *Restart the Stump* -- at the bottom of /admin, beside *Turn off* on a
+  computer (the board resets; a computer Stump starts again by itself). Nothing is reinstalled or minted again: the
+  identity, history, files, credits and radio stay as they are. On the
+  CAM and on a computer alike.
 - **Fixed: Bluetooth needed the USB → Bluetooth switch after every start
   or update.** The Heltec's name typed in the Provisioner ("EA69", as its
   screen shows) was matched exactly against what it advertises ("RNode

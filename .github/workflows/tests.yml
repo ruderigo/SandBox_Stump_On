@@ -94,3 +94,5 @@ jobs:
         run: python tests/pc/lora_radio_test.py
       - name: Turning the Stump off from /admin
         run: python tests/pc/pc_power_test.py
+      - name: The Stump's settings changed from /admin
+        run: python tests/pc/settings_test.py

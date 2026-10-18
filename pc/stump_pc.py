@@ -124,6 +124,10 @@ def service():
         if code == 0:
             log.write("[stump] stopped\n")
             return
+        if code == 3:                      # stump_host.RESTART_CODE: asked for (new settings)
+            log.write("[stump] restarting (asked for)\n")
+            log.flush()
+            continue
         if time.time() - t0 > 300:
             wait = 2
         log.write("[stump] stopped with code %s; starting again in %d s\n" % (code, wait))

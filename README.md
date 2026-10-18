@@ -627,11 +627,12 @@ status by its title; the cards left open stay open on that device.
 | Order | Drag (arrows on a phone) the navigation buttons and home tiles; hide or show each; saved in `/layout.json` |
 | Home page section | The `home/` branding: where it goes, frame height, shown or not (`docs/HOME_BRANDING.md`) |
 | Tools page | Delete sections or files from the card's `tools/` |
+| Stump settings | The Provisioner's answers, changed in place, no reinstall: name, bot's name and auto-reply, file sharing (free / standard / custom weights), who may enter (open / hybrid / mandatory), features, the librarian's firefly on or off. Identity, history, files and radio are kept |
 | Plugins | Each plugin's state and memory; switch one off |
 | Propagation node | On/off, status, a test mailbox, leave a message for an address |
 | Stump chain | This Stump's place, the one above, who's below |
 | HTTPS | Certificate status, expiry, days left |
-| This Stump on the computer | A computer Stump only: **Turn off this Stump** (the radio off first); started again from *Start Stump* in its folder |
+| This Stump on the computer (*Restart* on a CAM) | **Restart the Stump** (applies settings waiting for it); a computer Stump only: **Turn off this Stump** (the radio off first); started again from *Start Stump* in its folder |
 | This browser only | A theme, a five-colour palette and an SVG logo for that one browser (`localStorage`: nothing changes for others) |
 
 How posts are identified, why the radio values are parsed as text, and

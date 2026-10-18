@@ -59,6 +59,30 @@ def power_off():
     os._exit(0)
 
 
+RESTART_CODE = 3      # stump_pc's supervisor: "start me again now"
+
+
+def restart():
+    """Starts this Stump again (/admin, after changing its settings): the
+    radio off, as on the way out, then an exit with RESTART_CODE -- the
+    supervisor (stump_pc --service, what the Start file and start-at-login
+    run) starts it again at once; the login service would too (not 0)."""
+    t = sys.modules.get("urns.transport")
+    if t is not None:
+        for i in list(t.Transport.interfaces):
+            if i.__class__.__name__ in ("RNodeSerialInterface", "RNodeBLEInterface"):
+                try:
+                    i.close()
+                except Exception:
+                    pass
+    print("[stump] restarting", flush=True)
+    try:
+        sys.stdout.flush()
+    except Exception:
+        pass
+    os._exit(RESTART_CODE)
+
+
 def setting(name, default):
     try:
         import config

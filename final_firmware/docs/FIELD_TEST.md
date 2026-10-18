@@ -243,6 +243,15 @@ See `PC.md`. A Mac or a Windows PC, and a Heltec.
       `/admin`. While it works, the Heltec doesn't restart. Switch the
       Heltec off: red; on again: green by itself. **USB** in the switch:
       back on USB, online.
+- [ ] **Stump settings** (`/admin` → System → *Réglages du Stump*), on
+      the laptop and on LaBuche: switch file sharing to a custom economy
+      (video 5) and *Who may enter* to hybrid, Save: "Saved. It's in
+      place." -- the files page shows the new costs, an unverified
+      visitor can read the chat but not write. Change the bot's name:
+      it says a restart is needed; *Restart the Stump*: back in ~20 s
+      with the new name, the chat history, the billboard, the files and
+      the Stump's mesh address unchanged. Run `--pc` (or update LaBuche):
+      the new answers are still there.
 - [ ] The same **without the cable** (Heltec on its battery, already
       paired): Stop, Start Stump, or update with `--pc` -- green over
       Bluetooth by itself within about a minute, no toggling.
