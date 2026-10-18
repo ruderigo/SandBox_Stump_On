@@ -234,6 +234,8 @@ def apply(changes):
         try:
             import stumpid.core as sc
             sc.set_mode(changed["AUTH_MODE"])
+            import stumpid.install as si
+            si.enforce_mode()          # out of the rooms they may no longer be in
         except Exception:
             later.append("AUTH_MODE")
     if "FEATURES" in changed:

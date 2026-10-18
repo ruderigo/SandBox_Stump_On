@@ -101,12 +101,13 @@ def _gate(ctx):
             ok, reason_code = core.can_join_room(client_id, target_room)
             if not ok:
                 key = "room_needs_verified" if reason_code == "needs_verified" else "room_invite_only"
-                return [rrc.tok_refused(target_room, core.room_tier(target_room), i18n.t(key, ctx.lang))]
+                tier = core.room_tier(target_room)
+                return [rrc.tok_refused(target_room, core.AUTH_MODE if tier == "open" else tier, i18n.t(key, ctx.lang))]
 
     # Everything else is subject to the node's AUTH_MODE. A blocked line
     # never reaches another plugin or rrc, so a gated node can't be
     # written to by any path that funnels through handle_input.
-    if core.requires_verification(client_id, stripped):
+    if core.requires_verification(client_id, stripped, getattr(ctx, "room", None)):
         return [i18n.t("auth_required_generic", ctx.lang)]
     return None
 
@@ -186,6 +187,17 @@ def _cmd_whoami(client_id):
 # /admin <password> revoke <hexhash>
 # ---------------------------------------------------------------------
 
+def enforce_mode():
+    """The node just went hybrid (or stricter): whoever is in a room they
+    may no longer be in goes back to #main, told why. Returns their
+    nicks."""
+    moved = []
+    for room in list(rrc.room_names()):
+        if room != rrc.DEFAULT_ROOM:
+            moved += _enforce_room(room, core.AUTH_MODE)
+    return moved
+
+
 def _enforce_room(room, tier):
     """A room just became stricter: whoever is in it and no longer
     qualifies goes back to #main, told why -- the same refusal a /join
@@ -248,6 +260,7 @@ def _cmd_admin(client_id, stripped):
         if not rest:
             return ["current mode: " + core.AUTH_MODE]
         if core.set_mode(rest[0]):
+            enforce_mode()
             return ["mode set to " + rest[0]]
         return ["unknown mode -- use open, hybrid, or mandatory"]
 

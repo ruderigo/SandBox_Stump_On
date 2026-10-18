@@ -5,13 +5,13 @@
 >> 51 /nick bob -> [] None
 >> 52 /nick carol -> [] None
 >> 50 /admin pw mode hybrid -> ['mode set to hybrid'] None
->> 51 hello -> ['auth required for that -- send /auth to verify your identity'] None
->> 51 /join x -> ['auth required for that -- send /auth to verify your identity'] None
+>> 51 hello -> [] None
+>> 51 /join x -> ['⊘ #x hybrid — that room requires a verified identity -- send /auth first'] None
 >> 51 /msg alice hi -> ['auth required for that -- send /auth to verify your identity'] None
->> 51 /me waves -> ['auth required for that -- send /auth to verify your identity'] None
+>> 51 /me waves -> [] None
 >> 51 /topic -> ['#main topic: General. Be decent.'] None
->> 51 /topic t -> ['auth required for that -- send /auth to verify your identity'] None
->> 51 /rooms -> ['#main ·3  General. Be decent.', '#lora-mesh ·0  LoRa (radio) traffic lands here by default.'] None
+>> 51 /topic t -> [] None
+>> 51 /rooms -> ['#main ·3  t', '#lora-mesh ·0  LoRa (radio) traffic lands here by default.'] None
 >> 51 /names -> ['#main: alice, bob, carol'] None
 >> 51 /whoami -> ['not verified this session -- /auth to prove an identity'] None
 >> 51 /whoami x -> ['? /whoami — unknown command: /whoami  (try /help)'] None
@@ -19,7 +19,7 @@
 >> 51 /fslist -> ['active: !about, !busca, !cherche, !files, !find, !fserv, !help, !info, !list, !rules, !search'] None
 >> 51 /fsset op prefix ? -> ["trigger prefix is now '?' -- try ?fserv  (no SD card -- this lasts until reboot)"] None
 >> 51 /fsset op prefix ! -> ["trigger prefix is now '!' -- try !fserv  (no SD card -- this lasts until reboot)"] None
->> 51 !list -> ['auth required for that -- send /auth to verify your identity'] None
+>> 51 !list -> [] None
 >> 51 /invite alice -> ['only a verified identity can invite someone -- /auth first'] None
 >> 51 /nick bobby -> [] None
 >> 51 /nick bob -> [] None
@@ -45,7 +45,7 @@
 >> 50 /admin pw mode open -> ['mode set to open'] None
 >> 50 /admin pw room vip minted -> ['#vip is now minted'] None
 >> 50 /admin pw room club hybrid -> ['#club is now hybrid'] None
->> 51 /rooms -> ['#main ·3  General. Be decent.', '#club ·0  [hybrid]', '#lora-mesh ·0  LoRa (radio) traffic lands here by default.', '#vip ·0  [minted]'] None
+>> 51 /rooms -> ['#main ·3  t', '#club ·0  [hybrid]', '#lora-mesh ·0  LoRa (radio) traffic lands here by default.', '#vip ·0  [minted]'] None
 >> 51 /join vip -> ['⊘ #vip minted — that room requires a verified identity -- send /auth first'] None
 >> 51 /join club -> ['⊘ #club hybrid — that room is invite-only for unverified visitors -- ask someone already inside to /invite you'] None
 >> 52 /auth -> ['AUTH-CHALLENGE <nonce>'] None
@@ -68,3 +68,24 @@
 >> 50 /adminx -> ['auth required for that -- send /auth to verify your identity'] None
 >> 50 /admin pw -> ['not authorised -- or no admin password is configured yet, in which case /admin is off until a technician sets one.'] None
 >> 50 /admin pw bogus -> ['unknown admin command -- try mode, meshroom, revoke, room, or reset-access'] None
+>> 50 /admin pw mode open -> ['mode set to open'] None
+>> 53 /nick dan -> [] None
+>> 53 /join x -> [] x
+>> 53 in x -> [] None
+>> 50 /admin pw mode hybrid -> ['mode set to hybrid'] None
+dan now in main
+>> 53 hello main -> [] None
+>> 53 /join wifi-mesh -> [] wifi-mesh
+>> 53 hello chain -> [] None
+>> 53 /join lora-mesh -> ['⊘ #lora-mesh hybrid — that room requires a verified identity -- send /auth first'] None
+>> 53 /join x -> ['⊘ #x hybrid — that room requires a verified identity -- send /auth first'] None
+>> 53 /join main -> [] main
+>> 53 /msg alice hi -> ['auth required for that -- send /auth to verify your identity'] None
+>> ab /join lora-mesh -> [] lora-mesh
+>> ab over the air -> [] None
+>> ab /msg alice hi -> ['[DM] <firefly>: hi'] None
+>> 53 /auth -> ['AUTH-CHALLENGE <nonce>'] None
+>> 53 /auth 8f40c5adb68f25624ae5b214ea767a6ec94d829d3d7b5e1ad1ba6f3e2138285f29acbae141bccaf0b22e1a94d34d0bc7361e526d0bfe12c89794bc9322966dd7 <sig> -> ['AUTH-OK aca31af0441d81dbec71e82da0b4b5f5'] None
+>> 53 /join x -> [] x
+>> 53 verified in x -> [] None
+>> 50 /admin pw mode open -> ['mode set to open'] None

@@ -604,7 +604,7 @@ STRINGS = {
     "admin_setup_w_other": {"fr": "Autres", "en": "Other", "es": "Otros"},
     "admin_setup_access": {"fr": "Qui peut entrer", "en": "Who may enter", "es": "Quién puede entrar"},
     "admin_setup_open": {"fr": "Ouvert — tout le monde lit et écrit", "en": "Open — everyone reads and writes", "es": "Abierto — todos leen y escriben"},
-    "admin_setup_hybrid": {"fr": "Hybride — tout le monde lit ; écrire demande une identité vérifiée", "en": "Hybrid — everyone reads; writing needs a verified identity", "es": "Híbrido — todos leen; escribir requiere una identidad verificada"},
+    "admin_setup_hybrid": {"fr": "Hybride — tout le monde dans #main et #wifi-mesh ; les autres salons et les messages privés demandent une identité vérifiée (FireFly)", "en": "Hybrid — anyone in #main and #wifi-mesh; other rooms and private messages need a verified identity (FireFly)", "es": "Híbrido — todos en #main y #wifi-mesh; las demás salas y los mensajes privados requieren una identidad verificada (FireFly)"},
     "admin_setup_mandatory": {"fr": "Obligatoire — tout demande une identité vérifiée", "en": "Mandatory — everything needs a verified identity", "es": "Obligatorio — todo requiere una identidad verificada"},
     "admin_setup_features": {"fr": "Fonctions", "en": "Features", "es": "Funciones"},
     "admin_setup_f_none": {"fr": "aucune", "en": "none", "es": "ninguna"},

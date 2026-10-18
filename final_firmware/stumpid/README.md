@@ -54,11 +54,12 @@ request.
 ## Modes
 
 - `open` — today's behaviour, no proof required. Default.
-- `hybrid` — reading is open; posting, joining a room, DMing, etc.
-  require a verified identity. A bare `/topic` (reading the current
-  topic) stays open; `/topic <text>` (setting it) is gated — same
-  command, opposite classification, so this is checked by argument, not
-  just the verb.
+- `hybrid` — anyone is in, and writes in, `#main` and `#wifi-mesh`;
+  every other room (`#lora-mesh`, rooms people make) and private
+  messages take a verified identity (`/auth`, which only a FireFly
+  answers). A FireFly over LoRa counts as verified: its messages are
+  signed. Going hybrid moves the unverified out of the other rooms
+  (`install.enforce_mode()`).
 - `mandatory` — everything except `/auth`, `/whoami`, `/help` requires
   one.
 

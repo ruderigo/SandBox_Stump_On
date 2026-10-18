@@ -553,11 +553,13 @@ Set at provisioning time, or live via `/admin <password> mode <m>`:
 
 - **`open`** (default, recommended for this release) — nothing is
   gated. Anyone can read, post, join, DM.
-- **`hybrid`** — reading stays open; writing anything (posting,
-  joining, DMing, `/topic` with an argument) requires a verified
-  identity (`/auth`). A **plain message is always classified as a
-  write**, unconditionally — a mesh peer's very first message will be
-  challenged before a room's own tier ever gets consulted.
+- **`hybrid`** — anyone is in, and writes in, `#main` and (on a chain)
+  `#wifi-mesh`. Every other room -- `#lora-mesh` and any room someone
+  makes -- and private messages take a verified identity: the `/auth`
+  challenge, which only a FireFly answers. A FireFly over LoRa counts as
+  verified (every message it sends is signed, and a non-open node only
+  takes signed ones). Switching to hybrid sends the unverified back to
+  `#main` from the rooms they may no longer be in.
 - **`mandatory`** — everything except `/auth`, `/whoami`, `/help`
   requires verification.
 

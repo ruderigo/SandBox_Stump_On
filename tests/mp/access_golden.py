@@ -48,3 +48,17 @@ say(C, '/join club'); say(C, '/invite bob'); say(B, '/join club'); say(B, '/join
 say(A, '/admin pw mode mandatory'); say(C, 'verified post'); say(C, '/fslist'); say(B, '/auth'); say(B, '/admin pw meshroom')
 say(A, '/admin pw revoke ' + ident.hexhash); say(C, '/whoami')
 say(A, '/adminx'); say(A, '/admin pw'); say(A, '/admin pw bogus')
+# Hybrid: anyone is in and writes in #main and #wifi-mesh; any other room
+# (and private messages) takes a verified identity -- or a FireFly over
+# LoRa (its LXMF address, signed messages). Going hybrid moves the
+# unverified out of the rooms they may no longer be in.
+D, M = '192.168.4.53', 'ab' * 16
+for c in (D, M): i18n.set_lang(c, 'en')
+say(A, '/admin pw mode open'); say(D, '/nick dan'); say(D, '/join x'); say(D, 'in x')
+say(A, '/admin pw mode hybrid')
+print('dan now in', rrc.get_user(D)['room'])
+say(D, 'hello main'); say(D, '/join wifi-mesh'); say(D, 'hello chain'); say(D, '/join lora-mesh'); say(D, '/join x')
+say(D, '/join main'); say(D, '/msg alice hi')
+rrc.touch_user(M, nick='firefly'); say(M, '/join lora-mesh'); say(M, 'over the air'); say(M, '/msg alice hi')
+auth(D); say(D, '/join x'); say(D, 'verified in x')
+say(A, '/admin pw mode open')

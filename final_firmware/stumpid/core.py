@@ -297,6 +297,36 @@ def is_verified(client_id):
     return client_id in _verified_this_session
 
 
+def _is_mesh_client(client_id):
+    """A FireFly over LoRa: its client_id is its LXMF address (32 hex
+    characters, never an IP), and a node that isn't open only takes its
+    messages when their signature checks out (rrc_mesh.on_message) -- it
+    has answered for its identity on every message."""
+    s = str(client_id or "")
+    return len(s) == 32 and all(c in "0123456789abcdef" for c in s)
+
+
+def _identified(client_id):
+    return is_verified(client_id) or _is_mesh_client(client_id)
+
+
+# Hybrid: the rooms anyone may be in and write in -- this Stump's own
+# #main, and the chain's #wifi-mesh. Every other room (#lora-mesh, any
+# room someone made) takes a verified identity: the /auth challenge,
+# which only a FireFly answers.
+def _free_rooms():
+    try:
+        import rrc as _r
+        return (_r.DEFAULT_ROOM, getattr(_r, "CHAIN_ROOM", "wifi-mesh"))
+    except Exception:
+        return ("main", "wifi-mesh")
+
+
+def hybrid_free(room):
+    """Hybrid: may anyone be in and write in this room?"""
+    return _canon(str(room or "").lstrip("#").lower()) in _free_rooms()
+
+
 # ---------------------------------------------------------------------
 # Mode gating
 # ---------------------------------------------------------------------
@@ -311,7 +341,28 @@ _ALWAYS_ALLOWED = ("auth", "whoami", "help")
 _WRITE_COMMANDS = ("join", "part", "msg", "me", "topic")
 
 
-def requires_verification(client_id, text):
+def _hybrid_blocks(client_id, text, room):
+    """Hybrid: anyone is in and writes in #main and #wifi-mesh; any other
+    room, and private messages, take a verified identity (or a FireFly
+    over LoRa, signed). Entering a room is decided by can_join_room()."""
+    if _identified(client_id):
+        return False
+    stripped = text.strip()
+    if not stripped.startswith("/"):
+        return room is None or not hybrid_free(room)
+    rest = stripped[1:].split(" ", 1)
+    cmd = rest[0].lower()
+    arg = rest[1].strip() if len(rest) > 1 else ""
+    if cmd in _ALWAYS_ALLOWED or cmd in ("join", "j", "part", "leave"):
+        return False                # joining: can_join_room(); leaving: always
+    if cmd == "me":
+        return room is None or not hybrid_free(room)
+    if cmd == "topic":
+        return bool(arg) and (room is None or not hybrid_free(room))
+    return cmd in _WRITE_COMMANDS   # /msg: a private message
+
+
+def requires_verification(client_id, text, room=None):
     """True if this input should be blocked pending verification, under
     the node's current AUTH_MODE.
 
@@ -322,6 +373,8 @@ def requires_verification(client_id, text):
         return False
     if is_verified(client_id):
         return False
+    if AUTH_MODE == "hybrid":
+        return _hybrid_blocks(client_id, text, room)
 
     stripped = text.strip()
     if not stripped.startswith("/"):
@@ -608,6 +661,8 @@ def can_join_room(client_id, room):
     broader gate already blocked an unverified client before this
     point is ever reached.
     """
+    if AUTH_MODE == "hybrid" and not hybrid_free(room) and not _identified(client_id):
+        return False, "needs_verified"
     tier = room_tier(room)
     if tier == "open":
         return True, None

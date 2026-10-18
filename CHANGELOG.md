@@ -1,6 +1,12 @@
 # Changelog
 
 ## 1.0.0-beta.18
+- **Hybrid access, as meant:** anyone is in, and writes in, `#main` and
+  `#wifi-mesh`; every other room (`#lora-mesh`, rooms people make) and
+  private messages take a verified identity -- the `/auth` challenge only
+  a FireFly answers. A FireFly over LoRa counts as verified (its messages
+  are signed). Before, hybrid gated every post, `#main` included.
+  Switching to hybrid sends the unverified back to `#main`.
 - **/admin → System → Stump settings: the Provisioner's answers, changed
   in place** -- the name, the bot's name and auto-reply, file sharing
   (free, standard economy, custom weights), who may enter (open, hybrid,
