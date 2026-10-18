@@ -226,11 +226,11 @@ See `PC.md`. A Mac or a Windows PC, and a Heltec.
       and a minute later still doesn't. Double-click **Start Stump** in
       the Stump folder: the page opens on its own. **Stop Stump** turns
       it off the same way.
-- [ ] `/admin` → Radio → *Reconnect the radio*: the dot goes orange, then
+- [ ] `/admin` → Radio → *Transport* → *Reconnect the radio*: the dot goes orange, then
       green; the Heltec's screen shows the radio set up again.
 - [ ] `launchctl unload ~/Library/LaunchAgents/app.stump.node.plist`
       (macOS): the Heltec's radio stops (its screen says so).
-- [ ] **Bluetooth, from `/admin` only** (Radio → Bluetooth), the Heltec
+- [ ] **Bluetooth, from `/admin` only** (Radio → Transport), the Heltec
       on USB: *Forget paired devices* (and forget "RNode …" on the Mac
       and phones), then **Pair this computer**: within the 35 s countdown
       macOS asks for a code, the page shows it -- type it; the page

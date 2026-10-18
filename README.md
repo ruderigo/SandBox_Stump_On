@@ -622,7 +622,7 @@ status by its title; the cards left open stay open on that device.
 |---|---|
 | Files | Tick files on the shared shelf; delete them together |
 | Billboard | Tick posts (title and body shown); delete exactly those |
-| Radio (Heltec Bridge) | The radio live first (signal, noise, channel load, battery, packets); **Reconnect the radio**; *Settings*, folded: frequency, bandwidth, TX power, spreading factor, coding rate, checked, saved in `/radio.json`, sent to the Heltec at once (all but TX power must match the mesh); whether the chat's profile pop-up offers them too; **Bluetooth**: *Pair this computer* / *Pair a device* (the code shown here), on, off, *Forget paired devices*, and on a computer a **USB ⇄ Bluetooth** switch |
+| Radio (Heltec Bridge) | The radio live first (signal, noise, channel load, battery, packets); *Settings*, folded: frequency, bandwidth, TX power, spreading factor, coding rate, checked, saved in `/radio.json`, sent to the Heltec at once (all but TX power must match the mesh); whether the chat's profile pop-up offers them too; *Transport*, folded ("Transport: USB"): the **USB ⇄ Bluetooth** switch on a computer, **Reconnect the radio**, and Bluetooth: *Pair this computer* / *Pair a device* (the code shown here), on, off, *Forget paired devices* |
 | Theme for everyone | Amber, Phosphor, OLED, Paper or a pack's theme, for every visitor, saved in `/site_theme.json`; *As set up* goes back to `THEME` in `config.py` |
 | Order | Drag (arrows on a phone) the navigation buttons and home tiles; hide or show each; saved in `/layout.json` |
 | Home page section | The `home/` branding: where it goes, frame height, shown or not (`docs/HOME_BRANDING.md`) |
@@ -923,7 +923,7 @@ questions adapted to a computer and can start it at login.
 
 - **The Heltec, looked after:** unplugged or silent, the dot turns red at
   once; plugged back in (even under another port name) it reconnects by
-  itself. `/admin` has *Reconnect the radio*, the USB ⇄ Bluetooth switch
+  itself. `/admin` (Radio → *Transport*) has *Reconnect the radio*, the USB ⇄ Bluetooth switch
   and Bluetooth pairing with the code shown on the page.
 - **On and off:** it runs in the background; `/admin` → *Turn off this
   Stump*, or double-click **Stop Stump** / **Start Stump** in its folder.

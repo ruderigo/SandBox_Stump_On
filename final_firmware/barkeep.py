@@ -1723,24 +1723,30 @@ async def _power_off_soon():
     _host().power_off()
 
 
-def _render_admin_bt(lang):
-    """The Heltec's Bluetooth from /admin, no terminal: on, off, and pairing
-    mode with the PIN shown here (polled from /admin/bt.json, never in the
-    public status)."""
+def _render_admin_bt(lang, pw=""):
+    """How the Heltec is reached, folded ("Transport: USB"): the USB /
+    Bluetooth switch, "Reconnect the radio", and its Bluetooth from /admin,
+    no terminal: on, off, and pairing mode with the PIN shown here (polled
+    from /admin/bt.json, never in the public status)."""
     T = lambda k: i18n.t(k, lang)
     btn = lambda a, k: "<button type='button' data-bt='" + a + "'>" + T(k) + "</button>"
     now = radio.link()
     seg = ""
     if now:
         # A Heltec on this computer: USB or Bluetooth, switched live.
-        seg = ("<p class='sub'><b>" + T("admin_link_title") + "</b></p><div class='seg' role='group'>"
+        seg = ("<div class='seg' role='group' aria-label='" + T("admin_link_title") + "'>"
                + "".join("<button type='button' data-link='" + k + "' aria-pressed='" + ("true" if now == k else "false")
                          + "'" + (" class='on'" if now == k else "") + ">" + lbl + "</button>"
                          for k, lbl in (("usb", "USB"), ("ble", "Bluetooth")))
                + "</div><p class='sub'>" + T("admin_link_" + now) + "</p>")
-    return ("<details class='inner' id='bt'" + (" open" if now == "ble" else "") + "><summary>Bluetooth"
-            + (" <span class='pk'>" + ("USB" if now == "usb" else "Bluetooth") + "</span>" if now else "") + "</summary>"
-            + seg +
+    how = {"usb": "USB", "ble": "Bluetooth"}.get(now) or "Wi-Fi"
+    retry = ("<form method='POST' action='/admin/radioretry' class='post-form inline'>"
+             "<input type='hidden' name='admin_pass' value='" + billboard._esc(pw) + "'>"
+             "<p class='sub'>" + T("admin_radio_retry_intro") + "</p>"
+             "<button type='submit'>" + T("admin_radio_retry") + "</button></form>")
+    return ("<details class='inner' id='bt'" + (" open" if now == "ble" else "") + "><summary>" + T("admin_transport")
+            + " <span class='pk'>" + how + "</span></summary>"
+            + seg + retry +
             "<p class='sub'>" + T("admin_bt_intro") + "</p>"
             "<div class='btrow'>" + (btn("computer", "admin_bt_computer") if now == "usb" else "")
             + (btn("pair", "admin_bt_pair") if now != "ble" else "") + btn("on", "admin_bt_on") + btn("off", "admin_bt_off")
@@ -1826,15 +1832,11 @@ def _render_admin_radio_section(lang, pw):
     return (
         head
         + _render_admin_radio_live(lang, heading=False) +
-        "<form method='POST' action='/admin/radioretry' class='post-form inline'>"
-        "<input type='hidden' name='admin_pass' value='" + billboard._esc(pw) + "'>"
-        "<p class='sub'>" + i18n.t("admin_radio_retry_intro", lang) + "</p>"
-        "<button type='submit'>" + i18n.t("admin_radio_retry", lang) + "</button></form>"
         "<details class='inner'><summary>" + i18n.t("admin_radio_settings", lang) + " <span class='pk'>"
         + radio.hz_to_mhz(cur["frequency"]) + " MHz · " + ("%g" % (cur["bandwidth"] / 1000)) + " kHz · SF"
         + str(cur["sf"]) + " · CR4/" + str(cur["cr"]) + " · " + str(cur["txpower"]) + " dBm</span></summary>"
         + settings + "</details>"
-        + _render_admin_bt(lang) +
+        + _render_admin_bt(lang, pw) +
         "<form method='POST' action='/admin/radiochat' class='post-form'>"
         "<input type='hidden' name='admin_pass' value='" + billboard._esc(pw) + "'>"
         "<input type='hidden' name='on' value='" + ("0" if radio.chat_edit() else "1") + "'>"

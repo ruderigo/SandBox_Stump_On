@@ -270,7 +270,7 @@ class _BLEPort:
                     self.error = "the Bluetooth link to %s dropped (it reconnects by itself)" % (self.name or "the Heltec")
             except Exception as e:
                 self.connected = False
-                self.error = ("Bluetooth: %s -- paired? (/admin -> Radio -> Bluetooth -> Pair this computer)"
+                self.error = ("Bluetooth: %s -- paired? (/admin -> Radio -> Transport -> Pair this computer)"
                               % (str(e) or e.__class__.__name__))
             if self._run:
                 if not self.paired:

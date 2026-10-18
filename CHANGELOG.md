@@ -1,6 +1,9 @@
 # Changelog
 
 ## 1.0.0-beta.18
+- **/admin → Radio: one folded *Transport* section** ("Transport: USB",
+  "Bluetooth" or "Wi-Fi") holds the USB ⇄ Bluetooth switch, *Reconnect
+  the radio* (moved from the top of the card) and the Bluetooth buttons.
 - **Fixed: after an update the Heltec only came back over Bluetooth once
   it was rebooted by hand.** A Heltec that still counts a Bluetooth device
   as connected (the Stump that just stopped, or the Mac itself) stops

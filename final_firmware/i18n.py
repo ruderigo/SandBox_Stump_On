@@ -639,6 +639,7 @@ STRINGS = {
     "admin_bt_ble_note": {"fr": "En Bluetooth, la Heltec est occupée par cet ordinateur : pour appairer un autre appareil, repasse d'abord en USB.",
                           "en": "Over Bluetooth, this computer holds the Heltec's one connection: to pair another device, switch back to USB first.",
                           "es": "Por Bluetooth, este ordenador ocupa la única conexión de la Heltec: para emparejar otro dispositivo, vuelve primero a USB."},
+    "admin_transport": {"fr": "Transport :", "en": "Transport:", "es": "Transporte:"},
     "admin_link_title": {"fr": "La Heltec, reliée par", "en": "The Heltec, connected by", "es": "La Heltec, conectada por"},
     "admin_link_usb": {"fr": "Pour passer au Bluetooth : « Appairer cet ordinateur » ci-dessous (le code s'affiche ici), puis Bluetooth.",
                        "en": "To move to Bluetooth: \"Pair this computer\" below (the code shows here), then Bluetooth.",

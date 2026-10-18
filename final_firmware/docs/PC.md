@@ -124,13 +124,13 @@ with `rnodeconf` (its `--help` lists the Wi-Fi options).
 or two (its port is gone, or a quiet Heltec doesn't answer "are you an
 RNode?"): the dot turns red and says why. Plug it back in, even under
 another port name, and it reconnects by itself: handshake and radio
-set-up again. `/admin` → Radio → *Reconnect the radio* does it at once.
+set-up again. `/admin` → Radio → *Transport* → *Reconnect the radio* does it at once.
 When the Stump stops, it switches the Heltec's radio off and tells it
 the computer left, so it doesn't carry on alone.
 
 **Over Bluetooth:** no cable -- the Heltec's RNode firmware carries the
 same link over Bluetooth Low Energy. Everything is in `/admin` → Radio
-→ **Bluetooth**, no terminal:
+→ **Transport**, no terminal:
 
 - **USB ⇄ Bluetooth** moves the Heltec from one to the other, live, with
   the same radio settings, and keeps the choice (and the USB port) for
