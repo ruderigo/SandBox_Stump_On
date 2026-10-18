@@ -103,7 +103,7 @@ except subprocess.TimeoutExpired:
     log = node.communicate()[0]
 check("no tracebacks", "Traceback" not in log, log[log.find("Traceback"):][:1500])
 if FAIL:
-    why = "\n".join(l for l in log.splitlines() if "fserv" in l or "rror" in l)[-3000:]
+    why = "\n".join(l for l in log.splitlines() if not l.startswith("[1") and "DBG" not in l)[-2500:]
     print(why)
     if os.environ.get("GITHUB_ACTIONS"):
         print("::error::node log: " + why.replace("\n", "%0A"))
