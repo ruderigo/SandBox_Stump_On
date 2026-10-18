@@ -433,12 +433,14 @@ itself (`/msg LaBuche text`) shows in that Stump's `#wifi-mesh` as
 `<you@yourstump> @LaBuche text`. (`#chained` and `#mesh`, its names on
 `main` for an afternoon, still reach it.)
 
-**On a computer with its own Heltec**, `#lora-mesh` is the radio's room
+**On a computer with its own Heltec, with `LORA_MESH_LOCKED = True`** in
+config.py (off by default: otherwise the access mode decides, as for
+every room), `#lora-mesh` is the radio's room
 (`/rooms` marks it `[LoRa]`): people on LoRa are always in; on the web,
 the computer's owner (on the computer itself) and whom they invite:
 `/lora invite <nick>`, `/lora uninvite <nick>`, `/lora` (who's invited).
 Others get `⊘ #lora-mesh LoRa — …`; people on another Stump of the
-chain can't join it here. `LORA_MESH_LOCKED = False` in config.py opens it.
+chain can't join it here.
 
 **`#lora-mesh` is shared by the Stumps**: each sends its own people's
 lines in it to the other Stumps it knows (on the chain, or heard over

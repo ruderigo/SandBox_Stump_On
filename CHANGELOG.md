@@ -1,6 +1,13 @@
 # Changelog
 
 ## 1.0.0-beta.21
+- Access modes, as meant: **open** — everyone reads and writes; **hybrid** — everyone reads every room (joins it, sees its lines and who's there) and writes in `#main`, while writing anywhere else (other rooms, private messages) takes a verified identity (`/auth`, one button in FireFly; a FireFly over LoRa counts, its messages are signed); **mandatory** (closed) — reading takes it too: before `/auth` a web client's `/rrc/poll` comes back with no messages, private messages or names, and the topic says why. (beta.19's hybrid kept people out of rooms other than `#main`/`#wifi-mesh` instead.)
+- `#lora-mesh` on a computer with its own Heltec is no longer locked to LoRa users and invitees by default -- that refused a computer's own browser on an `open` Stump. It follows the access mode like every room; `LORA_MESH_LOCKED = True` in config.py brings the lock back.
+- Fixed (from beta.19's visitor IDs): the person on the computer a Stump
+  runs on was no longer recognized as "this computer" once their browser
+  had a visitor ID, so `#lora-mesh` refused them ("il faut une radio LoRa,
+  ou une invitation") and `/lora invite` said owner only. Both now map the
+  visitor ID back to its address.
 - **Finding a Stump on a Wi-Fi without knowing its address.** The router
   can change a Stump's address (a laptop went .172 → .175 → .176), and an
   app that kept the old one talked to nothing. Now every Stump, the CAM

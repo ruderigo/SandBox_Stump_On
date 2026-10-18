@@ -48,10 +48,11 @@ say(C, '/join club'); say(C, '/invite bob'); say(B, '/join club'); say(B, '/join
 say(A, '/admin pw mode mandatory'); say(C, 'verified post'); say(C, '/fslist'); say(B, '/auth'); say(B, '/admin pw meshroom')
 say(A, '/admin pw revoke ' + ident.hexhash); say(C, '/whoami')
 say(A, '/adminx'); say(A, '/admin pw'); say(A, '/admin pw bogus')
-# Hybrid: anyone is in and writes in #main and #wifi-mesh; any other room
-# (and private messages) takes a verified identity -- or a FireFly over
-# LoRa (its LXMF address, signed messages). Going hybrid moves the
-# unverified out of the rooms they may no longer be in.
+# Hybrid: everyone is in (reads) every room and writes in #main; writing
+# in any other room (and private messages) takes a verified identity --
+# or a FireFly over LoRa (its LXMF address, signed messages). Going hybrid
+# moves no one; going mandatory moves the unverified back to #main, and
+# they can't read before /auth.
 D, M = '192.168.4.53', 'ab' * 16
 for c in (D, M): i18n.set_lang(c, 'en')
 say(A, '/admin pw mode open'); say(D, '/nick dan'); say(D, '/join x'); say(D, 'in x')
@@ -61,4 +62,14 @@ say(D, 'hello main'); say(D, '/join wifi-mesh'); say(D, 'hello chain'); say(D, '
 say(D, '/join main'); say(D, '/msg alice hi')
 rrc.touch_user(M, nick='firefly'); say(M, '/join lora-mesh'); say(M, 'over the air'); say(M, '/msg alice hi')
 auth(D); say(D, '/join x'); say(D, 'verified in x')
+E = '192.168.4.54'
+i18n.set_lang(E, 'en')
+say(E, '/nick eve'); say(E, '/join x')
+import stumpid.core as SC
+print('hybrid: eve may read', SC.can_read(E), '/ dan', SC.can_read(D), '/ firefly', SC.can_read(M))
+say(A, '/admin pw mode mandatory')
+print('eve now in', rrc.get_user(E)['room'], '/ dan in', rrc.get_user(D)['room'])
+print('mandatory: eve may read', SC.can_read(E), '/ dan', SC.can_read(D), '/ firefly', SC.can_read(M))
+say(E, 'hello'); say(E, '/join x'); say(M, 'over the air, closed')
 say(A, '/admin pw mode open')
+print('open: eve may read', SC.can_read(E))

@@ -54,14 +54,14 @@ request.
 ## Modes
 
 - `open` — today's behaviour, no proof required. Default.
-- `hybrid` — anyone is in, and writes in, `#main` and `#wifi-mesh`;
-  every other room (`#lora-mesh`, rooms people make) and private
-  messages take a verified identity (`/auth`, which only a FireFly
-  answers). A FireFly over LoRa counts as verified: its messages are
-  signed. Going hybrid moves the unverified out of the other rooms
-  (`install.enforce_mode()`).
-- `mandatory` — everything except `/auth`, `/whoami`, `/help` requires
-  one.
+- `hybrid` — everyone reads every room and writes in `#main`; writing
+  anywhere else (other rooms, private messages) takes a verified
+  identity (`/auth`, which a FireFly answers). A FireFly over LoRa
+  counts as verified: its messages are signed.
+- `mandatory` (closed) — reading and writing both take one
+  (`core.can_read()`: the web poll is empty before `/auth`); only
+  `/auth`, `/whoami`, `/help` work. Going mandatory moves the unverified
+  back to `#main` (`install.enforce_mode()`).
 
 Set via the Provisioner wizard, or live with `/admin <password> mode
 <m>`. A live change is runtime-only — it does not rewrite `config.py`,

@@ -81,4 +81,15 @@ check("a profile arriving for a nick someone uses: they go back to a guest name"
       rrc.release_registered_nicks() == 1 and rrc.get_user("192.168.4.71")["nick"].startswith("guest-"))
 bad = {"nick": "<b>x</b>", "id": "ab", "salt": "00", "hash": "00", "pv": 1, "by": "z", "c": {}, "del": 0}
 check("a record from another Stump with a nick that isn't one: ignored", P.merge([bad]) == 0 and not P.is_registered("<b>x</b>"))
+# The person on the computer itself, with a browser visitor ID (or logged
+# into a profile): still "this computer" for #lora-mesh and /lora invite.
+import guard
+guard.net("v0123456789abcdef0123", "127.0.0.1")
+guard.net("p:rod", "127.0.0.1")
+guard.net("vfedcba9876543210fedc", "192.168.4.80")
+rrc.LORA_LOCKED[0] = True
+check("#lora-mesh: the computer's own browser, by visitor ID or profile, is let in",
+      rrc.lora_allows("v0123456789abcdef0123") and rrc.lora_allows("p:rod") and rrc.lora_allows("127.0.0.1"))
+check("... a visitor from elsewhere isn't (unless invited)", not rrc.lora_allows("vfedcba9876543210fedc"))
+rrc.LORA_LOCKED[0] = False
 print('FAILURES:', FAIL)

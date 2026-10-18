@@ -26,10 +26,11 @@ since 1.0.0-beta.4:
   announce) when its radio connects (at most every 10 minutes) and when
   it hears a Stump for the first time (at most once a minute). Read the
   beacon as before.
-- **On a computer with its own Heltec, `#lora-mesh` may be the radio's
-  room:** people on LoRa are always in; on the web, the computer's owner
-  and whom they invite (`/lora invite <nick>`). Others get
-  `⊘ #lora-mesh LoRa — …` (`/rooms` marks it `[LoRa]`).
+- **`#lora-mesh` follows the access mode, like every room.** Only if its
+  owner set `LORA_MESH_LOCKED = True` is it the radio's room on a
+  computer with its own Heltec: people on LoRa are always in; on the
+  web, the computer's owner and whom they invite (`/lora invite <nick>`).
+  Others then get `⊘ #lora-mesh LoRa — …` (`/rooms` marks it `[LoRa]`).
 - `/rrc/poll` carries `hw` (the radio's state for a status light, see
   below); `GET /hw.json` gives the radios in full (`kind`: `usb`,
   `ble` or `wifi`); `/node.json` has `radio` (frequency, bandwidth, SF,
@@ -181,8 +182,8 @@ signature.
 signature on every incoming LXMF message (always, with or without native
 Ed25519), and a node that isn't `open` only takes signed messages from a
 sender whose announce it has heard. So in `hybrid` a FireFly over LoRa
-counts as verified for the rooms beyond `#main` and `#wifi-mesh`, with
-no `/auth`. In `mandatory`, and for your credits and nick to follow you
+counts as verified for writing beyond `#main` (reading every room is
+open to all in `hybrid`), with no `/auth`. In `mandatory`, and for your credits and nick to follow you
 as a person, `/auth` is still the proof. Over Wi-Fi (HTTP), `/auth` is
 always what verifies you.
 
@@ -493,7 +494,7 @@ address had (nick, language, credits), once — unless that address is a
 verified FireFly session. Rate limits and wrong-password lockouts still
 count per address. `/auth` (above) is what gives a durable identity
 across devices and transports; a profile does it for nick and credits on
-the Stumps of one chain, and doesn't open `hybrid`'s other rooms.
+the Stumps of one chain, and doesn't let you write in `hybrid`'s other rooms.
 `/rrc/poll` answers `"registered": true` for a logged-in profile.
 
 ## RRC over HTTP — chat, rooms, DMs

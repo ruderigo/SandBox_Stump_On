@@ -2993,6 +2993,16 @@ async def _send_file(writer, fpath, size, filename, chunk=16384, inline=False):
             await writer.awrite(buf)
 
 
+def _may_read(identifier):
+    """Mandatory mode: reading the chat takes a verified identity too
+    (stumpid's can_read). Without the plugin, or in open/hybrid: yes."""
+    sid = plugins.service_lookup("identity")
+    try:
+        return sid is None or sid.can_read(identifier)
+    except Exception:
+        return True
+
+
 def _voice_gate(identifier, to):
     """The refusal a /msg to `to` would get from stumpid's access mode, or
     None -- a voice note obeys the same rule as the text it replaces."""
@@ -3887,6 +3897,12 @@ async def _handle(reader, writer, secure=False):
                 # Logged into a registered profile (profiles.py)?
                 "registered": identifier.startswith("p:"),
             }
+            if not _may_read(identifier):
+                # Mandatory: nothing to read before /auth -- the room's
+                # name and the rooms list stay, so the client still works,
+                # and the topic says why it's empty.
+                payload.update(messages=[], dms=[], users=[],
+                               topic=i18n.t("rrc_auth_to_read", i18n.get_lang(identifier)))
             await _send(writer, "200 OK", json.dumps(payload), "application/json")
 
         elif method == "POST" and path.startswith("/rrc/voice"):
@@ -3915,6 +3931,8 @@ async def _handle(reader, writer, secure=False):
             try:
                 m = rrc.find_dm(identifier, int(_query(path, "id") or "-1"))
             except ValueError:
+                m = None
+            if not _may_read(identifier):
                 m = None
             if m is None or "audio" not in m:
                 await _send(writer, "404 Not Found", "no such voice note", "text/plain")

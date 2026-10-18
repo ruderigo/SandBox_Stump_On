@@ -70,6 +70,17 @@ _lora_invited = set()
 _LOCAL = ("127.0.0.1", "::1", "localhost")
 
 
+def is_local(client_id):
+    """The person on the computer this Stump runs on? Known by address
+    (127.0.0.1): a browser's visitor ID or a logged-in profile maps back to
+    the address it came from (guard.net, set by barkeep on each request)."""
+    try:
+        import guard
+        return guard._k(str(client_id or "")) in _LOCAL
+    except ImportError:
+        return str(client_id or "") in _LOCAL
+
+
 def lora_allows(client_id):
     """May this client be in #lora-mesh? Always, unless it's locked."""
     if not LORA_LOCKED[0]:
@@ -77,7 +88,7 @@ def lora_allows(client_id):
     cid = str(client_id or "")
     if len(cid) == 32 and all(c in "0123456789abcdef" for c in cid):
         return True                    # an LXMF address: someone on the mesh
-    return cid in _LOCAL or cid in _lora_invited
+    return is_local(cid) or cid in _lora_invited
 
 
 def room_allows(client_id, room):
@@ -945,7 +956,7 @@ def _handle_core(client_id, room, text, user, lang):
         if sub not in ("invite", "uninvite") or not who.strip():
             names = sorted(u["nick"] for c, u in _users.items() if c in _lora_invited)
             return [i18n.t("lora_room_status", lang, names=", ".join(names) or "-")], None
-        if str(client_id) not in _LOCAL:
+        if not is_local(client_id):
             return [i18n.t("lora_room_owner_only", lang)], None
         target = find_client_by_nick(who.strip())
         if target is None:

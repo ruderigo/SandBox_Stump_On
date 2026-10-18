@@ -190,8 +190,9 @@ or the problem. Click *Radio* there to change its frequency, bandwidth,
 SF, CR or TX power (you on this computer, or logged in to `/admin`;
 `/admin` can take this out of the chat). `/admin`
 → *Radio — live* shows the signal of the last packet, noise floor,
-channel load, battery and packet counts. On this computer, `#lora-mesh`
-is the radio's room: you, people on LoRa, and whom you `/lora invite`.
+channel load, battery and packet counts. `#lora-mesh` follows the access
+mode like every room; `LORA_MESH_LOCKED = True` in config.py keeps it to
+you, people on LoRa, and whom you `/lora invite`.
 Every node of a mesh needs the same frequency, bandwidth, SF and CR:
 the Provisioner copies them from the Stump this computer joins.
 

@@ -16,9 +16,11 @@
   "config_block": [
     "# ---- stumpid (RRC identity verification) ----",
     "# open: today's behaviour, client_id alone (no proof required).",
-    "# hybrid: reading is open; posting, joining, DMing etc. require a",
-    "#   verified identity.",
-    "# mandatory: everything except /auth, /whoami, /help requires one.",
+    "# hybrid: everyone reads every room and writes in #main; writing",
+    "#   anywhere else (other rooms, private messages) takes a verified",
+    "#   identity.",
+    "# mandatory: reading and writing both take one (only /auth, /whoami,",
+    "#   /help work before).",
     "AUTH_MODE = \"open\"",
     "# Unlocks /admin. Leave blank to fall back to FSERVBOT_OP_PASSWORD",
     "# if fservbot is installed and has one set.",
@@ -41,7 +43,7 @@
         "required": false,
         "advanced": false,
         "writes_to": "config.py",
-        "help": "hybrid: reads open, writes need a verified identity. mandatory: everything but /auth and /whoami needs one."
+        "help": "hybrid: everyone reads every room and writes in #main; writing elsewhere needs a verified identity. mandatory: reading and writing both need one."
       },
       {
         "key": "AUTH_ADMIN_PASSWORD",
@@ -78,9 +80,9 @@
   ],
   "hashes": {
     "stumpid/__init__.py": "83462abf471caca1",
-    "stumpid/core.py": "bd694b770de4e6b9",
-    "stumpid/install.py": "fec9e18b172d4bcb",
+    "stumpid/core.py": "6f8b31d7977c9ac1",
+    "stumpid/install.py": "e9901dc6a37de183",
     "stumpid/strings.py": "1504d6866266b030",
-    "stumpid/README.md": "61caf70ea0ff68b7"
+    "stumpid/README.md": "e5ff786a91fdebbc"
   }
 }

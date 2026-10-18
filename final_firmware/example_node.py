@@ -458,22 +458,15 @@ def main():
                                         " and on %s (the Wi-Fi it joined)" % chain._state["lan_ip"]
                                         if chain._state["lan_ip"] else ""))
     rns.setup_interfaces()
-    # #lora-mesh on a computer with its own Heltec on USB is the radio's
-    # room: LoRa users, the computer's owner and whom they invite
-    # (rrc.LORA_LOCKED). LORA_MESH_LOCKED in config.py: True/False, or
-    # leave it out for that default.
+    # Who may be in #lora-mesh follows the access mode, like every room
+    # (stumpid: open, hybrid, mandatory). LORA_MESH_LOCKED = True in
+    # config.py still keeps it to LoRa users, this computer and whom they
+    # invite (/lora invite) -- off unless asked for.
     try:
         import rrc as _rrc
         import config as _cfg
-        locked = getattr(_cfg, "LORA_MESH_LOCKED", None)
-        if locked is None:
-            try:
-                import stump_host  # noqa: F401  (a computer)
-                locked = any(i.get("enabled", True) and i.get("type") in ("RNodeSerialInterface", "RNodeBLEInterface")
-                             for i in rns.config.get("interfaces", []))
-            except ImportError:
-                locked = False
-        _rrc.LORA_LOCKED[0] = bool(locked)
+        locked = bool(getattr(_cfg, "LORA_MESH_LOCKED", False))
+        _rrc.LORA_LOCKED[0] = locked
         if locked:
             print("[rrc] #lora-mesh is the radio's room: LoRa users, this computer, and invitees")
     except Exception as e:

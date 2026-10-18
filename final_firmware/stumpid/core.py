@@ -310,21 +310,32 @@ def _identified(client_id):
     return is_verified(client_id) or _is_mesh_client(client_id)
 
 
-# Hybrid: the rooms anyone may be in and write in -- this Stump's own
-# #main, and the chain's #wifi-mesh. Every other room (#lora-mesh, any
-# room someone made) takes a verified identity: the /auth challenge,
-# which only a FireFly answers.
+# The three access modes:
+#   open       everyone reads and writes, everywhere
+#   hybrid     everyone reads every room; anyone writes in #main; writing
+#              anywhere else (other rooms, private messages) takes a
+#              verified identity -- the /auth challenge, which a FireFly
+#              answers
+#   mandatory  reading and writing both take a verified identity
+# A FireFly over LoRa counts as verified: a node that isn't open only
+# takes its messages when their signature checks out.
 def _free_rooms():
     try:
         import rrc as _r
-        return (_r.DEFAULT_ROOM, getattr(_r, "CHAIN_ROOM", "wifi-mesh"))
+        return (_r.DEFAULT_ROOM,)
     except Exception:
-        return ("main", "wifi-mesh")
+        return ("main",)
 
 
 def hybrid_free(room):
-    """Hybrid: may anyone be in and write in this room?"""
+    """Hybrid: may anyone write in this room? (#main only.)"""
     return _canon(str(room or "").lstrip("#").lower()) in _free_rooms()
+
+
+def can_read(client_id):
+    """May this client read the rooms and its private messages? Everyone,
+    except in mandatory mode, where it takes a verified identity."""
+    return AUTH_MODE != "mandatory" or _identified(client_id)
 
 
 # ---------------------------------------------------------------------
@@ -342,9 +353,9 @@ _WRITE_COMMANDS = ("join", "part", "msg", "me", "topic")
 
 
 def _hybrid_blocks(client_id, text, room):
-    """Hybrid: anyone is in and writes in #main and #wifi-mesh; any other
-    room, and private messages, take a verified identity (or a FireFly
-    over LoRa, signed). Entering a room is decided by can_join_room()."""
+    """Hybrid: anyone is in any room and writes in #main; writing in any
+    other room, and private messages, take a verified identity (or a
+    FireFly over LoRa, signed)."""
     if _identified(client_id):
         return False
     stripped = text.strip()
@@ -354,7 +365,7 @@ def _hybrid_blocks(client_id, text, room):
     cmd = rest[0].lower()
     arg = rest[1].strip() if len(rest) > 1 else ""
     if cmd in _ALWAYS_ALLOWED or cmd in ("join", "j", "part", "leave"):
-        return False                # joining: can_join_room(); leaving: always
+        return False                # being in a room is reading: allowed
     if cmd == "me":
         return room is None or not hybrid_free(room)
     if cmd == "topic":
@@ -371,7 +382,7 @@ def requires_verification(client_id, text, room=None):
     """
     if AUTH_MODE == "open":
         return False
-    if is_verified(client_id):
+    if _identified(client_id):
         return False
     if AUTH_MODE == "hybrid":
         return _hybrid_blocks(client_id, text, room)
@@ -661,7 +672,9 @@ def can_join_room(client_id, room):
     broader gate already blocked an unverified client before this
     point is ever reached.
     """
-    if AUTH_MODE == "hybrid" and not hybrid_free(room) and not _identified(client_id):
+    if AUTH_MODE == "mandatory" and not hybrid_free(room) and not _identified(client_id):
+        # Reading takes it too. #main stays the place everyone is (what
+        # they see there is held back by can_read()).
         return False, "needs_verified"
     tier = room_tier(room)
     if tier == "open":

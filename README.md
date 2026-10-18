@@ -553,15 +553,15 @@ Set at provisioning time, or live via `/admin <password> mode <m>`:
 
 - **`open`** (default, recommended for this release) — nothing is
   gated. Anyone can read, post, join, DM.
-- **`hybrid`** — anyone is in, and writes in, `#main` and (on a chain)
-  `#wifi-mesh`. Every other room -- `#lora-mesh` and any room someone
-  makes -- and private messages take a verified identity: the `/auth`
-  challenge, which only a FireFly answers. A FireFly over LoRa counts as
-  verified (every message it sends is signed, and a non-open node only
-  takes signed ones). Switching to hybrid sends the unverified back to
-  `#main` from the rooms they may no longer be in.
-- **`mandatory`** — everything except `/auth`, `/whoami`, `/help`
-  requires verification.
+- **`hybrid`** — everyone reads every room (joins it, sees its lines and
+  who's there) and writes in `#main`. Writing anywhere else -- any other
+  room, private messages -- takes a verified identity: the `/auth`
+  challenge, which a FireFly answers with one button. A FireFly over
+  LoRa counts as verified (every message it sends is signed, and a
+  non-open node only takes signed ones).
+- **`mandatory`** (closed) — reading and writing both take a verified
+  identity. Before `/auth`, a web client's poll comes back empty, with
+  the topic saying why; only `/auth`, `/whoami`, `/help` work.
 
 **Status: implemented, unit-tested, not field-hardened.** Use `hybrid`
 or `mandatory` if you're specifically testing identity verification;
@@ -656,8 +656,8 @@ before they sync loses nothing; the same nick registered on two Stumps
 before they sync: one keeps it, the other becomes `nick-xxxx`.
 Passwords are salted and hashed; wrong ones get the `/admin` lockout.
 There's no email: `/admin` → System → *Registered profiles* resets a
-password or deletes a profile (chain-wide). A profile doesn't open
-`hybrid`'s other rooms -- those take a FireFly's `/auth`.
+password or deletes a profile (chain-wide). A profile doesn't let you
+write in `hybrid`'s other rooms -- that takes a FireFly's `/auth`.
 
 Visitors without a profile: a browser keeps a visitor ID (a cookie)
 rather than being known by its address; a client that keeps no cookies
@@ -710,9 +710,11 @@ error token. Moderation is on `/admin`. History:
 Rooms: `#main` (this Stump only), `#lora-mesh` (where LoRa phones and
 handhelds arrive, shared by the Stumps over the radio first; `#lxmf`
 before 1.0.0-beta.4, and the old name still works), `#wifi-mesh` on a
-Stump in a chain (shared over Wi-Fi only) and any made with `/join`. On
-a computer with its own Heltec, `#lora-mesh` is the radio's room: LoRa
-users, the computer's owner and whom they `/lora invite`.
+Stump in a chain (shared over Wi-Fi only) and any made with `/join`. Who
+may be in `#lora-mesh` follows the access mode, like every room
+(`LORA_MESH_LOCKED = True` in config.py keeps it, on a computer with its
+own Heltec, to LoRa users, the computer's owner and whom they
+`/lora invite`).
 Every command and reply is in
 [`docs/COMMANDS.md`](final_firmware/docs/COMMANDS.md).
 

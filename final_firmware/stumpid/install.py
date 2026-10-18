@@ -188,9 +188,9 @@ def _cmd_whoami(client_id):
 # ---------------------------------------------------------------------
 
 def enforce_mode():
-    """The node just went hybrid (or stricter): whoever is in a room they
-    may no longer be in goes back to #main, told why. Returns their
-    nicks."""
+    """The node's mode just changed: whoever is in a room they may no
+    longer be in (mandatory: the unverified, anywhere but #main) goes back
+    to #main, told why. Returns their nicks."""
     moved = []
     for room in list(rrc.room_names()):
         if room != rrc.DEFAULT_ROOM:
