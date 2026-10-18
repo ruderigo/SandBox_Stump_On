@@ -17,7 +17,15 @@
     is restarted the same way;
   - on macOS, cable or not: a Heltec the Mac is still connected to (so
     no scan can see it) is found in the Mac's list of connected devices
-    and used through that link.
+    and used through that link;
+  - never a stream of restarts: at most one every 5 minutes (start-up
+    aside).
+- **"Peer removed pairing information"** (the Heltec forgot this
+  computer -- its pairings cleared or its flash erased -- while the Mac
+  kept its own, so macOS refused to connect or pair again): the radio
+  line says what happened and what to do, and *Pair this computer* now
+  removes the Mac's old pairing itself, then pairs afresh. (Before, it
+  had to be forgotten in System Settings by hand.)
 
 ## 1.0.0-beta.17
 - **Fixed: an already paired Heltec stayed silent over Bluetooth after an

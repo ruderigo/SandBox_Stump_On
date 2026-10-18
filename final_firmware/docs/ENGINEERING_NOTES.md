@@ -1452,6 +1452,17 @@ device) ignores USB, `CMD_RESET` included, and stops advertising.
   (the Nordic UART service) through bleak's `CentralManagerDelegate`,
   wrapped in a `BLEDevice(address, name, (peripheral, delegate))` for
   `BleakClient`.
+- Resets through the reset line at most every `RESET_EVERY_S` (300 s),
+  start-up aside: one landing while the RNode writes its EEPROM page
+  (Bluetooth on/off, `bt_conf_save`) could spoil it.
+- CBError 14, "Peer removed pairing information": the Heltec's bonds
+  are gone (`CMD_BT_UNPAIR`, or an erased flash) while macOS keeps its
+  bond; macOS refuses to connect and to pair until its bond is removed.
+  `_BLEPort` says so (`STALE_TEXT`); during *Pair this computer* (the
+  probe, the Heltec in pairing mode) it calls `forget_on_this_mac(name)`
+  once: the address from `system_profiler SPBluetoothDataType -json`,
+  then `IOBluetoothDevice.remove` (private, as `blueutil --unpair`),
+  loaded with `objc.loadBundle` -- and tries again, which pairs afresh.
 
 **`#lora-mesh` between Stumps over the radio.** An open LXMF link over
 the chain carried every message, so the Heltec never transmitted.

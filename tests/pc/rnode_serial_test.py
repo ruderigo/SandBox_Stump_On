@@ -236,10 +236,15 @@ resets = []
 _hard = rs.hard_reset
 rs.hard_reset = lambda dev: resets.append(dev)
 iface._mute = 0
+iface._reset_at = -10 ** 9            # (an earlier silent stretch may have used it)
 for _ in range(2):
     iface.retry_now()
     asyncio.run(run(rs.HANDSHAKE_S + 1.0))
 check("deaf twice in a row: restarted through its reset line, once", resets == [iface.port], resets)
+for _ in range(2):
+    iface.retry_now()
+    asyncio.run(run(rs.HANDSHAKE_S + 1.0))
+check("deaf twice more right after: no second reset (never a stream of them)", resets == [iface.port], resets)
 rs.hard_reset = _hard
 
 # Stopping the Stump: the radio off and "the host left", so the RNode

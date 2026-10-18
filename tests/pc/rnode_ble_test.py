@@ -243,6 +243,8 @@ def fake_reset(port):
 real_find, real_port, real_boot, real_reset = rs.find_port, rs._SerialPort, rs.BOOT_WAIT_S, rs.hard_reset
 rs.find_port, rs._SerialPort, rs.BOOT_WAIT_S = (lambda: "/dev/cu.usbserial-0001"), FakeUSB, 0.05
 rs.hard_reset = fake_reset
+real_every = rs.RESET_EVERY_S
+rs.RESET_EVERY_S = 0               # (the limit is checked on its own below)
 rb.KICK_BOOT_S = 0.1
 radio["around"], radio["answering"] = True, True
 iface2 = rb.RNodeBLEInterface({"target": "RNode 3B87"})
@@ -307,6 +309,14 @@ check("not seen a few scans in a row, on the cable: restarted, then found", kick
 c = radio["client"]
 iface4.close()
 check("on close: disconnected properly, not left hanging", not c.up and not iface4._ble._thread.is_alive())
+# Never a stream of resets: a second one within RESET_EVERY_S is skipped.
+rs.RESET_EVERY_S = 300
+kicks.clear()
+iface6 = rb.RNodeBLEInterface({"target": "RNode 3B87"})
+check("never a stream of resets: the start-up one done...", len(kicks) == 1, kicks)
+check("... another one right after: skipped", iface6._usb_kick() is False and len(kicks) == 1, kicks)
+iface6.close()
+rs.RESET_EVERY_S = 0
 # A USB chip whose reset line can't be set: the RNode's reset command.
 def no_line(port):
     raise OSError("not supported")
@@ -316,6 +326,42 @@ iface5 = rb.RNodeBLEInterface({"target": "RNode 3B87"})
 check("no reset line: the RNode's reset command instead", kicks == [("/dev/cu.usbserial-0001", bytes([0xC0, 0x55, 0xF8, 0xC0]))], kicks)
 iface5.close()
 rs.find_port, rs._SerialPort, rs.BOOT_WAIT_S, rs.hard_reset = real_find, real_port, real_boot, real_reset
+rs.RESET_EVERY_S = real_every
+
+# The Heltec forgot this computer while the computer kept its pairing
+# (macOS: "Peer removed pairing information", CBError 14). Connected as
+# usual: says what to do. Pairing this computer: the old pairing here is
+# removed once, then it pairs afresh.
+radio["stale"] = True
+real_aenter = Client.__aenter__
+
+
+async def stale_aenter(self):
+    if radio.get("stale"):
+        raise Exception('failed to connect: Error Domain=CBErrorDomain Code=14 "Peer removed pairing information"')
+    return await real_aenter(self)
+
+Client.__aenter__ = stale_aenter
+forgot = []
+rb.forget_on_this_mac = lambda name: forgot.append(name) or radio.update(stale=False) or True
+p = rb._BLEPort("auto")
+time.sleep(1.0)
+check("the Heltec forgot this computer: says so, and what to do (Pair this computer; or forget it in System Settings)",
+      p.stale and "forgot this computer" in (p.error or "") and "Forget This Device" in p.error and not forgot, p.error)
+p.stop(2)
+p = rb._BLEPort("auto")
+p.probe = True
+t0 = time.time()
+while time.time() - t0 < 4 and not p.paired:
+    time.sleep(0.1)
+check("pairing this computer: the old pairing here removed once, then paired", forgot == ["RNode 3B87"] and p.paired
+      and not p.stale, (forgot, p.error))
+p.stop(2)
+Client.__aenter__ = real_aenter
+check("finding the old pairing's address in the Mac's Bluetooth report", rb._find_address(
+    {"SPBluetoothDataType": [{"device_not_connected": [{"Rod's phone": {"device_address": "11:22"}},
+                                                      {"RNode EA69": {"device_address": "AA:BB:CC:DD:EE:69"}}]}]},
+    "RNode EA69") == "AA:BB:CC:DD:EE:69")
 
 # No bleak in that Python: says how to get it.
 del sys.modules["bleak"]

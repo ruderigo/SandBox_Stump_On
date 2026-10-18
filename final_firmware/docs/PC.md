@@ -147,6 +147,13 @@ same link over Bluetooth Low Energy. Everything is in `/admin` → Radio
   (and the Heltec's screen) when the phone asks. *Turn on* / *Turn off*.
 - **Forget paired devices** clears the Heltec's pairings; forget
   "RNode …" on the devices too, then pair again.
+- **The Heltec forgot this computer** (its pairings cleared, or its
+  flash erased and reflashed) while the Mac kept its own: macOS then
+  refuses to connect *and* to pair ("Peer removed pairing information"),
+  and the radio line says so. On USB, *Pair this computer*: the Stump
+  removes the Mac's old pairing itself and pairs again. If it can't on
+  that Mac: System Settings → Bluetooth → "RNode …" ⓘ → *Forget This
+  Device*, then *Pair this computer*.
 
 It takes **one Bluetooth connection at a time**: while this computer
 uses it over Bluetooth, no phone can pair or connect (switch back to

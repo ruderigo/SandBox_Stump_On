@@ -67,6 +67,70 @@ _DETECT = bytes([0xC0, 0x08, 0x73, 0xC0])
 _DETECT_RESP = bytes([0xC0, 0x08, 0x46])
 
 
+# The Heltec forgot this computer (its pairings were cleared) while the
+# computer kept its own: macOS then refuses to connect *and* to pair again
+# ("Peer removed pairing information", CBError 14) until its old pairing is
+# removed.
+STALE_TEXT = ("%s forgot this computer, but this computer still has its old pairing with it. "
+              "/admin -> Radio -> Transport, on USB: Pair this computer (the Stump removes the old pairing "
+              "here and pairs again). If it keeps saying so: System Settings -> Bluetooth -> %s (i) -> "
+              "Forget This Device, then Pair this computer.")
+
+
+def _stale_pairing(text):
+    t = (text or "").lower()
+    return "code=14" in t or "removed pairing" in t
+
+
+def forget_on_this_mac(name):
+    """macOS: removes this Mac's saved pairing with the Bluetooth device
+    named `name` (what System Settings -> Forget This Device does), so it
+    can pair again. Its address from system_profiler, then IOBluetooth's
+    remove (not a public call: True if it went through, False if it can't
+    be done here -- then the person forgets it in System Settings)."""
+    import sys
+    if sys.platform != "darwin" or not name:
+        return False
+    try:
+        import json, subprocess
+        out = subprocess.run(["system_profiler", "SPBluetoothDataType", "-json"],
+                             capture_output=True, text=True, timeout=30).stdout
+        addr = _find_address(json.loads(out or "{}"), name)
+        if not addr:
+            log("Bluetooth: %s isn't among this Mac's paired devices" % name, LOG_VERBOSE)
+            return False
+        import objc
+        ns = {}
+        objc.loadBundle("IOBluetooth", ns, bundle_path="/System/Library/Frameworks/IOBluetooth.framework")
+        dev = ns["IOBluetoothDevice"].deviceWithAddressString_(addr)
+        if dev is None or not dev.respondsToSelector_("remove"):
+            return False
+        dev.remove()
+        log("Bluetooth: removed this Mac's old pairing with %s (%s)" % (name, addr), LOG_NOTICE)
+        return True
+    except Exception as e:
+        log("Bluetooth: couldn't remove this Mac's pairing with %s: %s" % (name, e), LOG_VERBOSE)
+        return False
+
+
+def _find_address(tree, name):
+    """The "device_address" of the entry called `name`, anywhere in
+    system_profiler's Bluetooth report."""
+    if isinstance(tree, dict):
+        for k, v in tree.items():
+            if k == name and isinstance(v, dict) and v.get("device_address"):
+                return v["device_address"]
+            found = _find_address(v, name)
+            if found:
+                return found
+    elif isinstance(tree, list):
+        for v in tree:
+            found = _find_address(v, name)
+            if found:
+                return found
+    return None
+
+
 def _matches(target, device, adv):
     name = getattr(device, "name", None) or getattr(adv, "local_name", None) or ""
     if target in (None, "", "auto"):
@@ -96,6 +160,8 @@ class _BLEPort:
         self.probe = False           # pairing check: ask "are you an RNode?" itself
         self.paired = False          # it answered over Bluetooth: the link is encrypted
         self.misses = 0              # scans in a row that didn't see it
+        self.stale = False           # this computer's pairing is one the Heltec forgot
+        self._forgot = False         # (pairing check) the old pairing here removed once
         self._mgr = None             # macOS: to list devices it's already connected to
         self._thread = threading.Thread(target=self._main, daemon=True, name="stump-ble")
         self._thread.start()
@@ -251,6 +317,7 @@ class _BLEPort:
                     self.error = None
                     self._drop = False
                     self.connected_at = time.time()
+                    self.stale = False
                     self.connected = True
                     while self._run and not gone.is_set() and not self._drop:
                         with self._lock:
@@ -270,8 +337,24 @@ class _BLEPort:
                     self.error = "the Bluetooth link to %s dropped (it reconnects by itself)" % (self.name or "the Heltec")
             except Exception as e:
                 self.connected = False
-                self.error = ("Bluetooth: %s -- paired? (/admin -> Radio -> Transport -> Pair this computer)"
-                              % (str(e) or e.__class__.__name__))
+                text = str(e) or e.__class__.__name__
+                if _stale_pairing(text):
+                    self.stale = True
+                    who = self.name or "The Heltec"
+                    if self.probe and not self._forgot:
+                        # Pairing this computer, the Heltec in pairing mode:
+                        # the old pairing here goes, then the next attempt
+                        # pairs afresh (the code asked for, shown in /admin).
+                        self._forgot = True
+                        if forget_on_this_mac(self.name):
+                            self.error = None
+                            self.fails = 0
+                            await asyncio.sleep(1)
+                            continue
+                    self.error = STALE_TEXT % (who, self.name or "RNode ...")
+                else:
+                    self.error = ("Bluetooth: %s -- paired? (/admin -> Radio -> Transport -> Pair this computer)"
+                                  % text)
             if self._run:
                 if not self.paired:
                     self.fails += 1
@@ -294,6 +377,7 @@ class RNodeBLEInterface(RNodeSerialInterface):
         self._kicked = False
         self._silent = 0
         self._fresh_at = 0
+        self._kick_at = -10 ** 9
         config["port"] = "ble://" + self.target      # for RNodeSerialInterface's bookkeeping
         RNodeSerialInterface.__init__(self, config)
 
@@ -319,13 +403,15 @@ class RNodeBLEInterface(RNodeSerialInterface):
         b.reset()
         return b
 
-    def _usb_kick(self):
+    def _usb_kick(self, first=False):
         """Restarts the Heltec through its USB cable, if it's plugged in:
         its reset line (the reset button, by wire); if that can't be set,
         the RNode's reset command. True if done. Never while a Bluetooth
         session is up."""
         if self._ble is not None and self._ble.connected and self.online:
             return False
+        if not first and time.time() - self._kick_at < rnode_serial.RESET_EVERY_S:
+            return False                 # not a stream of resets (see RESET_EVERY_S)
         try:
             port = rnode_serial.find_port()
             if not port:
@@ -343,6 +429,7 @@ class RNodeBLEInterface(RNodeSerialInterface):
                     time.sleep(0.3)
                 finally:
                     s.close()
+            self._kick_at = time.time()
             self.hw["kicks"] = self.hw.get("kicks", 0) + 1
             log("Heltec restarted through its USB cable (%s), for a clean Bluetooth start" % port, LOG_NOTICE)
             return True
@@ -375,7 +462,7 @@ class RNodeBLEInterface(RNodeSerialInterface):
             # At start-up: the Heltec restarted through the cable, if it's
             # there, before this computer's Bluetooth looks for it.
             self._kicked = True
-            if self._ble is None and self._usb_kick():
+            if self._ble is None and self._usb_kick(first=True):
                 time.sleep(KICK_BOOT_S)
         try:
             RNodeSerialInterface._connect(self)

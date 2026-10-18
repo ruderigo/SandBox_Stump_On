@@ -26,6 +26,10 @@ from ..log import log, LOG_NOTICE, LOG_ERROR, LOG_VERBOSE
 HANDSHAKE_S = 3.0     # how long an RNode has to answer "are you an RNode?"
 
 BAUD = 115200
+# A restart through the reset line at most this often (s): never a stream
+# of resets -- one landing while the RNode saves a setting to its flash
+# could spoil what it keeps there.
+RESET_EVERY_S = 300.0
 BOOT_WAIT_S = 2.5     # opening the port resets most ESP32 boards; let it boot
 
 # USB-serial chips found on RNode boards (Heltec V3: CP2102; others CH340/CH9102,
@@ -164,6 +168,7 @@ class RNodeSerialInterface(WiFiSerialInterface):
         self._last_look = 0
         self._lost_why = None
         self._mute = 0                         # handshakes in a row that got no answer
+        self._reset_at = -RESET_EVERY_S        # the last restart through the reset line
         config = dict(config)
         config.setdefault("name", "Heltec (USB)")
         config["target_host"] = port           # WiFiSerialInterface requires one; used in its logs
@@ -236,7 +241,8 @@ class RNodeSerialInterface(WiFiSerialInterface):
             self._socket = None
             if self.KIND == "usb":
                 self._mute += 1
-                if self._mute % 2 == 0:
+                if self._mute % 2 == 0 and time.time() - self._reset_at >= RESET_EVERY_S:
+                    self._reset_at = time.time()
                     # There but deaf -- e.g. it counts a Bluetooth device as
                     # connected (then it ignores USB): the reset button, by wire.
                     try:
