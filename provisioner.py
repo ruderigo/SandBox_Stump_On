@@ -330,7 +330,7 @@ EXPECTED_FILE_HASHES = {
     "example_node.py": "bc497b2cee05380f",
     "features.py": "7fca96873d59d2d3",
     "flasher_ui.py": "1d3035b1132bc87e",
-    "fserv.py": "c2248187ab1126b7",
+    "fserv.py": "df4a1ab19c7e1717",
     "fservbot/plugin.json": "4e0137362ff327d0",
     "guard.py": "7753686a5fecf21c",
     "i18n.py": "eaabe91033d66406",

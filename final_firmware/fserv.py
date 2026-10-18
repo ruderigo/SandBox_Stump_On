@@ -874,7 +874,8 @@ def get_storage_stats():
         free = bsize * s[3]
         used = total - free
         return (total, free, used / total if total > 0 else 1.0)
-    except Exception:
+    except Exception as e:
+        print("[fserv] couldn't read the card's size:", repr(e))
         return (0, 0, 1.0)
 
 

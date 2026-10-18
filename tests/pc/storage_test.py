@@ -81,6 +81,11 @@ check("the Stump starts", up)
 if up:
     code, r = upload("small.bin", 20000)
     check("an upload is kept", code == 201 or (code == 200 and r.get("ok")), (code, r))
+    if code == 507:
+        info = "statvfs here: %r sd/: %r" % (os.statvfs("/sd"), sorted(os.listdir(os.path.join(folder, "sd"))))
+        print(info)
+        if os.environ.get("GITHUB_ACTIONS"):
+            print("::error::" + info)
     check("... it's in sd/shared", os.path.getsize(os.path.join(folder, "sd", "shared", "small.bin")) == 20000)
     code, r = upload("huge.bin", 1800 * 1024)
     check("past 75% of PC_STORAGE_MB: refused (507), nothing kept",
@@ -97,5 +102,10 @@ except subprocess.TimeoutExpired:
     node.kill()
     log = node.communicate()[0]
 check("no tracebacks", "Traceback" not in log, log[log.find("Traceback"):][:1500])
+if FAIL:
+    why = "\n".join(l for l in log.splitlines() if "fserv" in l or "rror" in l)[-3000:]
+    print(why)
+    if os.environ.get("GITHUB_ACTIONS"):
+        print("::error::node log: " + why.replace("\n", "%0A"))
 print("FAILURES", FAIL)
 sys.exit(1 if FAIL else 0)
