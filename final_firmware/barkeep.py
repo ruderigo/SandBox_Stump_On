@@ -3062,7 +3062,7 @@ async def _read_small_body(reader, length, chunk=1024, cap=None):
 # these would break a page still open over HTTP, since the browser
 # refuses a cross-origin redirect for them.
 _NO_REDIRECT = ("/home-file", "/tls-ok", "/rrc/poll", "/rrc/voice", "/rrc/send", "/download", "/codec2", "/opus.", "/billboard.json",
-                "/files.json", "/plugins.json", "/chain.json", "/hw.json", "/admin/radio.json", "/admin/poweroff", "/admin/bluetooth.json", "/admin/bt.json", "/admin/radiolink.json", "/fw", "/tool?", "/lang", "/upload", "/post", "/chat")
+                "/files.json", "/plugins.json", "/chain.json", "/stumps.json", "/hw.json", "/admin/radio.json", "/admin/poweroff", "/admin/bluetooth.json", "/admin/bt.json", "/admin/radiolink.json", "/fw", "/tool?", "/lang", "/upload", "/post", "/chat")
 
 
 def _own_ap_ip():
@@ -4067,6 +4067,12 @@ async def _handle(reader, writer, secure=False):
             # status dot and /admin.
             await _send(writer, "200 OK", json.dumps(radio.hw()), "application/json")
 
+        elif method == "GET" and path.startswith("/stumps.json"):
+            # This Stump and the others it heard, each with its addresses
+            # (discovery.py): reach one Stump, find them all.
+            import discovery
+            await _send(writer, "200 OK", json.dumps(discovery.directory()), "application/json")
+
         elif method == "GET" and path.startswith("/chain.json"):
             # This Stump's place in a chain over Wi-Fi (chain.py): role,
             # addresses, the Stump above it and who's linked below.
@@ -4407,3 +4413,8 @@ async def run_barkeep_server(port=80):
     else:
         print("[web] HTTPS off:", tls.status()["reason"])
     print("[web] serving on port", port)
+    try:
+        import discovery
+        discovery.WEB_PORT = port          # what "who's a Stump here?" and the beacon say
+    except ImportError:
+        pass

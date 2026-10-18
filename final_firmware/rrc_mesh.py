@@ -469,6 +469,12 @@ def _note_stump_beacon(router, app_data, packet):
         from urns import umsgpack
         fields = umsgpack.unpackb(app_data)
         lxmf_hash = bytes(fields[3])
+        if len(fields) > 4:
+            try:
+                import discovery
+                discovery.heard(lxmf_hash.hex(), str(fields[2]), fields[4])
+            except Exception:
+                pass
         own = router.delivery_destination
         if own is None or lxmf_hash != bytes(own.hash):
             h = lxmf_hash.hex()

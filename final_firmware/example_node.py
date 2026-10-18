@@ -34,7 +34,7 @@ except ImportError:
 STUMP_VERSION = "Beta A"
 # The exact release (a git tag "v" + this, built and signed by
 # .github/workflows/release.yml, which refuses a tag that doesn't match).
-STUMP_RELEASE = "1.0.0-beta.20"
+STUMP_RELEASE = "1.0.0-beta.21"
 
 # Node-type beacon: a second destination on this node's own identity,
 # aspect "stump.node", so clients can tell a Stump from a person without
@@ -210,16 +210,25 @@ def connect_wifi(ssid, password, timeout=15):
     return ip
 
 
+def stump_beacon_data(lxmf_dest, node_name):
+    """The beacon's announce data, made fresh each time: its fifth item is
+    the list of addresses the Stump's pages are on now (discovery.py), so
+    an app has the current one even after the router changed it."""
+    import discovery
+    return discovery.beacon_data(STUMP_VERSION, node_name, bytes(lxmf_dest.hash))
+
+
 def make_stump_beacon(identity, lxmf_dest, node_name):
     """The "stump.node" destination. Its announce data is a msgpack list:
-        ["stump", STUMP_VERSION, node_name, <16-byte LXMF delivery hash>]
+        ["stump", STUMP_VERSION, node_name, <16-byte LXMF delivery hash>,
+         [<web addresses, "http://192.168.0.176/">]]
+    (the fifth item since 1.0.0-beta.21; readers take the first four as before)
     Same identity as the LXMF destination, so a client can also match
     the two announces by identity hash."""
     from urns.destination import Destination
     from urns import umsgpack
     beacon = Destination(identity, Destination.IN, Destination.SINGLE, "stump", "node")
-    beacon.set_default_app_data(
-        umsgpack.packb(["stump", STUMP_VERSION, node_name, bytes(lxmf_dest.hash)]))
+    beacon.set_default_app_data(stump_beacon_data(lxmf_dest, node_name))
     return beacon
 
 
@@ -536,7 +545,7 @@ def main():
             except Exception:
                 pass
             try:
-                beacon.announce()
+                beacon.announce(app_data=stump_beacon_data(dest, NODE_NAME))
                 if DEBUG >= 2:
                     print("[Stump beacon announced]")
             except Exception as e:
@@ -613,6 +622,14 @@ def main():
         except Exception as e:
             print("[pn] tasks not started:", e)
         asyncio.create_task(serial_input_loop(router))
+        try:
+            # "Who's a Stump here?" on the local network, and the beacon
+            # again when the router gives this Stump a new address.
+            import discovery
+            asyncio.create_task(discovery.loop())
+            asyncio.create_task(discovery.watch_loop())
+        except Exception as e:
+            print("[discovery] not started:", e)
         asyncio.create_task(barkeep.run_barkeep_server())
         if CHAIN:
             asyncio.create_task(chain.watch_loop(rns))

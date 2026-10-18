@@ -8,7 +8,7 @@ you hit `AUTH-CHALLENGE` cold and start reverse-engineering source.
 you're looking at (a forwarded zip, an older doc, a snippet someone
 pasted into chat) disagrees with what's there, the repo wins.
 
-**This page matches firmware 1.0.0-beta.20.** What changed for clients
+**This page matches firmware 1.0.0-beta.21.** What changed for clients
 since 1.0.0-beta.4:
 
 - **`#lora-mesh` is shared by the Stumps.** Lines from another Stump's
@@ -371,7 +371,7 @@ formats: every endpoint, payload and limit a client touches.
 # Reference for client builders
 
 Everything the client teams have been given, in one place. Checked
-against the 1.0.0-beta.20 `barkeep.py`, `rrc.py`, `rrc_mesh.py`,
+against the 1.0.0-beta.21 `barkeep.py`, `rrc.py`, `rrc_mesh.py`,
 `billboard.py`, `fserv.py`, `plugins.py`, `chain.py` and
 `example_node.py` source; the JSON shapes below are the ones the
 firmware's own tests (`tests/`) check.
@@ -398,7 +398,7 @@ Use it to probe and label nodes:
 
 ```json
 {"name": "LaBuche", "lxmf": "53d91d2f…48e4", "version": "Beta A",
- "release": "1.0.0-beta.20", "ap_ip": "192.168.4.1", "chain": null,
+ "release": "1.0.0-beta.21", "ap_ip": "192.168.4.1", "chain": null,
  "features": ["chat", "billboard", "files", "about"]}
 ```
 
@@ -431,6 +431,49 @@ what needs it: each HTTPS request is a full TLS handshake for the CAM
 every 2 s keeps it busy. The node's own web pages use HTTPS only for
 `/admin` and the voice recorder (`/rrc/rec`); `GET /rrc` over HTTPS
 answers `302` back to HTTP. API requests are never redirected.
+
+## Finding a Stump on a Wi-Fi (since 1.0.0-beta.21)
+
+A Stump on a home or office Wi-Fi gets its address from the router, which
+can change it. Never keep a Stump by its address: keep it by its
+**identity** (its LXMF delivery address, `lxmf` below, which never
+changes), and find its current address when you need it:
+
+1. **Ask the network.** Send a UDP datagram whose first bytes are
+   `STUMP?` (ASCII; anything after them is ignored, e.g. `STUMP? v1`) to
+   port **4244**: as a broadcast (`255.255.255.255`, or the subnet's
+   broadcast address) to find every Stump, or to one address to check it.
+   Every Stump that hears it answers the sender, unicast, within a moment,
+   with one JSON object:
+
+   ```json
+   {"stump": 1, "name": "macOS", "lxmf": "b9b7de41a6b23b7a6108eb76cce3e8dd",
+    "release": "1.0.0-beta.21",
+    "http": ["http://192.168.0.176/"],
+    "here": "http://192.168.0.176/"}
+   ```
+
+   `http` lists every address it serves its pages on (with `:port` when
+   it isn't 80, e.g. a computer Stump that fell back to 8080); `here` is
+   the one on the asker's network (`""` if none matches). Wait ~1.5 s for
+   answers; a Stump answers at most 5 questions a second. On Android, take
+   a `WifiManager.MulticastLock` while listening, and send from a socket
+   bound to the Wi-Fi network.
+2. **Listen to its beacon.** The `stump.node` announce's data is now
+   `["stump", version, name, <16-byte LXMF hash>, [web addresses]]` -- the
+   fifth item is the same list as `http`, and a Stump announces again soon
+   after its address changes. Older Stumps send four items: read the first
+   four as before, the fifth when present.
+3. **Ask any Stump for the others.** `GET /stumps.json` →
+   `{"self": <its card>, "stumps": [{"name", "lxmf", "http", "heard_s"}]}`:
+   every other Stump it heard, with the addresses its beacon gave.
+
+When a connection to a known Stump fails ("connection refused", a
+timeout), ask again (1), find the answer with the same `lxmf`, and carry
+on at its new address. Before treating an address as a Stump (the Wi-Fi's
+gateway, say -- true on a Stump's own hotspot, not on a home Wi-Fi), check
+that it answers `STUMP?` or `GET /node.json`. A Wi-Fi that keeps its
+devices from seeing each other (some guest networks) blocks all of this.
 
 ## Identity model (WiFi/HTTP)
 

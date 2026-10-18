@@ -309,24 +309,25 @@ DEFAULT_CREDIT_WEIGHTS = {"video": 3, "music": 2, "document": 1, "other": 1}
 #    for f in sorted(Path('final_firmware').rglob('*')) if f.is_file()]"
 EXPECTED_FILE_HASHES = {
     "_sd_web/billboard.txt": "e3b0c44298fc1c14",
-    "barkeep.py": "73317070b7bb6bbc",
+    "barkeep.py": "b1066a0e508e3b8c",
     "billboard.py": "a7d1f3df668997ab",
     "boot_common.py": "d1f60dd4434752bf",
     "captive_portal.py": "35cb3a279ecc42db",
     "chain.py": "3727f30a928f3478",
     "config.py": "ed7b475134824fb3",
+    "discovery.py": "ab66b6c293ae24d2",
     "docs/CHAIN.md": "7d168225a314cfba",
-    "docs/CLIENT_QUICKSTART.md": "51d02f34965ff68a",
+    "docs/CLIENT_QUICKSTART.md": "1aff52705cdd9eac",
     "docs/COMMANDS.md": "3d5bfe18fbbaccf1",
     "docs/ENGINEERING_NOTES.md": "ba2e17c5a7d06fdf",
-    "docs/FIELD_TEST.md": "21614a7762f96a52",
+    "docs/FIELD_TEST.md": "0cd367b92d89f230",
     "docs/HIDDEN_FEATURES.md": "8f7ee17eabfd0b6a",
     "docs/HOME_BRANDING.md": "e1a1a9cf854dcdce",
     "docs/HTTPS_SETUP.md": "12cbbf2de7c38810",
     "docs/PACKS.md": "2e89e3c28d80d72d",
     "docs/PC.md": "6fedea784e25e38a",
     "docs/PLUGINS.md": "3f5b4a5ee6844305",
-    "example_node.py": "a844b2b7a8002143",
+    "example_node.py": "52516373e1a17339",
     "features.py": "7fca96873d59d2d3",
     "flasher_ui.py": "1d3035b1132bc87e",
     "fserv.py": "c2248187ab1126b7",
@@ -348,7 +349,7 @@ EXPECTED_FILE_HASHES = {
     "propagation.py": "e86471653a5036ec",
     "radio.py": "46a5bce1b8a90405",
     "rrc.py": "356a1f62f75f62d9",
-    "rrc_mesh.py": "4ddf45e7f61f91b0",
+    "rrc_mesh.py": "7c65ac4b06aa63c8",
     "rrc_ui.py": "7ed8963ee2414c89",
     "settings.py": "3c75d07f3de72907",
     "stump_tls.py": "32a9394408ae392e",
@@ -556,6 +557,10 @@ BOARD_EXCLUDE_NAMES = ("plugin.json",)
 # (LGPL-2.1 asks that they ship with it); they belong in the project, not
 # on the board.
 BOARD_EXCLUDE_DIRS = ("tools_payload", "third_party")
+# What a running node writes next to its firmware: its Reticulum identity
+# and paths, the SD stand-in, Python caches. Never firmware -- a stray
+# identity here, copied to every new Stump, would give them all the same one.
+RUNTIME_STATE_DIRS = ("rns", "sd", "__pycache__")
 
 
 def _belongs_on_board(relpath):
@@ -2742,6 +2747,8 @@ def manifest_candidates(fw_dir):
         rel = f.relative_to(fw_dir).as_posix()
         if rel in MANIFEST_EXCLUDE:
             continue
+        if rel.split("/")[0] in RUNTIME_STATE_DIRS:
+            continue                        # a node's own state (identity!), never firmware
         # A plugin folder's files are hashed in its own plugin.json; the
         # core manifest carries that plugin.json, which vouches for them.
         top = rel.split("/")[0]

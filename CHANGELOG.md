@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.0.0-beta.21
+- **Finding a Stump on a Wi-Fi without knowing its address.** The router
+  can change a Stump's address (a laptop went .172 → .175 → .176), and an
+  app that kept the old one talked to nothing. Now every Stump, the CAM
+  and a computer alike:
+  - answers `STUMP?` on UDP port 4244 (a broadcast finds them all) with
+    its name, identity and current web addresses;
+  - puts those addresses in its `stump.node` beacon (a fifth item; older
+    readers take the first four), and announces again soon after its
+    address changes;
+  - lists the other Stumps it heard, with their addresses, at
+    `/stumps.json`.
+  Apps keep a Stump by its identity and find its address again when it
+  moves -- no router settings, nothing to type. (CLIENT_QUICKSTART:
+  *Finding a Stump on a Wi-Fi*.)
+
 ## 1.0.0-beta.20
 - A message arriving twice (the sender didn't get our delivery proof and
   tried again) is proved again, so the sender stops resending, and still
