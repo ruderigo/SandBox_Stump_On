@@ -18,7 +18,7 @@
 #
 # config.py:
 #   {"type": "RNodeBLEInterface", "name": "Heltec (Bluetooth)", "enabled": True,
-#    "target": "auto",            # or its name ("RNode 3B87") or address
+#    "target": "auto",            # or its name ("RNode 3B87", or just "3B87") or address
 #    "frequency": 915000000, "bandwidth": 125000, "txpower": 7,
 #    "spreadingfactor": 8, "codingrate": 5}
 
@@ -131,13 +131,23 @@ def _find_address(tree, name):
     return None
 
 
+def _bare(s):
+    return "".join(c for c in (s or "").lower() if c.isalnum())
+
+
 def _matches(target, device, adv):
+    """Is this the Heltec asked for? "auto": any RNode. Otherwise its
+    address, or its name as typed: "RNode EA69", "rnode-ea69", or just
+    "EA69" (what its screen and the Provisioner's example show)."""
     name = getattr(device, "name", None) or getattr(adv, "local_name", None) or ""
     if target in (None, "", "auto"):
         uuids = [u.lower() for u in (getattr(adv, "service_uuids", None) or [])]
         return name.startswith("RNode ") or UART_SERVICE in uuids
-    t = target.lower()
-    return t == (device.address or "").lower() or t == name.lower()
+    t = _bare(target)
+    if t and t == _bare(device.address):
+        return True
+    n = _bare(name)
+    return bool(t) and (t == n or (len(t) >= 4 and n.startswith("rnode") and n.endswith(t)))
 
 
 class _BLEPort:

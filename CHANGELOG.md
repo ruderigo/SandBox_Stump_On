@@ -1,6 +1,13 @@
 # Changelog
 
 ## 1.0.0-beta.18
+- **Fixed: Bluetooth needed the USB → Bluetooth switch after every start
+  or update.** The Heltec's name typed in the Provisioner ("EA69", as its
+  screen shows) was matched exactly against what it advertises ("RNode
+  EA69"), so a Stump starting on Bluetooth never found it; the switch
+  looks for any RNode, which is why it "fixed" it. Now "EA69", "RNode
+  EA69", "rnode-ea69" or its address all find it, and the Provisioner
+  keeps a typed "EA69" as "RNode EA69".
 - **/admin → Radio: one folded *Transport* section** ("Transport: USB",
   "Bluetooth" or "Wi-Fi") holds the USB ⇄ Bluetooth switch, *Reconnect
   the radio* (moved from the top of the card) and the Bluetooth buttons.

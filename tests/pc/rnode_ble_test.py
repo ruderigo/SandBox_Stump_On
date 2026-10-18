@@ -8,6 +8,7 @@ import os, sys, time, types, asyncio as aio
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(HERE))
 sys.path[:0] = [os.path.join(ROOT, "pc", "pc_compat"), os.path.join(ROOT, "final_firmware")]
+sys.path.append(ROOT)              # (the Provisioner, for its name check)
 import stump_host
 stump_host.install(os.path.join(ROOT, "final_firmware"))
 from urns.log import set_loglevel, LOG_NONE
@@ -362,6 +363,19 @@ check("finding the old pairing's address in the Mac's Bluetooth report", rb._fin
     {"SPBluetoothDataType": [{"device_not_connected": [{"Rod's phone": {"device_address": "11:22"}},
                                                       {"RNode EA69": {"device_address": "AA:BB:CC:DD:EE:69"}}]}]},
     "RNode EA69") == "AA:BB:CC:DD:EE:69")
+
+# The name as typed in the Provisioner: "EA69" (what the Heltec's screen
+# shows) finds "RNode EA69" -- it found nothing before, so every start
+# needed the USB -> Bluetooth switch (which looks for any RNode).
+class D2:
+    name, address = "RNode EA69", "AA:BB:CC:DD:EE:69"
+for typed in ("EA69", "ea69", "RNode EA69", "rnode-ea69", "AA:BB:CC:DD:EE:69", "auto"):
+    check("the name typed as %r finds RNode EA69" % typed, rb._matches(typed, D2(), Adv()))
+for typed in ("3B87", "RNode 3B87", "69"):
+    check("... and %r doesn't" % typed, not rb._matches(typed, D2(), Adv()))
+import provisioner as PV
+check("the Provisioner keeps what was typed as the Heltec advertises it",
+      [PV._ble_name(x) for x in ("EA69", "rnode ea69", "", "auto")] == ["RNode EA69", "RNode EA69", "auto", "auto"])
 
 # No bleak in that Python: says how to get it.
 del sys.modules["bleak"]

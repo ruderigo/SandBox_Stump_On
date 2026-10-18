@@ -40,6 +40,7 @@ board produces an explicit, readable message instead of a stack trace.
 """
 
 import json
+import re
 import os
 import shutil
 import subprocess
@@ -513,7 +514,7 @@ EXPECTED_FILE_HASHES = {
     "urns/interfaces/chain.py": "987643f122d08df9",
     "urns/interfaces/e32.py": "4cc3c2994c2d7972",
     "urns/interfaces/lora.py": "34ce816fe69c0b43",
-    "urns/interfaces/rnode_ble.py": "e04cb18475112fb6",
+    "urns/interfaces/rnode_ble.py": "04fdc3db2500f8e5",
     "urns/interfaces/rnode_serial.py": "1ca360599e955cce",
     "urns/interfaces/serial.py": "3c7dda5e4ffb5dec",
     "urns/interfaces/tcp.py": "a29d90caa017764a",
@@ -3644,8 +3645,8 @@ def config_wizard(board_type):
                 profile["pc_heltec_port"] = port or "auto"
             elif profile["pc_heltec"] == "ble":
                 _print_ble_pairing()
-                profile["pc_heltec_ble"] = ask("  Its Bluetooth name, e.g. RNode 3B87 ('auto': the first RNode found)",
-                                               "auto") or "auto"
+                profile["pc_heltec_ble"] = _ble_name(ask("  Its Bluetooth name, e.g. RNode 3B87 ('auto': the first RNode found)",
+                                                         "auto"))
             if profile["pc_heltec"] in ("usb", "ble"):
                 radio, src = mesh_radio_settings((chain_cfg or {}).get("parent_ip"))
                 print("  Radio: %s (%s)" % (_radio_text(radio), "the same as the Stump at %s" % src if src
@@ -5189,7 +5190,7 @@ def _pc_configure_existing(r, folder):
                      " (and connect by itself when it's plugged in)."))
         if ask_yes_no("Use a Heltec over Bluetooth instead (the other settings stay as they are)?", False):
             _print_ble_pairing()
-            target = ask("  Its Bluetooth name, e.g. RNode 3B87 ('auto': the first RNode found)", "auto") or "auto"
+            target = _ble_name(ask("  Its Bluetooth name, e.g. RNode 3B87 ('auto': the first RNode found)", "auto"))
             radio, src = mesh_radio_settings(cfg.get("PC_CHAIN_PARENT_IP"))
             print("  Radio: %s (%s)" % (_radio_text(radio), "the same as the Stump at %s" % src if src
                                          else "the Provisioner's defaults: they must match the mesh's"))
@@ -5248,6 +5249,18 @@ def _radio_text(r):
 
 def _pc_add_usb_heltec(folder, radio=None):
     _pc_add_heltec(folder, radio, "usb")
+
+
+def _ble_name(typed):
+    """What was typed for the Heltec's Bluetooth name, as it advertises:
+    "EA69" (what its screen shows) -> "RNode EA69"; blank -> "auto"."""
+    t = (typed or "").strip()
+    if not t or t.lower() == "auto":
+        return "auto"
+    if re.fullmatch(r"[0-9A-Fa-f]{4}", t):
+        return "RNode " + t.upper()
+    m = re.fullmatch(r"(?i)rnode[\s_-]*([0-9a-f]{4})", t)
+    return "RNode " + m.group(1).upper() if m else t
 
 
 def _pc_add_heltec(folder, radio=None, kind="usb", target="auto"):
