@@ -217,7 +217,11 @@ class _BLEPort:
         again) instead of waiting on a link that's gone."""
         self._run = False
         if wait and self._thread.is_alive() and threading.current_thread() is not self._thread:
-            self._thread.join(wait)
+            try:
+                self._thread.join(wait)
+            except KeyboardInterrupt:
+                pass                     # stopped again while waiting: let it go
+
 
     def drop(self):
         """Disconnect and connect again from scratch: after a first pairing,

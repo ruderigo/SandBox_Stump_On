@@ -776,9 +776,16 @@ class LXMRouter:
                     log("LXMF message dropped: its signature doesn't match its sender", LOG_WARNING)
                     return
 
-            # Dedup check
+            # Dedup check. A copy of a message already taken in is the
+            # sender trying again because our proof didn't reach it: prove
+            # it again (else it keeps resending, then shows "not sent"),
+            # but don't deliver it twice.
             if message.hash in self.delivered_ids:
-                log("LXMF duplicate ignored: " + message.hash.hex()[:8], LOG_DEBUG)
+                log("LXMF duplicate from " + message.source_hash.hex()[:8] + ": proved again, not delivered twice", LOG_NOTICE)
+                try:
+                    packet.prove()
+                except Exception:
+                    pass
                 return
 
             self.delivered_ids[message.hash] = time.time()

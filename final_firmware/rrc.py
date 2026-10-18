@@ -859,6 +859,9 @@ def handle_input(client_id, room, text):
     # sender (/help, /names...) aren't counted.
     guard.caller(client_id)
     if _speaks(text) and not guard.allow("chat", client_id, CHAT_EVERY, CHAT_BURST):
+        # Said in the log, so a "too fast" nobody expected can be traced
+        # (who, which line).
+        print("[rrc] too fast: %s %r" % (str(client_id)[:12], text[:40]))
         return [tok_rate(i18n.t("chat_rate", lang))], None
 
     # Plugins (plugins.py): gates and /commands see the line before rrc
