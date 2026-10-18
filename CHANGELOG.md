@@ -1,6 +1,17 @@
 # Changelog
 
-## 1.0.0-beta.18
+## 1.0.0-beta.19
+- **Registered profiles** for people without a FireFly (`/profile`, from
+  the chat's pop-up and the Files page): a nick and a password; logged
+  in from any browser, the nick (reserved), the credits and the private
+  messages follow, on every Stump of the chain (synced over the chain
+  link only; credits counted per Stump and merged). `/admin` → System →
+  *Registered profiles*: reset a password (there's no email), delete.
+- **No longer known by IP in a browser:** a visitor ID cookie keeps a
+  browser's nick, room, messages and credits when its address changes
+  (what the address had moves to it once). Clients that keep no cookies
+  -- the FireFly app -- stay known by their address, so its one-button
+  `/auth` works as before. Limits and lockouts still count per address.
 - **Hybrid access, as meant:** anyone is in, and writes in, `#main` and
   `#wifi-mesh`; every other room (`#lora-mesh`, rooms people make) and
   private messages take a verified identity -- the `/auth` challenge only
@@ -17,6 +28,8 @@
   computer (the board resets; a computer Stump starts again by itself). Nothing is reinstalled or minted again: the
   identity, history, files, credits and radio stay as they are. On the
   CAM and on a computer alike.
+
+## 1.0.0-beta.18
 - **Fixed: Bluetooth needed the USB → Bluetooth switch after every start
   or update.** The Heltec's name typed in the Provisioner ("EA69", as its
   screen shows) was matched exactly against what it advertises ("RNode

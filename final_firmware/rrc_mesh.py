@@ -606,6 +606,13 @@ def on_message(router, message):
         # A /msg, /nick or voice note left at a propagation node can reach
         # the chat hours after it was sent; acting on it then would surprise
         # everyone. Tell the sender instead.
+        try:
+            title0 = message.title_as_string() or ""
+        except Exception:
+            title0 = ""
+        if title0 == PROFILES_TITLE:
+            _take_profiles(message)          # another Stump of the chain's profiles
+            return
         age = _stale_age(message)
         if age is not None:
             _send_queue.append((router, message.source_hash,
@@ -893,6 +900,60 @@ def _handle(dest_hash_hex, peer, text):
 
 # ── Outbound: RRC → mesh ──────────────────────────────────────────────
 
+# Registered profiles (profiles.py) shared by the Stumps of a chain: sent
+# to a Stump whose path comes in on the chain link, never over the radio,
+# and taken in only from a signed message that came in on a chain link
+# (which needs the chain secret).
+PROFILES_TITLE = "#profiles"
+PROFILES_PER_MSG = 4
+PROFILES_MSGS_PER_FLUSH = 3
+
+
+def _flush_profiles(router, dest_hash_hex, peer):
+    try:
+        import profiles
+        dest = bytes.fromhex(dest_hash_hex)
+    except Exception:
+        return
+    if _chain_iface(dest) is None:
+        return
+    cur = peer.get("prof_seq", 0)
+    if profiles.seq() <= cur:
+        return
+    try:
+        import ujson as json
+    except ImportError:
+        import json
+    for _ in range(PROFILES_MSGS_PER_FLUSH):
+        recs, nxt = profiles.changed_since(cur, PROFILES_PER_MSG)
+        if not recs:
+            break
+        # No "via": too big for one packet; the path to it is the chain's.
+        _send_queue.append((router, dest, json.dumps(recs), PROFILES_TITLE))
+        cur = nxt
+    peer["prof_seq"] = cur
+
+
+def _take_profiles(message):
+    iface = getattr(message, "receiving_interface", None)
+    if not getattr(message, "signature_validated", False) or not type(iface).__name__.startswith("Chain"):
+        print("[rrc_mesh] profiles from %s ignored: not signed, or not over the chain link"
+              % message.source_hash.hex()[:8])
+        return
+    try:
+        import profiles
+        try:
+            import ujson as json
+        except ImportError:
+            import json
+        n = profiles.merge(json.loads(message.content_as_string() or "[]"))
+        if n:
+            rrc.release_registered_nicks()
+            print("[rrc_mesh] %d profile(s) from %s" % (n, message.source_hash.hex()[:8]))
+    except Exception as e:
+        print("[rrc_mesh] profiles from %s unreadable: %s" % (message.source_hash.hex()[:8], e))
+
+
 def _flush_to_peer(router, dest_hash_hex, peer):
     """Forward any new RRC messages in this peer's room to them."""
     room    = peer["room"]
@@ -906,6 +967,7 @@ def _flush_to_peer(router, dest_hash_hex, peer):
 
     remote = _remote_dm_lines(dest_hash_hex) if peer.get("stump") else []
     if peer.get("stump"):
+        _flush_profiles(router, dest_hash_hex, peer)
         # #lora-mesh to another Stump always goes the radio-first way
         # (_flush_lora_to_stump), whatever room it sits in here; so its
         # room lines don't go a second time below.

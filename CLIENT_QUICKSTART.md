@@ -8,7 +8,7 @@ you hit `AUTH-CHALLENGE` cold and start reverse-engineering source.
 you're looking at (a forwarded zip, an older doc, a snippet someone
 pasted into chat) disagrees with what's there, the repo wins.
 
-**This page matches firmware 1.0.0-beta.18.** What changed for clients
+**This page matches firmware 1.0.0-beta.19.** What changed for clients
 since 1.0.0-beta.4:
 
 - **`#lora-mesh` is shared by the Stumps.** Lines from another Stump's
@@ -371,7 +371,7 @@ formats: every endpoint, payload and limit a client touches.
 # Reference for client builders
 
 Everything the client teams have been given, in one place. Checked
-against the 1.0.0-beta.18 `barkeep.py`, `rrc.py`, `rrc_mesh.py`,
+against the 1.0.0-beta.19 `barkeep.py`, `rrc.py`, `rrc_mesh.py`,
 `billboard.py`, `fserv.py`, `plugins.py`, `chain.py` and
 `example_node.py` source; the JSON shapes below are the ones the
 firmware's own tests (`tests/`) check.
@@ -398,7 +398,7 @@ Use it to probe and label nodes:
 
 ```json
 {"name": "LaBuche", "lxmf": "53d91d2f…48e4", "version": "Beta A",
- "release": "1.0.0-beta.18", "ap_ip": "192.168.4.1", "chain": null,
+ "release": "1.0.0-beta.19", "ap_ip": "192.168.4.1", "chain": null,
  "features": ["chat", "billboard", "files", "about"]}
 ```
 
@@ -434,14 +434,24 @@ answers `302` back to HTTP. API requests are never redirected.
 
 ## Identity model (WiFi/HTTP)
 
-There is no login, cookie or token. Without `/auth`, a WiFi client's
-entire state — nickname, room, language, DM inbox, credit balance — is
-keyed by **the source IP of the TCP connection**, read server-side on
-every request. It's stable while your device keeps the same IP on the
-node's network, and becomes a new, unrelated identity if the IP
-changes. Build the WiFi client assuming "whoever is connecting from
-this IP right now" is the whole session model; `/auth` (above) is what
-gives a durable identity across IPs and transports.
+A WiFi client's state — nickname, room, language, DM inbox, credit
+balance — is keyed by, in order (since 1.0.0-beta.19):
+
+1. a **registered profile** (`/profile`, a nick and a password, for
+   people without a FireFly): the `stump_p` session cookie;
+2. a **browser's visitor ID**: the `stump_v` cookie, offered on the
+   first page (it counts from the next request);
+3. otherwise **the source IP of the TCP connection** — a client that
+   keeps no cookies (the FireFly app's HTTP client) is known by its
+   address exactly as before, so its one-button `/auth` works unchanged.
+
+A browser's first request with its visitor ID takes over what its
+address had (nick, language, credits), once — unless that address is a
+verified FireFly session. Rate limits and wrong-password lockouts still
+count per address. `/auth` (above) is what gives a durable identity
+across devices and transports; a profile does it for nick and credits on
+the Stumps of one chain, and doesn't open `hybrid`'s other rooms.
+`/rrc/poll` answers `"registered": true` for a logged-in profile.
 
 ## RRC over HTTP — chat, rooms, DMs
 

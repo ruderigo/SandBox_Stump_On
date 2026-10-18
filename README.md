@@ -52,7 +52,7 @@ See [Chained Stumps](#chained-stumps).
 | **Handheld** (R36S / R36MAX) — [FireFly for RK3326](https://github.com/ruderigo/FireFly_RK3326_R36MAX_R36S) | Over LoRa, through its own Heltec V3, with its own identity |
 | **Any phone or computer** | A browser on the Stump's Wi-Fi (or the network it's on) |
 
-## Tested so far (17 Oct 2026, 1.0.0-beta.18)
+## Tested so far (17 Oct 2026, 1.0.0-beta.19)
 
 | | On hardware | In the lab only |
 |---|---|---|
@@ -642,6 +642,27 @@ the bugs fixed along the way:
 [`ENGINEERING_NOTES.md`](final_firmware/docs/ENGINEERING_NOTES.md#the-admin-page).
 
 ---
+
+## Registered profiles (people without a FireFly)
+
+`/profile` (linked from the chat's own pop-up and the Files page): a
+nickname and a password. Logged in from any browser, a profile carries
+its nick (no one else can take it, and the chat keeps it), its credits
+and its private messages, on this Stump and every Stump of its chain --
+the records go over the chain link only (never the radio), and a Stump
+takes them in only from a signed message that came in on a chain link.
+Credits are counted per Stump and merged, so spending on two Stumps
+before they sync loses nothing; the same nick registered on two Stumps
+before they sync: one keeps it, the other becomes `nick-xxxx`.
+Passwords are salted and hashed; wrong ones get the `/admin` lockout.
+There's no email: `/admin` → System → *Registered profiles* resets a
+password or deletes a profile (chain-wide). A profile doesn't open
+`hybrid`'s other rooms -- those take a FireFly's `/auth`.
+
+Visitors without a profile: a browser keeps a visitor ID (a cookie)
+rather than being known by its address; a client that keeps no cookies
+(the FireFly app) stays known by its address. Rate limits count per
+address either way.
 
 ## File storage
 

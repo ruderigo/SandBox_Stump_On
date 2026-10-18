@@ -268,7 +268,7 @@ function stumpTag(el, name){
   el.insertBefore(t, el.firstChild);
 }
 var lastUsers=[];
-var PROF=I18N_PROFILE, HWT=I18N_HW, RAD=I18N_RADIO, nodeInfo=null, hwInfo=null, radioOpen=false, radioMsg='';
+var PROF=I18N_PROFILE, HWT=I18N_HW, RAD=I18N_RADIO, registered=false, nodeInfo=null, hwInfo=null, radioOpen=false, radioMsg='';
 function setHw(h){
   // The status dot by your name, at the foot of the column.
   hwInfo=h;
@@ -292,6 +292,8 @@ function renderProfile(force){
   f.appendChild(i); f.appendChild(b);
   f.onsubmit=function(e){ e.preventDefault(); var v=i.value.trim(); if(v && v!==nick){ send('/nick '+v); } i.blur(); closePop(); };
   p.appendChild(f);
+  var pl=document.createElement('a'); pl.href='/profile'; pl.className='pv';
+  pl.textContent=registered?PROF.mine:PROF.reg; p.appendChild(pl);
   if(nodeInfo){
     head(PROF.stump);
     val(nodeInfo.name||'?');
@@ -824,6 +826,7 @@ function poll(){
      if(d.stumps){ stumps={}; d.stumps.forEach(function(n){ stumps[n]=1; }); }
      if(d.hw) setHw(d.hw);
      if(d.node) nodeInfo=d.node;
+     registered=!!d.registered;
      if(d.rooms) setRooms(d.rooms, room, d.users); else renderDMSidebar();
      if(d.topic!==undefined) document.getElementById('topic').textContent=d.topic?('— '+d.topic):'';
      if(d.nick && d.nick!==nick){ nick=d.nick; }
@@ -1088,7 +1091,7 @@ def render_page(room, nick, lang=None, rec_url=None):
               .replace("I18N_DIRECT_MESSAGES", _js(i18n.t("rrc_direct_messages", lang)))
               .replace("I18N_STUMPS", _js(i18n.t("rrc_stumps", lang)))
               .replace("I18N_PROFILE", _js({k: i18n.t("rrc_profile_" + k, lang)
-                                            for k in ("you", "nick", "set", "stump", "radio")}))
+                                            for k in ("you", "nick", "set", "stump", "radio", "reg", "mine")}))
               .replace("I18N_HW", _js({k: i18n.t("rrc_hw_" + k, lang)
                                        for k in ("none", "online", "connecting", "error")}))
               .replace("I18N_RADIO", _js(dict(

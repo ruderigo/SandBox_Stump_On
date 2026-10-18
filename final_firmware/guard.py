@@ -30,6 +30,20 @@ _buckets = {}       # (kind, key) -> [milli-tokens, last_ms]
 _windows = {}       # (kind, key) -> [times_ms]
 _fails = {}         # key -> [count, locked_until_ms, lock_s]
 _caller = ["?"]
+# A visitor's ID (a browser's cookie, a logged-in profile) -> its network
+# address: the limits count per address, so a new cookie or another
+# profile doesn't reset them (barkeep sets it on each request).
+_net = {}
+
+
+def net(visitor, address):
+    if visitor and address and visitor != address:
+        _net[visitor] = address
+        _bound(_net)
+
+
+def _k(key):
+    return _net.get(key, key)
 
 
 def _clock():
@@ -55,7 +69,7 @@ def allow(kind, key, every=2, burst=3):
     now = _clock()
     every_ms = max(1, int(every * 1000))
     full = burst * 1000
-    k = (kind, key)
+    k = (kind, _k(key))
     b = _buckets.get(k)
     if b is None:
         b = _buckets[k] = [full, now]
@@ -73,7 +87,7 @@ def window(kind, key, n=3, per=60):
     """True if fewer than n happened in the last `per` seconds (and counts
     this one); False otherwise."""
     now = _clock()
-    k = (kind, key)
+    k = (kind, _k(key))
     times = [t for t in _windows.get(k, []) if now - t < per * 1000]
     if len(times) >= n:
         _windows[k] = times
@@ -87,7 +101,7 @@ def window(kind, key, n=3, per=60):
 def locked(key=None):
     """Seconds left before `key` may try a password again (0: it may)."""
     now = _clock()
-    f = _fails.get(_caller[0] if key is None else key)
+    f = _fails.get(_k(_caller[0] if key is None else key))
     if not f or f[1] <= now:
         return 0
     return (f[1] - now) // 1000 + 1
@@ -96,7 +110,7 @@ def locked(key=None):
 def password(check, key=None):
     """(ok, wait_s): runs check() unless `key` is locked out. wait_s > 0
     means it wasn't run: too many wrong passwords, try again then."""
-    key = _caller[0] if key is None else key
+    key = _k(_caller[0] if key is None else key)
     wait = locked(key)
     if wait:
         return False, wait
@@ -131,4 +145,5 @@ def reset():
     _buckets.clear()
     _windows.clear()
     _fails.clear()
+    _net.clear()
     _caller[0] = "?"

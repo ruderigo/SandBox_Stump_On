@@ -295,6 +295,9 @@ def query_files(words=None, cat=None, sort="newest", limit=5):
 def credit_balance(identifier):
     if not sd_ok:
         return 0
+    if str(identifier).startswith("p:"):         # a registered profile (profiles.py)
+        import profiles
+        return profiles.balance(identifier[2:])
     return _ledger().get(identifier, 0)
 
 
@@ -305,10 +308,32 @@ def credit_add(identifier, amount):
     # every upload AND every download, for no result.
     if not sd_ok or not CREDITS_ENABLED or amount == 0:
         return 0
+    if str(identifier).startswith("p:"):
+        import profiles
+        return profiles.add_credits(identifier[2:], amount)
     ledger = _ledger()
     ledger[identifier] = ledger.get(identifier, 0) + amount
     _save_json(LEDGER_FILE, ledger)
     return ledger[identifier]
+
+
+def move_credits(src, dst):
+    """What `src` has in the ledger goes to `dst` (a visitor's address to
+    its browser ID, a visitor's balance into the profile they create).
+    Returns the amount moved."""
+    if not sd_ok:
+        return 0
+    ledger = _ledger()
+    amount = ledger.pop(src, 0)
+    if not amount:
+        return 0
+    if str(dst).startswith("p:"):
+        import profiles
+        profiles.add_credits(dst[2:], amount)
+    else:
+        ledger[dst] = ledger.get(dst, 0) + amount
+    _save_json(LEDGER_FILE, ledger)
+    return amount
 
 
 def mark_awaiting(hash_hex, note=""):

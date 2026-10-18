@@ -52,6 +52,7 @@ TESTS = [
     ("librarian", "assert", []),
     ("mesh_room", "assert", []),
     ("radio_status", "assert", []),
+    ("profiles_store", "assert", []),
 ]
 
 _NORM = [

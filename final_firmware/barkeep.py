@@ -24,7 +24,9 @@ import theme
 import layout
 import features
 import radio
-import settings as stump_settings     # ("settings" is a local name in places here)
+import settings as stump_settings
+import profiles
+import guard     # ("settings" is a local name in places here)
 import propagation
 import stump_tls as tls  # not "tls": MicroPython has a built-in module by that name
 import flasher_ui
@@ -1065,6 +1067,133 @@ def _admin_ok(pw, who=None):
     return _session_ok(pw) or _check_admin_pw(pw, who)
 
 
+VISITOR_COOKIE = "stump_v"       # a browser's visitor ID (a year)
+PROFILE_COOKIE = "stump_p"       # a logged-in profile's session
+_seen_visitors = {}
+
+
+def _new_visitor_id():
+    return "v" + profiles._rand_hex(10)
+
+
+def _valid_visitor_id(v):
+    return len(v) == 21 and v[0] == "v" and all(c in "0123456789abcdef" for c in v[1:])
+
+
+def _visitor(writer, headers, ip, method):
+    """The ID a request is known by (see the request handler)."""
+    tok = _cookie(headers, PROFILE_COOKIE)
+    if tok:
+        nick = profiles.session_nick(tok)
+        if nick:
+            vid = "p:" + profiles.key(nick)
+            guard.net(vid, ip)
+            u = rrc._users.get(vid)
+            if u is None or u.get("nick") != nick:
+                rrc.touch_user(vid, nick=nick)
+            return vid
+    v = _cookie(headers, VISITOR_COOKIE)
+    if v and _valid_visitor_id(v):
+        guard.net(v, ip)
+        if v not in _seen_visitors:
+            _seen_visitors[v] = 1
+            if len(_seen_visitors) > 500:
+                _seen_visitors.clear()
+            _move_in(ip, v)
+        return v
+    if method == "GET":
+        # Offered with the page; it counts from the browser's next request
+        # (a client that doesn't keep it stays known by its address).
+        writer._stump_set_cookie = (VISITOR_COOKIE + "=" + _new_visitor_id()
+                                    + "; Path=/; Max-Age=31536000; HttpOnly; SameSite=Lax")
+    return ip
+
+
+def _move_in(ip, vid):
+    """A browser's first request with its visitor ID: what this address
+    had (its nick, language, credits) moves to it, once -- unless the
+    address is a verified FireFly session (the app, which stays on it)."""
+    try:
+        sid = plugins.service_lookup("identity")
+        if sid is not None and sid.verified_identity_for(ip):
+            return
+    except Exception:
+        pass
+    old = rrc._users.get(ip)
+    if old is not None and vid not in rrc._users:
+        rrc.touch_user(vid, nick=None if old["nick"] == rrc.default_nick(ip) else old["nick"], room=old.get("room"))
+        rrc.drop_user(ip)
+    if ip in i18n._prefs and vid not in i18n._prefs:
+        i18n.set_lang(vid, i18n._prefs[ip])
+    fserv.move_credits(ip, vid)
+
+
+def _render_profile_page(lang, identifier, notice=""):
+    """/profile: a registered profile for a visitor without a FireFly --
+    log in, create one, or (logged in) its balance, a new password, log
+    out. Kept on this Stump and the Stumps of its chain."""
+    T = lambda k, **kw: i18n.t(k, lang, **kw)
+    esc = billboard._esc
+    note = ("<p class='sub'><b>" + esc(notice) + "</b></p>") if notice else ""
+    head = "<h1>" + T("profile_title") + "</h1>" + _lang_switcher(lang, "/profile") + note
+    if identifier.startswith("p:"):
+        rec = profiles.get(identifier[2:])
+        nick = rec["nick"] if rec else identifier[2:]
+        bal = ("<p class='sub'>" + T("profile_balance", n=fserv.credit_balance(identifier)) + "</p>"
+               if fserv.CREDITS_ENABLED else "")
+        body = ("<div class='panel'><p>" + T("profile_logged_in", nick="<b>" + esc(nick) + "</b>") + "</p>" + bal
+                + "<p class='sub'>" + T("profile_kept") + "</p>"
+                "<form method='POST' action='/profile/logout' class='post-form'>"
+                "<button type='submit'>" + T("profile_logout") + "</button></form></div>"
+                "<details class='inner'><summary>" + T("profile_change") + "</summary>"
+                "<form method='POST' action='/profile/password' class='post-form setup' autocomplete='off'>"
+                "<label>" + T("profile_current") + "<br><input type='password' name='old' required autocomplete='current-password'></label>"
+                "<label>" + T("profile_new") + "<br><input type='password' name='pw' required minlength='"
+                + str(profiles.PW_MIN) + "' autocomplete='new-password'></label>"
+                "<label>" + T("profile_again") + "<br><input type='password' name='pw2' required autocomplete='new-password'></label>"
+                "<button type='submit'>" + T("profile_change_go") + "</button></form></details>")
+    else:
+        cur = rrc.get_user(identifier)["nick"]
+        body = ("<p class='sub'>" + T("profile_intro") + "</p>"
+                "<div class='panel'><h2 class='sub'>" + T("profile_login") + "</h2>"
+                "<form method='POST' action='/profile/login' class='post-form setup' autocomplete='on'>"
+                "<label>" + T("rrc_profile_nick") + "<br><input name='nick' required maxlength='"
+                + str(profiles.NICK_MAX) + "' autocomplete='username'></label>"
+                "<label>" + T("profile_password") + "<br><input type='password' name='pw' required autocomplete='current-password'></label>"
+                "<button type='submit'>" + T("profile_login_go") + "</button></form></div>"
+                "<div class='panel'><h2 class='sub'>" + T("profile_create") + "</h2>"
+                "<form method='POST' action='/profile/register' class='post-form setup' autocomplete='off'>"
+                "<label>" + T("rrc_profile_nick") + "<br><input name='nick' required maxlength='"
+                + str(profiles.NICK_MAX) + "' value='" + esc("" if cur.startswith("guest-") else cur)
+                + "' autocomplete='username'></label>"
+                "<label>" + T("profile_password") + " " + T("profile_pw_rule", n=profiles.PW_MIN)
+                + "<br><input type='password' name='pw' required minlength='" + str(profiles.PW_MIN)
+                + "' autocomplete='new-password'></label>"
+                "<label>" + T("profile_again") + "<br><input type='password' name='pw2' required autocomplete='new-password'></label>"
+                "<p class='sub'><small>" + T("profile_no_email") + "</small></p>"
+                "<button type='submit'>" + T("profile_create_go") + "</button></form></div>"
+                "<p class='sub'><small>" + T("profile_firefly") + "</small></p>")
+    return head + body + _nav(lang, *layout.nav())
+
+
+def _profile_cookie(writer, tok):
+    writer._stump_set_cookie = (PROFILE_COOKIE + "=" + tok + "; Path=/; Max-Age=31536000; HttpOnly; SameSite=Lax"
+                                if tok else PROFILE_COOKIE + "=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax")
+
+
+def _log_in(writer, identifier, nick):
+    """This browser now is that profile: its chat nick, the room it was in."""
+    tok = profiles.start_session(nick)
+    _profile_cookie(writer, tok)
+    old = rrc._users.get(identifier)
+    pid = "p:" + profiles.key(nick)
+    rrc.touch_user(pid, nick=profiles.get(nick)["nick"], room=old.get("room") if old else None)
+    if old is not None and identifier != pid:
+        rrc.drop_user(identifier)
+    if identifier in i18n._prefs:
+        i18n.set_lang(pid, i18n._prefs[identifier])
+
+
 def _cookie(headers, name):
     for part in headers.get("cookie", "").split(";"):
         k, _, v = part.strip().partition("=")
@@ -1126,7 +1255,7 @@ def _radio_editor(identifier, headers):
     cookie)."""
     if not radio.chat_edit():
         return False
-    return identifier in _LOCAL or _session_ok(_cookie(headers, ADMIN_COOKIE))
+    return guard._k(identifier) in _LOCAL or _session_ok(_cookie(headers, ADMIN_COOKIE))
 
 
 def _release_line():
@@ -1200,6 +1329,8 @@ def _render_admin_file_list_page(lang, names, pw):
                  _theme_label(theme.admin_choice(), lang) if theme.admin_choice() else "")
     system = (
         _card("setup", "\u2699\ufe0f", _render_admin_setup_section(lang, pw), _setup_peek(lang))
+        + _card("people", "\U0001f465", _render_admin_profiles_section(lang, pw),
+                T("admin_profiles_peek", n=len(profiles.all_profiles())))
         + _card("plugins", "\U0001f9e9", _render_admin_plugins_section(lang, pw), _plugins_peek(lang))
         + _card("https", "\U0001f512", _render_admin_tls_line(lang), "")
         + _card("power", "\u23fb", _render_admin_power_section(lang, pw), ""))
@@ -1799,6 +1930,31 @@ def _render_admin_setup_section(lang, pw, notice=""):
             "document.querySelectorAll('input[name=economy]').forEach(function(r){r.onchange=f;});f();})();</script>")
 
 
+def _render_admin_profiles_section(lang, pw):
+    """The registered profiles (profiles.py), shared by the chain: each
+    one's balance; a new password (there's no email to reset it by), or
+    removing it (on every Stump of the chain)."""
+    T = lambda k, **kw: i18n.t(k, lang, **kw)
+    esc = billboard._esc
+    rows = []
+    for r in profiles.all_profiles():
+        n = r["nick"]
+        rows.append("<details class='inner'><summary>" + esc(n) + " <span class='pk'>"
+                    + T("profile_balance", n=profiles.balance(n)) + "</span></summary>"
+                    "<form method='POST' action='/admin/profiles' class='post-form setup' autocomplete='off'>"
+                    "<input type='hidden' name='admin_pass' value='" + esc(pw) + "'>"
+                    "<input type='hidden' name='nick' value='" + esc(n) + "'>"
+                    "<label>" + T("admin_profiles_newpw", n=profiles.PW_MIN) + "<br><input type='text' name='pw' minlength='"
+                    + str(profiles.PW_MIN) + "' autocomplete='off'></label>"
+                    "<button type='submit' name='action' value='reset'>" + T("admin_profiles_reset") + "</button> "
+                    "<button type='submit' name='action' value='delete' onclick=\"return confirm("
+                    + esc(json.dumps(T("admin_profiles_delete_confirm", nick=n))) + ")\">"
+                    + T("admin_profiles_delete") + "</button></form></details>")
+    return ("<h2 class='sub'>" + T("admin_profiles_header") + "</h2>"
+            "<p class='sub'>" + T("admin_profiles_intro") + "</p>"
+            + ("".join(rows) if rows else "<p class='sub'>" + T("admin_profiles_none") + "</p>"))
+
+
 def _render_admin_restart_form(lang, pw):
     return ("<form method='POST' action='/admin/restart' class='post-form' onsubmit=\"return confirm("
             + billboard._esc(json.dumps(i18n.t("admin_setup_restart_confirm", lang))) + ")\">"
@@ -1893,7 +2049,7 @@ document.querySelectorAll('#bt [data-bt]').forEach(function(b){ b.onclick=functi
 
 def _admin_or_local(identifier, headers):
     """The person on the computer the Stump runs on, or an /admin session."""
-    return identifier in _LOCAL or _session_ok(_cookie(headers, ADMIN_COOKIE))
+    return guard._k(identifier) in _LOCAL or _session_ok(_cookie(headers, ADMIN_COOKIE))
 
 
 def _render_admin_radio_section(lang, pw):
@@ -2247,6 +2403,7 @@ def _render_files_page(lang):
         + _lang_switcher(lang, "/files") +
         (_ask_drawer(lang) if features.enabled("files") else "") +
         "<p class='sub'>" + i18n.t("files_tap_to_download", lang) + "</p>"
+        "<p class='sub'><a href='/profile'>\U0001f464 " + i18n.t("profile_link", lang) + "</a></p>"
         + finder +
         "<div class='panel' id='file-list'>" + rows + "</div>"
         + (_FILES_FINDER_SCRIPT if finder else "")
@@ -2731,7 +2888,9 @@ async def _send(writer, status, body, content_type="text/html"):
     # the browser holds the socket open expecting to reuse it, then has
     # to discover it's dead and re-issue the request on a new one. That
     # shows up as pages that feel sluggish or hang on the first click.
+    cookie = getattr(writer, "_stump_set_cookie", None) if no_cache else None
     resp = ("HTTP/1.1 " + status + "\r\nContent-Type: " + content_type +
+             ("\r\nSet-Cookie: " + cookie if cookie else "") +
              "\r\nContent-Length: " + str(len(body)) +
              ("\r\nCache-Control: no-store" if no_store else
               "\r\nCache-Control: no-cache" if no_cache else "") +
@@ -3023,7 +3182,12 @@ async def _handle(reader, writer, secure=False):
         headers["content-length"] = str(content_length)
 
         peer = writer.get_extra_info("peername")
-        identifier = billboard._extract_ip(peer)
+        ip = billboard._extract_ip(peer)
+        # Who this is: a logged-in profile ("p:<nick>"), else the browser's
+        # visitor cookie, else -- a client that keeps no cookies, like the
+        # FireFly app (its one-button /auth included) -- its address, as
+        # before. Limits (guard.py) still count per address.
+        identifier = _visitor(writer, headers, ip, method)
 
         # HTTPS (stump_tls.py) is used for two things only: /admin, where a
         # password is typed, and the voice recorder (/rrc/rec), because
@@ -3035,7 +3199,7 @@ async def _handle(reader, writer, secure=False):
         # only if the BROWSER finds the certificate valid (by the phone's own
         # clock) does it move; otherwise it stays on HTTP, with no warning.
         if not secure and method == "GET" and "plain=1" not in path and path.startswith("/admin"):
-            target = tls.https_redirect(identifier, path)
+            target = tls.https_redirect(ip, path)
             if target:
                 await _send(writer, "200 OK", _https_upgrade_page(target, path))
                 return
@@ -3102,7 +3266,6 @@ async def _handle(reader, writer, secure=False):
                         post_body = billboard._url_decode(kv[5:])
                     elif kv.startswith("entry=") and not title:
                         title = billboard._url_decode(kv[6:])
-            import guard
             if not guard.window("post", identifier, POST_MAX, POST_PER_S):
                 # A few posts a minute per visitor: each one rewrites the
                 # billboard file on the card.
@@ -3220,6 +3383,30 @@ async def _handle(reader, writer, secure=False):
                 notice = "<p class='sub'>" + billboard._esc(msg) + "</p>" if msg else ""
                 await _send(writer, "200 OK", _page(notice + _render_admin_file_list_page(lang, names, pw)))
 
+        elif method == "POST" and path.startswith("/admin/profiles"):
+            length = int(headers.get("content-length", "0"))
+            body = await _read_small_body(reader, length)
+            fields = {}
+            for kv in body.decode().split("&"):
+                parts = kv.split("=", 1)
+                if len(parts) == 2:
+                    fields[parts[0]] = billboard._url_decode(parts[1])
+            pw = fields.get("admin_pass", "")
+            lang = i18n.get_lang(identifier)
+            if not _admin_ok(pw, identifier):
+                await _send(writer, "403 Forbidden", "Invalid admin password", "text/plain")
+            else:
+                n = fields.get("nick", "")
+                if fields.get("action") == "delete":
+                    msg = i18n.t("admin_profiles_deleted" if profiles.delete(n) else "admin_profiles_missing", lang, nick=n)
+                elif profiles.set_password(n, fields.get("pw", "")):
+                    msg = i18n.t("admin_profiles_was_reset", lang, nick=n)
+                else:
+                    msg = i18n.t("profile_err_password", lang, n=profiles.PW_MIN)
+                names = fserv._list_files() if fserv.sd_ok else []
+                await _send(writer, "200 OK", _page("<p class='sub'><b>" + billboard._esc(msg) + "</b></p>"
+                                                    + _render_admin_file_list_page(lang, names, pw)))
+
         elif method == "POST" and (path.startswith("/admin/setup") or path.startswith("/admin/restart")):
             # The Provisioner's answers changed from /admin (settings.py),
             # and the restart that applies the rest.
@@ -3282,7 +3469,7 @@ async def _handle(reader, writer, secure=False):
             lang = i18n.get_lang(identifier)
             if h is None:
                 await _send(writer, "404 Not Found", "Not a computer Stump", "text/plain")
-            elif not (identifier in _LOCAL or _admin_ok(fields.get("admin_pass", ""), identifier)):
+            elif not (ip in _LOCAL or _admin_ok(fields.get("admin_pass", ""), identifier)):
                 await _send(writer, "403 Forbidden", "Invalid admin password", "text/plain")
             else:
                 folder = billboard._esc(str(getattr(h, "ROOT", "") or ""))
@@ -3544,7 +3731,6 @@ async def _handle(reader, writer, secure=False):
                 if kv.startswith("admin_pass="):
                     pw = billboard._url_decode(kv[11:])
             lang = i18n.get_lang(identifier)
-            import guard
             if not _check_admin_pw(pw, identifier):
                 await _send(writer, "403 Forbidden", _page(_render_admin_login_page(
                     lang, error=True, wait=guard.locked(identifier))))
@@ -3698,6 +3884,8 @@ async def _handle(reader, writer, secure=False):
                 # Which node this is -- a client reaching it over Wi-Fi
                 # and LoRa matches the two by this LXMF address.
                 "node": rrc.NODE,
+                # Logged into a registered profile (profiles.py)?
+                "registered": identifier.startswith("p:"),
             }
             await _send(writer, "200 OK", json.dumps(payload), "application/json")
 
@@ -3786,7 +3974,7 @@ async def _handle(reader, writer, secure=False):
 
         elif method == "GET" and path.startswith("/rrc"):
             user = rrc.touch_user(identifier)
-            rec = None if secure else tls.https_redirect(identifier, "/rrc/rec")
+            rec = None if secure else tls.https_redirect(ip, "/rrc/rec")
             await _send(writer, "200 OK", rrc_ui.render_page(user["room"], user["nick"],
                                                              i18n.get_lang(identifier), rec_url=rec))
 
@@ -3944,6 +4132,69 @@ async def _handle(reader, writer, secure=False):
             posts = [{"id": pid, "title": title, "body": body, "sig": sig}
                      for sig, title, body, ts, pid in entries]
             await _send(writer, "200 OK", json.dumps({"posts": posts}), "application/json")
+
+        elif path == "/profile" or path.startswith("/profile?") or path.startswith("/profile/"):
+            # Registered profiles (profiles.py).
+            lang = i18n.get_lang(identifier)
+            T = lambda k, **kw: i18n.t(k, lang, **kw)
+            fields = {}
+            if method == "POST":
+                length = int(headers.get("content-length", "0"))
+                body = await _read_small_body(reader, length)
+                for kv in body.decode().split("&"):
+                    parts = kv.split("=", 1)
+                    if len(parts) == 2:
+                        fields[parts[0]] = billboard._url_decode(parts[1])
+            notice = ""
+            nick = (fields.get("nick") or "").strip()
+            if method != "POST":
+                pass
+            elif path.startswith("/profile/register"):
+                if fields.get("pw") != fields.get("pw2"):
+                    notice = T("profile_mismatch")
+                elif rrc.nick_taken(nick, identifier) and not profiles.is_registered(nick):
+                    notice = T("profile_taken", nick=nick)
+                else:
+                    rec, why = profiles.register(nick, fields.get("pw", ""))
+                    if rec is None:
+                        notice = T("profile_err_" + why, nick=nick, n=profiles.PW_MIN)
+                    else:
+                        moved = fserv.move_credits(identifier, "p:" + profiles.key(nick))
+                        _log_in(writer, identifier, nick)
+                        identifier = "p:" + profiles.key(nick)
+                        notice = T("profile_created" if moved else "profile_created_empty", nick=rec["nick"])
+            elif path.startswith("/profile/login"):
+                ok, wait = guard.password(lambda: profiles.check(nick, fields.get("pw", "")), ip)
+                if wait:
+                    notice = T("profile_wait", s=wait)
+                elif not ok:
+                    notice = T("profile_wrong")
+                else:
+                    _log_in(writer, identifier, nick)
+                    identifier = "p:" + profiles.key(nick)
+                    notice = T("profile_welcome", nick=profiles.get(nick)["nick"])
+            elif path.startswith("/profile/logout"):
+                profiles.end_session(_cookie(headers, PROFILE_COOKIE))
+                _profile_cookie(writer, None)
+                rrc.drop_user(identifier)
+                identifier = ip
+                notice = T("profile_bye")
+            elif path.startswith("/profile/password") and identifier.startswith("p:"):
+                pn = identifier[2:]
+                ok, wait = guard.password(lambda: profiles.check(pn, fields.get("old", "")), ip)
+                if wait:
+                    notice = T("profile_wait", s=wait)
+                elif not ok:
+                    notice = T("profile_wrong")
+                elif fields.get("pw") != fields.get("pw2"):
+                    notice = T("profile_mismatch")
+                elif not profiles.set_password(pn, fields.get("pw", "")):
+                    notice = T("profile_err_password", n=profiles.PW_MIN)
+                else:
+                    # A new password ends every session, this one too: back in.
+                    _profile_cookie(writer, profiles.start_session(pn))
+                    notice = T("profile_changed")
+            await _send(writer, "200 OK", _page(_render_profile_page(lang, identifier, notice)))
 
         elif method == "GET" and path.startswith("/files.json"):
             # The shelf as data. Download with /download?f=<name>, the

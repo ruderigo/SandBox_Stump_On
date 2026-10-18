@@ -150,6 +150,42 @@ if up:
         get(who, "/rrc/send", b"/join wifi-mesh")
     w = room(FIRST, "wifi-mesh") + room(SECOND, "wifi-mesh")
     check("#lora-mesh lines stay out of #wifi-mesh", not any("radio room" in m["body"] for m in w), w)
+
+    # Registered profiles (no FireFly): made on one Stump, the chain shares
+    # them -- the nick is reserved on the other, and its password logs in
+    # there. A browser keeps the Stump's cookies; the FireFly app doesn't,
+    # and stays known by its address, as before.
+    import http.cookiejar, urllib.parse
+
+    def browser():
+        jar = http.cookiejar.CookieJar()
+        op = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar), urllib.request.ProxyHandler({}))
+        op.jar = jar
+        return op
+
+    def bget(op, who, path, data=None):
+        ip, port, _ = who
+        with op.open(urllib.request.Request("http://%s:%d%s" % (ip, port, path), data=data), timeout=10) as r:
+            return r.read().decode("utf-8", "replace")
+
+    a = browser()
+    bget(a, FIRST, "/rrc")
+    check("a browser gets a visitor ID", any(c.name == "stump_v" for c in a.jar))
+    page = bget(a, FIRST, "/profile/register",
+                urllib.parse.urlencode({"nick": "Wanderer", "pw": "walking1", "pw2": "walking1"}).encode())
+    check("a profile made on the first Stump: logged in", "Wanderer" in page and any(c.name == "stump_p" for c in a.jar), page[-600:])
+    reserved = wait(lambda: "Wanderer" in json.dumps(json.loads(get(SECOND, "/rrc/send", b"/nick Wanderer")).get("replies")), 120)
+    check("... the chain shares it: its nick is reserved on the second Stump", reserved,
+          get(SECOND, "/rrc/send", b"/nick Wanderer"))
+    b = browser()
+    bget(b, SECOND, "/rrc")
+    page = bget(b, SECOND, "/profile/login", urllib.parse.urlencode({"nick": "wanderer", "pw": "walking1"}).encode())
+    check("... and its password logs in there", any(c.name == "stump_p" for c in b.jar) and "Wanderer" in page, page[-600:])
+    poll = json.loads(bget(b, SECOND, "/rrc/poll?room=main&since=0"))
+    check("... as that nick in the chat", poll.get("nick") == "Wanderer" and poll.get("registered") is True, poll.get("nick"))
+    get(FIRST, "/rrc/send", b"/nick appuser")
+    check("a client without cookies (the FireFly app) stays known by its address",
+          json.loads(get(FIRST, "/rrc/poll?room=main&since=0"))["nick"] == "appuser")
 for name, proc in nodes.items():
     proc.terminate()
     try:

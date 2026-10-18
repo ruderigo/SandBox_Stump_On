@@ -500,11 +500,39 @@ def nick_taken(nick, by_client):
     insensitive, because 'Bob' and 'bob' reading as different people in
     a chat window is a genuine source of confusion."""
     low = nick.lower()
+    # A registered profile's nick (profiles.py) is its owner's alone: they
+    # are "p:<nick>" while logged in.
+    if by_client != "p:" + low:
+        try:
+            import profiles
+            if profiles.is_registered(low):
+                return True
+        except ImportError:
+            pass
     for table in (_users, _reachable):
         for cid, u in table.items():
             if cid != by_client and u["nick"].lower() == low:
                 return True
     return False
+
+
+def release_registered_nicks():
+    """A registered profile's nick (profiles.py: made here, or arrived from
+    another Stump of the chain) held by someone else: they go back to
+    their default name, the room told. Returns how many."""
+    try:
+        import profiles
+    except ImportError:
+        return 0
+    n = 0
+    for cid, u in list(_users.items()):
+        low = u["nick"].lower()
+        if cid != "p:" + low and not str(cid).startswith("p:") and profiles.is_registered(low):
+            old, new = u["nick"], default_nick(cid)
+            u["nick"] = new
+            system(u["room"], ev_rename(old, new))
+            n += 1
+    return n
 
 
 def users_in_room(room):
@@ -866,8 +894,11 @@ def _handle_core(client_id, room, text, user, lang):
         new = clean_nick(arg)
         if not new:
             return [i18n.t("nick_usage", lang)], None
-        if new.lower() == user["nick"].lower():
+        if new.lower() == user["nick"].lower() and new == user["nick"]:
             return [i18n.t("nick_already", lang)], None
+        if str(client_id).startswith("p:") and new.lower() != client_id[2:]:
+            # Logged into a registered profile: its nick is the profile's.
+            return [i18n.t("nick_profile", lang, nick=user["nick"])], None
         if nick_taken(new, client_id):
             return [i18n.t("nick_taken", lang, nick=new)], None
         old = user["nick"]
