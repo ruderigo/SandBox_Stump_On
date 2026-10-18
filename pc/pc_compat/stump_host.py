@@ -262,16 +262,31 @@ def _dir_size(path):
     return total
 
 
+_real_statvfs = getattr(os, "statvfs", None)     # before install() replaces it
+
+
+def _disk_free(path):
+    """Bytes really free on the disk holding `path`. Not through
+    shutil.disk_usage: on macOS and Linux that calls os.statvfs, which is
+    _statvfs below once installed -- it called itself until Python gave
+    up, the firmware read that as "no card" and refused every upload
+    (507). Windows has no statvfs: shutil asks the system directly."""
+    if _real_statvfs is not None:
+        st = _real_statvfs(path)
+        return st.f_bavail * st.f_frsize
+    import shutil
+    return shutil.disk_usage(path).free
+
+
 def _statvfs(path):
     """The board's statvfs() tuple: a quota (PC_STORAGE_MB) for the
     folder, never more than the disk really has free."""
-    import shutil
     real = _map(path) if isinstance(path, str) else path
     quota = int(setting("PC_STORAGE_MB", 2048)) * 1024 * 1024
     used = _dir_size(real)
     try:
-        disk_free = shutil.disk_usage(real).free
-    except OSError:
+        disk_free = _disk_free(real)
+    except (OSError, ValueError):
         disk_free = quota
     free = max(0, min(quota - used, disk_free))
     total = used + free
@@ -325,6 +340,7 @@ def install(root):
     if not hasattr(gc, "mem_free"):
         gc.mem_free = lambda: 1 << 30       # "plenty": the big tables (urns/const.py)
         gc.mem_alloc = lambda: 0
+        gc.STUMP_NO_MEM_FREE = True         # ...but not a figure to show (plugins.py)
 
     import socket
     if not hasattr(socket.socket, "readinto"):

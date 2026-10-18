@@ -98,3 +98,5 @@ jobs:
         run: python tests/pc/settings_test.py
       - name: Finding a Stump on the Wi-Fi (STUMP? on UDP 4244)
         run: python tests/pc/discovery_test.py
+      - name: The computer's "card" (uploads, PC_STORAGE_MB)
+        run: python tests/pc/storage_test.py

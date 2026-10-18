@@ -249,7 +249,7 @@ In the folder's `config.py` (the wizard writes them):
 |---|---|---|
 | `PC_HOTSPOT_IP` | `'auto'` | The address visitors reach the computer on |
 | `PC_HTTP_PORT` | `80` | The web port (8080 is tried if it's taken) |
-| `PC_STORAGE_MB` | `2048` | Room for shared files and tools in `sd/`: the "card" never fills your disk |
+| `PC_STORAGE_MB` | `2048` | The size of the "card" (the `sd/` folder), never more than your disk has free. As on a CAM, shared files fill it to 75%, then the oldest ones make room; the tools and firmware take a few MB. 2048 ≈ 1.5 GB of files people share; raise it for videos or big maps (8192 ≈ 6 GB). Changing it takes a restart |
 | `PC_HOTSPOT_NAME` | | The Wi-Fi name the About page tells visitors to join |
 | `PC_CHAIN_PARENT_IP` | | The Stump this one joins (computer joining a CAM) |
 
