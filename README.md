@@ -52,7 +52,7 @@ See [Chained Stumps](#chained-stumps).
 | **Handheld** (R36S / R36MAX) — [FireFly for RK3326](https://github.com/ruderigo/FireFly_RK3326_R36MAX_R36S) | Over LoRa, through its own Heltec V3, with its own identity |
 | **Any phone or computer** | A browser on the Stump's Wi-Fi (or the network it's on) |
 
-## Tested so far (17 Oct 2026, 1.0.0-beta.19)
+## Tested so far (17 Oct 2026, 1.0.0-beta.20)
 
 | | On hardware | In the lab only |
 |---|---|---|

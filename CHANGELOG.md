@@ -1,11 +1,13 @@
 # Changelog
 
-## 1.0.0-beta.19
+## 1.0.0-beta.20
 - A message arriving twice (the sender didn't get our delivery proof and
   tried again) is proved again, so the sender stops resending, and still
   delivered once. A "too fast" refusal is written in the log (who, which
   line). Stopping the Stump while Bluetooth disconnects no longer prints
   a traceback.
+
+## 1.0.0-beta.19
 - **Registered profiles** for people without a FireFly (`/profile`, from
   the chat's pop-up and the Files page): a nick and a password; logged
   in from any browser, the nick (reserved), the credits and the private
