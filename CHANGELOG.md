@@ -1,8 +1,9 @@
 # Changelog
 
 ## 1.0.0-beta.21
+- Fixed: a computer Stump asked to stop (Stop file, launchctl, systemctl) could, now and then, carry on: the stop landed while Python was tidying up an object and was swallowed. It now tries again a moment later.
 - `/admin` → Plugins on a computer no longer shows "0 B RAM" for each plugin: a computer has no free-RAM figure to measure it with, so it's left out.
-- Fixed: a Stump on macOS or Linux refused every upload with 507 ("Card capacity exceeded"), whatever its size. Its free-space check called itself until Python gave up, and that read as "no card" -- full, on purpose. Windows wasn't affected. New test: `pc_storage` (an upload kept, one past 75% of `PC_STORAGE_MB` refused, the oldest shared file making room).
+- Fixed: a computer Stump (macOS, Windows, Linux) refused every upload with 507 ("Card capacity exceeded"), whatever its size. Its free-space check ended up calling itself, and the "card" read as missing -- full, on purpose. Free disk space is now read straight from the system (and if it can't be, the `PC_STORAGE_MB` quota is used and the log says so). New test: `pc_storage` (an upload kept, one past 75% of `PC_STORAGE_MB` refused, the oldest shared file making room).
 - Access modes, as meant: **open** — everyone reads and writes; **hybrid** — everyone reads every room (joins it, sees its lines and who's there) and writes in `#main`, while writing anywhere else (other rooms, private messages) takes a verified identity (`/auth`, one button in FireFly; a FireFly over LoRa counts, its messages are signed); **mandatory** (closed) — reading takes it too: before `/auth` a web client's `/rrc/poll` comes back with no messages, private messages or names, and the topic says why. (beta.19's hybrid kept people out of rooms other than `#main`/`#wifi-mesh` instead.)
 - `#lora-mesh` on a computer with its own Heltec is no longer locked to LoRa users and invitees by default -- that refused a computer's own browser on an `open` Stump. It follows the access mode like every room; `LORA_MESH_LOCKED = True` in config.py brings the lock back.
 - Fixed (from beta.19's visitor IDs): the person on the computer a Stump
