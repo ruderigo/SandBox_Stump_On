@@ -32,6 +32,8 @@ def get(path, timeout=10):
             return r.status, r.read().decode("utf-8", "replace")
     except urllib.error.HTTPError as e:
         return e.code, e.read().decode("utf-8", "replace")
+    except OSError as e:
+        return None, repr(e)
 
 
 def sock():
@@ -74,7 +76,7 @@ while time.time() - t0 < 60 and not up:
     except Exception:
         time.sleep(1)
 check("the Stump starts", up)
-if up:
+def attacks():
     # 1. Eight connections that send nothing: the Stump is full...
     idle = [sock() for _ in range(8)]
     time.sleep(0.3)
@@ -118,8 +120,11 @@ if up:
 
     # 4. An upload that stops halfway: let go, nothing kept.
     s = sock()
-    s.sendall(b"POST /upload HTTP/1.1\r\nX-Filename: half.bin\r\nAccept: application/json\r\n"
-              b"Content-Length: 1000000\r\n\r\n" + b"x" * 20000)
+    try:
+        s.sendall(b"POST /upload HTTP/1.1\r\nX-Filename: half.bin\r\nAccept: application/json\r\n"
+                  b"Content-Length: 1000000\r\n\r\n" + b"x" * 20000)
+    except OSError:
+        pass
     gone = closed_within(s, 10)
     s.close()
     time.sleep(0.5)
@@ -131,6 +136,14 @@ if up:
     t1 = time.time()
     code, _ = get("/node.json")
     check("everyone else is served at once", code == 200 and time.time() - t1 < 2, (code, time.time() - t1))
+
+
+if up:
+    try:
+        attacks()
+    except Exception as e:
+        import traceback
+        check("the attacks ran to the end", False, traceback.format_exc())
 node.terminate()
 try:
     log = node.communicate(timeout=20)[0]

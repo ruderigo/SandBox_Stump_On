@@ -3168,7 +3168,7 @@ async def _handle(reader, writer, secure=False):
         ip = "?"
     why = conn.admit(ip)
     if why:
-        await conn.refuse(writer, why)
+        await conn.refuse(reader, writer, why)
         return
     try:
         await _serve(conn.Reader(reader), conn.Writer(writer), secure)

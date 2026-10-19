@@ -154,8 +154,15 @@ def _say():
               "%d dropped (too slow or silent) so far" % (_total[0], refused, dropped))
 
 
-async def refuse(writer, why):
-    """The quick answer to a connection not taken in."""
+async def refuse(reader, writer, why):
+    """The quick answer to a connection not taken in. What the client
+    already sent is read first (briefly): closing a socket with unread
+    bytes resets it, and Windows then shows the client a reset instead of
+    the 503."""
+    try:
+        await asyncio.wait_for(reader.read(4096), 0.3)
+    except Exception:
+        pass
     try:
         await asyncio.wait_for(writer.awrite(
             "HTTP/1.1 503 Service Unavailable\r\nRetry-After: 2\r\nContent-Type: text/plain\r\n"
