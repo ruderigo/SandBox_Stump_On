@@ -510,14 +510,80 @@ def on_announce(router, dest, app_data, packet):
         # Same nick a full peer would get, so someone who later messages
         # keeps the name people have been DMing.
         nick = _peers[h]["nick"] if h in _peers else _make_nick(name, h)
-        r = _reach[h] = {"nick": nick, "last_seen": now, "last_dm_id": 0, "hinted": False}
+        r = _reach[h] = {"nick": nick, "last_seen": now, "last_dm_id": 0, "hinted": False, "name": name}
         rrc.set_reachable(h, nick)
+    elif name and name != r.get("name"):
+        # Their app announces a new name (FireFly: a new nickname): the
+        # Stump follows -- unless they're here on Wi-Fi too, whose nick wins.
+        had = r.get("name")
+        r["name"] = name
+        if had is not None and rrc.same_web(h) is None:
+            rename(h, _make_nick(name, h))
     r["last_seen"] = now
     if len(_reach) > MAX_REACHABLE:
         idle = sorted((k for k in _reach if k not in _peers), key=lambda k: _reach[k]["last_seen"])
         for k in idle[:len(_reach) - MAX_REACHABLE]:
             _reach.pop(k)
             rrc.drop_reachable(k)
+
+
+def rename(h, new):
+    """A LoRa contact (announced, or a room peer) known by a new nick:
+    everywhere it's listed, the rooms told, and the web chat's threads
+    folded into the new name (rrc.note_rename)."""
+    old = None
+    p = _peers.get(h)
+    if p is not None and p["nick"] != new:
+        old = p["nick"]
+        p["nick"] = new
+        rrc.touch_user(h, nick=new, room=p["room"])
+        rrc.system(p["room"], rrc.ev_rename("~" + old, "~" + new))
+    r = _reach.get(h)
+    if r is not None and r["nick"] != new:
+        old = old or r["nick"]
+        r["nick"] = new
+        rrc.set_reachable(h, new)
+    if old:
+        rrc.note_rename(old, new)
+    return old
+
+
+def lxmf_address(identity_hexhash):
+    """The LXMF address (hex) of an identity, from its hash: what a FireFly
+    proving that identity over Wi-Fi (/auth) is known by on LoRa."""
+    from urns.destination import Destination
+    import ubinascii
+    raw = ubinascii.unhexlify(identity_hexhash)
+    return ubinascii.hexlify(Destination.hash(raw, "lxmf", "delivery")).decode()
+
+
+def same_person(web_cid, identity_hexhash):
+    """A Wi-Fi visitor just proved this identity (/auth). If the Stump
+    knows it on LoRa too, they're one person from now on (rrc.link_same):
+    the LoRa entry takes the Wi-Fi nick, and the DMs still waiting to go
+    out over LoRa go to the Wi-Fi inbox instead. Returns the LXMF address."""
+    try:
+        h = lxmf_address(identity_hexhash)
+    except Exception:
+        return None
+    rrc.link_same(web_cid, h)
+    known = h in _reach or h in _peers
+    if not known:
+        return h
+    sent = max(_reach.get(h, {}).get("last_dm_id", 0), _peers.get(h, {}).get("last_dm_id", 0))
+    waiting = [m for m in rrc._dms.get(h, []) if m["id"] > sent]
+    if waiting:
+        box = rrc._dms.setdefault(web_cid, [])
+        box.extend(waiting)
+        box.sort(key=lambda m: m["id"])
+        rrc._dms[h] = [m for m in rrc._dms.get(h, []) if m["id"] <= sent]
+        for t in (_reach.get(h), _peers.get(h)):
+            if t is not None:
+                t["last_dm_id"] = max(t.get("last_dm_id", 0), waiting[-1]["id"])
+    web = rrc._users.get(web_cid)
+    if web is not None:
+        rename(h, web["nick"])
+    return h
 
 
 def install_announce_handler(router):
@@ -1243,6 +1309,12 @@ async def poll_loop(router):
             _prune_peers(now)
             _prune_reach(now)
             _prune_remote(now)
+            # The same person on Wi-Fi and LoRa (rrc.link_same): the LoRa
+            # entry follows the Wi-Fi nick (a /nick there included).
+            for h in list(rrc._same):
+                web = rrc.same_web(h)
+                if web is not None and (h in _peers or h in _reach):
+                    rename(h, rrc._users[web]["nick"])
             for dest_hash_hex, peer in list(_peers.items()):
                 rrc.touch_user(dest_hash_hex, nick=peer["nick"], room=peer["room"])
                 r = _reach.get(dest_hash_hex)

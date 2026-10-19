@@ -3933,6 +3933,9 @@ async def _serve(reader, writer, secure=False):
                 "node": rrc.NODE,
                 # Logged into a registered profile (profiles.py)?
                 "registered": identifier.startswith("p:"),
+                # People known by a new name lately (old -> new): a thread
+                # under the old one belongs to the new one.
+                "renamed": rrc.renames(),
             }
             if not _may_read(identifier):
                 # Mandatory: nothing to read before /auth -- the room's

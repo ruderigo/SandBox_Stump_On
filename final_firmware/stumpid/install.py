@@ -168,6 +168,14 @@ def _cmd_auth(client_id, stripped):
         if not ok:
             return ["AUTH-FAIL " + result]
         core.mark_verified(client_id, result)
+        if not core._is_mesh_client(client_id):
+            # Proved over Wi-Fi: if this identity is known on LoRa too,
+            # it's one person now (rrc_mesh.same_person).
+            try:
+                import rrc_mesh
+                rrc_mesh.same_person(client_id, result)
+            except Exception as e:
+                print("[stumpid] couldn't link the LoRa identity:", e)
         return ["AUTH-OK " + result]
 
     return ["usage: /auth   (then)   /auth <pubkey_hex> <signature_hex>"]

@@ -497,6 +497,21 @@ across devices and transports; a profile does it for nick and credits on
 the Stumps of one chain, and doesn't let you write in `hybrid`'s other rooms.
 `/rrc/poll` answers `"registered": true` for a logged-in profile.
 
+**One phone on Wi-Fi and LoRa is one person -- once it sends `/auth`
+over Wi-Fi** (since 1.0.0-beta.25). Without it, the Stump can't know the
+Wi-Fi visitor and the LoRa identity are the same phone (a claim without
+the signature could take someone else's messages), so it lists two
+people under two names. After a successful `/auth` over HTTP, if the
+Stump knows that identity's LXMF address on LoRa: the LoRa entry takes
+the Wi-Fi nick, it's listed once, DMs still waiting to go out over LoRa
+are delivered in the Wi-Fi poll instead, and DMs to that nick come over
+Wi-Fi while the phone polls -- over LoRa again once it stops (300 s).
+**So a FireFly on a Stump's Wi-Fi should `/auth` as soon as it
+connects**, not only when asked. A LoRa contact that announces a new
+display name is renamed too. `/rrc/poll` carries `"renamed": {"old":
+"new"}` for renames in the last 30 minutes: a client keeping
+conversations by nick should fold the old name's into the new one.
+
 ## RRC over HTTP — chat, rooms, DMs
 
 **`GET /rrc/poll?room=<room>&since=<id>`** — poll for updates. `room`

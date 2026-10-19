@@ -54,6 +54,7 @@ TESTS = [
     ("radio_status", "assert", []),
     ("profiles_store", "assert", []),
     ("conn_limits", "assert", []),
+    ("same_person", "assert", []),
 ]
 
 _NORM = [

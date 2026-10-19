@@ -256,6 +256,19 @@ function adoptThread(exact){
     }
   }
 }
+// Someone known by a new name (the server's "renamed": old -> new, e.g. a
+// FireFly's new nickname, or its LoRa name giving way to its Wi-Fi one):
+// the thread under the old name is theirs, folded into the new one.
+function followRenames(map){
+  for(var old in map){
+    var nu=map[old];
+    if(!nu || nu===old || !dmThreads[old]) continue;
+    dmThreads[nu]=dmThreads[old].concat(dmThreads[nu]||[]);   // (the old name's part came first)
+    delete dmThreads[old];
+    if(dmUnread[old]){ dmUnread[nu]=(dmUnread[nu]||0)+dmUnread[old]; delete dmUnread[old]; }
+    if(viewingDM===old){ viewingDM=nu; if(typeof openDM==='function') openDM(nu); }
+  }
+}
 function stumpTag(el, name){
   // A log in front of another Stump of the chain. A separate element,
   // never part of the name: the name is what /msg and openDM use, so it
@@ -806,6 +819,7 @@ function poll(){
        if(m.id<=lastId) return;
        if(!viewingDM) render(m);
      });
+     if(d.renamed) followRenames(d.renamed);
      (d.dms||[]).forEach(function(m){
        if(m.id>maxId) maxId=m.id;
        // DMs are remembered by id, not by lastId alone: switching rooms

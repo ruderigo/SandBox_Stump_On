@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.0-beta.25
+- **One phone on Wi-Fi and LoRa is one person.** Reported: a FireFly known on LoRa as `rods-cell` (its radio then off) came back over Wi-Fi as `RodRod`; the Stump listed both, the chat page kept two threads, and `rods-cell` stayed for an hour. Now, once the phone proves its identity over Wi-Fi (`/auth`, FireFly's one button) and the Stump knows that identity on LoRa: the LoRa entry takes the Wi-Fi nick and is listed once; DMs still waiting to go out over LoRa are delivered over Wi-Fi; DMs to that nick go over Wi-Fi while the phone is there, over LoRa again once it's gone. Only `/auth` links them: a claim without the identity's signature could take someone else's messages.
+- A LoRa contact announcing a new name (a new nickname in its app) is renamed. Before, the Stump kept the first name it heard until the contact went quiet for an hour.
+- The chat page folds a renamed person's thread into their new name, instead of keeping a second conversation. `/rrc/poll` carries `"renamed": {"old": "new"}` (the last 30 minutes) for clients that keep conversations by nick.
+- For FireFly: `/auth` over Wi-Fi as soon as you connect to a Stump, so you're one person there (CLIENT_QUICKSTART, Identity model).
+
 ## 1.0.0-beta.24
 - **Nobody can hold a Stump by keeping connections open** (conn.py; the first step of hardening for the pentest). Before, the web server waited forever on every read and write, and the CAM has about ten sockets: a few phones opening connections and sending a byte a minute locked every visitor out. Now:
   - at most 10 connections at once on the CAM (128 on a computer), 6 from one address (16 on a computer; the computer itself isn't limited); past that, a quick `503` with `Retry-After: 2` instead of a socket held;

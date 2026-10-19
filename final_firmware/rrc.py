@@ -363,7 +363,65 @@ def drop_reachable(client_id):
 
 
 def reachable_nicks():
-    return sorted(r["nick"] for r in _reachable.values())
+    return sorted(r["nick"] for cid, r in _reachable.items() if same_web(cid) is None)
+
+
+# The same person reached two ways: a FireFly that proved its identity
+# over Wi-Fi (stumpid's /auth) and is also known by its LXMF address on
+# LoRa. LXMF address (hex) -> the Wi-Fi client id. While that Wi-Fi client
+# is here, the two are one person: listed once, under the Wi-Fi nick, and
+# DMs to that nick reach them over Wi-Fi; once it's gone, over LoRa again.
+# Only an /auth links them -- a claim without the identity's signature
+# could take someone else's messages.
+_same = {}
+MAX_SAME = 64
+
+
+def link_same(web_cid, lxmf_hex):
+    _same[lxmf_hex] = web_cid
+    while len(_same) > MAX_SAME:
+        _same.pop(next(iter(_same)))
+
+
+def same_web(lxmf_hex):
+    """The Wi-Fi client this LXMF address is the same person as, while
+    it's here; else None."""
+    web = _same.get(lxmf_hex)
+    return web if web is not None and web in _users else None
+
+
+def _same_person(a, b):
+    return _same.get(a) == b or _same.get(b) == a
+
+
+# Renames others should follow (a LoRa contact's new announced name, or
+# the LoRa name giving way to the Wi-Fi one): the web chat folds a thread
+# under the old name into the new one. [(time, old, new)], kept RENAME_S.
+_renames = []
+RENAME_S = 1800
+
+
+def note_rename(old, new):
+    if not old or not new or old == new:
+        return
+    now = time.time()
+    _renames[:] = [r for r in _renames if now - r[0] < RENAME_S and r[1] != old][-31:]
+    _renames.append((now, old, new))
+
+
+def renames():
+    """{old nick: new nick} for recent renames (chains followed: a -> b -> c
+    gives a: c)."""
+    now = time.time()
+    out = {}
+    for t, old, new in _renames:
+        if now - t < RENAME_S:
+            for k in out:
+                if out[k] == old:
+                    out[k] = new
+            out[old] = new
+    out = dict((k, v) for k, v in out.items() if k != v)
+    return out
 
 
 # Client ids (LXMF delivery hashes, hex) known to be other Stump nodes,
@@ -522,7 +580,7 @@ def nick_taken(nick, by_client):
             pass
     for table in (_users, _reachable):
         for cid, u in table.items():
-            if cid != by_client and u["nick"].lower() == low:
+            if cid != by_client and u["nick"].lower() == low and not _same_person(cid, by_client):
                 return True
     return False
 
@@ -549,7 +607,7 @@ def release_registered_nicks():
 def users_in_room(room):
     _prune_users()
     room = canon(room)
-    return sorted(u["nick"] for u in _users.values() if u["room"] == room)
+    return sorted(set(u["nick"] for cid, u in _users.items() if u["room"] == room and same_web(cid) is None))
 
 
 # Who is in a shared room on the OTHER Stumps (#lora-mesh), as each told
@@ -689,7 +747,7 @@ def find_client_by_nick(nick):
     for table in (_users, _reachable):
         for cid, u in table.items():
             if u["nick"].lower() == low:
-                return cid
+                return same_web(cid) or cid      # (on Wi-Fi now: reached there)
     return None
 
 
@@ -793,6 +851,8 @@ def reset():
     _topics.clear()
     _users.clear()
     _reachable.clear()
+    _same.clear()
+    del _renames[:]
     _stumps.clear()
     _dms.clear()
     _lora_invited.clear()
