@@ -77,6 +77,8 @@ def normalise(text, workdir):
     for line in text.replace(str(workdir), "<work>").splitlines():
         if re.match(r"^\[\d+\]\[(WARN|INFO|DEBUG)\]", line):
             continue
+        if re.match(r"^\[plugin\] \S+: .* took \d+ ms \(keep callbacks under", line):
+            continue                # how fast the machine is, not what the code says
         for rx, rep in _NORM:
             line = rx.sub(rep, line)
         out.append(line.rstrip())
