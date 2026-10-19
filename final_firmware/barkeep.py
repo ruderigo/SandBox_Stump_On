@@ -27,6 +27,7 @@ import radio
 import settings as stump_settings
 import profiles
 import guard     # ("settings" is a local name in places here)
+import conn      # the connections' deadlines and limits
 import propagation
 import stump_tls as tls  # not "tls": MicroPython has a built-in module by that name
 import flasher_ui
@@ -3159,6 +3160,23 @@ async def _handle_tls(reader, writer):
 
 
 async def _handle(reader, writer, secure=False):
+    """One connection: taken in or refused (conn.py: how many at once, per
+    address), then served with deadlines on every read and write."""
+    try:
+        ip = billboard._extract_ip(writer.get_extra_info("peername"))
+    except Exception:
+        ip = "?"
+    why = conn.admit(ip)
+    if why:
+        await conn.refuse(writer, why)
+        return
+    try:
+        await _serve(conn.Reader(reader), conn.Writer(writer), secure)
+    finally:
+        conn.leave(ip)
+
+
+async def _serve(reader, writer, secure=False):
     try:
         request_line = await reader.readline()
         # Parse defensively: a phone's captive-portal probe, a port
@@ -3194,6 +3212,7 @@ async def _handle(reader, writer, secure=False):
                 return
             k, _, v = _header_text(line).partition(":")
             headers[k.strip().lower()] = v.strip()
+        reader.start_body()
 
         # Content-Length has to survive garbage too -- "abc" used to
         # throw here and close the socket silently, so an upload with a
@@ -4400,6 +4419,8 @@ async def _handle(reader, writer, secure=False):
             await _send(writer, "200 OK", _page(_render_chat_page(lang) + (
                 _ask_drawer(lang) if features.enabled("files") or features.enabled("billboard") else "")))
 
+    except conn.Dropped as e:
+        conn.note(e.args[0] if e.args else "head")   # too slow or silent: let go, quietly
     except Exception as e:
         print("[barkeep] request error:", e)
     finally:

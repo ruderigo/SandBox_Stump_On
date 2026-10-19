@@ -1481,6 +1481,35 @@ its radio connects and answers a Stump it hears for the first time, and
 a batch titled `#lora-mesh`/`#wifi-mesh` or a `[DM>` line marks its
 sender as a Stump on any link.
 
+## Connections: deadlines and limits (conn.py)
+
+One uasyncio loop serves every visitor. A connection waiting on the
+network costs no CPU, but it holds a socket, and the CAM has about ten.
+Until 1.0.0-beta.24 nothing ever timed a connection out: a handful of
+clients opening connections and sending a byte a minute (slowloris) held
+every socket, and visitors were locked out with the Stump otherwise idle.
+
+`barkeep._handle` now takes a connection in or refuses it
+(`conn.admit`: `CONN_MAX` in all, `CONN_PER_CLIENT` per address,
+loopback exempt from the per-address cap), then serves it through
+`conn.Reader` / `conn.Writer`, which put a deadline on every read and
+write:
+
+- request line and headers: `CONN_HEAD_S` in all (`CONN_HEAD_BUSY_S` at
+  three quarters full), lines of at most `LINE_MAX`, `HEAD_MAX` in all.
+  The reader buffers itself (no `readline()` on the raw stream, which
+  would grow a line without bound) and hands what's left to the body;
+- body: a read with nothing for `CONN_IDLE_S` answers `b""`, which every
+  caller already treats as the client gone (a half upload is deleted);
+  past `CONN_RATE_GRACE_S` a body must average `CONN_MIN_BPS`;
+- writes: one the client doesn't take within `CONN_IDLE_S` raises
+  `conn.Dropped`, caught quietly in `_serve`;
+- `fserv.drain` reads at most `DRAIN_MAX` of a refused upload.
+
+Counts are in `conn.stats()`; the log sums them up once a minute at most.
+The test harness's fake connection (`tests/mp/harness.py`, `Rd`) is one
+byte stream, as a real socket is: headers and body aren't separable.
+
 ## Verification and the Provisioner's checks
 
 *Since fixed:* the first item below (an LXMF sender's signature going

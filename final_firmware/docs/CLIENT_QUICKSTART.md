@@ -1017,6 +1017,15 @@ codes:
 | `507` | `full` | Card at its 75% ceiling with nothing evictable |
 | `500` | `interrupted` | Connection dropped mid-upload; nothing kept. Adds `received` and `expected` byte counts |
 
+**Any request, any address: `503` with `Retry-After: 2` and the body
+`busy`** means the Stump is full right now (too many connections at once,
+or too many from your address) -- wait that long and try again. Keep at
+most a few connections open to one Stump (a CAM serves about ten in all,
+six per address). A connection that goes quiet is closed: the request
+line and headers must arrive within 10 s (3 s when the Stump is busy), and
+a body or download where nothing moves for 15 s is let go -- an upload
+cut that way keeps nothing, like any interrupted one.
+
 Every JSON answer has `ok` and a human `message`; act on `error`. **Non-ASCII names: percent-encode them.** A header carries only Latin-1,
 so send the name as `encodeURIComponent(name)` (percent-encoded UTF-8) with
 `X-Filename-Encoding: url`:

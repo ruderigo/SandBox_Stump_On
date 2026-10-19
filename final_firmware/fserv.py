@@ -85,6 +85,7 @@ AWAITING_FILE = SD_MOUNT + "/fserv_awaiting.json"
 # filesystem's own bookkeeping, and enough slack that eviction (below)
 # is never fighting the FAT allocator over the last few blocks.
 MAX_SD_RATIO = 0.75
+DRAIN_MAX = 2 * 1024 * 1024   # a refused upload: read at most this much of it (drain())
 
 # Credit weight per file class -- now operator-configurable via config.py
 # rather than edited here. The fallbacks below keep this module working
@@ -428,8 +429,15 @@ async def drain(reader, length, chunk=2048):
     but there's no reason to hold any of it -- and no reason to let a
     rejected upload exhaust memory, which is exactly what buffering it
     first would do.
+
+    At most DRAIN_MAX: a refused upload claiming gigabytes isn't read to
+    its end (minutes of the Wi-Fi's airtime) -- the answer goes out and
+    the connection closes; a browser may then show a reset instead of the
+    message, a price worth paying.
     """
     read = 0
+    if length > DRAIN_MAX:
+        length = DRAIN_MAX
     while read < length:
         want = length - read
         if want > chunk:

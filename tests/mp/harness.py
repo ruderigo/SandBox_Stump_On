@@ -28,10 +28,14 @@ import uasyncio as asyncio, ujson as json
 
 
 class Rd:
+    """A connection's bytes, as one stream (the request line, headers and
+    body run together on a real socket)."""
     def __init__(s, lines, body=b''):
-        s.lines = list(lines); s.body = body
+        s.body = b''.join(lines) + body
     async def readline(s):
-        return s.lines.pop(0) if s.lines else b''
+        i = s.body.find(b'\n') + 1 or len(s.body)
+        out, s.body = s.body[:i], s.body[i:]
+        return out
     async def read(s, n=-1):
         if n < 0: n = len(s.body)
         out, s.body = s.body[:n], s.body[n:]

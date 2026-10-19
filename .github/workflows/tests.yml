@@ -100,3 +100,5 @@ jobs:
         run: python tests/pc/discovery_test.py
       - name: The computer's "card" (uploads, PC_STORAGE_MB)
         run: python tests/pc/storage_test.py
+      - name: Connections that hold the Stump (slow, silent, endless)
+        run: python tests/pc/conn_test.py

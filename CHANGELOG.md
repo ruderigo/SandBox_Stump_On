@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.0-beta.24
+- **Nobody can hold a Stump by keeping connections open** (conn.py; the first step of hardening for the pentest). Before, the web server waited forever on every read and write, and the CAM has about ten sockets: a few phones opening connections and sending a byte a minute locked every visitor out. Now:
+  - at most 10 connections at once on the CAM (128 on a computer), 6 from one address (16 on a computer; the computer itself isn't limited); past that, a quick `503` with `Retry-After: 2` instead of a socket held;
+  - the request line and headers must arrive within 10 s -- 3 s once the Stump is three quarters full, so held connections go first -- each line at most 4 KB, 16 KB in all (a line that never ends can't fill the CAM's memory);
+  - a body where nothing arrives for 15 s ends (a half upload is discarded, as before), and past 30 s a body must average 512 bytes/s;
+  - an answer the client doesn't take within 15 s (a download nobody reads) lets the connection go;
+  - a refused upload is read for at most 2 MB before the answer goes out and the connection closes (it used to be read to its end: minutes of Wi-Fi airtime for a claimed 2 GB).
+  The log sums up what was refused or let go once a minute at most, never a line per connection. Each limit can be changed in config.py (`CONN_MAX`, `CONN_PER_CLIENT`, `CONN_HEAD_S`, `CONN_HEAD_BUSY_S`, `CONN_IDLE_S`, `CONN_MIN_BPS`, `CONN_RATE_GRACE_S`). New tests: `conn_limits` (the board's MicroPython) and `pc_conn` (real sockets: a Stump filled with silent connections answers again within seconds; a dribbled request, an endless header line and a stalled upload are each let go, nothing kept).
+- For clients: a `503` with `Retry-After` means "full right now": wait that long and try again. Keep at most a few connections open to one Stump at a time.
+
 ## 1.0.0-beta.23
 - A computer Stump's storage (`PC_STORAGE_MB`, the size of its sd/ folder "card") is now a setting you see: the Provisioner asks it for a new Stump (showing the disk's free space; a smaller default on a nearly full disk), `/admin` → Stump settings → Storage changes it at once (with what's in it and what the disk has free), and an update (`--pc` on an existing Stump) asks "Change something?": `s` changes only the storage, `a` all the questions, Enter nothing -- the rest of config.py, the identity, history and files are kept either way.
 - Sizes of 1 GB and more read in GB in `/admin` and the Files page.
