@@ -5,7 +5,8 @@
 # What can change here: the name, the bot's name and its first-contact
 # auto-reply, the file-sharing economy (free, standard, custom weights),
 # who may enter (stumpid's mode: open / hybrid / mandatory), which
-# features are offered, and the librarian's firefly bubble. Each is written back into config.py -- the same
+# features are offered, the librarian's firefly bubble, and on a computer
+# the size of its "card" (PC_STORAGE_MB). Each is written back into config.py -- the same
 # line the Provisioner wrote, so an update keeps it -- and applied at once
 # where the running Stump allows; the rest after a restart (restart()).
 #
@@ -26,7 +27,47 @@ GREETING_MAX = 200
 WEIGHT_MAX = 99
 
 # Applied to the running Stump at once; the others need a restart.
-LIVE = ("CREDITS_ENABLED", "CREDIT_WEIGHTS", "AUTH_MODE", "FEATURES", "LIBRARIAN")
+LIVE = ("CREDITS_ENABLED", "CREDIT_WEIGHTS", "AUTH_MODE", "FEATURES", "LIBRARIAN", "PC_STORAGE_MB")
+
+# A computer's "card": the sd/ folder, PC_STORAGE_MB in size (never more
+# than the disk has free). Uploads fill it to fserv.MAX_SD_RATIO, then the
+# oldest shared files make room.
+STORAGE_DEFAULT_MB = 2048
+STORAGE_MIN_MB = 256
+MB = 1024 * 1024
+
+
+def on_computer():
+    try:
+        import stump_host  # noqa: F401
+        return True
+    except ImportError:
+        return False
+
+
+def storage():
+    """A computer's card: {"mb": its size, "used": bytes in sd/, "disk_free":
+    bytes free on the disk, "max_mb": the most it can be}. None on the CAM
+    (its card is the one in the slot)."""
+    try:
+        import stump_host
+        sd = stump_host._map("/sd")
+        used = stump_host._dir_size(sd)
+    except Exception:
+        return None                      # (not a computer, or one this can't measure: no Storage group)
+    free = 0
+    for where in (sd, stump_host.ROOT):          # (no sd/ folder yet: the Stump folder's disk)
+        try:
+            free = stump_host._disk_free(where)
+            break
+        except Exception:
+            pass
+    try:
+        mb = int(stump_host.setting("PC_STORAGE_MB", STORAGE_DEFAULT_MB))
+    except (TypeError, ValueError):
+        mb = STORAGE_DEFAULT_MB
+    return {"mb": mb, "used": used, "disk_free": free,
+            "max_mb": max(STORAGE_MIN_MB, mb, (used + free) // MB)}
 
 
 def librarian_on():
@@ -74,10 +115,22 @@ def current():
         feats = [f for f in FEATURES if features.enabled(f)]
     except Exception:
         feats = list(g("FEATURES", FEATURES))
-    return {"NODE_NAME": g("NODE_NAME", "") or "", "BOT_NAME": g("BOT_NAME", "") or "",
+    out = {"NODE_NAME": g("NODE_NAME", "") or "", "BOT_NAME": g("BOT_NAME", "") or "",
             "MESH_GREETING": g("MESH_GREETING", "") or "", "CREDITS_ENABLED": bool(credits),
             "CREDIT_WEIGHTS": weights, "AUTH_MODE": mode if mode in MODES else "open", "FEATURES": feats,
             "LIBRARIAN": librarian_on()}
+    out.update(_storage_now())          # (no {**d} on the board's MicroPython)
+    return out
+
+
+def _storage_now():
+    if not on_computer():
+        return {}
+    try:
+        import stump_host
+        return {"PC_STORAGE_MB": int(stump_host.setting("PC_STORAGE_MB", STORAGE_DEFAULT_MB))}
+    except Exception:
+        return {"PC_STORAGE_MB": STORAGE_DEFAULT_MB}
 
 
 def economy(s=None):
@@ -132,6 +185,15 @@ def parse_form(fields):
         out["AUTH_MODE"] = mode
     out["FEATURES"] = [f for f in FEATURES if fields.get("f_" + f)]
     out["LIBRARIAN"] = bool(fields.get("librarian"))
+    st = storage() if "storage_mb" in fields else None
+    if st is not None:
+        try:
+            mb = int(str(fields.get("storage_mb")).strip())
+        except ValueError:
+            return None, "storage_mb"
+        if mb < STORAGE_MIN_MB or mb > st["max_mb"]:
+            return None, "storage_mb"
+        out["PC_STORAGE_MB"] = mb
     return out, None
 
 

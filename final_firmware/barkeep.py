@@ -986,7 +986,10 @@ def _human_size(n):
         return "%d B" % n
     if n < 1024 * 1024:
         return "%.0f KB" % (n / 1024)
-    return "%.1f MB" % (n / (1024 * 1024))
+    if n < 1024 * 1024 * 1024:
+        return "%.1f MB" % (n / (1024 * 1024))
+    g = "%.1f" % (n / (1024 * 1024 * 1024))
+    return (g[:-2] if g.endswith(".0") else g) + " GB"
 
 
 def _check_admin_pw(pw, who=None):
@@ -1918,11 +1921,24 @@ def _render_admin_setup_section(lang, pw, notice=""):
              + "<label class='opt'><input type='checkbox' name='librarian' value='1'"
              + (" checked" if s["LIBRARIAN"] else "") + "> " + T("admin_setup_librarian", bot=esc(s["BOT_NAME"])) + "</label>"
              + "</details>")
+    store = ""
+    st = S.storage()
+    if st is not None:
+        # A computer's "card" (the sd/ folder): its size, what's in it, the disk.
+        share = int(st["mb"] * fserv.MAX_SD_RATIO) * S.MB
+        store = ("<details class='inner'><summary>" + T("admin_setup_storage") + " <span class='pk'>"
+                 + _human_size(st["mb"] * S.MB) + "</span></summary>"
+                 "<label>" + T("admin_setup_storage_mb") + "<br><input name='storage_mb' type='number' min='"
+                 + str(S.STORAGE_MIN_MB) + "' max='" + str(st["max_mb"]) + "' step='256' value='" + str(st["mb"]) + "'></label>"
+                 "<p class='sub'><small>" + T("admin_setup_storage_note", share=_human_size(share),
+                                              used=_human_size(st["used"]), free=_human_size(st["disk_free"]),
+                                              pct=int(fserv.MAX_SD_RATIO * 100)) + "</small></p>"
+                 "</details>")
     return ("<h2 class='sub'>" + T("admin_setup_header") + "</h2>" + notice
             + "<p class='sub'>" + T("admin_setup_intro") + "</p>"
             "<form method='POST' action='/admin/setup' class='post-form setup' autocomplete='off'>"
             "<input type='hidden' name='admin_pass' value='" + esc(pw) + "'>"
-            + names + files + access + feats
+            + names + files + store + access + feats
             + "<button type='submit'>" + T("admin_setup_save") + "</button></form>"
             "<script>(function(){var w=document.getElementById('setupw');function f(){"
             "var c=document.querySelector(\"input[name=economy]:checked\");var on=c&&c.value==='custom';"
@@ -3444,7 +3460,8 @@ async def _handle(reader, writer, secure=False):
                 if bad:
                     label = {"node_name": "admin_setup_node", "bot_name": "admin_setup_bot",
                              "greeting": "admin_setup_names", "economy": "admin_setup_files",
-                             "auth_mode": "admin_setup_access"}.get(bad) or "admin_setup_w_" + bad[2:]
+                             "auth_mode": "admin_setup_access",
+                             "storage_mb": "admin_setup_storage"}.get(bad) or "admin_setup_w_" + bad[2:]
                     msg = i18n.t("admin_setup_invalid", lang, field=i18n.t(label, lang).split(" (")[0])
                 else:
                     before = stump_settings.current()
@@ -3459,7 +3476,8 @@ async def _handle(reader, writer, secure=False):
                         msg = i18n.t("admin_setup_saved", lang)
                 labels = {"NODE_NAME": "admin_setup_node", "BOT_NAME": "admin_setup_bot",
                           "MESH_GREETING": "admin_setup_names", "FEATURES": "admin_setup_features",
-                          "CREDIT_WEIGHTS": "admin_setup_files", "AUTH_MODE": "admin_setup_access"}
+                          "CREDIT_WEIGHTS": "admin_setup_files", "AUTH_MODE": "admin_setup_access",
+                          "PC_STORAGE_MB": "admin_setup_storage"}
                 what = ", ".join(i18n.t(labels.get(k, k), lang).split(" (")[0] for k in later)
                 notice = "<p class='sub'><b>" + billboard._esc(msg or i18n.t("admin_setup_later", lang, what=what)) + "</b></p>"
                 names = fserv._list_files() if fserv.sd_ok else []

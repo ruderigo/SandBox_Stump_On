@@ -309,7 +309,7 @@ DEFAULT_CREDIT_WEIGHTS = {"video": 3, "music": 2, "document": 1, "other": 1}
 #    for f in sorted(Path('final_firmware').rglob('*')) if f.is_file()]"
 EXPECTED_FILE_HASHES = {
     "_sd_web/billboard.txt": "e3b0c44298fc1c14",
-    "barkeep.py": "d2e5403cc3cc5b5e",
+    "barkeep.py": "6a094caf5a815931",
     "billboard.py": "a7d1f3df668997ab",
     "boot_common.py": "d1f60dd4434752bf",
     "captive_portal.py": "35cb3a279ecc42db",
@@ -325,15 +325,15 @@ EXPECTED_FILE_HASHES = {
     "docs/HOME_BRANDING.md": "e1a1a9cf854dcdce",
     "docs/HTTPS_SETUP.md": "12cbbf2de7c38810",
     "docs/PACKS.md": "2e89e3c28d80d72d",
-    "docs/PC.md": "ed3f838f75ebe093",
+    "docs/PC.md": "73d7089e0e5f64be",
     "docs/PLUGINS.md": "3f5b4a5ee6844305",
-    "example_node.py": "b72bd83cbb861d4b",
+    "example_node.py": "a9a81b7b8b0298ee",
     "features.py": "7fca96873d59d2d3",
     "flasher_ui.py": "1d3035b1132bc87e",
     "fserv.py": "df4a1ab19c7e1717",
     "fservbot/plugin.json": "4e0137362ff327d0",
     "guard.py": "7753686a5fecf21c",
-    "i18n.py": "eaabe91033d66406",
+    "i18n.py": "ebdbad74ff00b4b1",
     "layout.py": "fb82a2d1ed9f00da",
     "lib/bz2_fast_xtensawin.mpy": "ac55d9eda2126432",
     "lib/ed25519_fast_xtensawin.mpy": "96e74dac45f91687",
@@ -351,7 +351,7 @@ EXPECTED_FILE_HASHES = {
     "rrc.py": "982952367c79437c",
     "rrc_mesh.py": "7c65ac4b06aa63c8",
     "rrc_ui.py": "7ed8963ee2414c89",
-    "settings.py": "3c75d07f3de72907",
+    "settings.py": "b900a82e57f38307",
     "stump_tls.py": "32a9394408ae392e",
     "stumpid/plugin.json": "9c0e33f85c51a93f",
     "theme.py": "79b1b8a3b636d07b",
@@ -3490,6 +3490,8 @@ def config_wizard(board_type):
         profile["pc_hotspot_name"] = ask("The Wi-Fi name visitors join (shown on the About page)", node_name)
         profile["ssid_name"] = profile["pc_hotspot_name"]
         profile["ssid_include_ip"] = False
+        subhead("Storage")
+        profile["pc_storage_mb"] = _pc_ask_storage(_PC_FOLDER[0], _pc_storage_in_folder(_PC_FOLDER[0]))
     if board_type == "cam":
         subhead("Wi-Fi")
         print("This build's config.py has the CAM join an EXISTING WiFi network")
@@ -5139,7 +5141,9 @@ def _pc_config_block(profile):
     out = ["\n# ---- Stump on a computer (docs/PC.md; added by the Provisioner) ----\n",
            "PC_HOTSPOT_IP = 'auto'      # the address visitors reach this computer on\n",
            "PC_HTTP_PORT = 80           # 8080 is used if 80 is taken\n",
-           "PC_STORAGE_MB = 2048        # room for shared files and tools in the sd/ folder\n",
+           "PC_STORAGE_MB = %d%s# the \"card\": the sd/ folder (shared files fill it to 75%%)\n"
+           % (int(profile.get("pc_storage_mb") or PC_STORAGE_DEFAULT_MB),
+              " " * max(1, 8 - len(str(int(profile.get("pc_storage_mb") or PC_STORAGE_DEFAULT_MB))))),
            "PC_HOTSPOT_NAME = %r\n" % profile.get("pc_hotspot_name", ""),
            "CONFIG['time_sync'] = {'enabled': False}   # the computer keeps its own time\n"]
     chain = profile.get("chain") or {}
@@ -5165,6 +5169,128 @@ def _pc_config_block(profile):
     return "".join(out)
 
 
+PC_STORAGE_DEFAULT_MB = 2048
+PC_STORAGE_MIN_MB = 256
+_PC_FOLDER = [None]          # the folder being set up (the storage question looks at its disk)
+
+
+def _disk_free_bytes(folder):
+    """Bytes free on the disk the folder is (or will be) on."""
+    import shutil
+    p = Path(folder or Path.home()).expanduser()
+    while not p.exists() and p != p.parent:
+        p = p.parent
+    try:
+        return shutil.disk_usage(str(p)).free
+    except OSError:
+        return 0
+
+
+def _gb(n_bytes):
+    return "%.1f GB" % (n_bytes / 1024 ** 3) if n_bytes >= 1024 ** 3 else "%d MB" % (n_bytes // 1024 ** 2)
+
+
+def _pc_storage_default(free_bytes):
+    """2048 MB, or less on a nearly full disk: a quarter of what's free,
+    in steps of 256 MB."""
+    quarter = int(free_bytes // 4 // (1024 ** 2)) // 256 * 256
+    return max(PC_STORAGE_MIN_MB, min(PC_STORAGE_DEFAULT_MB, quarter))
+
+
+def _pc_storage_in_folder(folder):
+    """PC_STORAGE_MB in the folder's config.py (its questions asked again:
+    the answer it had), or None."""
+    try:
+        m = re.search(r"(?m)^PC_STORAGE_MB\s*=\s*(\d+)", (Path(folder) / "config.py").read_text(encoding="utf-8"))
+        return int(m.group(1)) if m else None
+    except (OSError, TypeError):
+        return None
+
+
+def _pc_storage_text(cfg):
+    mb = int(cfg.get("PC_STORAGE_MB") or PC_STORAGE_DEFAULT_MB)
+    return "%d MB of storage" % mb
+
+
+def _pc_ask_storage(folder, now=None):
+    """The size of a computer Stump's "card" (the sd/ folder), in MB."""
+    free = _disk_free_bytes(folder)
+    used = _dir_bytes(Path(folder) / "sd") if folder else 0
+    most = max(PC_STORAGE_MIN_MB, (free + used) // 1024 ** 2)
+    print("What visitors share is kept in the Stump's sd/ folder, its \"card\". Shared files fill it")
+    print("to 75%, then the oldest make room. 2048 MB holds about 1.5 GB of files (documents, photos,")
+    print("apps); for videos or offline maps, more (8192 MB: about 6 GB).")
+    print("This disk has %s free%s." % (_gb(free), ("; the Stump's files take %s" % _gb(used)) if used else ""))
+    default = now or _pc_storage_default(free)
+    while True:
+        typed = ask("Storage for this Stump, in MB", str(default))
+        try:
+            mb = int(str(typed).strip().lower().replace("mb", "").strip())
+        except ValueError:
+            print("  " + yellow("A number of MB, e.g. 2048."))
+            continue
+        if mb < PC_STORAGE_MIN_MB:
+            print("  " + yellow("At least %d MB." % PC_STORAGE_MIN_MB))
+        elif mb > most:
+            print("  " + yellow("This disk can give it %d MB at most." % most))
+        else:
+            return mb
+
+
+def _dir_bytes(path):
+    total = 0
+    for dirpath, _, filenames in os.walk(str(path)):
+        for n in filenames:
+            try:
+                total += os.path.getsize(os.path.join(dirpath, n))
+            except OSError:
+                pass
+    return total
+
+
+def _set_config_value(folder, key, value, comment=""):
+    """KEY = value in the folder's config.py, in place of its line (or at
+    the end), everything else as it was."""
+    path = Path(folder) / "config.py"
+    lines = path.read_text(encoding="utf-8").split("\n")
+    new = "%s = %r%s" % (key, value, ("    # " + comment) if comment else "")
+    pat = re.compile(r"^%s\s*=(?!=)" % re.escape(key))
+    for i, line in enumerate(lines):
+        if pat.match(line):
+            lines[i] = new
+            break
+    else:
+        if lines and lines[-1] == "":
+            lines.insert(len(lines) - 1, new)
+        else:
+            lines.append(new)
+    tmp = path.with_suffix(".py.tmp")
+    tmp.write_text("\n".join(lines), encoding="utf-8")
+    os.replace(str(tmp), str(path))
+
+
+def _pc_change_settings(r, folder, cfg):
+    """An update keeps every setting. What to change, if anything: just
+    the storage, or all the questions again. True for all the questions."""
+    while True:
+        a = (ask("Change something? s: the storage (now %d MB) · a: all the questions again · Enter: nothing"
+                 % int(cfg.get("PC_STORAGE_MB") or PC_STORAGE_DEFAULT_MB)) or "").strip().lower()
+        if a in ("", "n", "no", "nothing"):
+            return False
+        if a in ("a", "all", "y", "yes"):
+            return True
+        if a in ("s", "storage"):
+            mb = _pc_ask_storage(folder, int(cfg.get("PC_STORAGE_MB") or PC_STORAGE_DEFAULT_MB))
+            _set_config_value(folder, "PC_STORAGE_MB", mb, "the \"card\": the sd/ folder (shared files fill it to 75%)")
+            cfg["PC_STORAGE_MB"] = mb
+            print("  " + green("Storage: %d MB" % mb) + ", the rest kept. It applies when the Stump starts again"
+                  " (at the end of this update, if it starts at login; or /admin -> Restart).")
+            r.note("Storage", "%d MB" % mb)
+            r.end("done", "storage set to %d MB, the rest kept" % mb)
+            return False
+        print("  " + yellow("'s', 'a', or Enter."))
+
+
 def _pc_configure_existing(r, folder):
     """The Configure section of an update: keeps the settings, but says
     what they are, notices a Heltec plugged in by USB since (and offers
@@ -5180,7 +5306,7 @@ def _pc_configure_existing(r, folder):
         # restarts the Heltec, which drops its Bluetooth link.
         print("A Heltec is plugged in by USB (%s): this Stump uses it over Bluetooth, so it leaves the"
               " USB port alone (charging is fine)." % usb[0]["device"])
-        reconfigure = ask_yes_no("Change the settings (the questions again)?", False)
+        reconfigure = _pc_change_settings(r, folder, cfg)
     elif heltec != "usb" and usb:
         print(yellow("A Heltec is plugged in by USB (%s), but this Stump doesn't use one." % usb[0]["device"]))
         if ask_yes_no("Use it for this Stump (the other settings stay as they are)?", True):
@@ -5193,7 +5319,7 @@ def _pc_configure_existing(r, folder):
             r.end("done", "the Heltec on USB added, the rest kept")
             heltec = "usb"
         else:
-            reconfigure = ask_yes_no("Change the other settings instead (the questions again)?", False)
+            reconfigure = _pc_change_settings(r, folder, cfg)
     elif heltec == "usb" and not usb:
         print(yellow("This Stump uses a Heltec on USB, and none is plugged in now: it will wait for it"
                      " (and connect by itself when it's plugged in)."))
@@ -5208,9 +5334,9 @@ def _pc_configure_existing(r, folder):
             r.end("done", "the Heltec over Bluetooth, the rest kept")
             heltec = "ble"
         else:
-            reconfigure = ask_yes_no("Change the settings (the questions again)?", False)
+            reconfigure = _pc_change_settings(r, folder, cfg)
     else:
-        reconfigure = ask_yes_no("Change them (the questions again)?", False)
+        reconfigure = _pc_change_settings(r, folder, cfg)
     if r.state[r.index] == "now" and not reconfigure:
         r.end("skip", "config.py kept")
     return reconfigure
@@ -5229,7 +5355,7 @@ def _pc_heltec_in_config(cfg):
 def _pc_settings_summary(cfg):
     heltec = {"usb": "a Heltec on USB", "ble": "a Heltec over Bluetooth", "wifi": "a Heltec over Wi-Fi",
               "none": "no Heltec"}[_pc_heltec_in_config(cfg)]
-    parts = [str(cfg.get("NODE_NAME") or "?"), heltec]
+    parts = [str(cfg.get("NODE_NAME") or "?"), heltec, _pc_storage_text(cfg)]
     if cfg.get("CHAIN_ENABLED"):
         parent = cfg.get("PC_CHAIN_PARENT_IP")
         parts.append("joins the Stump at %s" % parent if parent else "first Stump of a chain")
@@ -5861,6 +5987,7 @@ def setup_pc(folder=None, reconfigure=False):
     if folder is None:
         folder = ask("Folder for this Stump", str(pc_default_folder()))
     folder = Path(folder).expanduser().resolve()
+    _PC_FOLDER[0] = folder
     first = not (folder / "config.py").exists()
     folder.mkdir(parents=True, exist_ok=True)
     print("%s (%s)" % (folder, "new" if first else "updating: its settings are kept"))

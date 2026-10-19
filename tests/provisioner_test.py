@@ -289,7 +289,7 @@ base = open(Path(P.__file__).parent / "tests" / "config.py", encoding="utf-8").r
 with contextlib.redirect_stdout(io.StringIO()):
     cfg = P._read_folder_config(pcdir)
 check('pc: no Heltec read from config.py', P._pc_heltec_in_config(cfg) == "none")
-check('pc: settings summary', P._pc_settings_summary(cfg) == "Laptop · no Heltec · joins the Stump at 192.168.0.161",
+check('pc: settings summary', P._pc_settings_summary(cfg) == "Laptop · no Heltec · 2048 MB of storage · joins the Stump at 192.168.0.161",
       P._pc_settings_summary(cfg))
 P._pc_add_usb_heltec(pcdir)
 with contextlib.redirect_stdout(io.StringIO()):
@@ -316,8 +316,9 @@ check('pc update: a Heltec plugged in is noticed and used, no questions again', 
       and rt.state[0] == "done", said.getvalue()[-400:])
 P.list_serial_ports = lambda: []
 _yes_no = P.ask_yes_no
-_yn = iter([False, True])                     # "Bluetooth instead?" -> no; "Change them?" -> yes
+_yn = iter([False])                           # "Bluetooth instead?" -> no
 P.ask_yes_no = lambda *a, **k: next(_yn)
+answers("a")                                  # "Change something?" -> all the questions
 rt = P.Route("pc", key="pc", steps=[("Configure", "auto", "x")])
 with contextlib.redirect_stdout(io.StringIO()) as said:
     rt.start("Configure")
@@ -344,8 +345,9 @@ check('pc: the summary says Bluetooth', "a Heltec over Bluetooth" in P._pc_setti
 # A Bluetooth Stump with its Heltec plugged in to charge: left on Bluetooth
 P.list_serial_ports = lambda: [{"device": "/dev/cu.usbserial-0001", "description": "CP2102",
                                 "guess": "CP2102 UART bridge — likely the Heltec V3"}]
-_yn2 = iter([False])
+_yn2 = iter([])
 P.ask_yes_no = lambda *a, **k: next(_yn2)
+answers("")                                   # "Change something?" -> nothing
 rt = P.Route("pc", key="pc", steps=[("Configure", "auto", "x")])
 with contextlib.redirect_stdout(io.StringIO()) as said:
     rt.start("Configure")
@@ -356,6 +358,35 @@ check('pc update: a Bluetooth Heltec plugged in to charge stays on Bluetooth (US
       P._pc_heltec_in_config(cfg) == "ble" and "charging is fine" in said.getvalue(), said.getvalue()[-300:])
 P.ask_yes_no = _yes_no
 P.list_serial_ports = lambda: []
+# An update that changes only the storage: the menu, a wrong answer or
+# two, then the size -- written in place, everything else kept.
+before = (pcdir / "config.py").read_text(encoding="utf-8")
+answers("s", "lots", "100", "99999999999", "8192")
+rt = P.Route("pc", key="pc", steps=[("Configure", "auto", "x")])
+with contextlib.redirect_stdout(io.StringIO()) as said:
+    rt.start("Configure")
+    again = P._pc_configure_existing(rt, pcdir)
+after = (pcdir / "config.py").read_text(encoding="utf-8")
+with contextlib.redirect_stdout(io.StringIO()):
+    cfg = P._read_folder_config(pcdir)
+check('pc update: only the storage changed, in place, no questions again', not again and cfg["PC_STORAGE_MB"] == 8192
+      and after.count("PC_STORAGE_MB") == 1 and P._pc_heltec_in_config(cfg) == "ble" and cfg["NODE_NAME"] == "Laptop"
+      and [l for l in before.splitlines() if "PC_STORAGE_MB" not in l] == [l for l in after.splitlines() if "PC_STORAGE_MB" not in l]
+      and rt.state[0] == "done", said.getvalue()[-500:])
+check('... it said what the disk has free, and refused a wrong size',
+      "free" in said.getvalue() and "At least 256 MB" in said.getvalue() and "at most" in said.getvalue()
+      and "A number of MB" in said.getvalue(), said.getvalue()[-700:])
+check('... the summary says it', "8192 MB of storage" in P._pc_settings_summary(cfg))
+check('... and the questions again start from it', P._pc_storage_in_folder(pcdir) == 8192)
+# An older config.py without the line: the storage is added at the end
+(pcdir / "config.py").write_text("\n".join(l for l in after.splitlines() if "PC_STORAGE_MB" not in l) + "\n", encoding="utf-8")
+P._set_config_value(pcdir, "PC_STORAGE_MB", 4096)
+with contextlib.redirect_stdout(io.StringIO()):
+    cfg = P._read_folder_config(pcdir)
+check('pc: storage added to an older config.py', cfg["PC_STORAGE_MB"] == 4096 and cfg["NODE_NAME"] == "Laptop")
+check('pc: a new Stump gets the size asked', "PC_STORAGE_MB = 8192 " in P._pc_config_block({"pc_hotspot_name": "x", "pc_storage_mb": 8192}))
+check('pc: a nearly full disk gets a smaller default', P._pc_storage_default(3 * 1024 ** 3) == 768
+      and P._pc_storage_default(500 * 1024 ** 3) == 2048)
 block = P._pc_config_block({"pc_hotspot_name": "x", "pc_heltec": "ble", "pc_heltec_ble": "auto",
                             "pc_radio": {"frequency": 917112000}})
 check('pc: a new Stump with the Heltec over Bluetooth', "'type': 'RNodeBLEInterface'" in block

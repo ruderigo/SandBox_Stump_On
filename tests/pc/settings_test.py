@@ -109,6 +109,21 @@ check("... and back on", S.librarian_on() and "id='ask'" in barkeep._ask_drawer(
 check("economy names: free / standard / custom", [S.economy({"CREDITS_ENABLED": e, "CREDIT_WEIGHTS": w}) for e, w in
       ((False, S.STANDARD_WEIGHTS), (True, S.STANDARD_WEIGHTS), (True, dict(S.STANDARD_WEIGHTS, video=9)))]
       == ["free", "standard", "custom"])
+# A computer's "card" (PC_STORAGE_MB): in the card, changed at once.
+st = S.storage()
+check("storage: the size, what's in sd/, the disk's free space", st and st["mb"] == 2048 and st["disk_free"] > 0
+      and st["max_mb"] >= 2048, st)
+html = barkeep._render_admin_setup_section("en", "pw")
+check("the card has a Storage group (a computer)", "name='storage_mb'" in html and "value='2048'" in html
+      and "Storage" in html and "free" in html, html[-1500:])
+mb = min(4096, st["max_mb"])
+saved, later = S.apply(S.parse_form(dict(form, storage_mb=str(mb)))[0])
+check("storage changed: at once, kept in config.py", saved and "PC_STORAGE_MB" not in later and config.PC_STORAGE_MB == mb
+      and "PC_STORAGE_MB = %d" % mb in open(path).read() and S.current()["PC_STORAGE_MB"] == mb, (later, saved))
+check("... the card is that size now", os.statvfs("/sd")[2] <= mb * S.MB)
+for v in ("100", "lots", str(st["max_mb"] + 10 ** 6)):
+    check("storage %r refused" % v, S.parse_form(dict(form, storage_mb=v))[1] == "storage_mb")
+check("a form without the storage field (the CAM's) leaves it alone", "PC_STORAGE_MB" not in S.parse_form(form)[0])
 os.remove(path)
 print("FAILURES", FAIL)
 sys.exit(1 if FAIL else 0)

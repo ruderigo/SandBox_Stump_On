@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.0-beta.23
+- A computer Stump's storage (`PC_STORAGE_MB`, the size of its sd/ folder "card") is now a setting you see: the Provisioner asks it for a new Stump (showing the disk's free space; a smaller default on a nearly full disk), `/admin` → Stump settings → Storage changes it at once (with what's in it and what the disk has free), and an update (`--pc` on an existing Stump) asks "Change something?": `s` changes only the storage, `a` all the questions, Enter nothing -- the rest of config.py, the identity, history and files are kept either way.
+- Sizes of 1 GB and more read in GB in `/admin` and the Files page.
+
 ## 1.0.0-beta.22
 - Fixed: a computer Stump asked to stop (Stop file, launchctl, systemctl) could, now and then, carry on: the stop landed while Python was tidying up an object and was swallowed. It now tries again a moment later.
 - `/admin` → Plugins on a computer no longer shows "0 B RAM" for each plugin: a computer has no free-RAM figure to measure it with, so it's left out.
