@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.0-beta.31
+- **One person, one name** (reported: the same FireFly was `guest-f678`, `guest-f678@macOS1`, `RodCell` and `RodCell@macOS1`, and only `guest-f678` reached it). The Stump had added its own layer over Reticulum -- Wi-Fi guests known by their address, and names passed between Stumps -- with no identity in it.
+  - **The greeting.** An app (a client keeping no cookie, like FireFly) says who it is before it chats: `/auth`, then `/nick <its name>` (or `/auth` alone when its LoRa announce already gave the name). Until then it reads nothing, writes nothing, and isn't listed anywhere; `/rrc/poll` and `/rrc/send` say `"hello": "required"` / `"done"`. Browsers keep the cookie and stay guests. `APP_HELLO = False` in config.py switches it off.
+  - **A chosen name beats a guest's**, in both directions: proven over Wi-Fi, an app whose LoRa announce says `RodCell` is `RodCell`, not `guest-f678`; an app that `/nick`s while its LoRa side is unnamed names it. Renamed in the app (a new announce): both sides follow at once. Neither side chose yet: neither name spreads.
+  - **The chain lists identities.** `[NAMES] RodCell~3f2a91bc ...`: someone here isn't listed again as `RodCell@macOS1`; someone on two other Stumps is listed once, where heard last; someone gone from another Stump's list is gone here at once (not an hour later). Older Stumps' plain lists still work.
+- Test: `identity_matrix` -- browsers, an app, the same phone on LoRa, another LoRa user and two other Stumps, through the web server: the greeting, the names, DMs in every direction and rooms, each checked to arrive where it should and nowhere else.
+
 ## 1.0.0-beta.30
 - An update (`--upload-app`, or Check or fix → Re-upload) keeps a CAM's settings more safely. Reported: after updates LaBuche had no `#wifi-mesh` and no About page -- what the firmware folder's own config.py sets (chain off, About off). An update kept the board's config.py unless one check said it had none; that check, during resets, was all that stood between a node's settings and the folder's. Now:
   - before every update the board's config.py is copied to this computer (`~/.provisioner/config_backups`, the newest 30);

@@ -173,3 +173,7 @@ SENSOR_HUB = ""
 # one-file-in-one-file-out economy; raise a class to make it scarcer.
 CREDITS_ENABLED = True
 CREDIT_WEIGHTS = {"video": 3, "music": 2, "document": 1, "other": 1}
+
+# The tests chat over HTTP without cookies, as visitors: the greeting asked
+# of apps (APP_HELLO) is tested on its own (identity_matrix).
+APP_HELLO = False

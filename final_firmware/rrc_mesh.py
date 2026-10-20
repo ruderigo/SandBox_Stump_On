@@ -114,8 +114,21 @@ _remote = {}
 MAX_REMOTE = 40
 
 
-def _remote_seen(h, nick, who):
+def _remote_seen(h, nick, who, ident=None):
+    """Someone on Stump h, as a DM contact "nick@who" -- unless they're
+    here too (their identity: listed here already), and only once if two
+    other Stumps both list them (the latest). Returns the contact's id,
+    or None."""
     cid = "@" + h + ":" + nick.lower()
+    if ident and rrc.local_identity(ident):
+        if cid in _remote:
+            _remote.pop(cid)
+            rrc.drop_reachable(cid)
+        return None
+    if ident:
+        for k in [k for k, r in _remote.items() if r.get("ident") == ident and k != cid]:
+            _remote.pop(k)
+            rrc.drop_reachable(k)
     r = _remote.get(cid)
     if r is None:
         if len(_remote) >= MAX_REMOTE:
@@ -124,6 +137,8 @@ def _remote_seen(h, nick, who):
             rrc.drop_reachable(old)
         r = _remote[cid] = {"h": h, "nick": nick, "seen": 0, "last_dm": 0}
     r["seen"] = time.time()
+    if ident:
+        r["ident"] = ident
     rrc.set_reachable(cid, nick + "@" + who)
     return cid
 
@@ -278,10 +293,22 @@ def _from_stump(dest_hash_hex, peer, text, router=None, title=""):
         if line.startswith("[NAMES]"):
             # Who's in that room on that Stump (for /names here); each one
             # a DM contact as nick@thatstump.
-            nicks = [n for n in line[7:].split() if n != "-" and "@" not in n]
-            rrc.set_remote_names(dest_hash_hex, who, room, nicks)
-            for n in nicks[:20]:
-                _remote_seen(dest_hash_hex, n, who)
+            entries = []
+            for n in line[7:].split():
+                nick, _, ident = n.partition("~")
+                if nick and nick != "-" and "@" not in nick:
+                    entries.append((nick, ident[:8] if all(c in "0123456789abcdef" for c in ident) and ident else None))
+            rrc.set_remote_names(dest_hash_hex, who, room, entries)
+            listed = set()
+            for nick, ident in entries[:20]:
+                cid = _remote_seen(dest_hash_hex, nick, who, ident)
+                if cid:
+                    listed.add(cid)
+            # Gone from that Stump's list: gone as a contact here too (not
+            # an hour later).
+            for cid in [k for k, r in _remote.items() if r["h"] == dest_hash_hex and k not in listed]:
+                _remote.pop(cid)
+                rrc.drop_reachable(cid)
             continue
         if line.startswith("[DM>") and "] <" in line and "> " in line:
             to, rest = line[4:].split("] <", 1)
@@ -517,8 +544,18 @@ def on_announce(router, dest, app_data, packet):
         # Stump follows -- unless they're here on Wi-Fi too, whose nick wins.
         had = r.get("name")
         r["name"] = name
-        if had is not None and rrc.same_web(h) is None:
-            rename(h, _make_nick(name, h))
+        web = rrc.same_web(h)
+        if had is not None:
+            new = _make_nick(name, h)
+            if web is None:
+                rename(h, new)
+            elif rrc._users[web]["nick"] in (r["nick"],) or rrc.is_default_nick(rrc._users[web]["nick"]):
+                # Here on Wi-Fi too, under the name the app just changed:
+                # both follow it.
+                old = rrc._users[web]["nick"]
+                rename(h, new)
+                rrc.touch_user(web, nick=new)
+                rrc.note_rename(old, new)
     r["last_seen"] = now
     if len(_reach) > MAX_REACHABLE:
         idle = sorted((k for k in _reach if k not in _peers), key=lambda k: _reach[k]["last_seen"])
@@ -582,8 +619,31 @@ def same_person(web_cid, identity_hexhash):
                 t["last_dm_id"] = max(t.get("last_dm_id", 0), waiting[-1]["id"])
     web = rrc._users.get(web_cid)
     if web is not None:
-        rename(h, web["nick"])
+        _one_name(h, web_cid)
     return h
+
+
+def _lora_nick(h):
+    p = _peers.get(h) or _reach.get(h)
+    return p["nick"] if p else None
+
+
+def _one_name(h, web_cid):
+    """The same person on LoRa (h) and Wi-Fi (web_cid): one name, the one
+    they chose -- a "guest-xxxx" (or "mesh-xxxx") gives way to it, in
+    whichever direction. Both chosen: the Wi-Fi one (the newest /nick)."""
+    web = rrc._users.get(web_cid)
+    lora = _lora_nick(h)
+    if web is None or lora is None or web["nick"] == lora:
+        return
+    if rrc.is_default_nick(web["nick"]) and rrc.is_default_nick(lora):
+        return            # nobody chose yet: neither name spreads
+    if rrc.is_default_nick(web["nick"]) and not rrc.is_default_nick(lora):
+        old = web["nick"]
+        rrc.touch_user(web_cid, nick=lora)
+        rrc.note_rename(old, lora)
+    else:
+        rename(h, web["nick"])
 
 
 def install_announce_handler(router):
@@ -1218,7 +1278,17 @@ def _lora_roster():
     """The people in #lora-mesh on THIS Stump (not the other Stumps, not
     people this one only knows from them)."""
     stumps = set(p["nick"] for p in _peers.values() if p.get("stump"))
-    return [n for n in rrc.users_in_room(rrc.MESH_ROOM) if n not in stumps and "@" not in n][:60]
+    out = []
+    for cid, u in list(rrc._users.items()):
+        n = u["nick"]
+        if (u["room"] != rrc.MESH_ROOM or n in stumps or "@" in n or cid in rrc._hidden
+                or rrc.same_web(cid) is not None):
+            continue
+        ident = rrc.identity_of(cid)
+        # "nick~3f2a91bc": who they are, so the other Stumps don't list
+        # someone they have themselves (older Stumps read the nick alone).
+        out.append(n + "~" + ident if ident else n)
+    return sorted(set(out))[:60]
 
 
 # ── Poll loop (scheduled as asyncio task) ─────────────────────────────
@@ -1314,7 +1384,7 @@ async def poll_loop(router):
             for h in list(rrc._same):
                 web = rrc.same_web(h)
                 if web is not None and (h in _peers or h in _reach):
-                    rename(h, rrc._users[web]["nick"])
+                    _one_name(h, web)
             for dest_hash_hex, peer in list(_peers.items()):
                 rrc.touch_user(dest_hash_hex, nick=peer["nick"], room=peer["room"])
                 r = _reach.get(dest_hash_hex)

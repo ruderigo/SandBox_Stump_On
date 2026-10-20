@@ -57,6 +57,7 @@ TESTS = [
     ("same_person", "assert", []),
     ("keepalive_boot", "assert", []),
     ("upload_fair", "assert", []),
+    ("identity_matrix", "assert", []),
 ]
 
 _NORM = [

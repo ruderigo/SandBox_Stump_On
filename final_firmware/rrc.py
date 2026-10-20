@@ -394,6 +394,66 @@ def _same_person(a, b):
     return _same.get(a) == b or _same.get(b) == a
 
 
+def lxmf_of(web_cid):
+    """The LXMF address a Wi-Fi client proved (/auth), or None."""
+    for lx, w in _same.items():
+        if w == web_cid:
+            return lx
+    return None
+
+
+def is_default_nick(nick):
+    """A name nobody chose: a web guest's or an unnamed mesh contact's."""
+    n = str(nick or "")
+    return n.startswith("guest-") or n.startswith("mesh-")
+
+
+def nick_chosen(client_id):
+    u = _users.get(client_id)
+    return u is not None and not is_default_nick(u["nick"])
+
+
+# Apps (clients without the Stump's cookie) that haven't greeted yet --
+# /auth, then /nick (barkeep's gate): not listed anywhere, so a half-
+# connected app is never a stray "guest-xxxx" in the rooms.
+_hidden = set()
+
+
+def hide(client_id):
+    _hidden.add(client_id)
+
+
+def unhide(client_id):
+    _hidden.discard(client_id)
+
+
+def _is_lxmf(cid):
+    s = str(cid)
+    return len(s) == 32 and all(c in "0123456789abcdef" for c in s)
+
+
+def local_identity(id8):
+    """Is the person with this identity (the first 8 hex of their LXMF
+    address) here, on this Stump -- on LoRa, or on Wi-Fi after /auth?"""
+    if not id8:
+        return False
+    for cid in list(_users) + list(_reachable):
+        if cid not in _hidden and _is_lxmf(cid) and cid.startswith(id8):
+            return True
+    for lx, web in _same.items():
+        if lx.startswith(id8) and web in _users and web not in _hidden:
+            return True
+    return False
+
+
+def identity_of(client_id):
+    """The identity (8 hex) a client here is known by, or None."""
+    if _is_lxmf(client_id):
+        return client_id[:8]
+    lx = lxmf_of(client_id)
+    return lx[:8] if lx else None
+
+
 # Renames others should follow (a LoRa contact's new announced name, or
 # the LoRa name giving way to the Wi-Fi one): the web chat folds a thread
 # under the old name into the new one. [(time, old, new)], kept RENAME_S.
@@ -607,13 +667,15 @@ def release_registered_nicks():
 def users_in_room(room):
     _prune_users()
     room = canon(room)
-    return sorted(set(u["nick"] for cid, u in _users.items() if u["room"] == room and same_web(cid) is None))
+    return sorted(set(u["nick"] for cid, u in _users.items()
+                      if u["room"] == room and same_web(cid) is None and cid not in _hidden))
 
 
 # Who is in a shared room on the OTHER Stumps (#lora-mesh), as each told
 # this one (rrc_mesh: a "[NAMES] ..." line): stump id -> {"who", "rooms":
 # {room: [nicks]}, "at"}. Kept REMOTE_NAMES_S after the last word.
 _remote_names = {}
+_remote_seq = [0]          # (which list came last, even within a second)
 REMOTE_NAMES_S = 900
 MAX_REMOTE_STUMPS = 16
 
@@ -625,21 +687,31 @@ def set_remote_names(stump_id, who, room, nicks):
         if len(_remote_names) >= MAX_REMOTE_STUMPS:
             _remote_names.pop(min(_remote_names, key=lambda k: _remote_names[k]["at"]))
         e = _remote_names[stump_id] = {"who": who, "rooms": {}, "at": 0}
-    e["who"], e["at"] = who, time.time()
-    e["rooms"][room] = [n for n in nicks if n][:60]
+    _remote_seq[0] += 1
+    e["who"], e["at"], e["seq"] = who, time.time(), _remote_seq[0]
+    # Each one a nick, or (nick, identity): the identity (8 hex) lets this
+    # Stump see it's someone who is here too, and not list them twice.
+    e["rooms"][room] = [n if isinstance(n, tuple) else (n, None) for n in nicks if n][:60]
 
 
 def remote_names(room):
     """"nick@stump" for everyone the other Stumps say is in this room."""
     room = canon(room)
     now = time.time()
-    out = []
-    for k in list(_remote_names):
+    out, seen = [], set()
+    # Newest first: someone on two other Stumps is listed once, where they
+    # were heard last; someone who is here too, not at all (they're here).
+    for k in sorted(_remote_names, key=lambda k: -_remote_names[k].get("seq", 0)):
         e = _remote_names[k]
         if now - e["at"] > REMOTE_NAMES_S:
             _remote_names.pop(k)
             continue
-        out += [n + "@" + e["who"] for n in e["rooms"].get(room, [])]
+        for n, ident in e["rooms"].get(room, []):
+            if ident and (ident in seen or local_identity(ident)):
+                continue
+            if ident:
+                seen.add(ident)
+            out.append(n + "@" + e["who"])
     return out
 
 
@@ -746,7 +818,7 @@ def find_client_by_nick(nick):
     low = (nick or "").lstrip("~").lower()
     for table in (_users, _reachable):
         for cid, u in table.items():
-            if u["nick"].lower() == low:
+            if u["nick"].lower() == low and cid not in _hidden:
                 return same_web(cid) or cid      # (on Wi-Fi now: reached there)
     return None
 
@@ -852,6 +924,7 @@ def reset():
     _users.clear()
     _reachable.clear()
     _same.clear()
+    _hidden.clear()
     del _renames[:]
     _stumps.clear()
     _dms.clear()
@@ -977,7 +1050,17 @@ def _handle_core(client_id, room, text, user, lang):
             return [i18n.t("nick_taken", lang, nick=new)], None
         old = user["nick"]
         touch_user(client_id, nick=new, room=room)
-        system(room, ev_rename(old, new))
+        if client_id not in _hidden:          # (an app's greeting isn't news)
+            system(room, ev_rename(old, new))
+            note_rename(old, new)
+        lx = lxmf_of(client_id)
+        if lx:
+            # Its LoRa side too, now (not at the mesh loop's next turn).
+            try:
+                import rrc_mesh
+                rrc_mesh._one_name(lx, client_id)
+            except Exception:
+                pass
         return [], None
 
     if cmd in ("join", "j"):

@@ -1123,6 +1123,42 @@ def _visitor(writer, headers, ip, method):
     return ip
 
 
+# The greeting (APP_HELLO in config.py, on by default): an app -- a client
+# that keeps no cookie, like FireFly -- must say who it is before it chats:
+# /auth (prove its identity, FireFly's one button), then /nick <its name>.
+# Until then it reads nothing, writes nothing, and isn't listed anywhere.
+# Why: known only by its Wi-Fi address, the same phone was one person on
+# LoRa, another on Wi-Fi, a third on the next Stump of the chain; proven,
+# it's one person everywhere (rrc_mesh.same_person), under the name it
+# chose. Browsers keep the Stump's cookie and are guests, as before.
+_HELLO_OK = ("/auth", "/nick", "/help", "/whoami")
+
+
+def _greeting(identifier, ip):
+    """None (not asked: a browser, the gate off, no identity plugin),
+    "done", or "required"."""
+    if identifier != ip:
+        return None
+    try:
+        import config
+        if not getattr(config, "APP_HELLO", True):
+            return None
+    except ImportError:
+        pass
+    sid = plugins.service_lookup("identity")
+    if sid is None:
+        return None
+    try:
+        verified = sid.is_verified(identifier)
+    except Exception:
+        verified = False
+    if verified and rrc.nick_chosen(identifier):
+        rrc.unhide(identifier)
+        return "done"
+    rrc.hide(identifier)
+    return "required"
+
+
 def _move_in(ip, vid):
     """A browser's first request with its visitor ID: what this address
     had (its nick, language, credits) moves to it, once -- unless the
@@ -3921,6 +3957,15 @@ async def _serve(reader, writer, secure=False):
                 since_id = int(_query(path, "since") or "0")
             except ValueError:
                 since_id = 0
+            hello = _greeting(identifier, ip)
+            if hello == "required":
+                u = rrc.touch_user(identifier)
+                await _send(writer, "200 OK", json.dumps({
+                    "room": rrc.DEFAULT_ROOM, "nick": u["nick"], "rooms": [], "messages": [], "dms": [],
+                    "users": [], "stumps": [], "node": rrc.NODE, "registered": False, "renamed": {},
+                    "hello": "required",
+                    "topic": i18n.t("hello_required", i18n.get_lang(identifier))}), "application/json")
+                return
             user = rrc.touch_user(identifier)
             # The server's idea of which room this client is in wins --
             # /join from another tab, or a room that has since vanished,
@@ -3972,6 +4017,8 @@ async def _serve(reader, writer, secure=False):
                 # under the old one belongs to the new one.
                 "renamed": rrc.renames(),
             }
+            if hello:
+                payload["hello"] = hello
             if not _may_read(identifier):
                 # Mandatory: nothing to read before /auth -- the room's
                 # name and the rooms list stay, so the client still works,
@@ -3997,6 +4044,8 @@ async def _serve(reader, writer, secure=False):
             except ValueError:
                 mode = 0
             refused = _voice_gate(identifier, to)
+            if not refused and _greeting(identifier, ip) == "required":
+                refused = i18n.t("hello_required", i18n.get_lang(identifier))
             replies = [refused] if refused else rrc.send_voice(identifier, to, mode, audio)
             await _send(writer, "200 OK", json.dumps({"replies": replies, "room": None}), "application/json")
 
@@ -4007,7 +4056,7 @@ async def _serve(reader, writer, secure=False):
                 m = rrc.find_dm(identifier, int(_query(path, "id") or "-1"))
             except ValueError:
                 m = None
-            if not _may_read(identifier):
+            if not _may_read(identifier) or _greeting(identifier, ip) == "required":
                 m = None
             if m is None or "audio" not in m:
                 await _send(writer, "404 Not Found", "no such voice note", "text/plain")
@@ -4042,6 +4091,13 @@ async def _serve(reader, writer, secure=False):
                              "application/json")
                 return
             body = await _read_small_body(reader, length)
+            text = body.decode()
+            if _greeting(identifier, ip) == "required" and not any(
+                    text.strip().lower() == c or text.strip().lower().startswith(c + " ") for c in _HELLO_OK):
+                await _send(writer, "200 OK", json.dumps({
+                    "replies": [i18n.t("hello_required", i18n.get_lang(identifier))], "room": None,
+                    "error": "hello_required"}), "application/json")
+                return
             user = rrc.touch_user(identifier)
             # The SERVER decides which room this client is in, not the
             # client. X-Room is deliberately ignored: the client only
@@ -4051,10 +4107,12 @@ async def _serve(reader, writer, secure=False):
             # silently pulling them out of the room they were actually
             # in, and letting anyone post into a room they never joined.
             room = user["room"] if rrc.room_exists(user["room"]) else rrc.DEFAULT_ROOM
-            replies, new_room = rrc.handle_input(identifier, room, body.decode())
-            await _send(writer, "200 OK",
-                         json.dumps({"replies": replies, "room": new_room}),
-                         "application/json")
+            replies, new_room = rrc.handle_input(identifier, room, text)
+            out = {"replies": replies, "room": new_room}
+            hello = _greeting(identifier, ip)
+            if hello:
+                out["hello"] = hello              # "done" once /auth and /nick are in
+            await _send(writer, "200 OK", json.dumps(out), "application/json")
 
         elif method == "GET" and path.startswith("/rrc/rec"):
             # The voice recorder, opened by the chat in a small window over

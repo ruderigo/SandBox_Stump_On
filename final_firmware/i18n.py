@@ -604,6 +604,7 @@ STRINGS = {
     "admin_setup_w_music": {"fr": "Musique", "en": "Music", "es": "Música"},
     "admin_setup_w_document": {"fr": "Documents", "en": "Documents", "es": "Documentos"},
     "admin_setup_w_other": {"fr": "Autres", "en": "Other", "es": "Otros"},
+    "hello_required": {"fr": "Ce Stump demande aux applications de dire qui elles sont d'abord : /auth (prouver votre identité), puis /nick <votre nom>.", "en": "This Stump asks apps to say who they are first: /auth (prove your identity), then /nick <your name>.", "es": "Este Stump pide a las aplicaciones que digan quiénes son primero: /auth (demostrar tu identidad), luego /nick <tu nombre>."},
     "upload_one_at_a_time": {"fr": "Un autre envoi de votre part est en cours : attendez qu'il finisse.", "en": "Another upload of yours is still going: wait for it to finish.", "es": "Otra subida tuya sigue en curso: espera a que termine."},
     "upload_too_many": {"fr": "Vous avez envoyé {n} fichiers dans l'heure : réessayez plus tard (pour laisser de la place aux autres).", "en": "You've sent {n} files this hour: try again later (so there's room for everyone).", "es": "Has enviado {n} archivos esta hora: inténtalo más tarde (para que haya sitio para todos)."},
     "upload_quota": {"fr": "Vous avez partagé votre part du jour ({mb} Mo) : réessayez demain, pour que chacun ait de la place.", "en": "You've shared your share for today ({mb} MB): try again tomorrow, so everyone has room.", "es": "Ya compartiste tu parte de hoy ({mb} MB): vuelve a intentarlo mañana, para que todos tengan sitio."},

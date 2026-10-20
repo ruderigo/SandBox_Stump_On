@@ -476,6 +476,39 @@ gateway, say -- true on a Stump's own hotspot, not on a home Wi-Fi), check
 that it answers `STUMP?` or `GET /node.json`. A Wi-Fi that keeps its
 devices from seeing each other (some guest networks) blocks all of this.
 
+## The greeting: apps say who they are first (since 1.0.0-beta.31)
+
+A client that keeps no cookie -- an app, like FireFly -- must greet a
+Stump before it chats over Wi-Fi (HTTP):
+
+1. `/auth` (the challenge above: it proves your Reticulum identity), then
+2. `/nick <the name the user chose>` -- unless the Stump already knows
+   that name from your LoRa announce, in which case `/auth` is enough.
+
+Send both as `/rrc/send` lines as soon as you connect, every time you
+connect (a new Wi-Fi address means a new session). Until the greeting is
+done:
+
+- `/rrc/poll` answers `"hello": "required"`, no messages, no DMs, no
+  people, and the reason in `topic`;
+- `/rrc/send` refuses anything but `/auth`, `/nick`, `/help`, `/whoami`
+  with `"error": "hello_required"`; voice notes are refused too;
+- you aren't listed anywhere (no stray `guest-xxxx` in anyone's list).
+
+Once it's done, `/rrc/poll` and `/rrc/send` answer `"hello": "done"`.
+From then on you're **one person**: the Stump links your Wi-Fi session to
+your LoRa identity, you're listed once under the name you chose, DMs to
+that name reach you over Wi-Fi while you poll (over LoRa once you stop),
+and the other Stumps of the chain don't list you again as `name@thatstump`
+(their lists carry an identity: `[NAMES] RodCell~3f2a91bc ...`). A name you
+chose always beats a `guest-` or `mesh-` one, in both directions; change
+it in your app and your next announce renames you everywhere, with
+`"renamed": {"old": "new"}` in the poll so a client folds its threads.
+
+Browsers keep the Stump's cookie and aren't asked anything: they're
+guests, as before. A Stump's owner can switch the greeting off
+(`APP_HELLO = False` in config.py).
+
 ## Identity model (WiFi/HTTP)
 
 A WiFi client's state — nickname, room, language, DM inbox, credit
