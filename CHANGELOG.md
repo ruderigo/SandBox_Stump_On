@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.0-beta.30
+- An update (`--upload-app`, or Check or fix → Re-upload) keeps a CAM's settings more safely. Reported: after updates LaBuche had no `#wifi-mesh` and no About page -- what the firmware folder's own config.py sets (chain off, About off). An update kept the board's config.py unless one check said it had none; that check, during resets, was all that stood between a node's settings and the folder's. Now:
+  - before every update the board's config.py is copied to this computer (`~/.provisioner/config_backups`, the newest 30);
+  - the check looks for `/config.py` by its full path, and tells "a fresh board" from "a board a Stump ran on whose config.py is gone" (its identity, its start record...);
+  - for the second, the folder's config.py is never copied without a yes: the last saved copy is offered first, and what each one sets is shown (name, chain, features).
+
 ## 1.0.0-beta.29
 - Fixed: copying the Tools page's files to a CAM's card (up to half an hour) could be cut by the board's watchdog ("unexpected read during raw paste: b'E'"). The Provisioner now gives the board's watchdog 2 hours before every USB command, so no maintenance session depends on the Stump having disarmed its own. Left at the console afterwards, the board starts the Stump by itself when the 2 hours are up. The Stump's own disarm uses the same 2 hours (a huge value could come out short in the chip's settings).
 

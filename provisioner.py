@@ -328,7 +328,7 @@ EXPECTED_FILE_HASHES = {
     "docs/PACKS.md": "2e89e3c28d80d72d",
     "docs/PC.md": "6f5e431869e8b075",
     "docs/PLUGINS.md": "3f5b4a5ee6844305",
-    "example_node.py": "186eae3a44390681",
+    "example_node.py": "e2c738c5bd7e524e",
     "features.py": "7fca96873d59d2d3",
     "flasher_ui.py": "1d3035b1132bc87e",
     "fserv.py": "7c3d8e4f9d3ce377",
@@ -2866,11 +2866,40 @@ def upload_stump_app(port, app_dir=None):
     # reads every newer setting with a default. --replace-config copies
     # the folder's config.py anyway; a freshly flashed board has none,
     # so it gets one.
-    if "config.py" in present and "--replace-config" not in sys.argv and _board_has_config(port):
-        present.remove("config.py")
-        print("  Keeping this node's own config.py (its settings stay as they are).")
-        print("  To replace it with the one in the firmware folder: --replace-config,")
-        print("  or run the wizard and answer yes to the config wizard.")
+    if "config.py" in present and "--replace-config" not in sys.argv:
+        state = _board_config_state(port)
+        if state in ("yes", "unknown"):
+            present.remove("config.py")
+            print("  Keeping this node's own config.py (its settings stay as they are).")
+            if state == "yes":
+                try:
+                    saved = _backup_board_config(port)
+                except Exception:
+                    saved = None
+                if saved:
+                    print("  A copy of it is saved on this computer: %s" % saved)
+            print("  To replace it with the one in the firmware folder: --replace-config,")
+            print("  or run the wizard and answer yes to the config wizard.")
+        elif state == "lost":
+            # A Stump ran here, yet its settings are gone: never replaced
+            # silently with this folder's -- that turned a node's chain and
+            # pages off without a word.
+            folder_cfg = (resolved / "config.py").read_text(encoding="utf-8", errors="replace")
+            backups = sorted(CONFIG_BACKUPS.glob("config-*.py")) if CONFIG_BACKUPS.exists() else []
+            print(yellow("  This board ran a Stump, but its config.py is missing."))
+            if backups:
+                last = backups[-1]
+                print("  The last copy saved from a board: %s" % last)
+                print("    (%s)" % _config_summary(last.read_text(encoding="utf-8", errors="replace")))
+                if ask_yes_no("  Put that copy back on the board?", True):
+                    present.remove("config.py")
+                    ok, out = run(["mpremote", "connect", port, "fs", "cp", str(last), ":/config.py"], timeout=30)
+                    print("    " + ("restored" if ok else "FAILED: " + out.strip()))
+            if "config.py" in present:
+                print("  This folder's config.py: %s" % _config_summary(folder_cfg))
+                if not ask_yes_no("  Use this folder's config.py for this board?", False):
+                    present.remove("config.py")
+                    print("  Not copied. Set it up with the wizard (python3 provisioner.py) and its config questions.")
 
     if missing:
         print(f"  Note: {len(missing)} expected file(s) not found here, skipping: {', '.join(missing)}")
@@ -2961,13 +2990,62 @@ def upload_stump_app(port, app_dir=None):
     return all_ok
 
 
+CONFIG_BACKUPS = Path.home() / ".provisioner" / "config_backups"
+
+
+def _board_config_state(port):
+    """"yes" (the board has /config.py), "fresh" (none, and nothing else
+    says a Stump ran there), "lost" (none, but a Stump ran there: its
+    identity, its start record...), or "unknown" (couldn't tell)."""
+    ok, out = run(["mpremote", "connect", port, "exec",
+                   "import os\ndef has(p):\n try:\n  os.stat(p)\n  return 1\n except OSError:\n  return 0\n"
+                   "print('CONFIG:%d TRACES:%d' % (has('/config.py'), has('/rns') + has('/boot_state.json')"
+                   " + has('/boot_fail_count') + has('/plugins_state.json')))\n"], timeout=25)
+    import re as _re
+    m = _re.search(r"CONFIG:(\d) TRACES:(\d+)", out or "") if ok else None
+    if not m:
+        return "unknown"
+    if m.group(1) == "1":
+        return "yes"
+    return "lost" if int(m.group(2)) else "fresh"
+
+
 def _board_has_config(port):
     """True if the board already has a config.py (a node set up before),
     or if that can't be told -- keeping a config is the safe mistake."""
-    ok, out = run(["mpremote", "connect", port, "exec",
-                   "import os\ntry:\n os.stat('config.py')\n print('CONFIG:yes')\n"
-                   "except OSError:\n print('CONFIG:no')\n"], timeout=25)
-    return not (ok and "CONFIG:no" in out)
+    return _board_config_state(port) != "fresh"
+
+
+def _backup_board_config(port):
+    """A copy of the board's config.py on this computer, before anything
+    is uploaded (~/.provisioner/config_backups, the newest 30 kept).
+    Returns its path, or None."""
+    CONFIG_BACKUPS.mkdir(parents=True, exist_ok=True)
+    dest = CONFIG_BACKUPS / ("config-%s.py" % time.strftime("%Y%m%d-%H%M%S"))
+    ok, _ = run(["mpremote", "connect", port, "fs", "cp", ":/config.py", str(dest)], timeout=30)
+    if not ok or not dest.exists() or dest.stat().st_size == 0:
+        try:
+            dest.unlink()
+        except OSError:
+            pass
+        return None
+    old = sorted(CONFIG_BACKUPS.glob("config-*.py"))
+    for f in old[:-30]:
+        try:
+            f.unlink()
+        except OSError:
+            pass
+    return dest
+
+
+def _config_summary(text):
+    """A line saying what a config.py sets: name, chain, features."""
+    import re as _re
+    def val(k):
+        m = _re.search(r"(?m)^%s\s*=\s*(.+?)\s*(#.*)?$" % k, text)
+        return m.group(1) if m else "?"
+    return "name %s, chain %s, features %s" % (val("NODE_NAME"), "on" if val("CHAIN_ENABLED") == "True" else "off",
+                                               val("FEATURES"))
 
 
 def _build_firmware_zip(dest_path, source_dir):

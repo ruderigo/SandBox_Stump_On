@@ -40,17 +40,17 @@ check('tamper + lint noticed', any('changed since' in x for x in w) and any('tim
 P.describe_pack(t, 1)
 # fake mpremote for install + upload
 calls = []
-BOARD_CONFIG = ['CONFIG:yes']
+BOARD_CONFIG = ['CONFIG:1 TRACES:1']
 def fake_run(cmd, timeout=None, **kw):
     calls.append(cmd)
     if 'exec' in cmd and any('SHA:' in str(c) for c in cmd): return True, 'SHA:none'
-    if 'exec' in cmd and any('CONFIG:yes' in str(c) for c in cmd): return True, BOARD_CONFIG[0]
+    if 'exec' in cmd and any('TRACES' in str(c) for c in cmd): return True, BOARD_CONFIG[0]
     if 'exec' in cmd and any("'DIRS:'" in str(c) for c in cmd): return True, 'DIRS:flasher,rnfs,notes.txt'
     if cmd[-2:] == ['cat', ':themes.json']: return True, '{"old": {"label": "Old", "colors": {"--bg": "#000"}}}'
     if 'exec' in cmd and any('def walk' in str(c) for c in cmd):
         sizes = {}
         for c in calls:
-            if 'cp' in c and not str(c[-1]).startswith(':/sd'):
+            if 'cp' in c and str(c[-1]).startswith(':') and not str(c[-1]).startswith(':/sd'):
                 sizes[c[-1][1:]] = Path(c[-2]).stat().st_size
         return True, repr(sizes)
     return True, ''
@@ -82,10 +82,20 @@ check('upload has core', ':plugins.py' in dests and ':rrc.py' in dests)
 check('upload has builtin plugins', ':stumpid/strings.py' in dests and ':fservbot/templates.py' in dests and ':fservbot/plugin.json' not in dests and ':fservbot/README.md' not in dests, [d for d in dests if 'fserv' in d or 'stumpid' in d])
 check('upload ok', ok)
 check('update keeps the node config', ':config.py' not in dests, [d for d in dests if 'config' in d])
-calls.clear(); BOARD_CONFIG[0] = 'CONFIG:no'
+calls.clear(); BOARD_CONFIG[0] = 'CONFIG:0 TRACES:0'
 P.upload_stump_app('/dev/fake')
 check('fresh board gets a config', ':config.py' in [c[-1] for c in calls if 'cp' in c])
-calls.clear(); BOARD_CONFIG[0] = 'CONFIG:yes'; sys.argv.append('--replace-config')
+import io, contextlib
+# A board a Stump ran on, its config.py gone: asked, never replaced silently
+calls.clear(); BOARD_CONFIG[0] = 'CONFIG:0 TRACES:2'
+_cb, P.CONFIG_BACKUPS = P.CONFIG_BACKUPS, Path(tempfile.mkdtemp()) / "none"
+_ay, P.ask_yes_no = P.ask_yes_no, lambda *a, **k: False
+with contextlib.redirect_stdout(io.StringIO()) as said:
+    P.upload_stump_app('/dev/fake')
+check("a Stump's board with its config.py gone: the folder's isn't copied without a yes",
+      ':config.py' not in [c[-1] for c in calls if 'cp' in c] and "missing" in said.getvalue(), said.getvalue()[-400:])
+P.ask_yes_no, P.CONFIG_BACKUPS = _ay, _cb
+calls.clear(); BOARD_CONFIG[0] = 'CONFIG:1 TRACES:1'; sys.argv.append('--replace-config')
 P.upload_stump_app('/dev/fake')
 check('--replace-config replaces it', ':config.py' in [c[-1] for c in calls if 'cp' in c])
 sys.argv.remove('--replace-config')
@@ -392,6 +402,18 @@ block = P._pc_config_block({"pc_hotspot_name": "x", "pc_heltec": "ble", "pc_helt
 check('pc: a new Stump with the Heltec over Bluetooth', "'type': 'RNodeBLEInterface'" in block
       and "'target': 'auto'" in block and "917112000" in block, block)
 P.list_serial_ports = saved_ports
+# Keeping a board's settings on an update: has it a config.py, or did a
+# Stump run there and lose it (never replaced silently then)?
+_run = P.run
+for out, want in (("CONFIG:1 TRACES:2", "yes"), ("CONFIG:0 TRACES:0", "fresh"),
+                  ("CONFIG:0 TRACES:1", "lost"), ("garbage", "unknown")):
+    P.run = lambda cmd, out=out, **k: (True, out)
+    check("a board's config: %s" % want, P._board_config_state("/dev/x") == want)
+P.run = lambda cmd, **k: (False, "could not enter raw repl")
+check("... can't tell: kept (unknown)", P._board_config_state("/dev/x") == "unknown" and P._board_has_config("/dev/x"))
+P.run = _run
+check("what a config.py sets, in one line", P._config_summary("NODE_NAME = 'LaBuche'\nCHAIN_ENABLED = True\n"
+      "FEATURES = ['chat', 'about']\n") == "name 'LaBuche', chain on, features ['chat', 'about']")
 # Before every USB command to a board: its watchdog given 2 hours
 cmd = P._with_quiet_watchdog(["mpremote", "connect", "/dev/x", "fs", "cp", "a", ":b"])
 check('a USB command to a board: its watchdog given 2 hours first', cmd[3] == "exec"
