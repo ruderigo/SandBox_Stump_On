@@ -527,6 +527,9 @@ async def stream_to_file(reader, dest, length, chunk=16384, max_bps=None):
         _discard_partial(dest)
         print("[fserv] upload failed:", e)
         return False, written
+    except BaseException:
+        _discard_partial(dest)     # cut off (conn.py's reaper): nothing kept
+        raise
 
     if written < length:
         _discard_partial(dest)

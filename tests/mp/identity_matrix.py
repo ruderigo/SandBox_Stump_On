@@ -282,12 +282,18 @@ check("... the same answer sent again (a replay): refused", s == '403', (s, r))
 send('/msg Mia via the radio', B1)
 check("it chose LoRa: a DM waits for LoRa even while it's on the Wi-Fi, not in its Wi-Fi inbox",
       inbox(H4) == ['via the radio'] and inbox(APP4) == [], (inbox(H4), inbox(APP4)))
+import guard
+guard.reset()            # (a while later: /hello is limited per address)
 s, g = at(APP4, '/hello')
 s, r = at(APP4, '/hello', json.dumps({"pub": hx(phone.get_public_key()), "sig": hx(phone.sign(g['nonce'].encode())),
                                       "prefer": "wifi"}).encode())
 send('/msg Mia over wifi', B1)
 check("switched to Wi-Fi: DMs come over Wi-Fi, still one Mia", r['prefer'] == 'wifi' and inbox(APP4)[-1:] == ['over wifi']
       and 'over wifi' not in inbox(H4) and everyone().count('Mia') == 1, (r, inbox(APP4), inbox(H4)))
+
+codes = [at('192.168.4.77', '/hello')[0] for _ in range(10)]
+check("/hello asked over and over: a few, then 'wait' (nobody keeps the CAM busy signing)",
+      codes[:6] == ['200'] * 6 and '429' in codes[6:], codes)
 
 # ── A logged-in profile and the gate off ───────────────────────────────
 config.APP_HELLO = False

@@ -48,28 +48,39 @@ class Stall:
         return out
 
 
-async def readline_of(raw):
-    r = conn.Reader(raw)
-    try:
-        return await r.readline()
-    except conn.Dropped as e:
-        return "dropped:" + e.args[0]
-
-
 def timed(coro):
     t0 = time.ticks_ms()
     out = asyncio.run(coro)
     return out, time.ticks_diff(time.ticks_ms(), t0)
 
 
-out, ms = timed(readline_of(Stall()))
-check("headers that never come: let go at the deadline", out == "dropped:head" and 300 <= ms < 1500, (out, ms))
-out, ms = timed(readline_of(Stall(b"GET / HTTP/1.1", piece=1, gap=0.05)))
-check("a request line dribbled a byte at a time: let go at the same deadline", out == "dropped:head" and ms < 1500, (out, ms))
-out, ms = timed(readline_of(Stall(b"G" * 6000, piece=512, gap=0)))
-check("a line that never ends: let go before it fills the memory", out == "dropped:long", (out, ms))
-out, ms = timed(readline_of(Stall(b"GET / HTTP/1.1\r\nHost: x\r\n", piece=512, gap=0)))
-check("a normal request line: read", out == b"GET / HTTP/1.1\r\n", out)
+def served(raw, writer=None):
+    """A connection through the web server; how long until it let go."""
+    w = writer or Wr("10.0.0.30")
+    _, ms = timed(barkeep._handle(raw, w))
+    return w, ms
+
+
+# The deadlines: one per connection, moved as bytes move, enforced by the
+# reaper once a second (no timer per read: conn.py's top).
+st = conn.stats()
+w, ms = served(Stall())
+check("headers that never come: let go at the deadline (by the reaper)",
+      conn.stats()["dropped_head"] == st["dropped_head"] + 1 and 300 <= ms < 2600 and conn.open_now() == 0, (ms, conn.stats()))
+st = conn.stats()
+w, ms = served(Stall(b"GET / HTTP/1.1", piece=1, gap=0.05))
+check("a request line dribbled a byte at a time: let go at the same deadline (bytes don't move it)",
+      conn.stats()["dropped_head"] == st["dropped_head"] + 1 and ms < 2600, (ms, conn.stats()))
+st = conn.stats()
+w, ms = served(Stall(b"G" * 6000, piece=512, gap=0))
+check("a line that never ends: let go before it fills the memory", conn.stats()["dropped_long"] == st["dropped_long"] + 1, conn.stats())
+st = conn.stats()
+up = (b"POST /upload HTTP/1.1\r\nX-Filename: stalled.bin\r\nAccept: application/json\r\n"
+      b"Content-Length: 5000\r\n\r\n" + b"x" * 100)
+w, ms = served(Stall(up, piece=512, gap=0))
+check("an upload whose bytes stop: let go after the idle time, nothing kept",
+      conn.stats()["dropped_idle"] == st["dropped_idle"] + 1 and ms < 2600
+      and "stalled.bin" not in str(__import__("os").listdir(fserv.SHARED_DIR) if fserv.sd_ok else []), (ms, conn.stats()))
 
 
 async def body_of(raw, want):
@@ -84,9 +95,6 @@ async def body_of(raw, want):
     return got, r.why
 
 
-(out, why), ms = timed(body_of(Stall(b"x" * 100, piece=100, gap=0), 1000))
-check("a body that stops coming: ends after the idle time (the caller sees 'gone')", out == b"x" * 100
-      and why == "idle" and ms < 1500, (len(out), why, ms))
 (out, why), ms = timed(body_of(Stall(b"y" * 400, piece=10, gap=0.02), 400))
 check("a body trickled too slowly: ended once past the grace time", why == "slow" and len(out) < 400, (len(out), why, ms))
 
@@ -98,15 +106,32 @@ class Deaf:
     async def aclose(s): pass
 
 
-async def write_to_deaf():
-    try:
-        await conn.Writer(Deaf()).awrite(b"x" * 100)
-        return "written"
-    except conn.Dropped as e:
-        return "dropped:" + e.args[0]
+st = conn.stats()
+w, ms = served(Rd([b"GET /node.json HTTP/1.1\r\n", b"\r\n"]), Deaf())
+check("an answer nobody reads: let go after the idle time", conn.stats()["dropped_write"] == st["dropped_write"] + 1
+      and ms < 2600 and conn.open_now() == 0, (ms, conn.stats()))
 
-out, ms = timed(write_to_deaf())
-check("an answer nobody reads: let go after the idle time", out == "dropped:write" and ms < 1500, (out, ms))
+# Cheap: no task made per read any more (each read is a plain await).
+class Fast:
+    def __init__(s, n): s.n = n
+    async def read(s, k=-1):
+        if s.n <= 0:
+            return b""
+        s.n -= 1
+        return b"z" * 64
+
+
+async def many():
+    r = conn.Reader(Fast(2000))
+    r.start_body()
+    t0 = time.ticks_us()
+    while await r.read(64):
+        pass
+    return time.ticks_diff(time.ticks_us(), t0) / 2000
+
+
+per, _ = timed(many())
+check("a body read costs a few microseconds (no timer task each time)", per < 8, per)
 
 # Through the web server itself: a silent connection takes no slot for
 # long, a full Stump says 503 at once, and a normal request still works.

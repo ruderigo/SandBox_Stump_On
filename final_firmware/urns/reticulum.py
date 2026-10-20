@@ -5,7 +5,7 @@ import os
 import gc
 import time
 from . import const
-from .log import log, set_loglevel, LOG_VERBOSE, LOG_DEBUG, LOG_ERROR, LOG_NOTICE, LOG_INFO
+from .log import log, set_loglevel, LOG_VERBOSE, LOG_DEBUG, LOG_ERROR, LOG_NOTICE, LOG_INFO, sl
 from .identity import Identity
 from .transport import Transport
 from .interfaces import Interface as _BaseInterface
@@ -61,7 +61,8 @@ class Reticulum:
 
         log("µReticulum v0.1.0 started", LOG_NOTICE)
         log("Identity: " + self.identity.hexhash, LOG_INFO)
-        log("Free memory: " + str(gc.mem_free()) + " bytes", LOG_VERBOSE)
+        if sl(LOG_VERBOSE):
+            log("Free memory: " + str(gc.mem_free()) + " bytes", LOG_VERBOSE)
 
     def _load_or_create_identity(self):
         identity_path = self.storagepath + "/identity"
@@ -82,7 +83,8 @@ class Reticulum:
             if self._file_exists(config_path):
                 with open(config_path, "r") as f:
                     self.config = json.load(f)
-                log("Loaded configuration from " + config_path, LOG_VERBOSE)
+                if sl(LOG_VERBOSE):
+                    log("Loaded configuration from " + config_path, LOG_VERBOSE)
             else:
                 self.config = self._default_config()
                 with open(config_path, "w") as f:
@@ -260,7 +262,8 @@ class Reticulum:
         if self.probe_destination is not None:
             tasks.append(asyncio.create_task(self._probe_announce_loop()))
 
-        log("Event loop running with " + str(len(tasks)) + " tasks", LOG_VERBOSE)
+        if sl(LOG_VERBOSE):
+            log("Event loop running with " + str(len(tasks)) + " tasks", LOG_VERBOSE)
         await asyncio.gather(*tasks)
 
     async def _probe_announce_loop(self):

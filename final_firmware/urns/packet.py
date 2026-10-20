@@ -4,7 +4,7 @@
 import struct
 import time
 from . import const
-from .log import log, LOG_DEBUG, LOG_ERROR, LOG_EXTREME
+from .log import log, LOG_DEBUG, LOG_ERROR, LOG_EXTREME, sl
 
 
 class Packet:
@@ -231,7 +231,8 @@ class Packet:
             return True
 
         except Exception as e:
-            log("Malformed packet: " + str(e), LOG_EXTREME)
+            if sl(LOG_EXTREME):
+                log("Malformed packet: " + str(e), LOG_EXTREME)
             return False
 
     def send(self):
@@ -301,7 +302,8 @@ class Packet:
             except:
                 pass
             proof.send()
-            log("Proof sent for " + self.packet_hash.hex()[:8], LOG_DEBUG)
+            if sl(LOG_DEBUG):
+                log("Proof sent for " + self.packet_hash.hex()[:8], LOG_DEBUG)
         else:
             log("Cannot prove packet: no signing identity", LOG_DEBUG)
 

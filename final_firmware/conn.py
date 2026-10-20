@@ -51,12 +51,17 @@ class Dropped(Exception):
     """This connection is being let go (why: head, long, write)."""
 
 
+_IS_PC = []
+
+
 def _computer():
-    try:
-        import stump_host  # noqa: F401
-        return True
-    except ImportError:
-        return False
+    if not _IS_PC:            # looked up once (on the CAM the import fails: costly each time)
+        try:
+            import stump_host  # noqa: F401
+            _IS_PC.append(True)
+        except ImportError:
+            _IS_PC.append(False)
+    return _IS_PC[0]
 
 
 def setting(key):
@@ -160,7 +165,7 @@ async def refuse(reader, writer, why):
     bytes resets it, and Windows then shows the client a reset instead of
     the 503."""
     try:
-        await asyncio.wait_for(reader.read(4096), 0.3)
+        await asyncio.wait_for(reader.read(4096), 0.3)      # (rare: only when refusing)
     except Exception:
         pass
     try:
@@ -175,44 +180,108 @@ async def refuse(reader, writer, why):
         pass
 
 
-class Reader:
-    """The connection's reader, with the deadlines above: readline() for
-    the request line and headers, read() for the body. A body read that
-    times out answers b"" (end of data), as a client gone away would."""
+# ── Deadlines without a timer per read ─────────────────────────────────
+# asyncio.wait_for on every read and write made a task each time -- about
+# 14x the cost of the read itself, and garbage for the collector: on the
+# ESP32 a noticeable share of each request, and much more of an upload.
+# Instead each connection's task has ONE deadline here, moved forward as
+# bytes move; a single reaper looks once a second and cancels the tasks
+# whose deadline passed. Reads and writes are plain awaits again.
+_live = {}            # task -> [deadline ms, why]
+_reaper = [None]
 
-    def __init__(self, raw, head_s=None):
+
+def _current():
+    try:
+        return asyncio.current_task()
+    except Exception:
+        return None
+
+
+def _set(task, ms, why):
+    if task is not None:
+        e = _live.get(task)
+        if e is None:
+            _live[task] = [_now() + int(ms), why]
+        else:
+            e[0], e[1] = _now() + int(ms), why
+
+
+def watch(task, head_s=None):
+    """A connection's task starts: its headers' deadline. Starts the
+    reaper the first time."""
+    _set(task, (head_s if head_s is not None else head_timeout()) * 1000, "head")
+    r = _reaper[0]
+    if r is None or (hasattr(r, "done") and r.done()):     # (a new event loop: a new reaper)
+        try:
+            _reaper[0] = asyncio.create_task(_reap())
+        except Exception:
+            _reaper[0] = None
+
+
+def unwatch(task):
+    _live.pop(task, None)
+
+
+def why_ended(task):
+    """Why the reaper cancelled this task (or None)."""
+    e = _ended.pop(task, None)
+    return e
+
+
+_ended = {}
+
+
+async def _reap():
+    while True:
+        await asyncio.sleep(1)
+        now = _now()
+        for task, e in list(_live.items()):
+            try:
+                late = time.ticks_diff(now, e[0]) if hasattr(time, "ticks_diff") else now - e[0]
+            except Exception:
+                late = now - e[0]
+            if late > 0:
+                _live.pop(task, None)
+                _ended[task] = e[1]
+                if len(_ended) > 64:
+                    _ended.pop(next(iter(_ended)))
+                try:
+                    task.cancel()
+                except Exception:
+                    pass
+
+
+class Reader:
+    """The connection's reader: readline() for the request line and
+    headers (their deadline set by watch(); lines at most LINE_MAX,
+    HEAD_MAX in all), read() for the body (the idle deadline moved
+    forward on each read; a body trickled under MIN_BPS past the grace
+    time ends: b"", as a client gone away)."""
+
+    def __init__(self, raw, task=None):
         self._raw = raw
+        self._task = task
         self._buf = b""
-        self._head = True
         self._head_bytes = 0
-        self._deadline = _now()
-        self._head_ms = int((head_s if head_s is not None else head_timeout()) * 1000)
         self._body_t0 = None
         self._body_n = 0
         self.why = None
+        # Read once per connection, not once per read.
+        self._idle_ms = int(setting("CONN_IDLE_S") * 1000)
+        self._grace_ms = int(setting("CONN_RATE_GRACE_S") * 1000)
+        self._min_bps = setting("CONN_MIN_BPS")
 
     def start_body(self):
         """The headers are in: from here, read() and the body's limits."""
-        self._head = False
         self._body_t0 = _now()
-
-    async def _get(self, n, timeout_s):
-        if timeout_s <= 0:
-            return None
-        try:
-            data = await asyncio.wait_for(self._raw.read(n), timeout_s)
-        except asyncio.TimeoutError:
-            return None
-        return data or b""
+        _set(self._task, self._idle_ms, "idle")
 
     async def readline(self):
         while b"\n" not in self._buf:
             if len(self._buf) >= LINE_MAX or self._head_bytes + len(self._buf) >= HEAD_MAX:
                 raise Dropped("long")
-            left = (self._head_ms - _since(self._deadline)) / 1000
-            data = await self._get(512, left)
-            if data is None:
-                raise Dropped("head")
+            data = await self._raw.read(512)
             if not data:
                 line, self._buf = self._buf, b""
                 return line
@@ -234,14 +303,13 @@ class Reader:
             return b""
         if self._body_t0 is None:
             self.start_body()
-        data = await self._get(n if n and n > 0 else 2048, setting("CONN_IDLE_S"))
-        if data is None:
-            self.why = "idle"
-            note("idle")
+        _set(self._task, self._idle_ms, "idle")
+        data = await self._raw.read(n if n and n > 0 else 2048)
+        if not data:
             return b""
         self._body_n += len(data)
         t = _since(self._body_t0)
-        if t > setting("CONN_RATE_GRACE_S") * 1000 and self._body_n * 1000 < setting("CONN_MIN_BPS") * t:
+        if t > self._grace_ms and self._body_n * 1000 < self._min_bps * t:
             self.why = "slow"
             note("slow")
             return b""
@@ -249,23 +317,24 @@ class Reader:
 
 
 class Writer:
-    """The connection's writer: a write the client doesn't take within
-    CONN_IDLE_S lets the connection go (Dropped("write")). Attributes set
-    on it (the page's cookie, no-store) stay on it."""
+    """The connection's writer: each write moves the deadline forward by
+    CONN_IDLE_S -- a client that doesn't take it in that time is let go
+    by the reaper. Attributes set on it (the page's cookie, no-store) stay
+    on it."""
 
-    def __init__(self, raw):
+    def __init__(self, raw, task=None):
         self._raw = raw
+        self._task = task
+        self._idle_ms = int(setting("CONN_IDLE_S") * 1000)
 
     async def awrite(self, data, *a):
-        try:
-            await asyncio.wait_for(self._raw.awrite(data, *a), setting("CONN_IDLE_S"))
-        except asyncio.TimeoutError:
-            raise Dropped("write")
+        _set(self._task, self._idle_ms, "write")
+        await self._raw.awrite(data, *a)
 
     async def aclose(self):
         try:
-            await asyncio.wait_for(self._raw.aclose(), 2)
-        except Exception:
+            await self._raw.aclose()
+        except BaseException:
             pass
 
     def get_extra_info(self, name):

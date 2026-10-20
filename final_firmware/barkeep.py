@@ -1095,7 +1095,7 @@ def _valid_visitor_id(v):
     return len(v) == 21 and v[0] == "v" and all(c in "0123456789abcdef" for c in v[1:])
 
 
-def _visitor(writer, headers, ip, method):
+def _visitor(writer, headers, ip, method, path=""):
     """The ID a request is known by (see the request handler)."""
     tok = _cookie(headers, PROFILE_COOKIE)
     if tok:
@@ -1116,9 +1116,12 @@ def _visitor(writer, headers, ip, method):
                 _seen_visitors.clear()
             _move_in(ip, v)
         return v
-    if method == "GET":
+    if method == "GET" and not path.startswith(("/rrc/", "/hello", "/node.json", "/hw.json", "/stumps.json",
+                                                 "/files.json", "/billboard.json", "/tools.json")):
         # Offered with the page; it counts from the browser's next request
-        # (a client that doesn't keep it stays known by its address).
+        # (a client that doesn't keep it stays known by its address). Not
+        # made for data requests -- an app polling every 2 s never keeps
+        # it, and only pages carry it.
         writer._stump_set_cookie = (VISITOR_COOKIE + "=" + _new_visitor_id()
                                     + "; Path=/; Max-Age=31536000; HttpOnly; SameSite=Lax")
     return ip
@@ -3242,9 +3245,19 @@ async def _handle(reader, writer, secure=False):
     if why:
         await conn.refuse(reader, writer, why)
         return
+    task = conn._current()
+    conn.watch(task)
     try:
-        await _serve(conn.Reader(reader), conn.Writer(writer), secure)
+        await _serve(conn.Reader(reader, task), conn.Writer(writer, task), secure)
+    except asyncio.CancelledError:
+        # The reaper: too slow or silent (conn.py). Let go, quietly.
+        conn.note(conn.why_ended(task) or "idle")
+        try:
+            await writer.aclose()
+        except BaseException:
+            pass
     finally:
+        conn.unwatch(task)
         conn.leave(ip)
 
 
@@ -3304,7 +3317,7 @@ async def _serve(reader, writer, secure=False):
         # visitor cookie, else -- a client that keeps no cookies, like the
         # FireFly app (its one-button /auth included) -- its address, as
         # before. Limits (guard.py) still count per address.
-        identifier = _visitor(writer, headers, ip, method)
+        identifier = _visitor(writer, headers, ip, method, path)
 
         # HTTPS (stump_tls.py) is used for two things only: /admin, where a
         # password is typed, and the voice recorder (/rrc/rec), because
@@ -4207,6 +4220,12 @@ async def _serve(reader, writer, secure=False):
             sid = plugins.service_lookup("identity")
             if sid is None:
                 await _send(writer, "503 Service Unavailable", json.dumps({"hello": "off"}), "application/json")
+            elif not guard.allow("hello", ip, every=2, burst=6):
+                # Each one is a signature (the Stump's, or checking the
+                # phone's): a few at once, then one every 2 s per address,
+                # so nobody keeps the CAM busy signing.
+                await _send(writer, "429 Too Many Requests", json.dumps({"hello": "wait", "retry_after": 2}),
+                            "application/json")
             elif method == "GET":
                 nonce = sid.start_challenge(identifier)
                 me = rrc.NODE_IDENTITY[0]

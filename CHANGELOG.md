@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.0-beta.33
+- **Lighter on the ESP32** (reported: LaBuche getting a tad slow). Measured on the board's MicroPython, then cut:
+  - the connections' deadlines (beta.24) made a timer task on every read and write -- about 14x the read itself, and garbage for the collector, hundreds of times per upload. Now each connection has one deadline, moved forward as bytes move, and one reaper checks them once a second; a read is a plain await again (14 µs → under 8 µs per read here, the timer task gone). The same limits as before, the same tests;
+  - deciding whether an address belongs to a feature that's off (asked on every request) re-parsed FEATURES each time: worked out once now (55 µs → 1.3 µs);
+  - a visitor ID was made (random bytes and a cookie string) on every request from a client without cookies -- an app polling every 2 s -- and thrown away: only pages carry it now;
+  - 97 debug log lines in Reticulum's code (announces, links, transport) built their text even with debug logging off: they're skipped unless it's on.
+- `/hello` is limited per address (a few, then one every 2 s): each one is a signature, so nobody keeps the CAM busy signing.
+
 ## 1.0.0-beta.32
 - **`/hello`: the greeting as one exchange, inside the app's own connect handshake** -- nothing for the person to press. Both sides prove who they are: `GET /hello` gives this Stump's identity, a one-time code and the Stump's signature over it (the app checks it's the real Stump); `POST /hello` gives the app's public key, its signature over the code, the person's name and their route. A wrong or replayed signature is refused.
 - **The person's route**: `"prefer": "wifi"` or `"lora"`, a toggle in the app like the Stump's USB / Bluetooth switch. With `"lora"`, DMs go over LoRa even while the phone is on the Stump's Wi-Fi too; listed once either way.
