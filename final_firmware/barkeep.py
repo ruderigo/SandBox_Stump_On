@@ -28,6 +28,7 @@ import settings as stump_settings
 import profiles
 import guard     # ("settings" is a local name in places here)
 import conn      # the connections' deadlines and limits
+import ubinascii
 import keepalive  # a rescue start, the watchdog's last restart
 import propagation
 import stump_tls as tls  # not "tls": MicroPython has a built-in module by that name
@@ -4194,6 +4195,63 @@ async def _serve(reader, writer, secure=False):
             await _send(writer, "200 OK", json.dumps({"sd": fserv.sd_ok, "apps": app_list, "files": files,
                                                       "sections": sections}),
                         "application/json")
+
+        elif path == "/hello" or path.startswith("/hello?"):
+            # The greeting as one exchange, made by the app inside its own
+            # connect handshake -- invisible to the person (CLIENT_QUICKSTART,
+            # "The greeting"). Both sides prove who they are:
+            #   GET  -> this Stump's identity, a one-time code, and this
+            #           Stump's signature over code + its LXMF address;
+            #   POST {"pub", "sig" (over the code), "name", "prefer"}
+            #        -> "hello": "done", one person from then on.
+            sid = plugins.service_lookup("identity")
+            if sid is None:
+                await _send(writer, "503 Service Unavailable", json.dumps({"hello": "off"}), "application/json")
+            elif method == "GET":
+                nonce = sid.start_challenge(identifier)
+                me = rrc.NODE_IDENTITY[0]
+                lx = (rrc.NODE or {}).get("lxmf") or ""
+                out = {"stump": (rrc.NODE or {}).get("name"), "lxmf": lx, "nonce": nonce,
+                       "hello": _greeting(identifier, ip) or "done"}
+                if me is not None:
+                    out["pub"] = ubinascii.hexlify(me.get_public_key()).decode()
+                    out["sig"] = ubinascii.hexlify(me.sign((nonce + lx).encode())).decode()
+                await _send(writer, "200 OK", json.dumps(out), "application/json")
+            else:
+                body = await _read_small_body(reader, int(headers.get("content-length", "0")))
+                try:
+                    d = json.loads(body.decode())
+                    pub, sig = str(d["pub"]), str(d["sig"])
+                except (ValueError, KeyError, TypeError, AttributeError):
+                    await _send(writer, "400 Bad Request", json.dumps({"hello": "required", "error": "bad_request"}),
+                                "application/json")
+                    return
+                user = rrc.touch_user(identifier)
+                room = user["room"] if rrc.room_exists(user["room"]) else rrc.DEFAULT_ROOM
+                replies, _ = rrc.handle_input(identifier, room, "/auth " + pub + " " + sig)
+                if not any(str(r).startswith("AUTH-OK") for r in replies):
+                    await _send(writer, "403 Forbidden", json.dumps({
+                        "hello": "required", "error": "auth", "message": " ".join(str(r) for r in replies)}),
+                        "application/json")
+                    return
+                out = {}
+                name = rrc.clean_nick(str(d.get("name") or ""))
+                if name and name != rrc.get_user(identifier)["nick"]:
+                    r2, _ = rrc.handle_input(identifier, room, "/nick " + name)
+                    if r2:
+                        out["error"], out["message"] = "name", " ".join(str(r) for r in r2)
+                lx = rrc.lxmf_of(identifier)
+                if not lx:
+                    try:
+                        import rrc_mesh
+                        lx = rrc_mesh.lxmf_address(sid.verified_identity_for(identifier))
+                    except Exception:
+                        lx = None
+                if d.get("prefer") in ("wifi", "lora") and lx:
+                    rrc.set_prefer(lx, d["prefer"])
+                out.update({"hello": _greeting(identifier, ip) or "done", "nick": rrc.get_user(identifier)["nick"],
+                            "lxmf": lx, "prefer": rrc.prefer_of(lx) if lx else "wifi"})
+                await _send(writer, "200 OK", json.dumps(out), "application/json")
 
         elif method == "GET" and path.startswith("/node.json"):
             # Who this node is, for discovery: answers without touching

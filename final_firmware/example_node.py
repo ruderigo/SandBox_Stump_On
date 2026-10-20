@@ -34,7 +34,7 @@ except ImportError:
 STUMP_VERSION = "Beta A"
 # The exact release (a git tag "v" + this, built and signed by
 # .github/workflows/release.yml, which refuses a tag that doesn't match).
-STUMP_RELEASE = "1.0.0-beta.31"
+STUMP_RELEASE = "1.0.0-beta.32"
 
 # Node-type beacon: a second destination on this node's own identity,
 # aspect "stump.node", so clients can tell a Stump from a person without
@@ -443,6 +443,7 @@ def main():
     try:
         import rrc
         rrc.NODE = {"name": NODE_NAME, "lxmf": dest.hexhash}
+        rrc.NODE_IDENTITY[0] = rns.identity          # signs its half of /hello
         rrc.NODE_INFO = {"version": STUMP_VERSION, "release": STUMP_RELEASE}
     except Exception:
         pass

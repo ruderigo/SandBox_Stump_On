@@ -234,6 +234,61 @@ check("gone from the Wi-Fi: a DM waits for LoRa, not in a Wi-Fi inbox", ok and i
       and 'still there?' not in inbox(APP), (inbox(H), inbox(APP)))
 check("... and it's listed once (its LoRa side)", everyone().count('Rodrigo') == 1, everyone())
 
+# ── /hello: the greeting as one exchange, both sides proving who they are ─
+stump = Identity(create_keys=False)
+stump.load_private_key(bytes(range(2, 66)))
+rrc.NODE = {"name": "LaBuche", "lxmf": stump.hexhash}
+rrc.NODE_IDENTITY[0] = stump
+phone = Identity(create_keys=False)
+phone.load_private_key(bytes(range(3, 67)))
+H4 = rrc_mesh.lxmf_address(phone.hexhash)
+rrc_mesh._reach[H4] = {"nick": "mesh-" + H4[:4], "last_seen": time.time(), "last_dm_id": 0, "hinted": False, "name": None}
+rrc.set_reachable(H4, "mesh-" + H4[:4])
+APP4 = '192.168.4.64'
+i18n.set_lang(APP4, 'en')
+
+
+def at(ip, path, body=None):
+    w4 = Wr(ip)
+    if body is None:
+        hl = [('GET %s HTTP/1.1\r\n' % path).encode(), b'\r\n']
+        body = b''
+    else:
+        hl = [('POST %s HTTP/1.1\r\n' % path).encode(), ('Content-Length: %d\r\n' % len(body)).encode(), b'\r\n']
+    asyncio.run(barkeep._handle(Rd(hl, body), w4))
+    raw = b''.join(w4.w)
+    head, _, b = raw.partition(b'\r\n\r\n')
+    return head.split(b'\r\n')[0][9:12].decode(), json.loads(b)
+
+
+s, g = at(APP4, '/hello')
+chk = Identity(create_keys=False)
+chk.load_public_key(ubinascii.unhexlify(g['pub']))
+check("/hello: the Stump's identity, a one-time code, its signature over code + LXMF address -- it checks out",
+      s == '200' and g['lxmf'] == stump.hexhash and g['hello'] == 'required'
+      and chk.validate(ubinascii.unhexlify(g['sig']), (g['nonce'] + g['lxmf']).encode()), g)
+s, r = at(APP4, '/hello', json.dumps({"pub": hx(phone.get_public_key()), "sig": "00" * 64, "name": "Mia"}).encode())
+check("... a wrong signature: refused, still not listed", s == '403' and r['hello'] == 'required'
+      and APP4 in rrc._hidden and 'Mia' not in everyone(), (s, r))
+s, g = at(APP4, '/hello')
+good = json.dumps({"pub": hx(phone.get_public_key()), "sig": hx(phone.sign(g['nonce'].encode())),
+                   "name": "Mia", "prefer": "lora"}).encode()
+s, r = at(APP4, '/hello', good)
+check("... the right one, with its name and 'prefer: lora': done in one exchange, one person 'Mia'",
+      s == '200' and r['hello'] == 'done' and r['nick'] == 'Mia' and r['lxmf'] == H4 and r['prefer'] == 'lora'
+      and everyone().count('Mia') == 1 and ('mesh-' + H4[:4]) not in everyone(), (r, everyone()))
+s, r = at(APP4, '/hello', good)
+check("... the same answer sent again (a replay): refused", s == '403', (s, r))
+send('/msg Mia via the radio', B1)
+check("it chose LoRa: a DM waits for LoRa even while it's on the Wi-Fi, not in its Wi-Fi inbox",
+      inbox(H4) == ['via the radio'] and inbox(APP4) == [], (inbox(H4), inbox(APP4)))
+s, g = at(APP4, '/hello')
+s, r = at(APP4, '/hello', json.dumps({"pub": hx(phone.get_public_key()), "sig": hx(phone.sign(g['nonce'].encode())),
+                                      "prefer": "wifi"}).encode())
+send('/msg Mia over wifi', B1)
+check("switched to Wi-Fi: DMs come over Wi-Fi, still one Mia", r['prefer'] == 'wifi' and inbox(APP4)[-1:] == ['over wifi']
+      and 'over wifi' not in inbox(H4) and everyone().count('Mia') == 1, (r, inbox(APP4), inbox(H4)))
+
 # ── A logged-in profile and the gate off ───────────────────────────────
 config.APP_HELLO = False
 APP3 = '192.168.4.62'

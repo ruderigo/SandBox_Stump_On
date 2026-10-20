@@ -315,6 +315,25 @@ def find_dm(client_id, dm_id):
 # example_node once its LXMF destination exists; reported in /rrc/poll.
 NODE = {}
 NODE_INFO = {}       # version and release, for /node.json (set at boot)
+NODE_IDENTITY = [None]   # this Stump's own identity (example_node), for /hello
+
+
+# The route a person chose in their app (/hello's "prefer"), like the
+# Stump's own USB / Bluetooth switch: "wifi" or "lora". LXMF address ->
+# choice. With "lora", DMs go over LoRa even while the phone is on this
+# Stump's Wi-Fi too (it's still listed once).
+_prefer = {}
+
+
+def set_prefer(lxmf_hex, how):
+    if lxmf_hex and how in ("wifi", "lora"):
+        _prefer[lxmf_hex] = how
+        while len(_prefer) > MAX_SAME:
+            _prefer.pop(next(iter(_prefer)))
+
+
+def prefer_of(lxmf_hex):
+    return _prefer.get(lxmf_hex, "wifi")
 
 
 def names_line(room, names):
@@ -819,6 +838,9 @@ def find_client_by_nick(nick):
     for table in (_users, _reachable):
         for cid, u in table.items():
             if u["nick"].lower() == low and cid not in _hidden:
+                lx = cid if _is_lxmf(cid) else lxmf_of(cid)
+                if lx and _prefer.get(lx) == "lora" and (lx in _reachable or lx in _users):
+                    return lx                    # they chose LoRa: reached there
                 return same_web(cid) or cid      # (on Wi-Fi now: reached there)
     return None
 
@@ -925,6 +947,7 @@ def reset():
     _reachable.clear()
     _same.clear()
     _hidden.clear()
+    _prefer.clear()
     del _renames[:]
     _stumps.clear()
     _dms.clear()

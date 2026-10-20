@@ -505,6 +505,27 @@ chose always beats a `guest-` or `mesh-` one, in both directions; change
 it in your app and your next announce renames you everywhere, with
 `"renamed": {"old": "new"}` in the poll so a client folds its threads.
 
+**The greeting in one exchange: `/hello`** (since 1.0.0-beta.32) -- what an
+app should use, inside its own connect handshake, invisible to the person.
+Both sides prove who they are:
+
+1. `GET /hello` -> `{"stump", "lxmf", "pub", "nonce", "sig", "hello"}`: this
+   Stump's name and LXMF address, its public key, a one-time code, and the
+   Stump's signature over `nonce + lxmf` (ASCII). Check it with `pub`, and
+   that `pub` is the identity you know from the Stump's announce or beacon:
+   you're talking to the real Stump.
+2. `POST /hello` with JSON `{"pub": <your public key, hex>, "sig": <your
+   signature over the nonce's hex string, ASCII>, "name": <the name the
+   person chose>, "prefer": "wifi" | "lora"}` -> `{"hello": "done", "nick",
+   "lxmf", "prefer"}`. A wrong or replayed signature: `403`. A name someone
+   else has: `"error": "name"` (pick another, or let the person).
+
+`prefer` is the person's route, a toggle in the app like the Stump's own
+USB / Bluetooth switch: with `"lora"`, DMs to them go over LoRa even while
+they're on this Stump's Wi-Fi too (they're listed once either way); with
+`"wifi"` (the default), over Wi-Fi while they poll. Send `/hello` again to
+change it. `/auth` + `/nick` as chat lines remain as a fallback.
+
 Browsers keep the Stump's cookie and aren't asked anything: they're
 guests, as before. A Stump's owner can switch the greeting off
 (`APP_HELLO = False` in config.py).

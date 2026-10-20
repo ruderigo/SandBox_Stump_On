@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.0-beta.32
+- **`/hello`: the greeting as one exchange, inside the app's own connect handshake** -- nothing for the person to press. Both sides prove who they are: `GET /hello` gives this Stump's identity, a one-time code and the Stump's signature over it (the app checks it's the real Stump); `POST /hello` gives the app's public key, its signature over the code, the person's name and their route. A wrong or replayed signature is refused.
+- **The person's route**: `"prefer": "wifi"` or `"lora"`, a toggle in the app like the Stump's USB / Bluetooth switch. With `"lora"`, DMs go over LoRa even while the phone is on the Stump's Wi-Fi too; listed once either way.
+- `identity_matrix` covers it: the Stump's signature checked, a bad and a replayed signature refused, the greeting done in one exchange, DMs following the chosen route and nowhere else.
+
 ## 1.0.0-beta.31
 - **One person, one name** (reported: the same FireFly was `guest-f678`, `guest-f678@macOS1`, `RodCell` and `RodCell@macOS1`, and only `guest-f678` reached it). The Stump had added its own layer over Reticulum -- Wi-Fi guests known by their address, and names passed between Stumps -- with no identity in it.
   - **The greeting.** An app (a client keeping no cookie, like FireFly) says who it is before it chats: `/auth`, then `/nick <its name>` (or `/auth` alone when its LoRa announce already gave the name). Until then it reads nothing, writes nothing, and isn't listed anywhere; `/rrc/poll` and `/rrc/send` say `"hello": "required"` / `"done"`. Browsers keep the cookie and stay guests. `APP_HELLO = False` in config.py switches it off.
