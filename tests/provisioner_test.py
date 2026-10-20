@@ -392,6 +392,12 @@ block = P._pc_config_block({"pc_hotspot_name": "x", "pc_heltec": "ble", "pc_helt
 check('pc: a new Stump with the Heltec over Bluetooth', "'type': 'RNodeBLEInterface'" in block
       and "'target': 'auto'" in block and "917112000" in block, block)
 P.list_serial_ports = saved_ports
+# Before every USB command to a board: its watchdog given 2 hours
+cmd = P._with_quiet_watchdog(["mpremote", "connect", "/dev/x", "fs", "cp", "a", ":b"])
+check('a USB command to a board: its watchdog given 2 hours first', cmd[3] == "exec"
+      and "WDT(timeout=7200000)" in cmd[4] and cmd[5:] == ["fs", "cp", "a", ":b"], cmd)
+check('... not before a reset, nor for other tools', P._with_quiet_watchdog(["mpremote", "connect", "/dev/x", "reset"])
+      == ["mpremote", "connect", "/dev/x", "reset"] and P._with_quiet_watchdog(["esptool.py", "x"]) == ["esptool.py", "x"])
 # macOS: the networks this Mac has joined, when it hides the ones around
 ports_txt = "Hardware Port: Ethernet\nDevice: en1\nEthernet Address: x\n\nHardware Port: Wi-Fi\nDevice: en0\nEthernet Address: y\n"
 pref_txt = "Preferred networks on en0:\n\tBob's Glitch\n\tLaBuche-Stump.web.app\n"

@@ -328,14 +328,14 @@ EXPECTED_FILE_HASHES = {
     "docs/PACKS.md": "2e89e3c28d80d72d",
     "docs/PC.md": "6f5e431869e8b075",
     "docs/PLUGINS.md": "3f5b4a5ee6844305",
-    "example_node.py": "0aab18d31e13d0f6",
+    "example_node.py": "186eae3a44390681",
     "features.py": "7fca96873d59d2d3",
     "flasher_ui.py": "1d3035b1132bc87e",
     "fserv.py": "7c3d8e4f9d3ce377",
     "fservbot/plugin.json": "4e0137362ff327d0",
     "guard.py": "7753686a5fecf21c",
     "i18n.py": "4c88d96911381ec9",
-    "keepalive.py": "d5837738ba322555",
+    "keepalive.py": "cd51c863a2284779",
     "layout.py": "fb82a2d1ed9f00da",
     "lib/bz2_fast_xtensawin.mpy": "ac55d9eda2126432",
     "lib/ed25519_fast_xtensawin.mpy": "96e74dac45f91687",
@@ -1957,8 +1957,27 @@ def install_cert(port, cert_path, key_path, host=None):
     return True
 
 
+# Before every command to a board over USB: its watchdog (keepalive.py,
+# 1.0.0-beta.26+) given 2 hours. A Stump stopped at the console disarms its
+# own, but a long session (the Tools copy: up to half an hour) must not
+# depend on that -- a reset mid-copy is "unexpected read during raw paste".
+# Left at the console afterwards, the board starts the Stump by itself
+# when the 2 hours are up. Harmless on a board without one (or where 2
+# hours is too long: caught).
+QUIET_WATCHDOG = ("try:\n import machine\n machine.WDT(timeout=7200000).feed()\n"
+                  "except Exception:\n pass")
+
+
+def _with_quiet_watchdog(cmd):
+    if (len(cmd) > 3 and cmd[0] == "mpremote" and cmd[1] == "connect"
+            and cmd[3] not in ("reset", "soft-reset", "repl", "bootloader")):
+        return cmd[:3] + ["exec", QUIET_WATCHDOG] + cmd[3:]
+    return cmd
+
+
 def run(cmd, **kwargs):
     """Run a subprocess, always returning (ok, stdout+stderr) instead of raising."""
+    cmd = _with_quiet_watchdog(cmd)
     try:
         result = subprocess.run(
             cmd, capture_output=True, text=True, timeout=kwargs.pop("timeout", 60), **kwargs

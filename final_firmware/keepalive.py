@@ -34,6 +34,12 @@ RESCUE_AFTER = 3
 RESCUE_RETRY_S = 1800
 RESCUE_WAIT_S = 600
 DEFAULT_WATCHDOG_S = 60
+# "Disarmed": the chip's watchdog can't be switched off, only given a long
+# time -- 2 hours (the Provisioner gives the same before each command).
+# Not the largest number possible: a huge one may overflow in the chip's
+# own settings and come out short. Left at the console, the board starts
+# the Stump by itself when it's up.
+DISARM_MS = 2 * 3600 * 1000
 
 _st = {"mode": "normal", "short": 0, "t0": None, "wdt": None, "lag_ms": 0, "last": None,
        "stable": False, "cause": None}
@@ -238,7 +244,7 @@ def disarm():
         return
     try:
         import machine
-        w = machine.WDT(timeout=0x7FFFFFFF)
+        w = machine.WDT(timeout=DISARM_MS)
         w.feed()
         _st["wdt"] = None
         print("[watchdog] disarmed (a stop at the console)")

@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.0.0-beta.29
+- Fixed: copying the Tools page's files to a CAM's card (up to half an hour) could be cut by the board's watchdog ("unexpected read during raw paste: b'E'"). The Provisioner now gives the board's watchdog 2 hours before every USB command, so no maintenance session depends on the Stump having disarmed its own. Left at the console afterwards, the board starts the Stump by itself when the 2 hours are up. The Stump's own disarm uses the same 2 hours (a huge value could come out short in the chip's settings).
+
 ## 1.0.0-beta.28
 - Fixed (beta.26's rescue start): uploading to a CAM could leave it in a rescue start -- no chain (so no `#wifi-mesh`), no radio, no plugins -- and pressing RST didn't bring it back. An upload's own stops (a Ctrl+C while the Stump was still starting) and a reset during it counted as failed starts. Now a stop at the console (Ctrl+C, the Provisioner) clears the count: the next start is always a normal one. A Stump already in a rescue start: /admin → **Start normally**.
 
