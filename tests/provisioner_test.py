@@ -414,6 +414,27 @@ check("... can't tell: kept (unknown)", P._board_config_state("/dev/x") == "unkn
 P.run = _run
 check("what a config.py sets, in one line", P._config_summary("NODE_NAME = 'LaBuche'\nCHAIN_ENABLED = True\n"
       "FEATURES = ['chat', 'about']\n") == "name 'LaBuche', chain on, features ['chat', 'about']")
+# Erasing a board's flash (a CAM or a Heltec)
+_run2, _ay2 = P.run, P.ask_yes_no
+seen = []
+P.run = lambda cmd, **k: (seen.append(cmd), (True, ""))[1]
+P.ask_yes_no = lambda *a, **k: False
+with contextlib.redirect_stdout(io.StringIO()):
+    r = P.erase_flash("/dev/cu.usbserial-0001", board="heltec")
+check("erase the flash: nothing without a yes", r is False and not seen, seen)
+P.ask_yes_no = lambda *a, **k: True
+with contextlib.redirect_stdout(io.StringIO()) as said:
+    r = P.erase_flash("/dev/cu.usbserial-0001", board="heltec")
+check("... a Heltec: esptool erase-flash on that port, and how to set it up again",
+      r and seen == [["esptool", "--port", "/dev/cu.usbserial-0001", "erase-flash"]]
+      and "A Heltec" in said.getvalue(), (seen, said.getvalue()[-300:]))
+seen.clear()
+with contextlib.redirect_stdout(io.StringIO()) as said:
+    P.erase_flash("/dev/cu.usbmodem1", board="cam")
+check("... a CAM: its config.py copied to this computer first, then erased",
+      len(seen) >= 2 and ":/config.py" in seen[0] and seen[-1][-1] == "erase-flash"
+      and "SD card" in said.getvalue(), seen)
+P.run, P.ask_yes_no = _run2, _ay2
 # Before every USB command to a board: its watchdog given 2 hours
 cmd = P._with_quiet_watchdog(["mpremote", "connect", "/dev/x", "fs", "cp", "a", ":b"])
 check('a USB command to a board: its watchdog given 2 hours first', cmd[3] == "exec"

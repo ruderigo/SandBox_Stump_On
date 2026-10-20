@@ -5,6 +5,7 @@
   - before every update the board's config.py is copied to this computer (`~/.provisioner/config_backups`, the newest 30);
   - the check looks for `/config.py` by its full path, and tells "a fresh board" from "a board a Stump ran on whose config.py is gone" (its identity, its start record...);
   - for the second, the folder's config.py is never copied without a yes: the last saved copy is offered first, and what each one sets is shown (name, chain, features).
+- The Provisioner can erase a board's whole flash, a CAM's or a Heltec's, to start it over (corrupted firmware, a board going to another use): Check or fix → **Erase a board's flash**, or `--erase-flash PORT`. It asks which board and for a yes, says what goes and how to set it up again, copies a CAM's config.py to this computer first, and walks through download mode if the board won't answer. A CAM's SD card isn't touched.
 
 ## 1.0.0-beta.29
 - Fixed: copying the Tools page's files to a CAM's card (up to half an hour) could be cut by the board's watchdog ("unexpected read during raw paste: b'E'"). The Provisioner now gives the board's watchdog 2 hours before every USB command, so no maintenance session depends on the Stump having disarmed its own. Left at the console afterwards, the board starts the Stump by itself when the 2 hours are up. The Stump's own disarm uses the same 2 hours (a huge value could come out short in the chip's settings).

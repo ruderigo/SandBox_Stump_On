@@ -22,6 +22,7 @@ Usage:
     python3 provisioner.py --scan          # just list connected boards
     python3 provisioner.py --diag PORT     # run diagnostics against a port
     python3 provisioner.py --wipe-sd PORT  # erase + reformat the CAM's SD card
+    python3 provisioner.py --erase-flash PORT  # erase a CAM's or a Heltec's whole flash (start over)
     python3 provisioner.py --upload-app PORT  # re-push app files without reflashing
     python3 provisioner.py --get-ip PORT   # look up the Stump's live AP IP
     python3 provisioner.py --version [PORT] # this folder's release, GitHub's, a CAM's
@@ -4389,6 +4390,53 @@ def sd_card_status(port):
     return False, out or "no response from board (is fserv.py uploaded to it?)", False
 
 
+def erase_flash(port, board=None):
+    """Erases a board's whole flash with esptool -- the CAM (ESP32-S3) or
+    the Heltec (also an ESP32-S3) -- to start it over cleanly: a board
+    whose firmware got corrupted, or one going to another use. Asks which
+    board and for a yes first; on a CAM, its config.py is copied to this
+    computer before (if it can be read). The CAM's SD card isn't touched.
+    True if erased."""
+    banner("ERASE A BOARD'S FLASH — %s" % port)
+    if board is None:
+        board = ask_choice("Which board is on %s?" % port, ["A Stump CAM", "A Heltec"])
+        board = "cam" if board and board.startswith("A Stump") else "heltec"
+    if board == "cam":
+        print("  Everything on the CAM's flash goes: MicroPython, the Stump, its identity")
+        print("  (a new one is made: it's a new node to the mesh), its settings, the chat")
+        print("  and billboard kept on flash. Its SD card -- files, tools -- isn't touched.")
+        print("  Afterwards: run the Provisioner, \"A Stump CAM\", to set it up again.")
+    else:
+        print("  Everything on the Heltec's flash goes: the RNode firmware, its radio")
+        print("  settings, and its Bluetooth pairing (forget it on the computer/phone too).")
+        print("  Afterwards: run the Provisioner, \"A Heltec...\", to install it again.")
+    if not ask_yes_no("  Erase %s now?" % port, False):
+        print("  Nothing erased.")
+        return False
+    if board == "cam":
+        try:
+            saved = _backup_board_config(port)
+        except Exception:
+            saved = None
+        if saved:
+            print("  Its config.py, copied to this computer first: %s" % saved)
+    print("  Erasing (about 30 s)...")
+    ok, out = run(["esptool", "--port", port, "erase-flash"], timeout=180)
+    if not ok and ("Failed to connect" in out or "No serial data received" in out or "Timed out" in out):
+        new_port = _bootloader_recovery(port)
+        if new_port:
+            port = new_port
+            print("  Retrying on %s ..." % port)
+            ok, out = run(["esptool", "--port", port, "erase-flash"], timeout=180)
+    if ok:
+        print("  " + green("Erased.") + " Unplug it and plug it back in, then set it up with the Provisioner.")
+        return True
+    print("  " + red("Not erased:") + " " + "\n    ".join(out.strip().splitlines()[-6:]))
+    print("  If it won't connect: a data USB cable (not power-only), and hold BOOT while")
+    print("  plugging it in (download mode).")
+    return False
+
+
 def wipe_sd_card(port, skip_confirmation=False, board_type=None):
     """
     Fully erases and reformats the card. This build's fserv.py has no
@@ -4825,6 +4873,7 @@ def fix_menu():
         ("Add a pack to a CAM", "pack"),
         ("Update the Tools page on a CAM's card", "tools"),
         ("Erase a CAM's SD card", "wipe"),
+        ("Erase a board's flash (a CAM or a Heltec): start it over", "erase"),
         ("Check the tools on this computer", "toolcheck"),
     ]
     box("Check or fix something", ["%d) %s" % (i, a) for i, (a, _) in enumerate(actions, 1)])
@@ -4865,6 +4914,8 @@ def fix_menu():
     elif what == "wipe":
         if ask_yes_no("This erases the card. Is this port a CAM?", False):
             wipe_sd_card(port, board_type="cam")
+    elif what == "erase":
+        erase_flash(port)
 
 
 def _ask_radio():
@@ -6259,6 +6310,12 @@ def main():
         folder = args[idx + 1] if idx + 1 < len(args) and not args[idx + 1].startswith("--") else None
         ok = setup_pc(folder, reconfigure="--reconfigure" in args)
         sys.exit(0 if ok else 1)
+    elif "--erase-flash" in args:
+        idx = args.index("--erase-flash")
+        if idx + 1 >= len(args):
+            print("Usage: provisioner.py --erase-flash PORT   (a CAM or a Heltec: everything on its flash)")
+            sys.exit(1)
+        sys.exit(0 if erase_flash(args[idx + 1]) else 1)
     elif "--upload-app" in args:
         idx = args.index("--upload-app")
         if idx + 1 >= len(args):
