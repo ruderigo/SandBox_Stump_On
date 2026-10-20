@@ -152,11 +152,15 @@ def note_crash(text):
     _save(d)
 
 
-def planned():
-    """A stop or restart someone asked for: not a failed start."""
+def planned(fresh=False):
+    """A stop or restart someone asked for: not a failed start. fresh: the
+    count of failed starts cleared too -- the next start is a normal one."""
     disarm()
     d = _load()
     d["planned"] = True
+    if fresh:
+        d["short"] = 0
+        d["mode"] = "normal"
     _save(d)
 
 
@@ -180,7 +184,10 @@ def console_stop():
                 continue
         for _ in range(3):
             try:
-                planned()
+                # Someone at the console (an upload, a fix): the next start
+                # is a normal one, whatever came before -- an upload's own
+                # stops and resets once added up to a rescue start.
+                planned(fresh=True)
                 break
             except KeyboardInterrupt:
                 continue

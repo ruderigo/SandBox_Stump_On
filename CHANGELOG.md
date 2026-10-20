@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.0.0-beta.28
+- Fixed (beta.26's rescue start): uploading to a CAM could leave it in a rescue start -- no chain (so no `#wifi-mesh`), no radio, no plugins -- and pressing RST didn't bring it back. An upload's own stops (a Ctrl+C while the Stump was still starting) and a reset during it counted as failed starts. Now a stop at the console (Ctrl+C, the Provisioner) clears the count: the next start is always a normal one. A Stump already in a rescue start: /admin → **Start normally**.
+
 ## 1.0.0-beta.27
 - Fixed (beta.26's watchdog): a CAM could reset in the middle of `--upload-app`. mpremote sends Ctrl+C twice; the second could land while the Stump was stopping and skip disarming the watchdog, which then reset the board a minute later. The watchdog is now disarmed first, with Ctrl+C held off while it is, and again by boot_common if a Ctrl+C gets past the node. Every start's log says why the board last reset (`[watchdog] last reset: ...`).
 - **Uploads, fair to everyone** (the third step of hardening for the pentest). One visitor (one address) can't hog a Stump:

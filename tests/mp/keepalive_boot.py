@@ -86,4 +86,16 @@ check("... early on, it's a failed start, and the reason says the watchdog",
 W._st["lag_ms"] = 0
 W.check(late=2500)
 check("how late the loop ran: kept for /admin", W.status()["lag_ms"] == 2500)
+# Into a rescue start, then someone at the console (an upload): the next
+# start is a normal one.
+try:
+    __import__('os').remove(W.STATE_FILE)
+except OSError:
+    pass
+for _ in range(W.RESCUE_AFTER + 1):
+    W.begin()
+check("(a rescue start)", W.mode() == "rescue")
+W.console_stop()
+check("a stop at the console (Ctrl+C, the Provisioner): the next start is a normal one",
+      W.begin() == "normal" and W.status()["failed_starts"] == 0, W.status())
 print('FAILURES:', FAIL)
