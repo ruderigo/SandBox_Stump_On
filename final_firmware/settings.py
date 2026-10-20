@@ -321,6 +321,11 @@ def restart():
     """Starts this Stump again: the board resets; on a computer, the
     process ends with RESTART_CODE and its supervisor starts it again."""
     try:
+        import keepalive
+        keepalive.planned()          # not a failed start
+    except Exception:
+        pass
+    try:
         import stump_host
         stump_host.restart()
         return

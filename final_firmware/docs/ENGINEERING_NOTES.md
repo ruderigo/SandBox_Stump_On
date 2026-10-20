@@ -1481,6 +1481,47 @@ its radio connects and answers a Stump it hears for the first time, and
 a batch titled `#lora-mesh`/`#wifi-mesh` or a `[DM>` line marks its
 sender as a Stump on any link.
 
+## Staying alive: the watchdog and the rescue start (keepalive.py)
+
+A field Stump has nobody at its console. Before 1.0.0-beta.26, a Stump
+that froze stayed frozen until someone pulled the plug, and one that
+failed to start three times sat idle at the REPL for good
+(boot_common.py) -- right at a desk, wrong in a field.
+
+- **The watchdog.** `keepalive.loop()`, one of the loop's tasks, beats
+  every `FEED_S` (5 s). On the CAM it feeds the chip's watchdog
+  (`machine.WDT`, armed when the loop starts, `WATCHDOG_S` = 60 by
+  default): a loop stopped that long resets the board. A planned stop at
+  the console (Ctrl+C, the Provisioner) disarms it -- the chip's watchdog
+  can't be switched off, only given a very long timeout -- so an upload
+  at the REPL isn't cut by a reset. On a computer the beat touches
+  `.heartbeat` in the folder (`stump_host.heartbeat`: time and pid), and
+  the supervisor (`stump_pc.py --service`, `_wait_watched`) kills and
+  restarts a child whose heartbeat is older than `WATCHDOG_S`, telling
+  the next start (`"wd"` in `boot_state.json`). Before the first beat a
+  start is left alone. The loop's longest late wake-up is kept
+  (`status()["lag_ms"]`) and logged past 2 s.
+- **Failed starts.** `keepalive.begin()`, first thing in `main()`, reads
+  `/boot_state.json`: a previous run that never reached `STABLE_S` (120 s)
+  and wasn't a planned stop (`keepalive.planned()`: Ctrl+C, /admin's
+  Restart and Turn off) was a failed start -- a crash (its error kept by
+  `note_crash`, from boot_common or stump_pc), a hang the watchdog ended,
+  or the power. A start that reaches `STABLE_S` clears the count.
+- **The rescue start.** `RESCUE_AFTER` (3) failed starts in a row: no
+  radio interfaces, no chain, no plugins -- the access point, the pages
+  and /admin, whose password is then read from config.py
+  (`AUTH_ADMIN_PASSWORD`, else `FSERVBOT_OP_PASSWORD`, fail-closed) since
+  stumpid isn't loaded. /admin shows why, with "Start normally";
+  `/node.json` says `"mode": "rescue"`. After `RESCUE_RETRY_S` (30 min) it
+  tries a normal start by itself. If the rescue starts fail too (twice
+  `RESCUE_AFTER` in a row), it waits `RESCUE_WAIT_S` (10 min) and starts
+  from scratch. It never stops trying -- except for a missing module (an
+  incomplete upload, which no restart fixes): idle at the REPL, as before.
+
+The module is `keepalive`, not `watchdog`: a computer may have the
+`watchdog` package (a file watcher) installed, and a missing firmware
+file would have imported that instead.
+
 ## Connections: deadlines and limits (conn.py)
 
 One uasyncio loop serves every visitor. A connection waiting on the

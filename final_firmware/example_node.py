@@ -34,7 +34,7 @@ except ImportError:
 STUMP_VERSION = "Beta A"
 # The exact release (a git tag "v" + this, built and signed by
 # .github/workflows/release.yml, which refuses a tag that doesn't match).
-STUMP_RELEASE = "1.0.0-beta.25"
+STUMP_RELEASE = "1.0.0-beta.26"
 
 # Node-type beacon: a second destination on this node's own identity,
 # aspect "stump.node", so clients can tell a Stump from a person without
@@ -323,11 +323,16 @@ def main():
     print("Project Stump -- %s (%s)" % (STUMP_VERSION, STUMP_RELEASE))
     print("=" * 46)
 
+    # Normal start, or a rescue start after failed ones (keepalive.py): no
+    # radio, no chain, no plugins -- its Wi-Fi, the pages and /admin.
+    import keepalive
+    RESCUE = keepalive.begin() == "rescue"
+
     ip = None
     # A chain of Stumps over Wi-Fi (chain.py, docs/CHAIN.md): a member
     # Stump's station joins the Stump before it instead of WIFI_SSID.
     import chain
-    CHAIN = chain.settings()
+    CHAIN = None if RESCUE else chain.settings()
     chain_sta_ip = chain_parent_ip = None
     if CHAIN and CHAIN["uplink_ssid"]:
         try:
@@ -384,7 +389,8 @@ def main():
     # nothing, and ran on its defaults until the next reboot -- every
     # reboot.
     fserv.mount_sd()
-    load_plugins()
+    if not RESCUE:
+        load_plugins()
     # Move any flash-stored billboard onto the card now that it's
     # mounted, so posts written before a card was fitted aren't
     # stranded on flash and replaced by an empty SD-backed board.
@@ -419,6 +425,9 @@ def main():
     log_map = {0: LOG_NONE, 1: LOG_NONE, 2: LOG_DEBUG}
     rns = Reticulum(loglevel=log_map.get(DEBUG, LOG_NOTICE))
     rns.config = CONFIG
+    if RESCUE:
+        rns.config = dict(CONFIG)
+        rns.config["interfaces"] = []        # the radio may be what fails
 
     dest, router = setup_node(rns, NODE_NAME)
     # Before any interface is up: announces heard in the first seconds
@@ -602,6 +611,7 @@ def main():
     _original_run = rns.run
 
     async def run_with_reannounce():
+        asyncio.create_task(keepalive.loop())
         asyncio.create_task(initial_announce())
         asyncio.create_task(reannounce_loop())
         if beacon is not None:
@@ -665,7 +675,9 @@ def main():
         asyncio.run(run_with_reannounce())
     except KeyboardInterrupt:
         # Stopped on purpose (Ctrl+C, the provisioner): not a crash, so
-        # the next boot shouldn't start in plugin safe mode.
+        # the next boot shouldn't start in plugin safe mode -- nor count
+        # as a failed start, nor be reset by the watchdog mid-upload.
+        keepalive.planned()
         try:
             import plugins
             plugins.clear_marker()
