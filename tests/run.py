@@ -56,6 +56,7 @@ TESTS = [
     ("conn_limits", "assert", []),
     ("same_person", "assert", []),
     ("keepalive_boot", "assert", []),
+    ("upload_fair", "assert", []),
 ]
 
 _NORM = [

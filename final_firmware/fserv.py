@@ -47,6 +47,7 @@
 import uasyncio as asyncio
 import ujson as json
 import os
+import time
 
 import billboard
 
@@ -86,6 +87,114 @@ AWAITING_FILE = SD_MOUNT + "/fserv_awaiting.json"
 # is never fighting the FAT allocator over the last few blocks.
 MAX_SD_RATIO = 0.75
 DRAIN_MAX = 2 * 1024 * 1024   # a refused upload: read at most this much of it (drain())
+
+# Uploads, fair to everyone (the second step of hardening for the
+# pentest). One visitor -- one address -- can't hog the Stump:
+#   - one upload at a time;
+#   - UPLOAD_FILES_PER_HOUR files an hour;
+#   - UPLOAD_DAY_SHARE of the card's usable room a day (on a free Stump
+#     nothing else stops someone pushing everyone's files out);
+#   - all uploads together at most UPLOAD_MAX_BPS (bytes/s; 0: no cap),
+#     split evenly between those going on: one big upload can't take all
+#     of the CAM's Wi-Fi airtime. On a computer, no cap by default.
+# A file shared in the last FRESH_S is never pushed out to make room for
+# someone else's (507 instead), and a name already taken gets " (2)"
+# rather than replacing what someone shared. Each can be set in config.py.
+UPLOAD_FILES_PER_HOUR = 30
+UPLOAD_DAY_SHARE = 0.25
+FRESH_S = 3600
+_UPLOAD_BPS_CAM = 300 * 1024
+
+
+def _cfg(key, default):
+    try:
+        import config
+        v = getattr(config, key, None)
+    except ImportError:
+        v = None
+    return default if v is None else v
+
+
+def upload_max_bps():
+    try:
+        import stump_host  # noqa: F401
+        default = 0
+    except ImportError:
+        default = _UPLOAD_BPS_CAM
+    return int(_cfg("UPLOAD_MAX_BPS", default))
+
+
+_up_active = {}       # address -> uploads going on
+_up_log = {}          # address -> [[time, bytes]] of the last day's uploads
+_UP_MAX_KEYS = 64
+
+
+def _up_recent(key, now):
+    log = [e for e in _up_log.get(key, []) if now - e[0] < 86400]
+    if log:
+        _up_log[key] = log
+    else:
+        _up_log.pop(key, None)
+    return log
+
+
+def upload_gate(key, length, now=None):
+    """Before an upload from `key` (an address) of `length` bytes is read:
+    None if it may go ahead, else (status, code, i18n key, params)."""
+    now = time.time() if now is None else now
+    if _up_active.get(key, 0) >= 1:
+        return ("429 Too Many Requests", "one_at_a_time", "upload_one_at_a_time", {})
+    log = _up_recent(key, now)
+    if sum(1 for e in log if now - e[0] < 3600) >= int(_cfg("UPLOAD_FILES_PER_HOUR", UPLOAD_FILES_PER_HOUR)):
+        return ("429 Too Many Requests", "too_many", "upload_too_many",
+                {"n": int(_cfg("UPLOAD_FILES_PER_HOUR", UPLOAD_FILES_PER_HOUR))})
+    total, _, _ = get_storage_stats()
+    if length > total * MAX_SD_RATIO:
+        return None            # bigger than the whole card: "full" (507) says it better
+    room = int(total * MAX_SD_RATIO * float(_cfg("UPLOAD_DAY_SHARE", UPLOAD_DAY_SHARE)))
+    if total and sum(e[1] for e in log) + length > room:
+        return ("429 Too Many Requests", "quota", "upload_quota", {"mb": room // (1024 * 1024)})
+    return None
+
+
+def upload_start(key):
+    _up_active[key] = _up_active.get(key, 0) + 1
+
+
+def upload_end(key, written, now=None):
+    n = _up_active.get(key, 0) - 1
+    if n > 0:
+        _up_active[key] = n
+    else:
+        _up_active.pop(key, None)
+    if written:
+        _up_log.setdefault(key, []).append([time.time() if now is None else now, written])
+        while len(_up_log) > _UP_MAX_KEYS:
+            _up_log.pop(next(iter(_up_log)))
+
+
+def uploads_now():
+    return sum(_up_active.values())
+
+
+def free_name(directory, fname):
+    """fname, or "name (2).ext", "name (3).ext"... if it's taken: an upload
+    never replaces a file someone else shared."""
+    def taken(n):
+        try:
+            os.stat(directory + "/" + n)
+            return True
+        except OSError:
+            return False
+    if not taken(fname):
+        return fname
+    dot = fname.rfind(".")
+    base, ext = (fname[:dot], fname[dot:]) if dot > 0 else (fname, "")
+    for i in range(2, 1000):
+        n = "%s (%d)%s" % (base, i, ext)
+        if not taken(n):
+            return n
+    return fname
 
 # Credit weight per file class -- now operator-configurable via config.py
 # rather than edited here. The fallbacks below keep this module working
@@ -349,7 +458,7 @@ def mark_awaiting(hash_hex, note=""):
     return True
 
 
-async def stream_to_file(reader, dest, length, chunk=16384):
+async def stream_to_file(reader, dest, length, chunk=16384, max_bps=None):
     """
     Streams `length` bytes from an open socket reader straight into a
     file on the SD card, `chunk` bytes at a time -- the upload never
@@ -375,6 +484,7 @@ async def stream_to_file(reader, dest, length, chunk=16384):
     Returns (ok, bytes_written).
     """
     written = 0
+    t0 = time.ticks_ms() if hasattr(time, "ticks_ms") else int(time.time() * 1000)
     try:
         with open(dest, "wb") as f:
             # Accumulate into a buffer and flush in large blocks rather
@@ -399,6 +509,18 @@ async def stream_to_file(reader, dest, length, chunk=16384):
                 if len(buf) >= chunk:
                     f.write(buf)
                     buf = bytearray()
+                    cap = upload_max_bps() if max_bps is None else max_bps
+                    if cap:
+                        # Its share of the cap: reading slower makes the
+                        # sender slow down (TCP), and the airtime is shared.
+                        share = cap // max(1, uploads_now())
+                        due = written * 1000 // max(1, share)
+                        try:
+                            spent = time.ticks_diff(time.ticks_ms(), t0)
+                        except AttributeError:
+                            spent = int(time.time() * 1000) - t0
+                        if due > spent:
+                            await asyncio.sleep(min(2000, due - spent) / 1000)
             if buf:
                 f.write(buf)
     except Exception as e:
@@ -926,6 +1048,15 @@ def make_room_fifo(incoming_length):
         except OSError:
             continue
     entries.sort(key=lambda e: e[0])   # oldest mtime first
+
+    # Shared in the last FRESH_S: not pushed out for someone else's upload
+    # (one visitor flooding the card can't wipe what was just shared). A
+    # time in the future -- the board's clock started again from 2000
+    # after a power cut, with no network time -- doesn't count as fresh,
+    # or nothing could ever make room.
+    now = time.time()
+    fresh = int(_cfg("FRESH_S", FRESH_S))
+    entries = [e for e in entries if not (0 <= now - e[0] < fresh)]
 
     for mtime, size, path in entries:
         try:

@@ -90,9 +90,27 @@ def _reset_cause():
     return None
 
 
+def _say_reset():
+    """The serial log says why the board last reset (the CAM)."""
+    try:
+        import machine
+        c = machine.reset_cause()
+    except Exception:
+        return
+    names = {}
+    for n in ("PWRON_RESET", "HARD_RESET", "WDT_RESET", "DEEPSLEEP_RESET", "SOFT_RESET"):
+        v = getattr(machine, n, None)
+        if v is not None:
+            names[v] = {"PWRON_RESET": "power on / USB", "HARD_RESET": "reset button",
+                        "WDT_RESET": "THE WATCHDOG", "DEEPSLEEP_RESET": "deep sleep",
+                        "SOFT_RESET": "soft reset"}[n]
+    print("[watchdog] last reset: %s (code %s)" % (names.get(c, "?"), c))
+
+
 def begin():
     """At the start of every start: was the last run a failure? Returns
     "normal" or "rescue" (and may wait first: see the top)."""
+    _say_reset()
     d = _load()
     short = int(d.get("short", 0) or 0)
     last = d.get("last")                      # the last failure, as /admin says it
@@ -136,10 +154,42 @@ def note_crash(text):
 
 def planned():
     """A stop or restart someone asked for: not a failed start."""
+    disarm()
     d = _load()
     d["planned"] = True
     _save(d)
-    disarm()
+
+
+def console_stop():
+    """Ctrl+C at the console (the Provisioner, mpremote): the watchdog
+    disarmed FIRST, before anything slow -- mpremote sends Ctrl+C twice,
+    and a second one landing mid-way used to skip the disarm, so the board
+    reset a minute into the upload. Ctrl+C is held off while this runs, and
+    the disarm retried if one still gets through."""
+    try:
+        import micropython
+        micropython.kbd_intr(-1)
+    except Exception:
+        pass
+    try:
+        for _ in range(5):
+            try:
+                disarm()
+                break
+            except KeyboardInterrupt:
+                continue
+        for _ in range(3):
+            try:
+                planned()
+                break
+            except KeyboardInterrupt:
+                continue
+    finally:
+        try:
+            import micropython
+            micropython.kbd_intr(3)
+        except Exception:
+            pass
 
 
 def mode():
@@ -181,11 +231,14 @@ def disarm():
         return
     try:
         import machine
-        _st["wdt"] = machine.WDT(timeout=0x7FFFFFFF)
-        _st["wdt"].feed()
-    except Exception:
-        pass
-    _st["wdt"] = None
+        w = machine.WDT(timeout=0x7FFFFFFF)
+        w.feed()
+        _st["wdt"] = None
+        print("[watchdog] disarmed (a stop at the console)")
+    except KeyboardInterrupt:
+        raise
+    except Exception as e:
+        print("[watchdog] couldn't disarm:", e)
 
 
 def _beat():

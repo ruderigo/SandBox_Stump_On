@@ -52,7 +52,7 @@ os.makedirs(folder)
 P._pc_copy_firmware(P.STUMP_APP_DIR, folder)
 cfg = open(os.path.join(ROOT, "tests", "config.py"), encoding="utf-8").read()
 cfg += P._pc_config_block({"pc_hotspot_name": "x", "pc_heltec": "none"})
-cfg += "\nPC_HTTP_PORT = %d\nPC_HOTSPOT_IP = %r\nPC_STORAGE_MB = 2\n" % (PORT, IP)
+cfg += "\nPC_HTTP_PORT = %d\nPC_HOTSPOT_IP = %r\nPC_STORAGE_MB = 2\nFRESH_S = 0\nUPLOAD_DAY_SHARE = 10\n" % (PORT, IP)
 open(os.path.join(folder, "config.py"), "w", encoding="utf-8").write(cfg)
 
 # In process first: the quota, the disk, no recursion.

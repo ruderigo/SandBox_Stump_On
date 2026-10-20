@@ -34,7 +34,7 @@ except ImportError:
 STUMP_VERSION = "Beta A"
 # The exact release (a git tag "v" + this, built and signed by
 # .github/workflows/release.yml, which refuses a tag that doesn't match).
-STUMP_RELEASE = "1.0.0-beta.26"
+STUMP_RELEASE = "1.0.0-beta.27"
 
 # Node-type beacon: a second destination on this node's own identity,
 # aspect "stump.node", so clients can tell a Stump from a person without
@@ -677,7 +677,7 @@ def main():
         # Stopped on purpose (Ctrl+C, the provisioner): not a crash, so
         # the next boot shouldn't start in plugin safe mode -- nor count
         # as a failed start, nor be reset by the watchdog mid-upload.
-        keepalive.planned()
+        keepalive.console_stop()
         try:
             import plugins
             plugins.clear_marker()

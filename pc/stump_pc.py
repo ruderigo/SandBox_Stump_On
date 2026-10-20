@@ -109,7 +109,9 @@ def _stop_on_sigterm():
         # Raised inside a finalizer (__del__, a weakref callback), the
         # KeyboardInterrupt is only printed ("Exception ignored") and the
         # Stump keeps running: try again a moment later instead.
-        if frame is not None and frame.f_code.co_name in ("__del__", "_remove", "_callback"):
+        if frame is not None and (frame.f_code.co_name in ("__del__", "_remove", "_callback", "remove",
+                                                          "_atomic_removal")
+                                  or frame.f_code.co_filename.endswith(("weakref.py", "_weakrefset.py"))):
             import os
             import threading
             threading.Timer(0.05, os.kill, (os.getpid(), signum)).start()

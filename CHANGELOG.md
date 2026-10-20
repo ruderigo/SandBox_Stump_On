@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.0.0-beta.27
+- Fixed (beta.26's watchdog): a CAM could reset in the middle of `--upload-app`. mpremote sends Ctrl+C twice; the second could land while the Stump was stopping and skip disarming the watchdog, which then reset the board a minute later. The watchdog is now disarmed first, with Ctrl+C held off while it is, and again by boot_common if a Ctrl+C gets past the node. Every start's log says why the board last reset (`[watchdog] last reset: ...`).
+- **Uploads, fair to everyone** (the third step of hardening for the pentest). One visitor (one address) can't hog a Stump:
+  - one upload at a time (`429`, `one_at_a_time`);
+  - 30 files an hour (`too_many`; `UPLOAD_FILES_PER_HOUR`);
+  - a quarter of the card's room a day (`quota`; `UPLOAD_DAY_SHARE`) -- on a free Stump nothing else stopped someone pushing everyone's files out;
+  - on the CAM, all uploads together at most 300 KB/s, split evenly between those going on (`UPLOAD_MAX_BPS`; no cap on a computer): one video can't take all the Wi-Fi's airtime;
+  - a file shared in the last hour is never pushed out to make room for someone else's (`FRESH_S`) -- a clock restarted at 2000 after a power cut doesn't make every file "fresh";
+  - a name already shared isn't replaced any more: the new file is kept as `name (2).ext`. Before, anyone could swap someone's shared file for another.
+- Test: `upload_fair` (the board's MicroPython: each limit, the eviction rule, the speed cap and its split).
+- The supervisor's stop on a computer: a stop landing in a weak-reference clean-up is retried too (it was swallowed, now and then, on macOS).
+
 ## 1.0.0-beta.26
 - **A Stump that stops responding restarts by itself** (keepalive.py; the second step of hardening for the pentest). On the CAM, the chip's watchdog: if the Stump's loop stops for 60 s, the board resets. On a computer, the Stump writes a heartbeat file every 5 s and its supervisor (the Start file, start at login) restarts it when the heartbeat stops for 60 s. `WATCHDOG_S` in config.py (0: off). A stop at the console (Ctrl+C, the Provisioner) switches the CAM's watchdog off, so an upload isn't cut short.
 - **A Stump that keeps failing to start comes back in a rescue start** instead of sitting idle: after 3 failed starts in a row (a crash, a hang, a power cut before it was up for 2 minutes; a planned restart doesn't count), it starts without its radio, the chain or plugins -- its Wi-Fi, the pages and /admin. /admin says what failed, with **Start normally**; it tries a normal start by itself after 30 minutes, and if even the rescue start keeps failing, it rests 10 minutes and starts from scratch. It never gives up -- except on a missing module (an incomplete upload), where it stays idle at the console with the message, as before. In a rescue start, /admin takes the password from config.py (the identity plugin isn't loaded).

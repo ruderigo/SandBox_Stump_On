@@ -1029,7 +1029,10 @@ codes:
 | `200` | — | `{"ok": true, "name", "size", "slot", "balance", "message"}` — `name` is the stored (sanitized) name; `balance` is `null` with credits off or for a slot delivery; `"warning": "bookkeeping"` if the file is saved but the balance couldn't be updated |
 | `400` | `no_filename` / `empty` | No `X-Filename`, or an empty body |
 | `503` | `no_card` | No SD card mounted |
-| `507` | `full` | Card at its 75% ceiling with nothing evictable |
+| `507` | `full` | Card at its 75% ceiling with nothing evictable (files shared in the last hour aren't pushed out for someone else's) |
+| `429` | `one_at_a_time` | Another upload from your address is still going: one at a time (since 1.0.0-beta.27) |
+| `429` | `too_many` | 30 files from your address in the last hour |
+| `429` | `quota` | Your address's share of the card for the day (a quarter of its room) |
 | `500` | `interrupted` | Connection dropped mid-upload; nothing kept. Adds `received` and `expected` byte counts |
 
 **Any request, any address: `503` with `Retry-After: 2` and the body
@@ -1040,6 +1043,11 @@ six per address). A connection that goes quiet is closed: the request
 line and headers must arrive within 10 s (3 s when the Stump is busy), and
 a body or download where nothing moves for 15 s is let go -- an upload
 cut that way keeps nothing, like any interrupted one.
+
+A name already shared isn't replaced: the upload is kept as `name (2).ext`,
+and `name` in the answer says which (since 1.0.0-beta.27). On a CAM, all
+uploads together are held to about 300 KB/s, shared between those going
+on -- a big file takes longer, nobody else's chat stalls.
 
 Every JSON answer has `ok` and a human `message`; act on `error`. **Non-ASCII names: percent-encode them.** A header carries only Latin-1,
 so send the name as `encodeURIComponent(name)` (percent-encoded UTF-8) with

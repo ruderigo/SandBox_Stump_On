@@ -4348,6 +4348,12 @@ async def _serve(reader, writer, secure=False):
                 await _result(writer, as_json, "503 Service Unavailable", "no_card", "No card in the slot right now.")
             elif length <= 0:
                 await _result(writer, as_json, "400 Bad Request", "empty", "Empty upload.")
+            elif fserv.upload_gate(guard._k(identifier), length):
+                # One visitor's share (fserv: one at a time, files an
+                # hour, room a day): told why, nothing read.
+                st, code, key, params = fserv.upload_gate(guard._k(identifier), length)
+                await fserv.drain(reader, length)
+                await _result(writer, as_json, st, code, i18n.t(key, i18n.get_lang(identifier), **params))
             elif not fserv.make_room_fifo(length):
                 # Checked (and, if needed, evicted the oldest shared
                 # files to make room) BEFORE reading a single byte of
@@ -4368,9 +4374,18 @@ async def _serve(reader, writer, secure=False):
                 if is_slot:
                     dest = fserv.SD_MOUNT + "/slot_" + hash_hex + "_" + fname
                 else:
+                    # A name already shared: "name (2).ext", never a
+                    # replacement of someone else's file.
+                    fname = fserv.free_name(fserv.SHARED_DIR, fname)
                     dest = fserv.SHARED_DIR + "/" + fname
 
-                ok, written = await fserv.stream_to_file(reader, dest, length)
+                who = guard._k(identifier)
+                fserv.upload_start(who)
+                written = 0
+                try:
+                    ok, written = await fserv.stream_to_file(reader, dest, length)
+                finally:
+                    fserv.upload_end(who, written if written >= length else 0)
 
                 if not ok:
                     await _result(writer, as_json, "500 Internal Server Error", "interrupted",

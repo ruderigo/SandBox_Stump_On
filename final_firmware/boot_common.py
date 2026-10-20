@@ -59,6 +59,13 @@ def boot_with_retry(module_name):
         __import__(module_name)
         _clear_count()
     except KeyboardInterrupt:
+        # Ctrl+C that got past the node's own handler (a second one, mid
+        # clean-up): the watchdog must still be disarmed before the REPL.
+        try:
+            import keepalive
+            keepalive.console_stop()
+        except Exception:
+            pass
         raise
     except Exception as e:
         print()
