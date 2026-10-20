@@ -22,7 +22,7 @@
   no card -> {"files": [], "sections": [], "sd": false, "apps": []}
 == GET /node.json
    200 OK application/json; charset=utf-8
-   keys: ['ap_ip', 'chain', 'features', 'lxmf', 'name', 'release', 'version']
+   keys: ['ap_ip', 'chain', 'features', 'lxmf', 'mode', 'name', 'release', 'version']
     TestStump 53d91d2f00000000000000000000e48e Beta A 1.0.0-beta.2 192.168.4.1 None ['chat', 'billboard', 'files', 'about']
    joined the chat: False
    chat off -> 200 OK ['billboard']

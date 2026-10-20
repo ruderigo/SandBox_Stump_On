@@ -28,6 +28,7 @@ import settings as stump_settings
 import profiles
 import guard     # ("settings" is a local name in places here)
 import conn      # the connections' deadlines and limits
+import keepalive  # a rescue start, the watchdog's last restart
 import propagation
 import stump_tls as tls  # not "tls": MicroPython has a built-in module by that name
 import flasher_ui
@@ -1010,6 +1011,15 @@ def _check_admin_pw_now(pw):
     admin route still exists and refuses.""" 
     ident = plugins.service_lookup("identity")
     if ident is None:
+        if keepalive.mode() == "rescue":
+            # A rescue start loads no plugins: the same passwords, read
+            # where stumpid and fservbot read them (config.py), fail-closed.
+            try:
+                import config
+                want = getattr(config, "AUTH_ADMIN_PASSWORD", "") or getattr(config, "FSERVBOT_OP_PASSWORD", "")
+            except ImportError:
+                want = ""
+            return bool(want) and pw == want
         return False
     try:
         return bool(ident.check_admin_password(pw))
@@ -1343,6 +1353,7 @@ def _render_admin_file_list_page(lang, names, pw):
         "<div class='admin-head'><h1>" + T("admin_header") + "</h1>"
         + _admin_logout_form(lang, pw) + "</div>"
         + _release_line()
+        + _render_admin_health(lang, pw)
         + _admin_tiles(lang, hw, radio_cur, ch, len(names))
         + _group(T("admin_group_air"), on_air)
         + _group(T("admin_group_content"), content)
@@ -1980,10 +1991,34 @@ def _render_admin_restart_form(lang, pw):
 
 
 async def _restart_soon():
-    """After the answer has gone out: start the Stump again."""
+    """After the answer has gone out: start the Stump again (from a rescue
+    start: a normal start, which is what restarting it is asked for)."""
     import uasyncio as asyncio
     await asyncio.sleep(1)
+    if keepalive.mode() == "rescue":
+        keepalive.try_normal()          # (restarts it)
+        return
     stump_settings.restart()
+
+
+def _render_admin_health(lang, pw):
+    """At the top of /admin: a rescue start (what failed, when a normal
+    start is tried again, the button to try it now), or a note that the
+    watchdog restarted the Stump. Nothing when all is well."""
+    T = lambda k, **kw: i18n.t(k, lang, **kw)
+    st = keepalive.status()
+    esc = billboard._esc
+    if st["mode"] == "rescue":
+        return ("<div class='panel rescue'><h2 class='sub'>" + T("admin_rescue_header") + "</h2>"
+                "<p class='sub'>" + T("admin_rescue_text", n=st["failed_starts"],
+                                      why=esc(str(st["last_failure"] or "?")),
+                                      min=(st["retry_in_s"] or 0) // 60 + 1) + "</p>"
+                + _render_admin_restart_form(lang, pw).replace(
+                    T("admin_setup_restart") + "</button>", T("admin_rescue_try") + "</button>")
+                + "</div>")
+    if st["cause"] == "watchdog":
+        return "<p class='sub'><b>" + T("admin_watchdog_note") + "</b></p>"
+    return ""
 
 
 async def _power_off_soon():
@@ -4112,6 +4147,9 @@ async def _serve(reader, writer, secure=False):
             st = chain.status()
             info["chain"] = st if st.get("enabled") else None
             info["features"] = [f for f in features.ALL if features.enabled(f)]
+            # "rescue": a rescue start after failed ones (keepalive.py) --
+            # no radio, no chain, no plugins for now.
+            info["mode"] = keepalive.mode()
             # The radio settings, when this Stump has a radio: every node of
             # a mesh needs the same ones (the Provisioner copies them).
             cur = radio.current()

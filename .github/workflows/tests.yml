@@ -102,3 +102,5 @@ jobs:
         run: python tests/pc/storage_test.py
       - name: Connections that hold the Stump (slow, silent, endless)
         run: python tests/pc/conn_test.py
+      - name: The watchdog and the rescue start (a frozen Stump, failed starts)
+        run: python tests/pc/watchdog_test.py

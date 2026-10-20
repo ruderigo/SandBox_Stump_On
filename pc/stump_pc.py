@@ -53,7 +53,18 @@ def main():
     print("[stump] on a computer: %s, Python %s" % (sys.platform, sys.version.split()[0]))
     print("[stump] folder: " + HERE)
     print("[stump] visitors reach it at http://%s/" % stump_host.hotspot_ip())
-    import example_node  # noqa: F401  -- the node itself, exactly as on the board
+    try:
+        import example_node  # noqa: F401  -- the node itself, exactly as on the board
+    except KeyboardInterrupt:
+        raise
+    except BaseException as e:
+        # Kept for /admin's next start (keepalive.py): what made it stop.
+        try:
+            import keepalive
+            keepalive.note_crash("%s: %s" % (type(e).__name__, e))
+        except Exception:
+            pass
+        raise
 
 
 LOG = os.path.join(HERE, "stump.log")
@@ -88,7 +99,13 @@ def _stop_on_sigterm():
     handled like Ctrl-C so the radio is switched off first."""
     import signal
 
+    stopping = []
+
     def stop(signum, frame):
+        # Once is enough: a second stop while it's already stopping would
+        # interrupt the clean-up itself (asyncio cancelling its tasks).
+        if stopping:
+            return
         # Raised inside a finalizer (__del__, a weakref callback), the
         # KeyboardInterrupt is only printed ("Exception ignored") and the
         # Stump keeps running: try again a moment later instead.
@@ -97,11 +114,73 @@ def _stop_on_sigterm():
             import threading
             threading.Timer(0.05, os.kill, (os.getpid(), signum)).start()
             return
+        stopping.append(1)
         raise KeyboardInterrupt
     try:
         signal.signal(signal.SIGTERM, stop)
     except (ValueError, AttributeError, OSError):
         pass
+
+
+def _watchdog_s():
+    """WATCHDOG_S from config.py (60 by default; 0: off), read without
+    running config.py in the supervisor."""
+    import re
+    try:
+        with open(os.path.join(HERE, "config.py"), encoding="utf-8") as f:
+            m = re.search(r"(?m)^WATCHDOG_S\s*=\s*(\d+)", f.read())
+        return int(m.group(1)) if m else 60
+    except (OSError, ValueError):
+        return 60
+
+
+def _mark_watchdog():
+    """Tell the next start it was the watchdog (keepalive.begin)."""
+    import json
+    path = os.path.join(HERE, "boot_state.json")
+    try:
+        with open(path, encoding="utf-8") as f:
+            d = json.load(f)
+    except (OSError, ValueError):
+        d = {}
+    d["wd"] = True
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(d, f)
+    except OSError:
+        pass
+
+
+def _wait_watched(child, t0, log):
+    """child.wait(), but if the Stump's heartbeat (keepalive.py) goes stale
+    -- its loop stopped -- it's ended, and "watchdog" returned so it's
+    started again. Before its first heartbeat the start is left alone."""
+    import time
+    hb = os.path.join(HERE, ".heartbeat")
+    limit = _watchdog_s()
+    while True:
+        try:
+            return child.wait(timeout=2)
+        except Exception:
+            pass
+        if limit <= 0:
+            continue
+        try:
+            beat = os.path.getmtime(hb)
+        except OSError:
+            continue
+        if beat < t0:
+            continue                 # not started beating yet (or an old file)
+        if time.time() - beat > limit:
+            log.write("[stump] it stopped responding (no heartbeat for %d s): restarting it\n" % limit)
+            log.flush()
+            _mark_watchdog()
+            child.kill()
+            try:
+                child.wait(timeout=10)
+            except Exception:
+                pass
+            return "watchdog"
 
 
 def service():
@@ -119,7 +198,7 @@ def service():
         try:
             child = subprocess.Popen([sys.executable, "-u", os.path.abspath(__file__)],
                                      cwd=HERE, stdout=log, stderr=subprocess.STDOUT)
-            code = child.wait()
+            code = _wait_watched(child, t0, log)
         except KeyboardInterrupt:
             if child is not None and child.poll() is None:
                 child.terminate()          # it switches the radio off, then stops
@@ -134,6 +213,9 @@ def service():
             return
         if code == 3:                      # stump_host.RESTART_CODE: asked for (new settings)
             log.write("[stump] restarting (asked for)\n")
+            log.flush()
+            continue
+        if code == "watchdog":
             log.flush()
             continue
         if time.time() - t0 > 300:

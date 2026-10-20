@@ -43,6 +43,11 @@ def power_off():
     login service (launchd, systemd, the scheduled task) and stump_pc's
     supervisor take as "stopped on purpose", so nothing starts it again
     until it's started (the Start file, or the next login)."""
+    try:
+        import keepalive
+        keepalive.planned()
+    except Exception:
+        pass
     t = sys.modules.get("urns.transport")
     if t is not None:
         for i in list(t.Transport.interfaces):
@@ -81,6 +86,19 @@ def restart():
     except Exception:
         pass
     os._exit(RESTART_CODE)
+
+
+HEARTBEAT_FILE = ".heartbeat"     # in the Stump folder: touched by the running Stump (keepalive.py)
+
+
+def heartbeat():
+    """The Stump's loop is alive: the supervisor (stump_pc.py --service)
+    restarts it when this file goes stale."""
+    try:
+        with open(os.path.join(ROOT or ".", HEARTBEAT_FILE), "w") as f:
+            f.write("%d %d\n" % (int(time.time()), os.getpid()))
+    except (OSError, TypeError):
+        pass
 
 
 def setting(name, default):
