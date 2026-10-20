@@ -157,7 +157,17 @@ except subprocess.TimeoutExpired:
     svc.kill()
     out = svc.communicate()[0]
 log = open(os.path.join(folder, "stump.log"), encoding="utf-8", errors="replace").read()
-tb = [l for l in log.split("Traceback")[1:] if "KeyboardInterrupt" not in l]
+# A traceback "during handling of" another is one chain: a chain that ends
+# in KeyboardInterrupt is a stop this test made (SIGTERM, a kill).
+chains, cur = [], ""
+for part in log.split("Traceback (most recent call last)")[1:]:
+    cur += part
+    if "another exception occurred" not in part[-200:]:
+        chains.append(cur)
+        cur = ""
+if cur:
+    chains.append(cur)
+tb = [c for c in chains if "KeyboardInterrupt" not in c]
 check("no tracebacks (other than the stops this test made)", not tb, tb[:1])
 print("FAILURES", FAIL)
 sys.exit(1 if FAIL else 0)
