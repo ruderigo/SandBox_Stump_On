@@ -58,6 +58,7 @@ TESTS = [
     ("keepalive_boot", "assert", []),
     ("upload_fair", "assert", []),
     ("identity_matrix", "assert", []),
+    ("password_cost", "assert", []),
 ]
 
 _NORM = [

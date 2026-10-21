@@ -107,6 +107,80 @@ def locked(key=None):
     return (f[1] - now) // 1000 + 1
 
 
+def _fail(key, after=LOCK_AFTER):
+    """One more wrong password for key: seconds it's locked now (0: not)."""
+    f = _fails.get(key)
+    if f is None:
+        f = _fails[key] = [0, 0, LOCK_S // 2]
+        _bound(_fails)
+    f[0] += 1
+    if f[0] >= after:
+        f[2] = min(LOCK_MAX_S, f[2] * 2)
+        f[1] = _clock() + f[2] * 1000
+        f[0] = after - 1             # one more wrong one locks again, for longer
+        print("[guard] %s: too many wrong passwords, locked for %d s" % (key, f[2]))
+        return f[2]
+    return 0
+
+
+# All password checks together, from everyone: at most PW_BUDGET every
+# PW_BUDGET_S. Hashing a profile's password is long on the CAM; several
+# devices each within their own limit could otherwise keep it hashing.
+PW_BUDGET = 10
+PW_BUDGET_S = 10
+
+
+def pw_budget():
+    """True if one more costly password check may run now (counts it)."""
+    return window("pwcost", "*", PW_BUDGET, PW_BUDGET_S)
+
+
+async def password_async(check, keys, afters=None):
+    """(ok, wait_s) for an async check, locked by EVERY key in keys: the
+    address, and the account or the door ("nick:rod", "admin"), so wrong
+    guesses from many devices lock the account too. afters: per key, how
+    many wrong ones lock it (LOCK_AFTER by default). wait_s > 0: not run."""
+    keys = [_k(k) for k in keys]
+    afters = afters or {}
+    wait = max([locked(k) for k in keys] or [0])
+    if wait:
+        return False, wait
+    try:
+        ok = bool(await check())
+    except Exception:
+        ok = False
+    if ok:
+        for k in keys:
+            _fails.pop(k, None)
+        return True, 0
+    wait = 0
+    for k in keys:
+        wait = max(wait, _fail(k, afters.get(k, LOCK_AFTER)))
+    return False, wait
+
+
+def password_many(check, keys, afters=None):
+    """password() for a cheap sync check, locked by every key in keys
+    (see password_async)."""
+    keys = [_k(k) for k in keys]
+    afters = afters or {}
+    wait = max([locked(k) for k in keys] or [0])
+    if wait:
+        return False, wait
+    try:
+        ok = bool(check())
+    except Exception:
+        ok = False
+    if ok:
+        for k in keys:
+            _fails.pop(k, None)
+        return True, 0
+    wait = 0
+    for k in keys:
+        wait = max(wait, _fail(k, afters.get(k, LOCK_AFTER)))
+    return False, wait
+
+
 def password(check, key=None):
     """(ok, wait_s): runs check() unless `key` is locked out. wait_s > 0
     means it wasn't run: too many wrong passwords, try again then."""

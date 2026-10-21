@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.0-beta.34
+- **Password checks can't hold up the CAM** (the fourth and last step of hardening for the pentest).
+  - A profile's password is hashed 2,000 times (on purpose: guessing is slow): on the CAM, a long moment in which the Stump served nobody. It now gives everyone else a turn every 250 rounds -- the same hash, the same strength, nothing frozen. Registering, logging in, changing a password and the admin's reset all hash that way.
+  - All password checks together, from everyone, are budgeted: 10 every 10 s. Past that, "try again in a moment", and no hashing is done for it -- several devices, each within its own limit, can't keep the CAM hashing.
+  - Wrong passwords lock the account as well as the address: five wrong ones for a profile, from any number of devices, lock that profile for a while (30 s, doubling, at most 15 min). Before, each device had its own five.
+  - `/admin`: wrong passwords from all addresses together lock the door too, loosely (20), so guessing from many devices slows down without one stranger easily locking the owner out; the computer the Stump runs on is never counted.
+- Test: `password_cost` (the board's MicroPython: the same answers, turns given while hashing, the budget, the account and door locks, register and log in on the web).
+
 ## 1.0.0-beta.33
 - **Lighter on the ESP32** (reported: LaBuche getting a tad slow). Measured on the board's MicroPython, then cut:
   - the connections' deadlines (beta.24) made a timer task on every read and write -- about 14x the read itself, and garbage for the collector, hundreds of times per upload. Now each connection has one deadline, moved forward as bytes move, and one reaper checks them once a second; a read is a plain await again (14 µs → under 8 µs per read here, the timer task gone). The same limits as before, the same tests;

@@ -999,8 +999,28 @@ def _check_admin_pw(pw, who=None):
     """True if pw unlocks admin actions -- unless `who` has tried too many
     wrong passwords (guard.py): then False without trying."""
     import guard
-    ok, wait = guard.password(lambda: _check_admin_pw_now(pw), who or "web")
+    who = who or "web"
+    # The address, and the door itself across all addresses -- loosely
+    # (ADMIN_LOCK_AFTER wrong ones from anywhere), so guessing from many
+    # devices is slowed without one stranger easily locking the owner out.
+    # The computer the Stump runs on isn't counted at the door.
+    keys = [who] if conn._local(guard._k(who)) else [who, "door:admin"]
+    ok, wait = guard.password_many(lambda: _check_admin_pw_now(pw), keys, {"door:admin": ADMIN_LOCK_AFTER})
     return ok
+
+
+ADMIN_LOCK_AFTER = 20
+
+
+async def _profile_pw(nick, pw, ip):
+    """(ok, wait_s) for a profile's password: the hashing doesn't hold up
+    the Stump; all checks together are budgeted (guard.pw_budget); wrong
+    ones lock the address AND the profile -- guesses from many devices
+    lock the account too."""
+    if not guard.pw_budget():
+        return False, 2
+    return await guard.password_async(lambda: profiles.check_async(nick, pw),
+                                      [ip, "nick:" + profiles.key(nick or "")])
 
 
 def _check_admin_pw_now(pw):
@@ -3529,7 +3549,8 @@ async def _serve(reader, writer, secure=False):
                 n = fields.get("nick", "")
                 if fields.get("action") == "delete":
                     msg = i18n.t("admin_profiles_deleted" if profiles.delete(n) else "admin_profiles_missing", lang, nick=n)
-                elif profiles.set_password(n, fields.get("pw", "")):
+                elif profiles.valid_password(fields.get("pw", "")) and profiles.set_password(
+                        n, fields.get("pw", ""), digested=await profiles.prepare(fields.get("pw", ""))):
                     msg = i18n.t("admin_profiles_was_reset", lang, nick=n)
                 else:
                     msg = i18n.t("profile_err_password", lang, n=profiles.PW_MIN)
@@ -4391,8 +4412,12 @@ async def _serve(reader, writer, secure=False):
                     notice = T("profile_mismatch")
                 elif rrc.nick_taken(nick, identifier) and not profiles.is_registered(nick):
                     notice = T("profile_taken", nick=nick)
+                elif not guard.pw_budget():
+                    notice = T("profile_wait", s=2)
                 else:
-                    rec, why = profiles.register(nick, fields.get("pw", ""))
+                    pw_new = fields.get("pw", "")
+                    rec, why = profiles.register(nick, pw_new, digested=(await profiles.prepare(pw_new)
+                                                                         if profiles.valid_password(pw_new) else None))
                     if rec is None:
                         notice = T("profile_err_" + why, nick=nick, n=profiles.PW_MIN)
                     else:
@@ -4401,7 +4426,7 @@ async def _serve(reader, writer, secure=False):
                         identifier = "p:" + profiles.key(nick)
                         notice = T("profile_created" if moved else "profile_created_empty", nick=rec["nick"])
             elif path.startswith("/profile/login"):
-                ok, wait = guard.password(lambda: profiles.check(nick, fields.get("pw", "")), ip)
+                ok, wait = await _profile_pw(nick, fields.get("pw", ""), ip)
                 if wait:
                     notice = T("profile_wait", s=wait)
                 elif not ok:
@@ -4418,14 +4443,19 @@ async def _serve(reader, writer, secure=False):
                 notice = T("profile_bye")
             elif path.startswith("/profile/password") and identifier.startswith("p:"):
                 pn = identifier[2:]
-                ok, wait = guard.password(lambda: profiles.check(pn, fields.get("old", "")), ip)
+                ok, wait = await _profile_pw(pn, fields.get("old", ""), ip)
                 if wait:
                     notice = T("profile_wait", s=wait)
                 elif not ok:
                     notice = T("profile_wrong")
                 elif fields.get("pw") != fields.get("pw2"):
                     notice = T("profile_mismatch")
-                elif not profiles.set_password(pn, fields.get("pw", "")):
+                elif not profiles.valid_password(fields.get("pw", "")):
+                    notice = T("profile_err_password", n=profiles.PW_MIN)
+                elif not guard.pw_budget():
+                    notice = T("profile_wait", s=2)
+                elif not profiles.set_password(pn, fields.get("pw", ""),
+                                               digested=await profiles.prepare(fields.get("pw", ""))):
                     notice = T("profile_err_password", n=profiles.PW_MIN)
                 else:
                     # A new password ends every session, this one too: back in.

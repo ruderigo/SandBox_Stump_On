@@ -136,9 +136,48 @@ def _same(a, b):
     return r == 0
 
 
-def _set_password(rec, password):
-    rec["salt"] = _rand_hex(8)
-    rec["hash"] = _digest(rec["salt"], password)
+def _set_password(rec, password, digested=None):
+    if digested:                     # (salt, hash) worked out by prepare(), not blocking
+        rec["salt"], rec["hash"] = digested
+    else:
+        rec["salt"] = _rand_hex(8)
+        rec["hash"] = _digest(rec["salt"], password)
+
+
+# The same hashing, a turn given to everyone else every YIELD_EVERY rounds:
+# ROUNDS of sha256 is a long while on the CAM, and the Stump served nobody
+# meanwhile. Same result, same strength.
+YIELD_EVERY = 250
+
+
+async def _digest_async(salt, password):
+    try:
+        import uasyncio as asyncio
+    except ImportError:
+        import asyncio
+    pw = password.encode() if isinstance(password, str) else password
+    h = binascii.unhexlify(salt) + pw
+    for i in range(ROUNDS):
+        h = hashlib.sha256(h + pw).digest()
+        if i % YIELD_EVERY == YIELD_EVERY - 1:
+            await asyncio.sleep(0)
+    return binascii.hexlify(h).decode()
+
+
+async def check_async(nick, password):
+    """check(), without holding up the Stump while it hashes."""
+    rec = get(nick)
+    if rec is None or not isinstance(password, str):
+        await _digest_async("00", password or "")      # the same time either way
+        return False
+    return _same(await _digest_async(rec["salt"], password), rec["hash"])
+
+
+async def prepare(password):
+    """(salt, hash) for a new password, without holding up the Stump: give
+    it to register() or set_password() as digested=."""
+    salt = _rand_hex(8)
+    return salt, await _digest_async(salt, password if isinstance(password, str) else "")
 
 
 def valid_password(password):
@@ -191,7 +230,7 @@ def add_credits(nick, amount):
     return balance(nick)
 
 
-def register(nick, password, credits=0):
+def register(nick, password, credits=0, digested=None):
     """A new profile. Returns (record, None) or (None, reason):
     "taken", "nick", "password", "full"."""
     k = key(nick)
@@ -211,7 +250,7 @@ def register(nick, password, credits=0):
     if len([r for r in db["p"].values() if not deleted(r)]) >= MAX_PROFILES:
         return None, "full"
     rec = {"nick": nick.strip(), "id": _rand_hex(4), "pv": 1, "by": me(), "c": {}, "del": 0}
-    _set_password(rec, password)
+    _set_password(rec, password, digested)
     if credits:
         rec["c"][me()] = [credits, 0] if credits > 0 else [0, -credits]
     db["p"][k] = rec
@@ -229,12 +268,12 @@ def check(nick, password):
     return _same(_digest(rec["salt"], password), rec["hash"])
 
 
-def set_password(nick, password):
+def set_password(nick, password, digested=None):
     """A new password (the person, or the admin's reset). True if done."""
     rec = get(nick)
     if rec is None or not valid_password(password):
         return False
-    _set_password(rec, password)
+    _set_password(rec, password, digested)
     rec["pv"] = rec.get("pv", 1) + 1
     rec["by"] = me()
     _touch(rec)
