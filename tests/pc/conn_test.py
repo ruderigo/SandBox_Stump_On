@@ -84,8 +84,10 @@ def attacks():
     check("full of silent connections: the next visitor gets '503, retry' at once", code == 503, (code, body[:80]))
     # ... and they're let go at the short deadline (it's full), then it answers again.
     gone = [closed_within(s, 6) for s in idle]
-    check("... the silent ones are let go (the short deadline: it's full)",
-          all(g is not None and g < 4 for g in gone), gone)
+    # (their deadline -- 4 s, or 2 s once the Stump is three quarters full --
+    # plus up to a second: the reaper looks once a second)
+    check("... the silent ones are let go at their deadline",
+          all(g is not None and g < 6 for g in gone), gone)
     for s in idle:
         s.close()
     time.sleep(0.3)
