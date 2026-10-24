@@ -13,18 +13,22 @@ Clear out what's stale before building on it. **No change in
 behaviour**: the full suite stays green and the golden outputs stay
 identical throughout.
 
-- [ ] Dead code: functions nothing calls, fallbacks for paths that no
-      longer exist, config keys nothing reads (HF-002, the awaiting-slot
-      upload, removed)
-- [ ] Duplicates: the same helper written more than once (time and
-      ticks, escaping, JSON answers, settings lookups)
-- [ ] barkeep.py split into smaller modules (pages, routes, admin)
+- [x] Dead code: functions nothing calls, unused imports, config keys
+      nothing reads; HF-002 (the awaiting-slot upload) removed
+- [x] Duplicates: escaping and URL encoding in one place (webtext.py,
+      two drifted copies were bugs); every JSON save whole or not at all
+      (store.py: a dozen wrote in place)
+- [x] barkeep.py split: one handler per route; /admin in admin_web.py,
+      loaded on first use
 - [ ] Provisioner: menus and paths left from older flows
 - [x] i18n: keys nothing uses (12 removed)
-- [ ] Docs: behaviour that changed; the two CLIENT_QUICKSTART copies
-      made from one source
+- [x] Docs: the root copies (CLIENT_QUICKSTART, HIDDEN_FEATURES, REF)
+      point to final_firmware/docs
+- [ ] Docs: behaviour that changed
 - [ ] Tests: ones that check the same thing twice
-- [ ] RAM and flash on the CAM measured before and after
+- [x] The board gets its modules compiled (.mpy): 1,429 KB of source
+      sent as 589 KB, nothing compiled at boot
+- [ ] RAM and flash on the CAM measured before and after (on the board)
 
 ## 2. Chain hardening and interoperability (L)
 
