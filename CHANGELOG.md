@@ -9,6 +9,7 @@
   - **No "TX failed" warning on every announce** at the end of a chain: a link with nobody on it isn't a failure (seen on LaBuche).
   - `/names` showed people on a Stump met before its name was known as `nick@mesh-xxxx` until their next list: it follows the name now.
   - A Stump on a computer with two networks can sit in the middle of a chain: `PC_STA_IP` (docs/PC.md).
+  - A computer Stump stopped (SIGTERM) now and then printed a traceback from asyncio cancelling its tasks: once a stop is asked for, that's the stop, not a crash.
 - Tests: `pc_three_stumps` (three Stumps in a line: rooms and DMs across one and two hops, a DM to a Stump, `#main` staying home, names once everywhere, nothing echoed or doubled; the middle Stump restarting; the wrong secret then the right one), `chain_proto`.
 
 ## 1.0.0-beta.35

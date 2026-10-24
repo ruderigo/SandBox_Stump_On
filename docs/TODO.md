@@ -3,18 +3,6 @@
 The plan, in order: [ROADMAP.md](ROADMAP.md). Things noted for later, newest first. Each with what was seen and what
 we think the fix is.
 
-## A computer Stump stopping: a traceback now and then
-
-**Seen** (pc_three_stumps, 24 Oct, 1 run in 3): stopping Alpha
-(SIGTERM) printed a traceback out of `asyncio.run` in example_node.py's
-`main`, through asyncio's `_cancel_all_tasks`: an exception other than
-the KeyboardInterrupt the stop handler raises, while the tasks were being
-cancelled. Not reproduced on its own (6 starts and stops). The test now
-shows the end of a traceback, so the next one names the exception.
-
-**Likely fix**: once a stop was asked for, treat whatever comes out of
-the shutdown as the stop (stump_pc.py knows a stop is under way).
-
 ## Provisioner: uploads to a CAM restart the board now and then
 
 **Seen** (LaBuche, 20-21 Oct, beta.30-34): during `--upload-app`, a file

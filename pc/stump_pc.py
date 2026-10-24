@@ -58,6 +58,12 @@ def main():
     except KeyboardInterrupt:
         raise
     except BaseException as e:
+        if _STOPPING:
+            # A stop was asked for (SIGTERM): what comes out of asyncio
+            # cancelling the tasks is the stop, not a crash (it printed a
+            # traceback now and then, docs/TODO.md).
+            print("[stump] stopped (%s while stopping)" % type(e).__name__)
+            return
         # Kept for /admin's next start (keepalive.py): what made it stop.
         try:
             import keepalive
@@ -94,12 +100,15 @@ def _close_radios():
                 pass
 
 
+_STOPPING = []           # set once a stop was asked for (SIGTERM)
+
+
 def _stop_on_sigterm():
     """launchctl unload, systemctl stop, a scheduled task ending: SIGTERM,
     handled like Ctrl-C so the radio is switched off first."""
     import signal
 
-    stopping = []
+    stopping = _STOPPING
 
     def stop(signum, frame):
         # Once is enough: a second stop while it's already stopping would
