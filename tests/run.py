@@ -63,6 +63,7 @@ TESTS = [
     ("admin_lazy", "assert", []),
     ("chain_proto", "assert", []),
     ("web_fuzz", "assert", PACK_PLUGINS),
+    ("urns_fuzz", "assert", []),
 ]
 
 _NORM = [
