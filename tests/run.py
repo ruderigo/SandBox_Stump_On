@@ -61,6 +61,7 @@ TESTS = [
     ("password_cost", "assert", []),
     ("store_atomic", "assert", []),
     ("admin_lazy", "assert", []),
+    ("chain_proto", "assert", []),
 ]
 
 _NORM = [
@@ -232,7 +233,8 @@ def main():
                          ("pc_settings", "settings_test.py"),
                          ("pc_discovery", "discovery_test.py"), ("pc_storage", "storage_test.py"),
                          ("pc_conn", "conn_test.py"), ("pc_watchdog", "watchdog_test.py"),
-                         ("pc_radio_only", "pc_radio_only_test.py"), ("pc_chain_radio", "pc_chain_radio_test.py")):
+                         ("pc_radio_only", "pc_radio_only_test.py"), ("pc_chain_radio", "pc_chain_radio_test.py"),
+                         ("pc_three_stumps", "pc_three_stumps_test.py")):
         if only and name not in only:
             continue
         missing = [m for m in ("cryptography", "serial") if importlib.util.find_spec(m) is None]

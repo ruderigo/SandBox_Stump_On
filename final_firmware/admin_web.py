@@ -378,8 +378,28 @@ def _render_admin_chain_section(lang):
                  else i18n.t("admin_chain_none_below", lang))
     if not st["secret"]:
         lines.append("<b>" + i18n.t("admin_chain_nosecret", lang) + "</b>")
+    for r in st.get("refused", []):
+        lines.append("<b>" + i18n.t("admin_chain_refused", lang, ip=e(r["ip"]), n=r["count"],
+                                    ago=_ago(r["last_s"], lang)) + "</b>")
+    # The other Stumps, and whether they speak the same chain protocol.
+    mine = st.get("proto") or chain.PROTO
+    rows = []
+    for s in st.get("stumps", [])[:12]:
+        rel = e(s["release"]) if s["release"] else i18n.t("admin_chain_older", lang)
+        row = e(s["name"] or s["lxmf"][:8]) + " &middot; " + rel
+        if s["proto"] < mine:
+            row += " &middot; <b>" + i18n.t("admin_chain_update_it", lang) + "</b>"
+        elif s["proto"] > mine:
+            row += " &middot; <b>" + i18n.t("admin_chain_update_me", lang) + "</b>"
+        rows.append(row)
+    if rows:
+        lines.append(i18n.t("admin_chain_stumps", lang) + "<br>" + "<br>".join(rows))
     return ("<h2 class='sub'>" + i18n.t("admin_chain_header", lang) + "</h2>"
             "<p class='sub'>" + "<br>".join(lines) + "</p>")
+
+
+def _ago(s, lang):
+    return i18n.t("admin_chain_ago_min", lang, n=s // 60) if s >= 60 else i18n.t("admin_chain_ago_s", lang, n=s)
 
 
 def _render_admin_plugins_section(lang, pw):

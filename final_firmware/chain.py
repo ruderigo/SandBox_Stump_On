@@ -554,4 +554,25 @@ def status():
         "path": path(),
         "fallback": _state["fallback"],
         "below": sorted(set(ip for h in (_state["hubs"] or ([hub] if hub else [])) for ip in h.peers)),
+        # Who tried to join with another chain secret, lately.
+        "refused": [r for h in (_state["hubs"] or ([hub] if hub else [])) for r in h.refusals()],
+        # The other Stumps, from their beacons: release, chain protocol, what they have.
+        "stumps": _stumps(),
+        "proto": PROTO,
     }
+
+
+# The chain protocol this Stump speaks (in its beacon and /chain.json):
+#   1  before 1.0.0-beta.35 (beacons without it): names lists by nick only
+#      before beta.31, no capabilities
+#   2  1.0.0-beta.35: capabilities in the beacon, refusals shown
+# A Stump keeps working with older and newer ones; /admin says when they differ.
+PROTO = 2
+
+
+def _stumps():
+    try:
+        import discovery
+        return discovery.chain_stumps()
+    except Exception:
+        return []

@@ -30,7 +30,9 @@ from ..log import log, LOG_NOTICE, LOG_WARNING, LOG_DEBUG
 
 HELLO_MAGIC = b"STUMPCHAIN1"
 HELLO_S = 20          # a child says hello this often
-PEER_TTL_S = 75       # a child not heard from for this long is dropped
+PEER_TTL_S = 75       # a child whose last good hello is older than this is dropped
+REFUSED_KEEP_S = 600  # refused hellos are remembered this long (for /chain.json)
+REFUSED_MAX = 16
 
 
 def _ip_of(addr):
@@ -115,7 +117,39 @@ class ChainHubInterface(UDPInterface):
         # unused (each child is sent to directly).
         config.setdefault("forward_ip", config.get("listen_ip", "0.0.0.0"))
         super().__init__(config)
-        self.peers = {}            # ip -> [addr, last_seen]
+        self.peers = {}            # ip -> [addr, last good hello (or first packet, open chain)]
+        self.refused = {}          # ip -> [refused hellos, last time] (a wrong chain secret)
+
+    @property
+    def no_peers(self):
+        """Nobody below this Stump: Transport skips it quietly (sending to
+        no one isn't a failure -- it used to log "TX failed" on every
+        announce of a Stump at the end of a chain)."""
+        return not self.peers
+
+    def _refuse(self, ip):
+        r = self.refused.get(ip)
+        now = time.time()
+        if r is None:
+            log("Chain hello from " + ip + " refused (wrong chain secret)", LOG_WARNING)
+            if len(self.refused) >= REFUSED_MAX:
+                del self.refused[min(self.refused, key=lambda k: self.refused[k][1])]
+            self.refused[ip] = [1, now]
+        else:
+            r[0] += 1
+            r[1] = now
+        # A Stump that was in, now saying hello with another secret: out at once.
+        if ip in self.peers:
+            log("Chain: " + ip + " below this one now has another secret: dropped", LOG_NOTICE)
+            del self.peers[ip]
+
+    def refusals(self):
+        """[{"ip", "count", "last_s"}] in the last REFUSED_KEEP_S, newest first."""
+        now = time.time()
+        for ip in [k for k, v in self.refused.items() if now - v[1] > REFUSED_KEEP_S]:
+            del self.refused[ip]
+        return [{"ip": ip, "count": v[0], "last_s": int(now - v[1])}
+                for ip, v in sorted(self.refused.items(), key=lambda kv: -kv[1][1])]
 
     def _learn(self, ip):
         """A peer is addressed at its IP on the chain port (whatever port it
@@ -137,8 +171,9 @@ class ChainHubInterface(UDPInterface):
                 return False
             tag = data[len(HELLO_MAGIC):]
             if tag != _hello_tag(self._secret, ip, self.listen_ip):
-                log("Chain hello from " + ip + " refused (wrong chain secret)", LOG_WARNING)
+                self._refuse(ip)
                 return False
+            self.refused.pop(ip, None)
             self._learn(ip)
             try:
                 # The answer goes back where the hello came from (a PC's
@@ -150,7 +185,14 @@ class ChainHubInterface(UDPInterface):
             return False           # a hello isn't a Reticulum packet
         peer = self.peers.get(ip)
         if peer is not None:
-            peer[1] = time.time()
+            # With a secret, only a good hello keeps a peer in: a packet
+            # doesn't (an address taken over after a Stump left, or a Stump
+            # whose secret changed, would otherwise stay in as long as it
+            # kept sending). It's dropped when its hellos stop (PEER_TTL_S).
+            if self._secret and time.time() - peer[1] > PEER_TTL_S:
+                return False
+            if not self._secret:
+                peer[1] = time.time()
             return True
         if ip is None:
             return False
