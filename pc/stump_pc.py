@@ -126,6 +126,22 @@ def _stop_on_sigterm():
             threading.Timer(0.05, os.kill, (os.getpid(), signum)).start()
             return
         stopping.append(1)
+        # Inside the event loop: the stop goes in as the loop's next step,
+        # not wherever the signal happened to land -- raised in the middle
+        # of a request (a connection being counted out, a task being
+        # cancelled) it now and then left a traceback instead of a clean
+        # stop. It still comes out of asyncio.run as a KeyboardInterrupt,
+        # as a Ctrl-C does.
+        try:
+            import asyncio
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+        if loop is not None:
+            def _stop_now():
+                raise KeyboardInterrupt
+            loop.call_soon_threadsafe(_stop_now)
+            return
         raise KeyboardInterrupt
     try:
         signal.signal(signal.SIGTERM, stop)
