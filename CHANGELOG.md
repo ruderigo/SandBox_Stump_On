@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.0.0-beta.36
+- **The chain, hardened** (step 2 of `docs/ROADMAP.md`).
+  - **Only a good hello keeps a Stump in.** A Stump below another stayed in as long as it sent packets, whatever its hellos said: one whose chain secret changed, or a device that took over its address after it left, wasn't let go. Now packets are taken only while the hellos are good, and a hello with another secret puts that address out at once.
+  - **Who was refused**, shown: `/chain.json` → `refused` and `/admin` → Stump chain say who tried to join with another secret, how often and when.
+  - **Everyone in `#wifi-mesh` is listed on every Stump**, someone quiet included, as `nick@thatstump` and a DM contact: each Stump sends the others who's in its `#wifi-mesh`. Only who had spoken used to be. A names list for one room no longer drops the people the other room's list has.
+  - **What each Stump is**, in its beacon (a sixth item, short: it goes over LoRa too): the chain protocol (2), its release, access mode, radio, storage and plugins. `/chain.json` → `stumps`, `/node.json` → `proto`; `/admin` says when another Stump is older ("update it") or newer. The groundwork for sharing storage along the chain.
+  - **No "TX failed" warning on every announce** at the end of a chain: a link with nobody on it isn't a failure (seen on LaBuche).
+  - `/names` showed people on a Stump met before its name was known as `nick@mesh-xxxx` until their next list: it follows the name now.
+  - A Stump on a computer with two networks can sit in the middle of a chain: `PC_STA_IP` (docs/PC.md).
+- Tests: `pc_three_stumps` (three Stumps in a line: rooms and DMs across one and two hops, a DM to a Stump, `#main` staying home, names once everywhere, nothing echoed or doubled; the middle Stump restarting; the wrong secret then the right one), `chain_proto`.
+
 ## 1.0.0-beta.35
 - **Cleanup review** (step 1 of `docs/ROADMAP.md`): no change in what a Stump does, less of it to carry.
   - **The CAM gets its modules compiled.** With mpy-cross 1.28 on the computer (`pip3 install mpy-cross==1.28.0.post2`), the Provisioner compiles each module (`.mpy`) before copying it, once it has checked the board's MicroPython loads that version: 1,429 KB of source goes as 589 KB, and the board compiles nothing at boot (on the Unix port: imports about 10x faster, about 300 KB less memory needed to start). `main.py` and `config.py` stay source; plugins and packs go compiled too. Without mpy-cross, or with an older MicroPython on the board, source, as before, and it says so.

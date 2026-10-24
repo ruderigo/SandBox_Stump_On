@@ -124,8 +124,15 @@ def _compile_tree(fw):
         f.unlink()
 
 
+# The Unix port's heap for a test. Its default (2 MB) left the tests that
+# keep many whole pages (admin_theme_tools) at the edge, failing on how
+# the heap happened to fragment. A CAM has about 7 MB free after start
+# (LaBuche, 1.0.0-beta.35): 4 MB is still well under it.
+MP_HEAP = "4M"
+
+
 def run_mp(script, cwd, *args):
-    r = subprocess.run([MP, str(HERE / "mp" / script)] + [str(HERE / "mp")] + list(args),
+    r = subprocess.run([MP, "-X", "heapsize=" + MP_HEAP, str(HERE / "mp" / script)] + [str(HERE / "mp")] + list(args),
                        cwd=cwd, capture_output=True, text=True, timeout=600)
     return r.stdout + r.stderr
 
