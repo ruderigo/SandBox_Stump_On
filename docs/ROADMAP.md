@@ -20,15 +20,21 @@ identical throughout.
       (store.py: a dozen wrote in place)
 - [x] barkeep.py split: one handler per route; /admin in admin_web.py,
       loaded on first use
-- [ ] Provisioner: menus and paths left from older flows
+- [x] Provisioner: reviewed (no dead menus); the firmware zip is named
+      with its release (`Stump-1.0.0-beta.35.zip`)
 - [x] i18n: keys nothing uses (12 removed)
 - [x] Docs: the root copies (CLIENT_QUICKSTART, HIDDEN_FEATURES, REF)
       point to final_firmware/docs
-- [ ] Docs: behaviour that changed
-- [ ] Tests: ones that check the same thing twice
+- [x] Docs: changelog, README (mpy-cross), engineering notes (the code's
+      layout)
+- [x] Tests: reviewed, none checking the same thing twice
 - [x] The board gets its modules compiled (.mpy): 1,429 KB of source
       sent as 589 KB, nothing compiled at boot
-- [ ] RAM and flash on the CAM measured before and after (on the board)
+- [x] On LaBuche (1.0.0-beta.35, compiled): ~450 KB of modules on the
+      board (was ~1.4 MB of source), 7,467,280 bytes free after start,
+      ~10 s from the crypto line to serving (the baseline from here)
+
+Done in 1.0.0-beta.35.
 
 ## 2. Chain hardening and interoperability (L)
 
@@ -39,6 +45,9 @@ NomadNet over the chain).
       a Stump does with an older or newer neighbour
 - [ ] One capabilities message per Stump: storage, radio, access mode,
       plugins (the groundwork for chain storage)
+- [ ] Every announce logs `TX failed on Chain down` / `Chain LAN` when no
+      other Stump is in the chain (seen on LaBuche): a broadcast with
+      nobody listening shouldn't be a warning each time
 - [ ] Recovery when a Stump in the middle restarts, loses its Wi-Fi, or
       the chain secret changes
 - [ ] Nothing lost and nothing doubled across hops: messages, DMs,
