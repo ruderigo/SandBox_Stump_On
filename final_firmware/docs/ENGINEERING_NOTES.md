@@ -1629,3 +1629,31 @@ sender is refused when the node isn't open.
   guidance about closing whatever else has the port open instead of
   offering to wipe, while a real, board-reported mount failure still
   offers the wipe prompt exactly as before.
+
+## The code's layout after the cleanup (1.0.0-beta.35)
+
+- **barkeep.py** is the web server: `_serve` reads the request and calls
+  one handler per route (`_r_*`), matched in order, the first match wins
+  (the order is the old if/elif chain's: a longer address before the
+  shorter one it starts with). A new route is a handler and one line in
+  that chain.
+- **admin_web.py** holds everything under `/admin`: the page's sections
+  and their forms. barkeep imports it inside the route, the first time
+  someone opens `/admin`, so a boot that never does doesn't hold its
+  ~1,500 lines. It reaches barkeep's helpers as `B.<name>`. Passwords and
+  sessions (`_check_admin_pw`, `_session_ok`...) stay in barkeep: every
+  part of the server uses them.
+- **webtext.py**: `esc`, `url_encode`, `url_decode`, `sd_available`. The
+  only copy: the modules' own names for them (`billboard._esc`,
+  `rrc_ui._esc`, `i18n._url_encode`...) point here.
+- **store.py**: `save_json` / `load_json`, for every settings file.
+  Whole or not at all (`<file>.tmp`, then a rename over the old one);
+  never raises.
+- **On the board, compiled.** The Provisioner sends `.mpy` files when
+  the board's MicroPython and the computer's mpy-cross agree on the
+  version (`compile_for_board`, `remove_shadowed`); `main.py` and
+  `config.py` stay source. MicroPython loads a `.py` before a `.mpy` of
+  the same name, which is why the `.py` a compiled module replaces is
+  removed. `MPY_CROSS=... python3 tests/run.py` runs the tests on a
+  compiled copy; a test that reads a module's source opens it from the
+  repository, not from its copy.

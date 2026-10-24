@@ -158,12 +158,18 @@ asks before touching the board, and ends with done, skipped or what
 went wrong. The run ends on a summary: each section's result, and what
 to keep (addresses, the chain secret, the next command).
 
+**Optional, recommended:** `pip3 install mpy-cross==1.28.0.post2`. With it,
+the Provisioner sends the CAM its modules compiled (`.mpy`): less than
+half the bytes over USB, and nothing for the board to compile at each
+boot. Without it, or on a board with an older MicroPython, they go as
+source, as before.
+
 Everywhere below, `PORT` means the board's USB serial port, not the
 word itself — find it with `--scan` (on a Mac it looks like
 `/dev/cu.usbmodem5C372383661`).
 
 ```bash
-python3 provisioner.py --check-tools      # verify esptool/mpremote/rnodeconf
+python3 provisioner.py --check-tools      # verify esptool/mpremote/rnodeconf (and mpy-cross)
 python3 provisioner.py --scan             # list connected boards and their ports
 python3 provisioner.py --upload-app PORT  # update the CAM's code only, no erase; keeps its config.py
 python3 provisioner.py --get-ip PORT      # query LAN + hotspot addresses

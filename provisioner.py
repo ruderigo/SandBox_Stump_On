@@ -322,7 +322,7 @@ EXPECTED_FILE_HASHES = {
     "docs/CHAIN.md": "7d168225a314cfba",
     "docs/CLIENT_QUICKSTART.md": "bd04a91a4400ec7f",
     "docs/COMMANDS.md": "d538a664029721e9",
-    "docs/ENGINEERING_NOTES.md": "e2246f83f2912a8d",
+    "docs/ENGINEERING_NOTES.md": "32f93e149665aa57",
     "docs/FIELD_TEST.md": "0cd367b92d89f230",
     "docs/HIDDEN_FEATURES.md": "2529e887b65ee598",
     "docs/HOME_BRANDING.md": "e1a1a9cf854dcdce",
