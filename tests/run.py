@@ -59,6 +59,7 @@ TESTS = [
     ("upload_fair", "assert", []),
     ("identity_matrix", "assert", []),
     ("password_cost", "assert", []),
+    ("store_atomic", "assert", []),
 ]
 
 _NORM = [

@@ -55,18 +55,8 @@ def _load():
 
 
 def _save(d):
-    try:
-        tmp = STATE_FILE + ".tmp"
-        with open(tmp, "w") as f:
-            json.dump(d, f)
-        import os
-        try:
-            os.rename(tmp, STATE_FILE)
-        except OSError:
-            os.remove(STATE_FILE)
-            os.rename(tmp, STATE_FILE)
-    except Exception:
-        pass       # a full or read-only filesystem isn't worth failing over
+    import store
+    store.save_json(STATE_FILE, d, "watchdog")    # a full or read-only filesystem isn't worth failing over
 
 
 def _now():

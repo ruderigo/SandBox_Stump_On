@@ -63,7 +63,7 @@ later cut down to downloads only), and stop `provisioner.py`'s
 `catalog.json` / firmware images to `/sd/tools` and `/sd/fw`.
 
 **Code locations**:
-- `barkeep.py` — `import flasher_ui`, `_DESTINATIONS["flash"]`,
+- `barkeep.py` — `import flasher_ui` (inside the `/flash` route), `_DESTINATIONS["flash"]`,
   `_ICON_FLASH`, the `/flash` and `/fw` `elif` branches in the request
   router
 - `flasher_ui.py` — the whole file
@@ -76,7 +76,7 @@ later cut down to downloads only), and stop `provisioner.py`'s
   rest of this folder goes away under option (b), since the licensing
   concern it describes doesn't disappear just because this feature
   does.
-- `fserv.py` — `FW_DIR`, `list_fw()` (used only by the `/fw` route)
+- `fserv.py` — `FW_DIR` (used only by the `/fw` route)
 - `provisioner.py` — `install_tools_on_node()`'s `tools_payload`-pushing
   block, and the `":/sd/fw"` mkdir in the same function
 - `i18n.py` — `nav_flash` (defined in `_DESTINATIONS` but never

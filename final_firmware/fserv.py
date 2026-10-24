@@ -41,6 +41,7 @@ import uasyncio as asyncio
 import ujson as json
 import os
 import time
+import store
 
 SD_MOUNT = "/sd"
 SHARED_DIR = SD_MOUNT + "/shared"
@@ -272,41 +273,11 @@ def sweep_tmp(paths=None):
 
 
 def _save_json(path, data):
-    """Writes data as JSON. Returns True/False rather than letting a
-    write failure propagate -- confirmed as a real, reported bug
-    without this: an upload's actual bytes could already be safely on
-    disk (stream_to_file finished fine) and the credit-ledger rewrite
-    right after it is what threw (a card at or near capacity, or any
-    other transient I/O hiccup), uncaught, all the way out through
-    barkeep.py's own outer exception handler -- which logs the error
-    server-side but was never designed to send a response for an
-    exception this deep, so the client got nothing back at all: no
-    success, no error, just a connection that closed with no HTTP
-    response. Paired with the client's fetch() having no .catch() of
-    its own (fixed alongside this), that combination left the upload
-    UI showing "Sending..." forever with zero indication anything had
-    gone wrong -- indistinguishable from the upload having silently
-    failed even when the file itself made it onto the card intact.
-    Every caller here already treats "couldn't persist this" as
-    recoverable rather than fatal to the surrounding request."""
-    # Whole or not at all: written to a temporary file, then renamed over
-    # the old one (MicroPython's FAT rename replaces, as billboard.py's
-    # saves rely on). Writing in place meant a power cut mid-write left a
-    # truncated file -- and an unreadable ledger reads as empty, so
-    # everyone's credits were gone.
-    tmp = path + ".tmp"
-    try:
-        with open(tmp, "w") as f:
-            json.dump(data, f)
-        os.rename(tmp, path)
-        return True
-    except OSError as e:
-        print("[fserv] failed to save", path, "--", e)
-        try:
-            os.remove(tmp)
-        except OSError:
-            pass
-        return False
+    """Saves data as JSON, whole or not at all (store.py). True/False,
+    never raises: an upload already on the card must still get its
+    answer when the ledger rewrite after it fails (a full card) -- it
+    once left the browser on "Sending..." forever."""
+    return store.save_json(path, data, "fserv")
 
 
 def _ledger():
@@ -893,12 +864,8 @@ def save_home_config(place, height, hidden):
         os.mkdir(HOME_DIR)
     except OSError:
         pass
-    try:
-        import ujson as json
-        with open(HOME_DIR + "/home.json", "w") as f:
-            json.dump({"place": place, "height": height, "hidden": bool(hidden)}, f)
-    except OSError as e:
-        return str(e)
+    if not store.save_json(HOME_DIR + "/home.json", {"place": place, "height": height, "hidden": bool(hidden)}, "fserv"):
+        return "couldn't save"
     return None
 
 

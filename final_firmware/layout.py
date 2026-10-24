@@ -64,7 +64,6 @@ def save(kind, keys):
 
 def save_many(changes):
     """Saves several of KINDS at once, {kind: keys or None}."""
-    import json
     new = dict(_saved)
     for kind, keys in changes.items():
         if kind not in KINDS:
@@ -78,10 +77,8 @@ def save_many(changes):
             new[kind] = seen[:40]
         else:
             new.pop(kind, None)
-    try:
-        with open(LAYOUT_FILE, "w") as f:
-            json.dump(new, f)
-    except OSError:
+    import store
+    if not store.save_json(LAYOUT_FILE, new, "layout"):
         return False
     _saved.clear()
     _saved.update(new)

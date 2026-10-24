@@ -116,13 +116,8 @@ def _load_state():
 
 
 def _save_state(st):
-    try:
-        with open(STATE_FILE, "w") as f:
-            f.write(json.dumps(st))
-        return True
-    except Exception as e:
-        print("[plugin] could not save", STATE_FILE, e)
-        return False
+    import store
+    return store.save_json(STATE_FILE, st, "plugin")
 
 
 def _write_marker(d):
