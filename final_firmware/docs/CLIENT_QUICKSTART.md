@@ -815,12 +815,26 @@ identity, aspect **`stump.node`**, alongside its normal LXMF address.
 Its announce data is a msgpack list:
 
 ```
-["stump", <firmware version>, <node name>, <16-byte LXMF delivery hash>]
+["stump", <firmware version>, <node name>, <16-byte LXMF delivery hash>,
+ [<web addresses>], {<capabilities>}]
 ```
 
 The version is a free-text label (`"Beta A"` today), for showing, not
 parsing. Read the first four elements and ignore any more: later
-firmware may append fields.
+firmware may append fields. Since 1.0.0-beta.21 the fifth is the list
+of web addresses; since 1.0.0-beta.35 the sixth is what the Stump is
+and has, a map with short keys (it goes over LoRa too):
+
+| Key | Value |
+|---|---|
+| `p` | The chain protocol it speaks (2 since 1.0.0-beta.35; a beacon without it is 1) |
+| `r` | Its release, `"1.0.0-beta.35"` |
+| `m` | Its access mode: `open`, `hybrid`, `mandatory` |
+| `rad` | Its own radio is online |
+| `s` | `[kind, free MB]`: `sd` (a CAM's card), `pc` (a computer's folder), `none` |
+| `pl` | The plugins running (at most 8 names) |
+
+Treat every field as optional, and its value as untrusted.
 
 So any LXMF address that has a `stump.node` announce on the same
 identity is a Stump; everything else is a person (or another app).

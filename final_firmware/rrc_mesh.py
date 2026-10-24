@@ -273,6 +273,10 @@ def _fix_nick(router, h, p):
         for cid, r in list(_remote.items()):
             if r["h"] == h:
                 rrc.set_reachable(cid, r["nick"] + "@" + nick)
+        # Its names lists (/names) too: they came in under the old name.
+        e = rrc._remote_names.get(h)
+        if e is not None:
+            e["who"] = nick
 
 
 def _from_stump(dest_hash_hex, peer, text, router=None, title=""):
@@ -284,7 +288,8 @@ def _from_stump(dest_hash_hex, peer, text, router=None, title=""):
     #lora-mesh: the radio's room, shared by the Stumps."""
     who = peer["nick"]
     me = (rrc.NODE or {}).get("name") or "?"
-    room = rrc.MESH_ROOM if rrc.canon((title or "").lstrip("#")) == rrc.MESH_ROOM else (
+    t = rrc.canon((title or "").lstrip("#"))
+    room = t if t in (rrc.MESH_ROOM, rrc.CHAIN_ROOM) else (
         rrc.CHAIN_ROOM if peer.get("room") == rrc.CHAIN_ROOM else rrc.MESH_ROOM)
     for line in text.split("\n"):
         line = line.strip()
@@ -304,9 +309,16 @@ def _from_stump(dest_hash_hex, peer, text, router=None, title=""):
                 cid = _remote_seen(dest_hash_hex, nick, who, ident)
                 if cid:
                     listed.add(cid)
-            # Gone from that Stump's list: gone as a contact here too (not
-            # an hour later).
+                    _remote[cid].setdefault("rooms", set()).add(room)
+            # Gone from that Stump's list for this room: gone as a contact
+            # here too (not an hour later) -- unless that Stump still lists
+            # them in its other room (a Stump sends one list per room).
             for cid in [k for k, r in _remote.items() if r["h"] == dest_hash_hex and k not in listed]:
+                rooms = _remote[cid].get("rooms")
+                if rooms:
+                    rooms.discard(room)
+                    if rooms:
+                        continue
                 _remote.pop(cid)
                 rrc.drop_reachable(cid)
             continue
@@ -499,7 +511,7 @@ def _note_stump_beacon(router, app_data, packet):
         if len(fields) > 4:
             try:
                 import discovery
-                discovery.heard(lxmf_hash.hex(), str(fields[2]), fields[4])
+                discovery.heard(lxmf_hash.hex(), str(fields[2]), fields[4], fields[5] if len(fields) > 5 else None)
             except Exception:
                 pass
         own = router.delivery_destination
@@ -1098,6 +1110,17 @@ def _flush_to_peer(router, dest_hash_hex, peer):
     dms     = rrc.dms_since(dest_hash_hex, peer.get("last_dm_id", 0))
 
     remote = _remote_dm_lines(dest_hash_hex) if peer.get("stump") else []
+    # Who's in #wifi-mesh here, for the other Stumps' /names and DMs (chain
+    # protocol 2): when it changes, and every NAMES_EVERY s. It used to
+    # list only who had spoken, so someone quiet on a Stump in the middle
+    # was nobody's contact elsewhere.
+    names_line = None
+    if peer.get("stump") and room == rrc.CHAIN_ROOM:
+        roster = " ".join(_room_roster(rrc.CHAIN_ROOM))
+        now = time.time()
+        if roster != peer.get("wifi_roster") or now - peer.get("wifi_roster_at", 0) > NAMES_EVERY:
+            peer["wifi_roster"], peer["wifi_roster_at"] = roster, now
+            names_line = "[NAMES] " + (roster or "-")
     if peer.get("stump"):
         _flush_profiles(router, dest_hash_hex, peer)
         # #lora-mesh to another Stump always goes the radio-first way
@@ -1108,7 +1131,7 @@ def _flush_to_peer(router, dest_hash_hex, peer):
             if msgs:
                 peer["last_sent_id"] = msgs[-1]["id"]
             msgs = []
-    if not msgs and not dms and not remote:
+    if not msgs and not dms and not remote and not names_line:
         return
     try:
         dest_hash_bytes = bytes.fromhex(dest_hash_hex)
@@ -1152,11 +1175,13 @@ def _flush_to_peer(router, dest_hash_hex, peer):
             peer["last_dm_id"] = m["id"]
     _send_queue.extend(_voice_items(router, dest_hash_bytes, dms))
     lines.extend(remote)
+    if names_line:
+        lines.append(names_line)
 
     if lines:
         # Room lines in this batch belong to `room`; say so in the title.
         # A DM-only batch has no room (its lines name their author).
-        text, title = "\n".join(lines), ("#" + room if msgs else "")
+        text, title = "\n".join(lines), ("#" + room if msgs or names_line else "")
         chain_if = _chain_iface(dest_hash_bytes) if stump and room == rrc.CHAIN_ROOM else None
         if chain_if is not None and len((text + title).encode()) <= RADIO_CHUNK:
             # #wifi-mesh stays on Wi-Fi: a short batch to a Stump one hop
@@ -1275,13 +1300,17 @@ NAMES_EVERY = 600
 
 
 def _lora_roster():
-    """The people in #lora-mesh on THIS Stump (not the other Stumps, not
+    return _room_roster(rrc.MESH_ROOM)
+
+
+def _room_roster(room):
+    """The people in this room on THIS Stump (not the other Stumps, not
     people this one only knows from them)."""
     stumps = set(p["nick"] for p in _peers.values() if p.get("stump"))
     out = []
     for cid, u in list(rrc._users.items()):
         n = u["nick"]
-        if (u["room"] != rrc.MESH_ROOM or n in stumps or "@" in n or cid in rrc._hidden
+        if (u["room"] != room or n in stumps or "@" in n or cid in rrc._hidden
                 or rrc.same_web(cid) is not None):
             continue
         ident = rrc.identity_of(cid)

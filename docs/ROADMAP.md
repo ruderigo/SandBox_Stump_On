@@ -41,20 +41,27 @@ Done in 1.0.0-beta.35.
 Make the chain a solid base for everything built on it (chain storage,
 NomadNet over the chain).
 
-- [ ] A chain protocol version in the beacon and `/node.json`, and what
-      a Stump does with an older or newer neighbour
-- [ ] One capabilities message per Stump: storage, radio, access mode,
+- [x] A chain protocol version (2) in the beacon, `/node.json` and
+      `/chain.json`; older and newer Stumps keep working, `/admin` says
+      which to update
+- [x] Capabilities in the beacon: release, access mode, radio, storage,
       plugins (the groundwork for chain storage)
-- [ ] Every announce logs `TX failed on Chain down` / `Chain LAN` when no
-      other Stump is in the chain (seen on LaBuche): a broadcast with
-      nobody listening shouldn't be a warning each time
-- [ ] Recovery when a Stump in the middle restarts, loses its Wi-Fi, or
-      the chain secret changes
-- [ ] Nothing lost and nothing doubled across hops: messages, DMs,
-      `[NAMES]`
-- [ ] Mixed chains: CAM and computer Stumps, in every order
-- [ ] The path matrix across 1, 2 and 3 Stumps: DM to DM, room to room,
+- [x] No `TX failed` warning for a chain link with nobody on it
+- [x] Only a good hello keeps a Stump in (a packet used to); refusals
+      shown in `/chain.json` and `/admin`
+- [x] Everyone in `#wifi-mesh` listed on every Stump, quiet people too
+- [x] Recovery when a Stump in the middle restarts or the chain secret
+      changes (pc_three_stumps); its Wi-Fi lost: chain_failover,
+      pc_parent_moves
+- [x] Nothing lost and nothing doubled across hops: messages, DMs,
+      names (pc_three_stumps)
+- [x] Mixed chains: a computer first and a CAM below (pc_chain), a CAM
+      first and a computer below (pc_joins_cam), a Stump in the middle
+      (pc_three_stumps, a computer with two networks)
+- [ ] On the bench: a CAM in the middle of a real chain
+- [x] The path matrix across 1, 2 and 3 Stumps: DM to DM, room to room,
       client to Stump, visitors, and the paths that must not exist
+      (identity_matrix, pc_two_stumps, pc_three_stumps)
 
 ## 3. Pentest hardening (L)
 
@@ -65,7 +72,8 @@ From the attacker's side, after the cleanup (less code to review).
 - [ ] Auth and sessions: cookies, `/hello` replay, `/auth` timing,
       admin lockouts across a chain
 - [ ] The chain as a way in: a fake Stump on the chain Wi-Fi, forged
-      beacons, the chain secret
+      beacons, the chain secret; the parent's answer to a hello (`STUMPCHAIN1ACK`)
+      isn't signed: a fake parent can make a Stump think it's linked
 - [ ] LoRa: floods, oversized resources, malformed packets, a fuzzer on
       urns' parsers
 - [ ] Plugins and packs: hash checks, what an update can overwrite

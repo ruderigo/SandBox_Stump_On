@@ -2800,6 +2800,7 @@ async def _r_get_node_json(reader, writer, method, path, headers, ip, identifier
     info = {"name": rrc.NODE.get("name"), "lxmf": rrc.NODE.get("lxmf")}
     info.update(rrc.NODE_INFO)
     info["ap_ip"] = chain.ap_ip()
+    info["proto"] = chain.PROTO        # the chain protocol (chain.py)
     st = chain.status()
     info["chain"] = st if st.get("enabled") else None
     info["features"] = [f for f in features.ALL if features.enabled(f)]

@@ -61,6 +61,7 @@ TESTS = [
     ("password_cost", "assert", []),
     ("store_atomic", "assert", []),
     ("admin_lazy", "assert", []),
+    ("chain_proto", "assert", []),
 ]
 
 _NORM = [
@@ -123,8 +124,15 @@ def _compile_tree(fw):
         f.unlink()
 
 
+# The Unix port's heap for a test. Its default (2 MB) left the tests that
+# keep many whole pages (admin_theme_tools) at the edge, failing on how
+# the heap happened to fragment. A CAM has about 7 MB free after start
+# (LaBuche, 1.0.0-beta.35): 4 MB is still well under it.
+MP_HEAP = "4M"
+
+
 def run_mp(script, cwd, *args):
-    r = subprocess.run([MP, str(HERE / "mp" / script)] + [str(HERE / "mp")] + list(args),
+    r = subprocess.run([MP, "-X", "heapsize=" + MP_HEAP, str(HERE / "mp" / script)] + [str(HERE / "mp")] + list(args),
                        cwd=cwd, capture_output=True, text=True, timeout=600)
     return r.stdout + r.stderr
 
@@ -232,7 +240,8 @@ def main():
                          ("pc_settings", "settings_test.py"),
                          ("pc_discovery", "discovery_test.py"), ("pc_storage", "storage_test.py"),
                          ("pc_conn", "conn_test.py"), ("pc_watchdog", "watchdog_test.py"),
-                         ("pc_radio_only", "pc_radio_only_test.py"), ("pc_chain_radio", "pc_chain_radio_test.py")):
+                         ("pc_radio_only", "pc_radio_only_test.py"), ("pc_chain_radio", "pc_chain_radio_test.py"),
+                         ("pc_three_stumps", "pc_three_stumps_test.py")):
         if only and name not in only:
             continue
         missing = [m for m in ("cryptography", "serial") if importlib.util.find_spec(m) is None]
