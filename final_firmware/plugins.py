@@ -383,7 +383,7 @@ def _post(plugin, nick, room, text):
         return False
     use[1] += 1
     import rrc
-    return rrc.post(room, nick, str(text)[:rrc.MAX_MESSAGE_LEN]) is not None
+    return rrc.post(room, nick, str(text)[:rrc.MAX_MESSAGE_LEN], bot=True) is not None
 
 
 def _lines(result):

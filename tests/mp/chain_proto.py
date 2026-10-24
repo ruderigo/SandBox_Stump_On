@@ -122,4 +122,19 @@ check("/chain.json: proto, stumps, refused", d["proto"] == 2 and any(s["name"] =
       and any(x["ip"] == "192.168.4.66" for x in d["refused"]), d)
 d = json.loads(req("/node.json")[2])
 check("/node.json: the chain protocol", d.get("proto") == 2, d)
+
+# 6. A bot's line stays on its Stump (it looked like a person elsewhere,
+#    "BarKeep@LaBuche", whom nobody could DM).
+import rrc_mesh
+rrc.ensure_room("wifi-mesh") if hasattr(rrc, "ensure_room") else None
+b = rrc.post("main", "BarKeep", "the bot speaks", bot=True)
+p_ = rrc.post("main", "ann", "a person speaks")
+check("a bot's line is marked", b and b.get("bot") is True and not p_.get("bot"), (b, p_))
+lines = rrc_mesh._stump_lines([b, p_])
+check("... and not sent to the other Stumps; a person's is", lines == ["<ann> a person speaks"], lines)
+import plugins
+plugins._post_use.clear()
+m = plugins._post("tavern", "Tavernier", "main", "a plugin speaks")
+last = rrc.since("main", 0)[-1]
+check("a plugin's line is a bot's too", m and last["nick"] == "Tavernier" and last.get("bot") is True, last)
 print('FAILURES:', FAIL)

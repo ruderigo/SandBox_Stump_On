@@ -7,6 +7,7 @@
   - **Everyone in `#wifi-mesh` is listed on every Stump**, someone quiet included, as `nick@thatstump` and a DM contact: each Stump sends the others who's in its `#wifi-mesh`. Only who had spoken used to be. A names list for one room no longer drops the people the other room's list has.
   - **What each Stump is**, in its beacon (a sixth item, short: it goes over LoRa too): the chain protocol (2), its release, access mode, radio, storage and plugins. `/chain.json` → `stumps`, `/node.json` → `proto`; `/admin` says when another Stump is older ("update it") or newer. The groundwork for sharing storage along the chain.
   - **No "TX failed" warning on every announce** at the end of a chain: a link with nobody on it isn't a failure (seen on LaBuche).
+  - **A bot's lines stay on its Stump** (seen on the bench: `BarKeep@LaBuche` was a DM contact on the Mac, and a DM to it got `⊖ BarKeep`). BarKeep's and the plugins' lines (the Tavern 1.1 too) are marked as a bot's and not sent to the other Stumps; in `/rrc/poll` they carry `"bot": true`.
   - `/names` showed people on a Stump met before its name was known as `nick@mesh-xxxx` until their next list: it follows the name now.
   - A Stump on a computer with two networks can sit in the middle of a chain: `PC_STA_IP` (docs/PC.md).
   - A computer Stump stopped (SIGTERM) now and then printed a traceback from asyncio cancelling its tasks: once a stop is asked for, that's the stop, not a crash.

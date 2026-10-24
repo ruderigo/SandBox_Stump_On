@@ -1153,7 +1153,7 @@ def _flush_to_peer(router, dest_hash_hex, peer):
         peer["last_sent_id"] = m["id"]
         if m["nick"] == nick:
             continue
-        if stump and (m["kind"] == "system" or m.get("via")):
+        if stump and (m["kind"] == "system" or m.get("via") or m.get("bot")):
             # To another Stump: its own people's lines only, no notices.
             continue
         if m["kind"] == "system":
@@ -1196,7 +1196,7 @@ def _stump_lines(msgs, skip_nick=None):
     came from other Stumps, no notices)."""
     out = []
     for m in msgs:
-        if m["nick"] == skip_nick or m["kind"] == "system" or m.get("via"):
+        if m["nick"] == skip_nick or m["kind"] == "system" or m.get("via") or m.get("bot"):
             continue
         out.append(("* " + m["nick"] + " " if m["kind"] == "action" else "<" + m["nick"] + "> ") + m["body"])
     return out
