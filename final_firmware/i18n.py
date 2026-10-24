@@ -60,21 +60,8 @@ def reset():
     _prefs.clear()
 
 
-def _url_encode(s):
-    """Minimal percent-encoding, matching barkeep.py's own encoder
-    exactly. Duplicated rather than imported: barkeep.py already
-    imports THIS module, so importing barkeep's encoder back would be
-    a circular import -- the same kind this project has deliberately
-    avoided elsewhere (billboard.py/fserv.py). A ~5-line duplication is
-    the smaller cost."""
-    safe = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.~"
-    out = ""
-    for ch in s:
-        if ch in safe:
-            out += ch
-        else:
-            out += "%%%02X" % ord(ch)
-    return out
+import webtext
+_url_encode = webtext.url_encode
 
 
 def switcher_html(lang, current_path, css_class="langbar"):
@@ -468,11 +455,6 @@ STRINGS = {
         "es": "¿Quieres compartir algo?",
     },
     "home_upload_button": {"fr": "Envoyer", "en": "Upload", "es": "Subir"},
-    "home_awaiting_hash": {
-        "fr": "Jeton d'attente (optionnel)",
-        "en": "Awaiting-slot hash (optional)",
-        "es": "Código de espera (opcional)",
-    },
     "home_sending": {"fr": "Envoi…", "en": "Sending...", "es": "Enviando…"},
     # Default topics of the two built-in rooms, shown in each reader's
     # language until someone sets a real topic.

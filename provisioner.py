@@ -1529,11 +1529,6 @@ class Route:
         print("\n%s %s: %s%s%s" % (mark, name, word, (" in " + _span(took)) if took and state == "done" else "",
                                    (" -- " + why) if why else ""))
 
-    def skip_rest(self, why=""):
-        for i in range(len(self.state)):
-            if self.state[i] in ("todo", "now"):
-                self.state[i] = "skip"
-
     def note(self, label, value):
         self.notes.append((label, value))
 
@@ -3009,12 +3004,6 @@ def _board_config_state(port):
     if m.group(1) == "1":
         return "yes"
     return "lost" if int(m.group(2)) else "fresh"
-
-
-def _board_has_config(port):
-    """True if the board already has a config.py (a node set up before),
-    or if that can't be told -- keeping a config is the safe mistake."""
-    return _board_config_state(port) != "fresh"
 
 
 def _backup_board_config(port):
@@ -4845,7 +4834,6 @@ def route_for(role):
 def start_menu(version=None):
     """What are you setting up? Returns a role from ROLES, or None.
     version: release_lines() for the top of the box."""
-    g = _glyphs()
     lines = (version or []) + ([""] if version else []) + [
              "Sets up Stump hardware step by step: it shows the route first,",
              "then goes through it one numbered section at a time, asking",
@@ -5949,14 +5937,14 @@ def chain_live(folder, parent_ip, wait=60, get=_get_json):
     it, and does it list it below? A list of (ok, what, fix)."""
     cfg = _read_folder_config(folder) or {}
     port = int(cfg.get("PC_HTTP_PORT", 80) or 80)
-    status, url = None, None
+    status = None
     end = time.time() + wait
     print("  Waiting for the link (up to %d s)..." % wait)
     while time.time() < end:
         for p in dict.fromkeys((port, 8080)):
             u = "http://127.0.0.1:%d/chain.json" % p
             try:
-                status, url = get(u), u
+                status = get(u)
                 break
             except Exception:
                 pass

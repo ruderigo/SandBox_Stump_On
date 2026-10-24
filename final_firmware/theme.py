@@ -94,10 +94,6 @@ def _load_admin_file():
         return None, 0
 
 
-def _load_admin_choice():
-    return _load_admin_file()[0]
-
-
 # _STAMP counts the admin's "for everyone" changes. A browser's own pick
 # (the per-browser buttons in /admin) is saved with the stamp it was made
 # under; once the admin changes the theme for everyone, the stamp moves

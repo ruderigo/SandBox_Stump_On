@@ -11,7 +11,7 @@ os.system('rm -rf %s && mkdir -p %s/shared %s/tools %s/home' % (ROOT, ROOT, ROOT
 import fserv
 fserv.SD_MOUNT = ROOT; fserv.SHARED_DIR = ROOT + '/shared'; fserv.TOOLS_DIR = ROOT + '/tools'
 fserv.HOME_DIR = ROOT + '/home'; fserv.LEDGER_FILE = ROOT + '/ledger.json'
-fserv.AWAITING_FILE = ROOT + '/awaiting.json'; fserv.sd_ok = True
+fserv.sd_ok = True
 import billboard
 billboard.storage_file = lambda: ROOT + '/billboard.txt'
 import barkeep

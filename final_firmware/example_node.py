@@ -144,25 +144,6 @@ async def serial_input_loop(router):
         await asyncio.sleep(0.05)
 
 
-async def send_echo_reply(router, source_hash, content):
-    """Send echo reply as async task (crypto takes ~7s, must not block poll loop)."""
-    import uasyncio as asyncio
-    await asyncio.sleep(0)
-    try:
-        reply_content = "Echo: " + str(content)
-        msg = router.send_message(source_hash, reply_content)
-        if msg:
-            if DEBUG >= 1:
-                print("[Echo] Replied to " + source_hash.hex()[:8])
-        else:
-            if DEBUG >= 1:
-                print("[Echo] Cannot reply to " + source_hash.hex()[:8] + " (unknown identity)")
-    except Exception as e:
-        from urns.log import log, LOG_ERROR
-        log("Echo reply error: " + str(e), LOG_ERROR)
-    gc.collect()
-
-
 def connect_wifi(ssid, password, timeout=15):
     import sys
     import network
@@ -226,7 +207,6 @@ def make_stump_beacon(identity, lxmf_dest, node_name):
     Same identity as the LXMF destination, so a client can also match
     the two announces by identity hash."""
     from urns.destination import Destination
-    from urns import umsgpack
     beacon = Destination(identity, Destination.IN, Destination.SINGLE, "stump", "node")
     beacon.set_default_app_data(stump_beacon_data(lxmf_dest, node_name))
     return beacon
@@ -242,8 +222,6 @@ def setup_node(rns, node_name):
     from node_common import setup_node as _shared_setup_node
 
     def on_message(message):
-        import uasyncio as asyncio
-
         sender = message.source_hash.hex()[:8]
         content = message.content_as_string() or "(binary)"
 
@@ -513,12 +491,11 @@ def main():
 
     # LXMF propagation node (store-and-forward), when switched on in the
     # provisioner or /admin (see propagation.py).
-    pn_on = False
     try:
         import propagation
         propagation.attach(router, NODE_NAME)
         if propagation.configured_on():
-            pn_on = propagation.enable()
+            propagation.enable()
     except Exception as e:
         print("[pn] not started:", e)
 

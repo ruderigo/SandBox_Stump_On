@@ -35,7 +35,7 @@ check("this response shows it, and clears this browser's own", "localStorage.rem
 check("every page has it", page_theme() == other, page_theme())
 check("saved on the board", open(theme.SITE_THEME_FILE).read().find(other) > 0)
 check("ticked on the form now", ("name='theme' value='" + other + "' checked") in admin_page()[2])
-theme._ADMIN_CHOICE = theme._load_admin_choice()
+theme._ADMIN_CHOICE = theme._load_admin_file()[0]
 check("survives a restart", theme.site_theme() == other)
 s, ct, b = req('/admin/theme', b'admin_pass=pw&theme=nonsense')
 check("unknown theme not saved", theme.site_theme() == other)

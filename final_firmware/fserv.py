@@ -13,13 +13,6 @@
 # security boundary. Credit tracked per identifier, class-weighted (a
 # real upload/download economy, not just a counter).
 #
-# Regulated mode, same mechanism: a slot gets marked "awaiting hash X" by
-# whoever has permission (e.g. a practitioner), while THEY are physically
-# at Stump. The matching person later provides that same hash -- still
-# just a local lookup key typed into a web form, never sent anywhere over
-# RNS -- to unlock upload into that specific slot. One code path handles
-# both modes; regulated is just neutral-mode-plus-a-slot-check.
-#
 # STORAGE: SD card, not internal flash -- real file sizes need real
 # storage. Pins confirmed from Freenove's own official SDMMC tutorial
 # (CMD=38, CLK=39, D0=40, 1-bit bus). machine.SDCard()'s parameter names
@@ -49,8 +42,6 @@ import ujson as json
 import os
 import time
 
-import billboard
-
 SD_MOUNT = "/sd"
 SHARED_DIR = SD_MOUNT + "/shared"
 # Technician tools live apart from user uploads. Separate directory so
@@ -77,12 +68,11 @@ HOME_DIR = SD_MOUNT + "/home"
 HOME_MAX_BYTES = 32768
 HOME_PLACES = ("top", "bottom", "left", "right")
 LEDGER_FILE = SD_MOUNT + "/fserv_ledger.json"
-AWAITING_FILE = SD_MOUNT + "/fserv_awaiting.json"
 
 # The ceiling storage stays under, as a fraction of the card's total
 # capacity -- not "keep N bytes free", which stops making sense the
 # moment someone swaps in a card of a different size. 75% leaves real
-# headroom on any card: room for the ledger/awaiting JSON files, the
+# headroom on any card: room for the ledger JSON file, the
 # filesystem's own bookkeeping, and enough slack that eviction (below)
 # is never fighting the FAT allocator over the last few blocks.
 MAX_SD_RATIO = 0.75
@@ -263,7 +253,7 @@ def sweep_tmp(paths=None):
     Only those names -- never anything else that happens to end in .tmp
     (a visitor's upload can). Returns how many were removed."""
     if paths is None:
-        paths = [LEDGER_FILE, AWAITING_FILE]
+        paths = [LEDGER_FILE]
         try:
             import billboard
             paths.append(billboard.storage_file())
@@ -321,10 +311,6 @@ def _save_json(path, data):
 
 def _ledger():
     return _load_json(LEDGER_FILE, {})
-
-
-def _awaiting():
-    return _load_json(AWAITING_FILE, {})
 
 
 def guess_class(filename):
@@ -446,18 +432,6 @@ def move_credits(src, dst):
     return amount
 
 
-def mark_awaiting(hash_hex, note=""):
-    """Called (locally, by whoever has permission) to open a regulated
-    slot for a specific hash. hash_hex is just a lookup key here --
-    nothing about this touches RNS."""
-    if not sd_ok:
-        return False
-    table = _awaiting()
-    table[hash_hex] = {"note": note, "fulfilled": False}
-    _save_json(AWAITING_FILE, table)
-    return True
-
-
 async def stream_to_file(reader, dest, length, chunk=16384, max_bps=None):
     """
     Streams `length` bytes from an open socket reader straight into a
@@ -572,21 +546,6 @@ async def drain(reader, length, chunk=2048):
             break
         read += len(buf)
     return read
-
-
-def _esc(s):
-    return (s.replace("&", "&amp;").replace("<", "&lt;")
-             .replace(">", "&gt;").replace('"', "&quot;"))
-
-
-def list_fw():
-    """Firmware images and catalog available for the kiosk flasher."""
-    if not sd_ok:
-        return []
-    try:
-        return sorted(os.listdir(FW_DIR))
-    except OSError:
-        return []
 
 
 def _is_dir(path):
@@ -1089,7 +1048,7 @@ def delete_file(filename):
 # NOTE: no HTTP server here either -- same reason as billboard.py.
 # barkeep.py owns port 80 and calls this module's storage/credit
 # functions (mount_sd, stream_to_file, drain, credit_cost, credit_add,
-# credit_balance, guess_class, _list_files, _awaiting, _save_json,
+# credit_balance, guess_class, _list_files, _save_json,
 # get_storage_stats, make_room_fifo, delete_file) directly. Keeping a
 # second copy of the upload/download handler here meant fixes landed
 # in one file and rotted in the other.

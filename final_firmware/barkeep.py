@@ -33,6 +33,7 @@ import keepalive  # a rescue start, the watchdog's last restart
 import propagation
 import stump_tls as tls  # not "tls": MicroPython has a built-in module by that name
 import flasher_ui
+import webtext
 
 # Per-node greeter name. Falls back so this module still imports on its
 # own (tests, or a config.py from a build that predates the setting).
@@ -442,15 +443,7 @@ code.ip-tag{
 """
 
 
-def _esc_name(s):
-    """Escapes the operator-set greeter name.
-
-    It lands in HTML and, in the chat script, inside a JS string literal
-    -- so an apostrophe (entirely plausible in a name like O'Malley)
-    would otherwise break the page. Escaping the quote characters covers
-    both cases, since the surrounding JS uses single quotes."""
-    return (s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-             .replace('"', "&quot;").replace("'", "&#39;"))
+_esc_name = webtext.esc   # the greeter's name: in HTML and in a single-quoted JS string
 
 
 # Two destinations, as tiles rather than the text links they used to be.
@@ -589,26 +582,7 @@ def _page(body):
              "</head><body>" + body + "</body></html>")
 
 
-def _url_encode(s):
-    """Minimal percent-encoding for filenames used in href query strings.
-    MicroPython has no urllib.parse.quote built in. Without this, a
-    filename containing a space, '&', or '#' breaks the resulting link
-    outright -- a real bug, not a style nit, and one that upload (below)
-    would have exposed immediately once reachable."""
-    safe = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.~"
-    out = ""
-    for ch in s:
-        if ch in safe:
-            out += ch
-        else:
-            # Each UTF-8 byte, not ord(ch): _url_decode now decodes
-            # UTF-8 (as browsers send it), and the two must stay exact
-            # inverses or links to accented filenames break. ord() also
-            # produced "%2019" for characters past U+00FF, which no
-            # decoder reads back correctly.
-            for b in ch.encode("utf-8"):
-                out += "%%%02X" % b
-    return out
+_url_encode = webtext.url_encode
 
 
 def _clean_filename(name):
@@ -943,10 +917,7 @@ def _nav_except(lang, current):
 _NAV_FEATURE = {"chat": "chat", "board": "billboard", "files": "files", "about": "about"}
 
 
-def _attr_esc(t):
-    """Text for a single-quoted HTML attribute."""
-    return (t.replace("&", "&amp;").replace("'", "&#39;").replace('"', "&quot;")
-             .replace("<", "&lt;").replace(">", "&gt;"))
+_attr_esc = webtext.esc
 
 
 def _nav(lang, *keys):
@@ -2485,7 +2456,6 @@ def _render_files_page(lang):
             "<p class='sub' style='margin-top:0;'>" + i18n.t("home_bring_something", lang) + "</p>"
             "<input type='file' id='upfile'>"
             "<div class='row'>"
-            "<input id='uphash' style='display:none' value=''>"
             "<button id='upbtn' onclick='doUpload()'>" + i18n.t("home_upload_button", lang) + "</button>"
             "</div>"
             "<p id='upstatus'><small></small></p>"
@@ -2581,7 +2551,6 @@ _UPLOAD_SCRIPT = """<script>
 function doUpload(){
   var file=document.getElementById('upfile').files[0];
   if(!file){return;}
-  var hash=document.getElementById('uphash').value;
   var status=document.getElementById('upstatus');
   var btn=document.getElementById('upbtn');
   function say(t){ status.innerHTML='<small></small>'; status.firstChild.textContent=t; }
@@ -2592,7 +2561,7 @@ function doUpload(){
   // "thé.jpg" reached the node as one undecodable byte, and a name outside
   // Latin-1 ("日本.jpg", emoji) made the browser refuse to send at all.
   fetch('/upload',{method:'POST',headers:{'X-Filename':encodeURIComponent(file.name),
-    'X-Filename-Encoding':'url','X-Hash':hash},body:file})
+    'X-Filename-Encoding':'url'},body:file})
     .then(function(r){ok=r.ok; return r.text();})
     .then(function(t){
       say(t);
@@ -4495,7 +4464,6 @@ async def _serve(reader, writer, secure=False):
                 # emoji. What the Files page sends; a raw name still works.
                 raw_name = billboard._url_decode(raw_name)
             fname = _clean_filename(raw_name)
-            hash_hex = headers.get("x-hash", "").strip()
             length = int(headers.get("content-length", "0"))
             as_json = _wants_json(headers)
 
@@ -4534,15 +4502,10 @@ async def _serve(reader, writer, secure=False):
                 await _result(writer, as_json, "507 Insufficient Storage", "full",
                               "Card capacity exceeded (75% threshold limit).")
             else:
-                table = fserv._awaiting()
-                is_slot = bool(hash_hex) and hash_hex in table and not table[hash_hex]["fulfilled"]
-                if is_slot:
-                    dest = fserv.SD_MOUNT + "/slot_" + hash_hex + "_" + fname
-                else:
-                    # A name already shared: "name (2).ext", never a
-                    # replacement of someone else's file.
-                    fname = fserv.free_name(fserv.SHARED_DIR, fname)
-                    dest = fserv.SHARED_DIR + "/" + fname
+                # A name already shared: "name (2).ext", never a
+                # replacement of someone else's file.
+                fname = fserv.free_name(fserv.SHARED_DIR, fname)
+                dest = fserv.SHARED_DIR + "/" + fname
 
                 who = guard._k(identifier)
                 fserv.upload_start(who)
@@ -4560,8 +4523,8 @@ async def _serve(reader, writer, secure=False):
                 else:
                     # The file itself is already safely on disk at this
                     # point -- stream_to_file succeeded. Everything from
-                    # here on is bookkeeping (marking a slot fulfilled,
-                    # updating the credit ledger), and _save_json's own
+                    # here on is bookkeeping (the credit ledger), and
+                    # _save_json's own
                     # fix already stops a write failure there from
                     # raising -- but this try/except is a second,
                     # independent layer specifically so that ANY future
@@ -4576,26 +4539,19 @@ async def _serve(reader, writer, secure=False):
                     # browser's fetch() just hangs -- no success, no
                     # error, nothing, indistinguishable from the upload
                     # having failed outright.
-                    extra = {"name": fname, "size": written, "slot": is_slot, "balance": None}
+                    # ("slot" stays in the answer, always false: the
+                    # awaiting-slot uploads it named were removed.)
+                    extra = {"name": fname, "size": written, "slot": False, "balance": None}
                     try:
-                        if is_slot:
-                            # Only mark the slot fulfilled once the bytes
-                            # are actually on disk -- marking it earlier
-                            # would burn a one-shot slot on an upload
-                            # that never completed.
-                            table[hash_hex]["fulfilled"] = True
-                            fserv._save_json(fserv.AWAITING_FILE, table)
-                            msg = "Delivered to your awaiting slot."
+                        credited = fserv.credit_add(identifier, fserv.credit_cost(fname))
+                        if fserv.CREDITS_ENABLED:
+                            msg = "Uploaded. Your balance: " + str(credited)
+                            extra["balance"] = credited
                         else:
-                            credited = fserv.credit_add(identifier, fserv.credit_cost(fname))
-                            if fserv.CREDITS_ENABLED:
-                                msg = "Uploaded. Your balance: " + str(credited)
-                                extra["balance"] = credited
-                            else:
-                                msg = "Uploaded. Thanks for bringing something."
+                            msg = "Uploaded. Thanks for bringing something."
                     except Exception as e:
                         print("[barkeep] upload bookkeeping failed (file already saved):", e)
-                        msg = "Uploaded, but couldn't update your balance/slot record."
+                        msg = "Uploaded, but couldn't update your balance record."
                         extra["warning"] = "bookkeeping"
                     await _result(writer, as_json, "200 OK", None, msg, extra)
 

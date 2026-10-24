@@ -25,6 +25,7 @@ import rrc
 import ujson as json
 import os
 
+import webtext
 from urns.identity import Identity
 
 try:
@@ -75,12 +76,7 @@ _loaded = False
 # Persistence
 # ---------------------------------------------------------------------
 
-def _sd_available():
-    try:
-        os.stat("/sd")
-        return True
-    except OSError:
-        return False
+_sd_available = webtext.sd_available
 
 
 from urns.identity import Identity as _Identity   # for exact size constants only

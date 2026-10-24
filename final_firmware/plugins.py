@@ -21,6 +21,7 @@
 # off from /admin without a laptop, and a plugin that hangs or resets the
 # board while starting is switched off automatically at the next boot.
 
+import webtext
 import time
 
 try:
@@ -148,10 +149,6 @@ def clear_marker():
         os.remove(MARKER_FILE)
     except Exception:
         pass
-
-
-def is_off(name):
-    return name in _load_state()["off"]
 
 
 # ── the Api a plugin's setup() receives ───────────────────────────────
@@ -302,11 +299,7 @@ class Api:
         except Exception:
             return text
 
-    @staticmethod
-    def esc(text):
-        """Text made safe for a page's HTML (and attribute values)."""
-        return (str(text).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-                .replace('"', "&quot;").replace("'", "&#39;"))
+    esc = staticmethod(webtext.esc)   # text made safe for a page's HTML (and attribute values)
 
     def log(self, *args):
         _log(self.name, " ".join(str(a) for a in args))
