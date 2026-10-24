@@ -542,12 +542,12 @@ EXPECTED_FILE_HASHES = {
     "urns/interfaces/wifi_serial.py": "4ce7c80aa6bf0846",
     "urns/link.py": "ef808679cefb1ac0",
     "urns/log.py": "4b5576693991c7a6",
-    "urns/lxmf.py": "a67218b713580252",
+    "urns/lxmf.py": "e0b81de45fc4de60",
     "urns/packet.py": "d8a3a0c4a3a9ebbf",
     "urns/resource.py": "e54f10289b5a85e6",
     "urns/reticulum.py": "88295a083390bdc5",
     "urns/transport.py": "ca8f0f641c111b04",
-    "urns/umsgpack.py": "7df3983d6abcf149",
+    "urns/umsgpack.py": "b1616a439fa0e915",
     "web/codec2.js": "2caf391c54505c61",
     "web/codec2.wasm": "342264605478d63f",
     "web/opus.js": "1cb7a20504785a6d",
@@ -823,10 +823,39 @@ def plugin_files(plugin_dir, spec=None):
     spec = _plugin_spec(d) if spec is None else spec
     listed = spec.get("files")
     if listed:
-        return [f for f in listed if (d.parent / f).is_file()]
+        # Only the plugin's own folder: a listed "../config.py" or
+        # "tavern/../barkeep.py" would have been copied over the core.
+        return [f for f in listed if isinstance(f, str) and _inside_plugin(f, d.name)
+                and (d.parent / f).is_file()]
     return sorted(f.relative_to(d.parent).as_posix() for f in d.rglob("*")
                   if f.is_file() and "__pycache__" not in f.parts
                   and not any(f.name.endswith(s) for s in MANIFEST_EXCLUDE_SUFFIXES))
+
+
+def _inside_plugin(rel, name):
+    parts = rel.replace("\\", "/").split("/")
+    return len(parts) >= 2 and parts[0] == name and not any(p in ("", ".", "..") for p in parts) \
+        and ":" not in rel
+
+
+def plugin_name_problem(name, fw=None):
+    """Why a plugin can't be called this, or None. Not a core module or
+    folder's name (a folder "barkeep/" is imported instead of barkeep.mpy),
+    not a built-in plugin's (an update would replace stumpid, the access
+    control), and a plain lowercase name."""
+    import re as _re
+    if not isinstance(name, str) or not _re.match(r"^[a-z][a-z0-9_]{1,23}$", name):
+        return "a plugin's name is 2-24 lowercase letters, digits or _"
+    if name in ("urns", "lib", "peripherals", "web", "docs", "third_party", "tools_payload", "sd", "rns",
+                "tls", "plugins_state", "boot", "main", "config"):
+        return "a plugin can't be called %s" % name
+    core = set(Path(f).stem for f in STUMP_APP_FILES if "/" not in f)
+    if name in core:
+        return "%s is a part of the Stump's own code" % name
+    for d, _ in discover_plugins(Path(fw or STUMP_APP_DIR)):
+        if d == name:
+            return "%s is a built-in plugin: a pack can't replace it" % name
+    return None
 
 
 def verify_plugin(plugin_dir, spec=None):
@@ -982,10 +1011,15 @@ def check_pack(pack, fw_api):
         return ("needs plugin API %d; this firmware has %s" % (need, fw_api or "none (too old)")), []
     for name in spec.get("plugins", []):
         pd = d / name
+        why = plugin_name_problem(name)
+        if why:
+            return why, []
         if not (pd / "install.py").is_file():
             return ("plugin folder %s/ has no install.py" % name), []
-        if name in ("urns", "lib", "peripherals", "web", "docs", "third_party", "tools_payload"):
-            return ("a plugin can't be called %s" % name), []
+        listed = (_plugin_spec(pd) or {}).get("files") or []
+        outside = [f for f in listed if not (isinstance(f, str) and _inside_plugin(f, name))]
+        if outside:
+            return ("%s/plugin.json lists files outside its folder: %s" % (name, ", ".join(map(str, outside[:3])))), []
         problems, unhashed = verify_plugin(pd)
         for rel, why in problems:
             warnings.append("%s: %s" % (rel, why))
