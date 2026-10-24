@@ -978,6 +978,23 @@ BOARD_LINES = 5
 POST_CMD_MAX = 6 + 80 + 3 + 600 + 8     # "/post " + title + " | " + body, and some spaces
 
 
+# The radio down past its grace time (rrc_mesh.lora_status): someone
+# writing to LoRa hears it, once a minute, and their line waits. Set by
+# rrc_mesh (rrc doesn't know the radio).
+LORA_NOTICE = [None]
+
+
+def _lora_notice(client_id, kind, target=None):
+    f = LORA_NOTICE[0]
+    if f is None:
+        return []
+    try:
+        line = f(client_id, kind, target)
+    except Exception:
+        return []
+    return [line] if line else []
+
+
 def board_id(pid):
     """The short id of a notice, for the chat and LoRa."""
     pid = str(pid or "")
@@ -1137,7 +1154,8 @@ def _handle_core(client_id, room, text, user, lang):
         if posted is None:
             return [i18n.t("room_gone", lang)], None
         # Posted: now !triggers and plugin listeners.
-        return plugins.after(client_id, room, user["nick"], text, lang), None
+        return (plugins.after(client_id, room, user["nick"], text, lang)
+                + (_lora_notice(client_id, "room") if room == MESH_ROOM else [])), None
 
     parts = text[1:].split(" ", 1)
     cmd = parts[0].lower()
@@ -1265,7 +1283,7 @@ def _handle_core(client_id, room, text, user, lang):
         # Confirmed to the sender only. Nothing is posted to the room --
         # that is the whole point, and it also keeps private traffic off
         # the radio, since rrc_mesh forwards room messages but not these.
-        return [dm_line(user["nick"], body)], None
+        return [dm_line(user["nick"], body)] + _lora_notice(client_id, "dm", target), None
 
     if cmd == "me":
         if not arg:
