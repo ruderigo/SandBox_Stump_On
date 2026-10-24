@@ -786,7 +786,7 @@ def create_room(name):
     return slug, None
 
 
-def post(room, nick, body, kind="msg", via=None):
+def post(room, nick, body, kind="msg", via=None, bot=False):
     """Adds a line to a room. Returns the message, or None if rejected.
 
     Oldest messages are dropped past MAX_MESSAGES_PER_ROOM rather than
@@ -805,6 +805,11 @@ def post(room, nick, body, kind="msg", via=None):
         # Relayed from another Stump of the chain (rrc_mesh): never sent
         # on to other Stumps, which hear the original themselves.
         msg["via"] = via
+    if bot:
+        # Said by a bot or a plugin (BarKeep, the Tavernier): for the people
+        # here, not sent to the other Stumps -- there it looked like a
+        # person, "BarKeep@LaBuche", whom nobody could DM ("⊖ BarKeep").
+        msg["bot"] = True
     _next_id[0] += 1
     msgs = _rooms[room]
     msgs.append(msg)
