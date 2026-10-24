@@ -590,6 +590,11 @@ is the highest message `id` you already have.
 - `kind`: `msg`, `system` (room activity, written as symbols — see
   *Room activity and DMs are symbols* below; `nick` is `"*"`),
   `action` (`/me`), or `dm`.
+- A message may carry `"bot": true` (since 1.0.0-beta.36): said by a bot
+  or a plugin (BarKeep, the Tavernier), not a person. Show it as you
+  like; don't offer it as a DM contact. `"via"` (hex) marks a line
+  relayed from another Stump of the chain. Ignore any other key you
+  don't know.
 - `messages` and `dms` share one id sequence — one `since` covers both.
 - `users` is the people in your room **plus** mesh peers reachable by
   DM only (see RRC over LXMF) and, on a chain, people on the other
