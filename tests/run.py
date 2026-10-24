@@ -60,6 +60,7 @@ TESTS = [
     ("identity_matrix", "assert", []),
     ("password_cost", "assert", []),
     ("store_atomic", "assert", []),
+    ("admin_lazy", "assert", []),
 ]
 
 _NORM = [

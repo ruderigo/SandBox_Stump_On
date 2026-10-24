@@ -100,6 +100,7 @@ check("chat off: the pages at once, chat over the mesh at the next restart", lat
 saved, later = S.apply(S.parse_form(dict(form, f_billboard="", f_chat="", bot_name="Sam"))[0])
 check("saved again with nothing changed: nothing written, nothing waits", saved and later == [], later)
 import barkeep
+import admin_web
 saved, later = S.apply(S.parse_form(dict(form, f_billboard="", f_chat="", bot_name="Sam"))[0])
 check("the librarian's firefly: off at once (no bubble on the pages), kept in config.py",
       saved and later == [] and not S.librarian_on() and barkeep._ask_drawer("en") == ""
@@ -113,7 +114,7 @@ check("economy names: free / standard / custom", [S.economy({"CREDITS_ENABLED": 
 st = S.storage()
 check("storage: the size, what's in sd/, the disk's free space", st and st["mb"] == 2048 and st["disk_free"] > 0
       and st["max_mb"] >= 2048, st)
-html = barkeep._render_admin_setup_section("en", "pw")
+html = admin_web._render_admin_setup_section("en", "pw")
 check("the card has a Storage group (a computer)", "name='storage_mb'" in html and "value='2048'" in html
       and "Storage" in html and "free" in html, html[-1500:])
 mb = min(4096, st["max_mb"])

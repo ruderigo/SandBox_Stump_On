@@ -310,7 +310,8 @@ DEFAULT_CREDIT_WEIGHTS = {"video": 3, "music": 2, "document": 1, "other": 1}
 #    for f in sorted(Path('final_firmware').rglob('*')) if f.is_file()]"
 EXPECTED_FILE_HASHES = {
     "_sd_web/billboard.txt": "e3b0c44298fc1c14",
-    "barkeep.py": "f52c42c11ae54a30",
+    "admin_web.py": "b8004a9ff9a87c23",
+    "barkeep.py": "3d5fb30644992c3c",
     "billboard.py": "73e95795f9430ea5",
     "boot_common.py": "dc95827c3989d1ca",
     "captive_portal.py": "35cb3a279ecc42db",
