@@ -1142,7 +1142,8 @@ def _profiles_in(content):
         return data if isinstance(data, list) else (json.loads(data["r"]) if isinstance(data, dict) and "r" in data else [])
     if not isinstance(data, dict) or not isinstance(data.get("r"), str) or not isinstance(data.get("t"), str):
         return None
-    if data["t"] != _profiles_tag(secret, data["r"]):
+    import webtext
+    if not webtext.same(data["t"], _profiles_tag(secret, data["r"])):
         return None
     recs = json.loads(data["r"])
     return recs if isinstance(recs, list) else None

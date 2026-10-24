@@ -1010,7 +1010,7 @@ def _check_admin_pw_now(pw):
                 want = getattr(config, "AUTH_ADMIN_PASSWORD", "") or getattr(config, "FSERVBOT_OP_PASSWORD", "")
             except ImportError:
                 want = ""
-            return bool(want) and pw == want
+            return bool(want) and webtext.same(pw, want)
         return False
     try:
         return bool(ident.check_admin_password(pw))

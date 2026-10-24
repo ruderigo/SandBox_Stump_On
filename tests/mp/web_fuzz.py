@@ -121,6 +121,17 @@ check("... and nothing named so in the card's own folder either", not any("pwned
 check("... answered", not seen, seen[:6])
 del seen[:]
 
+
+# 5b. Sessions: forged cookies get nothing; a real one works only where it's for.
+r = req("/admin", headers=("Cookie: stump_admin=" + "0" * 32,))
+check("a made-up admin session: the login page, not /admin", "/admin/logout" not in r[2] and "admin_pass" in r[2])
+r = req("/admin", headers=("Cookie: stump_p=" + "0" * 32 + "; stump_v=p:admin",))
+check("a made-up profile session, a visitor ID shaped like a profile's: nobody special",
+      "/admin/logout" not in r[2], r[0])
+import webtext
+check("passwords and tags are compared in constant time (webtext.same)", webtext.same("pw", "pw")
+      and not webtext.same("pw", "pW") and not webtext.same("pw", "pwx") and not webtext.same("", "pw"))
+
 # 5. Nothing the handler had to catch, and still serving.
 check("no request ended in an exception the handler had to catch", not ERRORS, ERRORS[:6])
 s, ct, b = req("/node.json")

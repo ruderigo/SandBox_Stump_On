@@ -73,6 +73,23 @@ def text(b):
         return "".join(chr(c) for c in b)
 
 
+def same(a, b):
+    """a == b for secrets (passwords, tags), in a time that doesn't tell
+    how much of a guess was right. Text or bytes."""
+    if a is None or b is None:
+        return False
+    if isinstance(a, str):
+        a = a.encode()
+    if isinstance(b, str):
+        b = b.encode()
+    # The length isn't secret; looping over the guess keeps a wrong length
+    # from returning faster than a wrong character would.
+    r = len(a) ^ len(b)
+    for i in range(len(a)):
+        r |= a[i] ^ b[i % len(b)] if b else 1
+    return r == 0
+
+
 def sd_available():
     """True when something is mounted at /sd."""
     try:
