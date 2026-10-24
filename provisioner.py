@@ -180,6 +180,18 @@ def _folder_release(path=None):
     return None
 
 
+def firmware_zip_name(fw_dir=None):
+    """The firmware zip on the Tools page, named with its release:
+    Stump-1.0.0-beta.35.zip (it was Stump_Beta_A.zip, whatever the build)."""
+    r = _folder_release(fw_dir) or "unknown"
+    return "Stump-%s.zip" % re.sub(r"[^A-Za-z0-9._-]", "_", r)
+
+
+def _is_old_firmware_zip(name, current):
+    """A firmware zip from an earlier build, to remove beside the new one."""
+    return name != current and (name == "Stump_Beta_A.zip" or (name.startswith("Stump-") and name.endswith(".zip")))
+
+
 def checkout_status(fetch=None):
     """Is this download the latest? {"release", "git", "behind"}:
     release from final_firmware/example_node.py; outside a git checkout
@@ -322,7 +334,7 @@ EXPECTED_FILE_HASHES = {
     "docs/CHAIN.md": "7d168225a314cfba",
     "docs/CLIENT_QUICKSTART.md": "bd04a91a4400ec7f",
     "docs/COMMANDS.md": "d538a664029721e9",
-    "docs/ENGINEERING_NOTES.md": "32f93e149665aa57",
+    "docs/ENGINEERING_NOTES.md": "0818b93764d68cf0",
     "docs/FIELD_TEST.md": "0cd367b92d89f230",
     "docs/HIDDEN_FEATURES.md": "2529e887b65ee598",
     "docs/HOME_BRANDING.md": "e1a1a9cf854dcdce",
@@ -333,7 +345,7 @@ EXPECTED_FILE_HASHES = {
     "example_node.py": "75b77af17324996b",
     "features.py": "81e8af361c64a911",
     "flasher_ui.py": "1d3035b1132bc87e",
-    "fserv.py": "f43e7759b09abad1",
+    "fserv.py": "875e3892212ae541",
     "fservbot/plugin.json": "e09d6b1d72acf621",
     "guard.py": "526fac7536abfe7f",
     "i18n.py": "d2a6c7a241a2e13a",
@@ -493,9 +505,9 @@ EXPECTED_FILE_HASHES = {
     "tools_payload/flasher/esptool-bundle.js": "ef7d5a237d3f273e",
     "tools_payload/flasher/esptool-js-LICENSE.txt": "1c25f29242785d63",
     "tools_payload/images/README.txt": "10dbf1ed3e3eee26",
-    "tools_payload/provisioner/README.es.md": "a11e1f5793fa473d",
-    "tools_payload/provisioner/README.fr.md": "65c68d1ca42a6c13",
-    "tools_payload/provisioner/README.md": "dbf678077919e6c2",
+    "tools_payload/provisioner/README.es.md": "03d3bed76015cfa5",
+    "tools_payload/provisioner/README.fr.md": "495780b8eb5ecc25",
+    "tools_payload/provisioner/README.md": "fe29467d59aac883",
     "urns/__init__.py": "4a83ee3f5cd42ca4",
     "urns/buffer.py": "b1da1d0723340421",
     "urns/bz2dec.py": "8149a39deee822c2",
@@ -3159,7 +3171,7 @@ def _config_summary(text):
 
 
 def _build_firmware_zip(dest_path, source_dir):
-    """Builds Stump_Beta_A.zip fresh from source_dir (final_firmware/,
+    """Builds the firmware zip (firmware_zip_name()) fresh from source_dir (final_firmware/,
     the SAME directory this run of provisioner.py is already using for
     everything else) rather than requiring the technician to have kept
     their original downloaded zip around. Two things that matters
@@ -3436,7 +3448,8 @@ def _install_tools_on_node(port):
     if fw_dir.is_dir():
         try:
             with tempfile.TemporaryDirectory() as tmpdir:
-                zip_path = Path(tmpdir) / "Stump_Beta_A.zip"
+                zip_name = firmware_zip_name(fw_dir)
+                zip_path = Path(tmpdir) / zip_name
                 _build_firmware_zip(zip_path, fw_dir)
                 # A real run timed out pushing this at the same 180s
                 # every other, much smaller tool push uses -- confirmed
@@ -3447,9 +3460,14 @@ def _install_tools_on_node(port):
                 # since a silent multi-minute wait reads as a hang
                 # otherwise -- the other pushes are fast enough that
                 # nobody's watched the clock on them before now.
-                push(zip_path, ":/sd/tools/provisioner/Stump_Beta_A.zip", "Stump_Beta_A.zip")
+                push(zip_path, ":/sd/tools/provisioner/" + zip_name, zip_name)
+                # The zips of earlier builds go: one firmware on the page, the one it runs.
+                run(["mpremote", "connect", port, "exec", MOUNT +
+                     "import os\nfor n in os.listdir('/sd/tools/provisioner'):\n"
+                     "    if n != %r and (n == 'Stump_Beta_A.zip' or (n.startswith('Stump-') and n.endswith('.zip'))):\n"
+                     "        os.remove('/sd/tools/provisioner/' + n)\n" % zip_name], timeout=30)
         except Exception as e:
-            failed.append(("Stump_Beta_A.zip", str(e)[:70]))
+            failed.append(("firmware zip", str(e)[:70]))
 
     payload = here / "final_firmware" / "tools_payload"
     if not payload.is_dir():
@@ -5385,9 +5403,13 @@ def _pc_install_tools(fw, folder):
                 _copy_if_changed(f, tools / sec / f.name)
     try:
         with tempfile.TemporaryDirectory() as tmp:
-            z = Path(tmp) / "Stump_Beta_A.zip"
+            name = firmware_zip_name(fw)
+            z = Path(tmp) / name
             _build_firmware_zip(z, fw)
-            _copy_if_changed(z, tools / "provisioner" / "Stump_Beta_A.zip")
+            _copy_if_changed(z, tools / "provisioner" / name)
+            for old in (tools / "provisioner").glob("*.zip"):
+                if _is_old_firmware_zip(old.name, name):
+                    old.unlink()
     except Exception as e:
         print("  (firmware zip for the Tools page skipped: %s)" % e)
     cat = payload / "flasher" / "catalog.json"

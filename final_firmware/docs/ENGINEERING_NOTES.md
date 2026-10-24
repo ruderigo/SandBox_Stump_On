@@ -33,7 +33,7 @@ note describes something that has changed since, the README and
   code. Named `LICENSE` with no extension deliberately, matching the
   standard convention GitHub, package managers, and license scanners
   all look for by that exact name.
-- **`Stump_Beta_A.zip`** — the full firmware source, built *fresh* from
+- **`Stump-<release>.zip`** (`Stump_Beta_A.zip` before 1.0.0-beta.35) — the full firmware source, built *fresh* from
   the technician's own `final_firmware/` directory at push time rather
   than copied from wherever their original download happened to land.
   Built this way specifically so it can't go stale relative to what's

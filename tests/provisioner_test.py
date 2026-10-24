@@ -13,6 +13,8 @@ files = P.manifest_candidates(fw)
 check('manifest keeps plugin.json', 'fservbot/plugin.json' in files and 'stumpid/plugin.json' in files)
 check('manifest drops plugin files', not any(f.startswith(('fservbot/', 'stumpid/')) and not f.endswith('plugin.json') for f in files))
 check('api', P.firmware_plugin_api(fw) == 1)
+check('the firmware zip is named with its release', re.match(r'^Stump-1\.0\.0-beta\.\d+\.zip$', P.firmware_zip_name(fw)) is not None
+      and P._is_old_firmware_zip('Stump_Beta_A.zip', P.firmware_zip_name(fw)) and not P._is_old_firmware_zip(P.firmware_zip_name(fw), P.firmware_zip_name(fw)), P.firmware_zip_name(fw))
 check('core manifest current', P._check_local_files_current(fw.resolve()) == [], P._check_local_files_current(fw.resolve()))
 for n in ('fservbot', 'stumpid'):
     check(n + ' verifies', P.verify_plugin(fw / n) == ([], []), P.verify_plugin(fw / n))

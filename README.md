@@ -530,7 +530,7 @@ from `/tools`:
 
 - **`provisioner/`** — `provisioner.py` itself (the exact version the
   node was set up with), this README as `Stump-README.md`, `LICENSE`,
-  and `Stump_Beta_A.zip`, the firmware built fresh from the technician's
+  and `Stump-<release>.zip` (`Stump-1.0.0-beta.35.zip`), the firmware built fresh from the technician's
   own `final_firmware/`;
 - **`flasher/`** — the browser flasher's assets (hidden feature HF-001).
   It holds no firmware images: staging a GPL-3.0 RNode image there would
@@ -1256,7 +1256,7 @@ The Heltec Bridge role runs
 µReticulum above, by a different author). Both are used as pre-built
 binaries pulled directly from their own upstream releases and flashed
 as-is; neither is included as source anywhere in this repository or in
-`Stump_Beta_A.zip`, so this project's own code remains MIT throughout —
+`Stump-<release>.zip`, so this project's own code remains MIT throughout —
 true today, and worth keeping true: see "What ends up in `/sd/tools/`"
 above for the one place that claim would need re-checking if it ever
 changes (staging a real firmware binary for the browser flasher).
