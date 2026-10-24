@@ -250,7 +250,8 @@ except Exception:
 for name in list(procs):
     stop(name)
 for name, log in logs.items():
-    check("no tracebacks in %s's log" % name, "Traceback" not in log, log[log.find("Traceback"):][:1500])
+    tb = log[log.find("Traceback"):]
+    check("no tracebacks in %s's log" % name, "Traceback" not in log, tb[:1200] + " ... " + tb[-1500:])
     check("no 'TX failed' warnings in %s's log (a link with nobody on it isn't a failure)" % name,
           "TX failed" not in log, [l for l in log.splitlines() if "TX failed" in l][:3])
     if FAIL:
