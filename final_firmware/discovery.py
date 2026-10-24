@@ -258,7 +258,9 @@ def caps():
         out["m"] = "open"
     try:
         import radio
-        out["rad"] = radio.hw()["state"] == "online"
+        st = radio.hw()["state"]
+        out["rad"] = st == "online"
+        out["rh"] = st != "none"          # it has a radio, online or not (1.0.0-beta.38)
     except Exception:
         out["rad"] = False
     try:
@@ -357,6 +359,7 @@ def chain_stumps():
         out.append({"name": v["name"], "lxmf": k, "release": str(c.get("r") or "")[:40],
                     "proto": max(1, _int(c.get("p"), 1)),
                     "mode": str(c.get("m") or "")[:12], "radio": bool(c.get("rad")),
+                    "has_radio": bool(c.get("rh") or c.get("rad")),
                     "storage": {"kind": str(s[0])[:8], "free_mb": max(0, _int(s[1], 0))} if s else None,
                     "plugins": [str(p)[:24] for p in pl][:8],
                     "heard_s": int(now - v["at"])})

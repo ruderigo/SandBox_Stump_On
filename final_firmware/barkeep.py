@@ -2811,7 +2811,13 @@ async def _r_get_hw_json(reader, writer, method, path, headers, ip, identifier, 
     # The radio(s): connected, connecting, or why not; the RNode's
     # firmware and live statistics (radio.hw). For the chat's
     # status dot and /admin.
-    await _send(writer, "200 OK", json.dumps(radio.hw()), "application/json")
+    hw = radio.hw()
+    try:
+        import rrc_mesh
+        hw["lora"] = rrc_mesh.lora_status()     # the radio here or along the chain (1.0.0-beta.38)
+    except Exception:
+        pass
+    await _send(writer, "200 OK", json.dumps(hw), "application/json")
 
 
 

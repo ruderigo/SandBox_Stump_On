@@ -355,7 +355,11 @@ def _from_stump(dest_hash_hex, peer, text, router=None, title=""):
 # ── Peer state ────────────────────────────────────────────────────────
 
 def _prune_peers(now):
-    stale = [h for h, p in _peers.items() if now - p["last_seen"] > PEER_TIMEOUT]
+    # While the radio is down nobody on LoRa can be heard: they aren't
+    # gone, and what waits for them stays (up to LORA_KEEP_S).
+    keep = _lora_waits() and _lora["since"] is not None and now - _lora["since"] < _setting("LORA_KEEP_S", LORA_KEEP_S)
+    stale = [h for h, p in _peers.items() if now - p["last_seen"] > PEER_TIMEOUT
+             and not (keep and not p.get("stump"))]
     for h in stale:
         p = _peers.pop(h)
         rrc.system(p["room"], rrc.ev_leave("~" + p["nick"]))
@@ -495,6 +499,140 @@ def _is_person(router, dest, packet):
 
 
 _forged = set()           # LXMF addresses named by beacons that weren't theirs (logged once)
+
+
+# ── The radio, this Stump's own or one along the chain ───────────────
+# "up": a radio online (this Stump's Heltec, by USB, Bluetooth or the
+# CAM's bridge; or another Stump of the chain's, from its beacon).
+# "connecting": none online, for less than LORA_GRACE_S -- the Heltec's
+# own reconnect gets that long, nothing is said yet. "down": longer than
+# that: someone writing to LoRa is told, once a minute, and their line
+# waits (the room and DM marks don't move) to go out when it's back, up
+# to LORA_KEEP_S. "none": this Stump has no radio, nor does any Stump
+# of the chain: nothing to wait for.
+_lora = {"state": "none", "since": None, "own": None, "told": {}}
+
+
+def _setting(name, default):
+    try:
+        import config
+        return getattr(config, name, default)
+    except Exception:
+        return default
+
+
+def lora_status(now=None):
+    """{"state": "none"|"up"|"connecting"|"down", "down_s": seconds or None}"""
+    now = time.time() if now is None else now
+    since = _lora["since"]
+    return {"state": _lora["state"], "down_s": int(now - since) if since is not None else None}
+
+
+def _lora_paths():
+    """(this Stump or one of its chain has a radio, one is online now)."""
+    own = None
+    try:
+        import radio
+        own = radio.hw()["state"]
+    except Exception:
+        pass
+    if own and own != "none":
+        if own != _lora["own"] and _lora["own"] == "online":
+            # Our radio just went: the chain hears it from our beacon, now
+            # rather than at the half-hourly one.
+            try:
+                import chain
+                chain.link_event()
+            except Exception:
+                pass
+        _lora["own"] = own
+        if own == "online":
+            return True, True
+    else:
+        _lora["own"] = own
+    has, up = bool(own and own != "none"), False
+    try:
+        import discovery
+        for s in discovery.chain_stumps():
+            if s.get("heard_s", 10 ** 9) > 7200:
+                continue
+            if s.get("has_radio"):
+                has = True
+            if s.get("radio"):
+                up = True
+    except Exception:
+        pass
+    return has, up
+
+
+def lora_tick(now=None):
+    now = time.time() if now is None else now
+    has, up = _lora_paths()
+    before = _lora["state"]
+    if not has:
+        _lora["state"], _lora["since"] = "none", None
+    elif up:
+        if before in ("down", "connecting") and _lora["since"] is not None:
+            print("[rrc_mesh] the radio is back after %d s" % int(now - _lora["since"]))
+            if now - _lora["since"] > _setting("LORA_KEEP_S", LORA_KEEP_S):
+                _skip_backlog()
+        _lora["state"], _lora["since"] = "up", None
+    else:
+        if _lora["since"] is None:
+            _lora["since"] = now
+        grace = _setting("LORA_GRACE_S", LORA_GRACE_S)
+        _lora["state"] = "down" if now - _lora["since"] >= grace else "connecting"
+        if _lora["state"] == "down" and before != "down":
+            print("[rrc_mesh] the radio has been down %d s: telling who writes to LoRa, keeping their lines"
+                  % int(now - _lora["since"]))
+    return _lora["state"]
+
+
+LORA_GRACE_S = 120
+LORA_KEEP_S = 3600
+
+
+def _lora_waits():
+    """Lines for LoRa wait (the radio connecting or down)."""
+    return _lora["state"] in ("connecting", "down")
+
+
+def _skip_backlog():
+    """Down longer than LORA_KEEP_S: what waited is let go, not sent all
+    at once an hour late."""
+    for h, p in _peers.items():
+        if not p.get("stump"):
+            msgs = rrc.since(p["room"], p.get("last_sent_id", 0))
+            if msgs:
+                p["last_sent_id"] = msgs[-1]["id"]
+            dms = rrc.dms_since(h, p.get("last_dm_id", 0))
+            if dms:
+                p["last_dm_id"] = dms[-1]["id"]
+    print("[rrc_mesh] the radio was down over an hour: what waited is let go")
+
+
+def _lora_notice(client_id, kind, target=None):
+    """The line someone writing to LoRa gets while the radio is down."""
+    if _lora["state"] != "down":
+        return None
+    if kind == "dm":
+        # Only a DM to someone on LoRa (not a person here, nor on another Stump by Wi-Fi).
+        t = (target or "").lower()
+        on_lora = any(p["nick"].lower() == t and not p.get("stump") for p in _peers.values()) or \
+            any(r["nick"].lower() == t for r in _reach.values())
+        if not on_lora:
+            return None
+    now = time.time()
+    if now - _lora["told"].get(client_id, 0) < 60:
+        return None
+    _lora["told"][client_id] = now
+    if len(_lora["told"]) > 200:
+        _lora["told"].clear()
+    mins = max(1, int((now - _lora["since"]) // 60))
+    return rrc.tok_rate(i18n.t("lora_down_waits", i18n.get_lang(client_id), min=mins))
+
+
+rrc.LORA_NOTICE[0] = _lora_notice
 
 
 def _note_stump_beacon(router, app_data, packet):
@@ -693,7 +831,8 @@ def install_announce_handler(router):
 
 
 def _prune_reach(now):
-    for h in [k for k, r in _reach.items() if now - r["last_seen"] > ANNOUNCE_TIMEOUT]:
+    keep = _lora_waits() and _lora["since"] is not None and now - _lora["since"] < _setting("LORA_KEEP_S", LORA_KEEP_S)
+    for h in [k for k, r in _reach.items() if now - r["last_seen"] > ANNOUNCE_TIMEOUT and not keep]:
         _reach.pop(h)
         rrc.drop_reachable(h)
 
@@ -1494,8 +1633,9 @@ async def poll_loop(router):
                     r["nick"] = peer["nick"]
                     rrc.set_reachable(dest_hash_hex, peer["nick"])
 
+            lora_tick(now)
             for h, r in list(_reach.items()):
-                if h not in _peers:
+                if h not in _peers and not _lora_waits():
                     _deliver_reach_dms(router, h, r)
                     # Sent now, same as the room-peer loop below -- left
                     # queued, it waited a whole extra 5-second cycle.
@@ -1504,6 +1644,8 @@ async def poll_loop(router):
                         await asyncio.sleep(0)
 
             for dest_hash_hex, peer in list(_peers.items()):
+                if _lora_waits() and not peer.get("stump"):
+                    continue        # a LoRa person: their lines wait for the radio (lora_tick)
                 _flush_to_peer(router, dest_hash_hex, peer)
                 while _send_queue:
                     _send_item(_send_queue.pop(0))

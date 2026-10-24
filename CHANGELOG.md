@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.0-beta.38
+- **The billboard over LoRa** (asked by the FireFly team, for a LoRa Board tab): `/board [words]` (the newest notices, or those about the words, at most 5: `#<id> <title>`), `/board <id>` (the notice), `/post <title> | <body>` (`✓ #<id>` or why not), answered over LXMF like `/rooms`, and in the web chat too. The same rules as posting over Wi-Fi (title 80, body 600, the posting limit, the billboard switch); the short id is 6 digits of the notice's id. `CLIENT_QUICKSTART.md`, *Billboard*.
+- **When LoRa is lost** -- this Stump's Heltec by any link, or the radio of a Stump along the chain -- its reconnect gets 2 minutes (`LORA_GRACE_S`) with nothing said. Past that, whoever writes to LoRa (`#lora-mesh`, a DM to someone on LoRa) is told, once a minute, that the radio has been down N minutes and their message will go out when it's back; it waits (nobody on LoRa is dropped as silent meanwhile), up to an hour (`LORA_KEEP_S`). `/hw.json` → `lora`: `up`, `connecting`, `down` with `down_s`, or `none`. A Stump whose radio goes announces it at once (its beacon: `rad`, and `rh`, it has one), so the chain knows.
+- Tests: `board_lora`, `lora_down`.
+
 ## 1.0.0-beta.37
 - **Pentest hardening** (step 3 of `docs/ROADMAP.md`); the picture for the pentesters and the client teams: `docs/THREAT_MODEL.md`.
   - **A forged Stump beacon is ignored.** The LXMF address in a `stump.node` beacon must be the beacon's own identity's: anyone could otherwise announce a beacon naming someone else's address and make a Stump take that person for a Stump.

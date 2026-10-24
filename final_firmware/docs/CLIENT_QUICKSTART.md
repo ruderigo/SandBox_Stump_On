@@ -608,7 +608,16 @@ is the highest message `id` you already have.
   French); the nick itself is unchanged.
 - `hw`: `{"state": "none"|"online"|"connecting"|"error", "title"}` — the
   node's radio, for a status light (`title`: the port, board and RNode
-  firmware, or the problem, one line per radio). Details: `GET /hw.json`.
+  firmware, or the problem, one line per radio). Details: `GET /hw.json`,
+  which also has `"lora": {"state", "down_s"}` (since 1.0.0-beta.38): the
+  radio here **or along the chain** -- `up`, `connecting` (lost for less
+  than 2 minutes: its own reconnect), `down` (longer: `down_s` seconds),
+  or `none` (no radio here nor along the chain). While it's `connecting`
+  or `down`, lines and DMs for LoRa wait and go out when it's back (up
+  to an hour); past the 2 minutes, a line to `#lora-mesh` or a DM to
+  someone on LoRa is answered, once a minute, `⧗ — the radio has been
+  down for N min: your message will go out when it's back (kept up to an
+  hour)`.
   When `/admin` lets the chat change the radio, it also has `settings`
   (`{"frequency", "bandwidth", "sf", "cr", "txpower"}`, in Hz) and
   `edit` (whether this client may: the computer's owner or an `/admin`
@@ -838,6 +847,7 @@ and has, a map with short keys (it goes over LoRa too):
 | `rad` | Its own radio is online |
 | `s` | `[kind, free MB]`: `sd` (a CAM's card), `pc` (a computer's folder), `none` |
 | `pl` | The plugins running (at most 8 names) |
+| `rh` | It has a radio, online or not (since 1.0.0-beta.38; `rad` says whether it's online) |
 
 Treat every field as optional, and its value as untrusted.
 
@@ -1001,6 +1011,26 @@ Messages addressed to the node itself are delivered to its chat, as
 upstream delivers locally.
 
 ## Billboard
+
+**Over LoRa (or from the chat), since 1.0.0-beta.38** -- for a LoRa
+Board tab: three RRC commands, sent as LXMF message content to the
+Stump and answered over LXMF, like `/rooms`:
+
+| Send | Answer |
+|---|---|
+| `/board` | The newest notices, at most 5, one per line: `#482193 Marché samedi` |
+| `/board <words>` | The same, those about the words (titles and bodies, accents and case ignored); none: `nothing on the billboard about "<words>"` |
+| `/board <id>` | `#<id> <title>`, then the body on the following lines; gone: `no notice #<id> (expired?)` |
+| `/post <title> \| <body>` | `✓ #<id>`; or `⧗ — …` (posting limit), `a title is required`, `the notice couldn't be saved`, `no billboard on this Stump` |
+
+The `<id>` there is the short one: 6 digits, the start of the part after
+the dot in `/billboard.json`'s `id` (`1790978231.612803836` → `612803`).
+The full id works in `/board <id>` too. The same rules as posting over
+Wi-Fi: title 80 characters, body 600 (its line breaks kept), the
+billboard's posting limit; a signed LXMF message counts as verified, so
+the access mode applies as for chat. Answers are in the person's
+language, the `#<id>` and `✓` forms never translated. Five titles fit
+one or two packets on air; a body of 600 goes as a resource.
 
 **`GET /billboard.json`** — the billboard as data, newest first:
 

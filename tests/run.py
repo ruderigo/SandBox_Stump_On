@@ -64,6 +64,8 @@ TESTS = [
     ("chain_proto", "assert", []),
     ("web_fuzz", "assert", PACK_PLUGINS),
     ("urns_fuzz", "assert", []),
+    ("board_lora", "assert", []),
+    ("lora_down", "assert", []),
 ]
 
 _NORM = [
