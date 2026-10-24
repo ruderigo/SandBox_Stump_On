@@ -22,7 +22,8 @@ del Transport.interfaces[:]
 
 s, ct, b = req('/hw.json')
 d = json.loads(b)
-check("no radio: state none", d == {"state": "none", "radios": []}, d)
+check("no radio: state none", d.get("state") == "none" and d.get("radios") == []
+      and d.get("lora", {}).get("state") == "none", d)
 
 
 class RNodeSerialInterface:
