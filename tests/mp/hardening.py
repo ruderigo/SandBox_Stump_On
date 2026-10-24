@@ -51,7 +51,7 @@ got = LXMessage.unpack_from_bytes(bytes(forged))
 check("forged signature: never verified", not got.signature_validated
       and got.unverified_reason == LXMessage.SIGNATURE_INVALID, got.unverified_reason)
 import urns.lxmf as lxmf_mod
-src = open("urns/lxmf.py").read()
+src = open(sys.argv[1] + "/../../final_firmware/urns/lxmf.py").read()   # the source (the test copy may be compiled)
 check("forged messages are dropped before delivery (all three paths)",
       src.count("if message.unverified_reason == LXMessage.SIGNATURE_INVALID:") == 3)
 

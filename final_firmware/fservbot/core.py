@@ -196,13 +196,8 @@ def _save():
     fserv's ledger and the billboard's flash fallback."""
     if not billboard._sd_available():
         return False
-    try:
-        with open(STORAGE_FILE, "w") as f:
-            json.dump({"custom": _custom, "disabled": _disabled,
-                       "opts": _opts}, f)
-        return True
-    except OSError:
-        return False
+    import store
+    return store.save_json(STORAGE_FILE, {"custom": _custom, "disabled": _disabled, "opts": _opts}, "fservbot")
 
 
 def _persist_note(ok):

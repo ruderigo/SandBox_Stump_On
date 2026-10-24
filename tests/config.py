@@ -83,7 +83,6 @@ CHAT_EVERY = 2
 CHAT_BURST = 1000000   # tests: off (tests/mp/hardening.py sets its own)
 BILLBOARD_POSTS_PER_MIN = 1000000
 
-WEBREPL_PASSWORD = "changeme"
 
 DEBUG = 2
 
@@ -160,7 +159,6 @@ CHAIN_SECRET = ""          # the same on every Stump of the chain, so visitors c
 CHAIN_LAN = True           # first Stump, with a secret: computers on the Wi-Fi it joined (WIFI_SSID) join there too
 
 # ---- Sensor Network config ----
-SENSOR_HUB = ""
 
 # ---- Credit economy ----
 # CREDITS_ENABLED = False is "free mode": nothing costs anything, nothing

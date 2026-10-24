@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.0-beta.35
+- **Cleanup review** (step 1 of `docs/ROADMAP.md`): no change in what a Stump does, less of it to carry.
+  - **The CAM gets its modules compiled.** With mpy-cross 1.28 on the computer (`pip3 install mpy-cross==1.28.0.post2`), the Provisioner compiles each module (`.mpy`) before copying it, once it has checked the board's MicroPython loads that version: 1,429 KB of source goes as 589 KB, and the board compiles nothing at boot (on the Unix port: imports about 10x faster, about 300 KB less memory needed to start). `main.py` and `config.py` stay source; plugins and packs go compiled too. Without mpy-cross, or with an older MicroPython on the board, source, as before, and it says so.
+  - **/admin loads when it's opened.** The router was one 1,350-line chain of 52 routes: each is its own handler now, matched in the same order. Everything under `/admin` (the pages and their forms, ~1,500 lines) is in `admin_web.py`, loaded the first time someone opens `/admin`: a Stump nobody administers doesn't hold it.
+  - **Every settings file is saved whole or not at all** (`store.py`). About a dozen saves wrote their file in place -- the identity table, the layout, the radio and propagation settings, the theme, the plugins' states: a reset in the middle left a truncated file, read back as nothing saved, so they quietly went back to their defaults.
+  - **One copy of the text helpers** (`webtext.py`: HTML escaping, URL encoding). There were seven, and two had drifted into bugs: one escaper left apostrophes, and the language switcher wrote accented addresses wrong.
+  - Removed: the awaiting-slot upload (HF-002: nothing could open a slot; `/upload` still answers `"slot": false`), functions and imports nothing used, 12 translation keys, 2 config keys. The browser flasher (HF-001) is loaded only when `/flash` is opened; bringing it back is on the roadmap.
+  - The root `CLIENT_QUICKSTART.md`, `HIDDEN_FEATURES.md` and `REF.md` point to `final_firmware/docs/` (REF.md had drifted from COMMANDS.md).
+- Tests: `store_atomic`, `admin_lazy`, `provisioner_mpy`; `MPY_CROSS=... tests/run.py` runs the tests on the compiled firmware, and CI does for a set of them.
+
 ## 1.0.0-beta.34
 - **Password checks can't hold up the CAM** (the fourth and last step of hardening for the pentest).
   - A profile's password is hashed 2,000 times (on purpose: guessing is slow): on the CAM, a long moment in which the Stump served nobody. It now gives everyone else a turn every 250 rounds -- the same hash, the same strength, nothing frozen. Registering, logging in, changing a password and the admin's reset all hash that way.

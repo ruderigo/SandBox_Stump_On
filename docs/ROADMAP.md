@@ -13,17 +13,28 @@ Clear out what's stale before building on it. **No change in
 behaviour**: the full suite stays green and the golden outputs stay
 identical throughout.
 
-- [ ] Dead code: functions nothing calls, fallbacks for paths that no
-      longer exist, config keys nothing reads
-- [ ] Duplicates: the same helper written more than once (time and
-      ticks, escaping, JSON answers, settings lookups)
-- [ ] barkeep.py split into smaller modules (pages, routes, admin)
-- [ ] Provisioner: menus and paths left from older flows
-- [ ] i18n: keys nothing uses
-- [ ] Docs: behaviour that changed; the two CLIENT_QUICKSTART copies
-      made from one source
-- [ ] Tests: ones that check the same thing twice
-- [ ] RAM and flash on the CAM measured before and after
+- [x] Dead code: functions nothing calls, unused imports, config keys
+      nothing reads; HF-002 (the awaiting-slot upload) removed
+- [x] Duplicates: escaping and URL encoding in one place (webtext.py,
+      two drifted copies were bugs); every JSON save whole or not at all
+      (store.py: a dozen wrote in place)
+- [x] barkeep.py split: one handler per route; /admin in admin_web.py,
+      loaded on first use
+- [x] Provisioner: reviewed (no dead menus); the firmware zip is named
+      with its release (`Stump-1.0.0-beta.35.zip`)
+- [x] i18n: keys nothing uses (12 removed)
+- [x] Docs: the root copies (CLIENT_QUICKSTART, HIDDEN_FEATURES, REF)
+      point to final_firmware/docs
+- [x] Docs: changelog, README (mpy-cross), engineering notes (the code's
+      layout)
+- [x] Tests: reviewed, none checking the same thing twice
+- [x] The board gets its modules compiled (.mpy): 1,429 KB of source
+      sent as 589 KB, nothing compiled at boot
+- [x] On LaBuche (1.0.0-beta.35, compiled): ~450 KB of modules on the
+      board (was ~1.4 MB of source), 7,467,280 bytes free after start,
+      ~10 s from the crypto line to serving (the baseline from here)
+
+Done in 1.0.0-beta.35.
 
 ## 2. Chain hardening and interoperability (L)
 
@@ -34,6 +45,9 @@ NomadNet over the chain).
       a Stump does with an older or newer neighbour
 - [ ] One capabilities message per Stump: storage, radio, access mode,
       plugins (the groundwork for chain storage)
+- [ ] Every announce logs `TX failed on Chain down` / `Chain LAN` when no
+      other Stump is in the chain (seen on LaBuche): a broadcast with
+      nobody listening shouldn't be a warning each time
 - [ ] Recovery when a Stump in the middle restarts, loses its Wi-Fi, or
       the chain secret changes
 - [ ] Nothing lost and nothing doubled across hops: messages, DMs,
@@ -66,5 +80,9 @@ From the attacker's side, after the cleanup (less code to review).
 - [ ] NomadNet pack (L): browse NomadNet nodes from the Stump's web
       pages, and serve the Stump as a NomadNet node; a plugin page can
       be a navigation button
+- [ ] Browser flasher back (M): HF-001 in HIDDEN_FEATURES.md, linked
+      from /tools again; its catalog kept in step with the Provisioner's
+      firmware; images that may be shipped (RNode is GPL-3: its source
+      offer comes with it); WebSerial needs HTTPS or a Chrome flag
 - [ ] More boards (M each): one Provisioner profile per board (flash,
       PSRAM, radio, SD pins)

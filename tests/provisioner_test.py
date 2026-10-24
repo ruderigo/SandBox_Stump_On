@@ -13,6 +13,8 @@ files = P.manifest_candidates(fw)
 check('manifest keeps plugin.json', 'fservbot/plugin.json' in files and 'stumpid/plugin.json' in files)
 check('manifest drops plugin files', not any(f.startswith(('fservbot/', 'stumpid/')) and not f.endswith('plugin.json') for f in files))
 check('api', P.firmware_plugin_api(fw) == 1)
+check('the firmware zip is named with its release', re.match(r'^Stump-1\.0\.0-beta\.\d+\.zip$', P.firmware_zip_name(fw)) is not None
+      and P._is_old_firmware_zip('Stump_Beta_A.zip', P.firmware_zip_name(fw)) and not P._is_old_firmware_zip(P.firmware_zip_name(fw), P.firmware_zip_name(fw)), P.firmware_zip_name(fw))
 check('core manifest current', P._check_local_files_current(fw.resolve()) == [], P._check_local_files_current(fw.resolve()))
 for n in ('fservbot', 'stumpid'):
     check(n + ' verifies', P.verify_plugin(fw / n) == ([], []), P.verify_plugin(fw / n))
@@ -410,7 +412,7 @@ for out, want in (("CONFIG:1 TRACES:2", "yes"), ("CONFIG:0 TRACES:0", "fresh"),
     P.run = lambda cmd, out=out, **k: (True, out)
     check("a board's config: %s" % want, P._board_config_state("/dev/x") == want)
 P.run = lambda cmd, **k: (False, "could not enter raw repl")
-check("... can't tell: kept (unknown)", P._board_config_state("/dev/x") == "unknown" and P._board_has_config("/dev/x"))
+check("... can't tell: kept (unknown)", P._board_config_state("/dev/x") == "unknown")
 P.run = _run
 check("what a config.py sets, in one line", P._config_summary("NODE_NAME = 'LaBuche'\nCHAIN_ENABLED = True\n"
       "FEATURES = ['chat', 'about']\n") == "name 'LaBuche', chain on, features ['chat', 'about']")

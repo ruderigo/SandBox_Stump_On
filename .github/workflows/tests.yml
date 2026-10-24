@@ -27,8 +27,8 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Packages for Stump on a computer
-        run: python3 -m pip install cryptography pyserial
+      - name: Packages for Stump on a computer, and mpy-cross
+        run: python3 -m pip install cryptography pyserial mpy-cross==1.28.0.post2
 
       - name: MicroPython (cached)
         id: mp-cache
@@ -52,6 +52,13 @@ jobs:
         run: |
           export MICROPYTHON=$HOME/micropython-f32/micropython
           python3 tests/run.py
+
+      - name: The firmware compiled (.mpy), as the Provisioner puts it on a board
+        run: |
+          export MICROPYTHON=$HOME/micropython-f32/micropython
+          export MPY_CROSS=$(python3 -c "import mpy_cross, os; print(os.path.join(os.path.dirname(mpy_cross.__file__), 'mpy-cross'))")
+          $MPY_CROSS --version
+          python3 tests/run.py chat_golden mesh_golden plugin_api packs_web json_api conn_limits identity_matrix hardening tools_sections
 
       - name: The release builds, reproducibly
         run: |

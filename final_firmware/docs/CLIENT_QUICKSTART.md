@@ -1062,13 +1062,12 @@ With `Accept: application/json`: `{"reply": "<HTML>", "found": {"intents",
 "body", "snippet"}`. Both JSON endpoints answer `404` when their
 feature is off on the node. `GET /files` is the rendered HTML page.
 
-**`POST /upload`** — raw body, not multipart; filename and optional
-slot hash in headers:
+**`POST /upload`** — raw body, not multipart; the filename in a
+header:
 
 ```
 POST /upload
 X-Filename: photo.jpg
-X-Hash: <optional, see "regulated upload" below>
 Content-Length: <n>
 
 <raw file bytes>
@@ -1080,7 +1079,7 @@ codes:
 
 | Status | `error` | Meaning |
 |---|---|---|
-| `200` | — | `{"ok": true, "name", "size", "slot", "balance", "message"}` — `name` is the stored (sanitized) name; `balance` is `null` with credits off or for a slot delivery; `"warning": "bookkeeping"` if the file is saved but the balance couldn't be updated |
+| `200` | — | `{"ok": true, "name", "size", "slot", "balance", "message"}` — `name` is the stored (sanitized) name; `balance` is `null` with credits off; `slot` is always `false` (kept for older clients: awaiting-slot uploads were removed in 1.0.0-beta.35); `"warning": "bookkeeping"` if the file is saved but the balance couldn't be updated |
 | `400` | `no_filename` / `empty` | No `X-Filename`, or an empty body |
 | `503` | `no_card` | No SD card mounted |
 | `507` | `full` | Card at its 75% ceiling with nothing evictable (files shared in the last hour aren't pushed out for someone else's) |
@@ -1134,12 +1133,6 @@ disables them per node). Weight by extension: video (`mp4 mkv avi
 mov`) 3, music (`mp3 flac wav ogg m4a`) 2, documents (`pdf txt doc
 docx`) 1, anything else 1. Uploads credit that weight; downloads debit
 it. All zero when credits are off.
-
-**Regulated upload ("awaiting slot")**: a hash can be marked, locally
-on the node, as awaiting one specific upload. Send that hash as
-`X-Hash` and the file goes to its own one-shot slot instead of the
-shared pool, marked fulfilled only once the bytes are on disk. Omit
-`X-Hash` (or send it empty) for ordinary uploads.
 
 ## Apps and tools
 

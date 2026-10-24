@@ -12,7 +12,7 @@ for f in ('plugins_state.json', 'plugins_loading'):
     except OSError: pass
 import fserv
 fserv.SD_MOUNT = SD; fserv.SHARED_DIR = SD + '/shared'; fserv.TOOLS_DIR = SD + '/tools'; fserv.HOME_DIR = SD + '/home'
-fserv.LEDGER_FILE = SD + '/l.json'; fserv.AWAITING_FILE = SD + '/a.json'; fserv.sd_ok = True
+fserv.LEDGER_FILE = SD + '/l.json'; fserv.sd_ok = True
 import plugins, rrc, i18n
 FAIL = []
 def check(name, cond, info=''):

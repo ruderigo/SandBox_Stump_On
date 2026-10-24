@@ -42,7 +42,8 @@ mode = W.begin()
 check("three failed starts in a row: a rescue start", mode == "rescue" and W.status()["failed_starts"] == 3)
 
 # /admin and /node.json say so.
-html = barkeep._render_admin_health("en", "pw")
+import admin_web
+html = admin_web._render_admin_health("en", "pw")
 check("/admin: the rescue notice, what failed, and 'Start normally'", "Rescue start" in html
       and "3 starts in a row failed" in html and "Start normally" in html and "/admin/restart" in html, html)
 s, ct, b = req('/node.json')
@@ -62,7 +63,7 @@ check("... and the next start is a normal one", W.begin() == "normal" and W.stat
 W._st["t0"] -= W.STABLE_S + 1
 W.check()
 check("a normal start that stays up: stable, the count cleared", W._load().get("stable") and W._load().get("short") == 0)
-check("... no notice on /admin", barkeep._render_admin_health("en", "pw") == "")
+check("... no notice on /admin", admin_web._render_admin_health("en", "pw") == "")
 
 # The rescue start failing too: it rests, then starts from scratch.
 for _ in range(2 * W.RESCUE_AFTER + 1):     # (the first ends the stable run)
@@ -75,7 +76,7 @@ d.update(wd=True)
 W._save(d)
 W.begin()
 check("restarted by the watchdog: said so", W.status()["cause"] == "watchdog"
-      and "watchdog restarted it" in barkeep._render_admin_health("en", "pw"), W.status())
+      and "watchdog restarted it" in admin_web._render_admin_health("en", "pw"), W.status())
 n = W.status()["failed_starts"]
 d = W._load()
 d.update(wd=True)
