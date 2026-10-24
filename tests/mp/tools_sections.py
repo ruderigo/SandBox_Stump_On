@@ -106,5 +106,5 @@ open(fserv.SD_MOUNT + '/secret.txt', 'w').write('no')
 for bad in ('..%2Fsecret.txt', 'rnfs%2F..%2F..%2Fsecret.txt', 'a%2Fb%2Fc.txt', '%2Fsecret.txt', '..'):
     s, body = get(bad)
     check("refused: " + bad, s == '404' and body != 'no', (s, body))
-check("flasher page loads the bundle from its folder", "/tool?f=flasher/esptool-bundle.js" in open('flasher_ui.py').read())
+check("flasher page loads the bundle from its folder", "/tool?f=flasher/esptool-bundle.js" in open(sys.argv[1] + '/../../final_firmware/flasher_ui.py').read())
 print("FAILURES", FAIL)

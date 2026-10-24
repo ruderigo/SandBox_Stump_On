@@ -347,7 +347,7 @@ EXPECTED_FILE_HASHES = {
     "node_common.py": "e1e748a3283da2f4",
     "peripherals/__init__.py": "d2bdac4de6de79de",
     "peripherals/adc_reader.py": "50a393bfa61641d4",
-    "plugins.py": "0c7faa8ade750fba",
+    "plugins.py": "c7855040c13038a4",
     "profiles.py": "6de48b5b3f2666c2",
     "propagation.py": "e86471653a5036ec",
     "radio.py": "46a5bce1b8a90405",
@@ -1108,18 +1108,21 @@ def upload_plugin_folder(port, plugin_dir):
     for sub in dirs:
         run(["mpremote", "connect", port, "fs", "mkdir", f":{sub}"], timeout=15)
     ok_all = True
-    for rel in files:
+    pairs = compile_for_board(port, d.parent, files)
+    for src, rel in pairs:
         print(f"    {rel} ...", end=" ", flush=True)
-        ok, out = run(["mpremote", "connect", port, "fs", "cp", str(d.parent / rel), f":{rel}"],
-                      timeout=_cp_timeout(d.parent / rel))
+        ok, out = run(["mpremote", "connect", port, "fs", "cp", str(src), f":{rel}"],
+                      timeout=_cp_timeout(src))
         print("ok" if ok else "FAILED: " + out.strip()[-70:])
         ok_all = ok_all and ok
     sizes = _get_device_file_sizes(port)
     if sizes is not None:
-        problems = _diff_against_device(d.parent, files, sizes)
+        problems = _diff_against_device(pairs, sizes)
         for rel, why in problems:
             print(f"    {rel}: {why}")
         ok_all = ok_all and not problems
+    if ok_all:
+        remove_shadowed(port, pairs)
     return ok_all
 
 
@@ -1188,12 +1191,17 @@ def remove_plugin(port, name):
             "  os.rmdir(p)\n"
             " except OSError:\n"
             "  os.remove(p)\n"
-            "try:\n"
-            " os.stat(%r + '/install.py')\n"
+            "def has(p):\n"
+            " try:\n"
+            "  os.stat(p)\n"
+            "  return True\n"
+            " except OSError:\n"
+            "  return False\n"
+            "if has(%r + '/install.py') or has(%r + '/install.mpy'):\n"
             " rm(%r)\n"
             " print('REMOVED')\n"
-            "except OSError:\n"
-            " print('NOPLUGIN')\n") % (name, name)
+            "else:\n"
+            " print('NOPLUGIN')\n") % (name, name, name)
     ok, out = run(["mpremote", "connect", port, "exec", code], timeout=60)
     if "REMOVED" in out:
         print(f"Removed {name}. Its saved data, if any, stays in /sd/plugins/{name}/.")
@@ -2376,6 +2384,10 @@ def check_tools():
         print(f"  {tool:<14} {status}")
         if not path:
             all_ok = False
+    # Optional: compiles the board's modules (compile_for_board).
+    cmd, ver = _mpy_cross_cmd()
+    print(f"  {'mpy-cross':<14} " + (f"FOUND (makes .mpy {ver})" if cmd else
+                                     "not here (optional: pip3 install mpy-cross==1.28.0.post2)"))
     if not all_ok:
         print(
             "\nMissing tools can usually be installed with:\n"
@@ -2809,6 +2821,108 @@ def _check_local_files_current(resolved):
     return stale
 
 
+# ── Precompiled modules (.mpy) ─────────────────────────────────────────
+# The board used to get every module as source and compile it at each
+# boot: 1.4 MB of .py, about a third of it comments and docstrings, every
+# import a compile and a spike of RAM. Compiled here with mpy-cross, the
+# same code is about 40% of the size -- less to copy over USB, nothing to
+# compile at boot. The .mpy must match the board's MicroPython (its "mpy
+# version"), so it's checked on the board first; with no matching
+# mpy-cross here (`pip install mpy-cross==1.28.0.post2`), or an older
+# MicroPython on the board, the source goes as before. A module that
+# arrives compiled has its .py removed from the board (MicroPython would
+# load the .py first), and the other way round.
+MPY_SOURCE_ONLY = ("boot.py", "main.py", "config.py")     # run or read as source
+_MPY = {}
+
+
+def _mpy_cross_cmd():
+    """(command, mpy version "6.3") for an mpy-cross here, or (None, None)."""
+    if "cmd" not in _MPY:
+        _MPY["cmd"], _MPY["ver"] = None, None
+        cands = []
+        try:
+            import mpy_cross  # noqa: F401  (pip install mpy-cross)
+            cands.append([sys.executable, "-m", "mpy_cross"])
+        except ImportError:
+            pass
+        if shutil.which("mpy-cross"):
+            cands.append([shutil.which("mpy-cross")])
+        for c in cands:
+            try:
+                out = subprocess.run(c + ["--version"], capture_output=True, text=True, timeout=30).stdout
+            except Exception:
+                continue
+            m = re.search(r"mpy v(\d+)\.(\d+)", out)
+            if m:
+                _MPY["cmd"], _MPY["ver"] = c, "%s.%s" % m.groups()
+                break
+    return _MPY["cmd"], _MPY["ver"]
+
+
+def _board_mpy_version(port):
+    """The .mpy version the board's MicroPython loads ("6.3"), or None."""
+    ok, out = run(["mpremote", "connect", port, "exec",
+                   "import sys\nv = getattr(sys.implementation, '_mpy', 0)\n"
+                   "print('MPY:%d.%d' % (v & 0xff, (v >> 8) & 3))\n"], timeout=20)
+    m = re.search(r"MPY:(\d+\.\d+)", out or "") if ok else None
+    return m.group(1) if m and m.group(1) != "0.0" else None
+
+
+def compile_for_board(port, root, rels):
+    """[(local file, path on the board)] for these files of `root`: each
+    module compiled to .mpy when the board and an mpy-cross here agree on
+    the version, as it is otherwise. Says once which it is."""
+    cmd, ver = _mpy_cross_cmd()
+    board = _board_mpy_version(port) if cmd else None
+    use = bool(cmd) and board == ver
+    if "said" not in _MPY:
+        _MPY["said"] = True
+        if use:
+            print("  Modules go compiled (.mpy %s): smaller, and nothing to compile at boot." % ver)
+        elif cmd and board:
+            print("  The board's MicroPython loads .mpy %s, mpy-cross here makes %s: modules go as source."
+                  % (board, ver))
+        elif not cmd:
+            print("  Modules go as source (no mpy-cross here: pip install mpy-cross==1.28.0.post2"
+                  " makes them smaller and the boot faster).")
+    if not use:
+        return [(Path(root) / r, r) for r in rels]
+    out_dir = Path(tempfile.mkdtemp(prefix="stump-mpy-"))
+    pairs = []
+    for r in rels:
+        src = Path(root) / r
+        if not r.endswith(".py") or r.split("/")[-1] in MPY_SOURCE_ONLY:
+            pairs.append((src, r))
+            continue
+        dest = out_dir / (r[:-3] + ".mpy")
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        p = subprocess.run(cmd + ["-o", str(dest), "-s", r, str(src)], capture_output=True, text=True)
+        if p.returncode == 0 and dest.is_file():
+            pairs.append((dest, r[:-3] + ".mpy"))
+        else:
+            print("  %s didn't compile, it goes as source: %s" % (r, (p.stderr or "").strip()[-120:]))
+            pairs.append((src, r))
+    return pairs
+
+
+def remove_shadowed(port, pairs):
+    """After a copy: the .py beside each module that arrived as .mpy goes
+    (MicroPython loads the .py first), and a stale .mpy beside each one
+    that arrived as .py."""
+    gone = []
+    for _, dest in pairs:
+        if dest.endswith(".mpy"):
+            gone.append(dest[:-4] + ".py")
+        elif dest.endswith(".py") and dest.split("/")[-1] not in MPY_SOURCE_ONLY:
+            gone.append(dest[:-3] + ".mpy")
+    if not gone:
+        return
+    run(["mpremote", "connect", port, "exec",
+         "import os\nfor p in %r:\n    try:\n        os.remove(p)\n    except OSError:\n        pass\n" % gone],
+        timeout=30)
+
+
 def _cp_timeout(path):
     """Seconds to allow one `mpremote fs cp`. A flat 60 s was too short for
     web/codec2.wasm (210 KB): copying to the board runs at roughly
@@ -2936,9 +3050,9 @@ def upload_stump_app(port, app_dir=None):
     for d in dest_dirs:
         run(["mpremote", "connect", port, "fs", "mkdir", f":{d}"], timeout=15)
 
+    pairs = compile_for_board(port, resolved, present)
     all_ok = True
-    for fname in present:
-        f = resolved / fname
+    for f, fname in pairs:
         size_kb = f.stat().st_size // 1024 if f.exists() else 0
         if size_kb >= 50:
             # The codec takes a minute or two: say so, or it looks hung.
@@ -2961,19 +3075,20 @@ def upload_stump_app(port, app_dir=None):
         print(f"  Could not verify (couldn't list device files) -- check manually with:")
         print(f"    mpremote connect {port} fs ls")
     else:
-        problems = _diff_against_device(resolved, present, device_sizes)
+        problems = _diff_against_device(pairs, device_sizes)
         if problems:
             all_ok = False
             print("  PROBLEMS after upload:")
             for fname, reason in problems:
                 print(f"    {fname}: {reason}")
             print("  Retrying these...")
+            local_of = {dest: local for local, dest in pairs}
             for fname, _ in problems:
-                f = resolved / fname
+                f = local_of[fname]
                 print(f"    retrying {fname} ...")
                 run(["mpremote", "connect", port, "fs", "cp", str(f), f":{fname}"], timeout=_cp_timeout(f))
             device_sizes2 = _get_device_file_sizes(port) or {}
-            still_bad = _diff_against_device(resolved, [f for f, _ in problems], device_sizes2)
+            still_bad = _diff_against_device([(local_of[f], f) for f, _ in problems], device_sizes2)
             if still_bad:
                 print(f"  STILL WRONG: {', '.join(f for f, _ in still_bad)}")
                 print(f"  Try again with: python3 provisioner.py --upload-app {port}")
@@ -2983,6 +3098,8 @@ def upload_stump_app(port, app_dir=None):
         else:
             print(f"  OK — all {len(present)} files confirmed present and matching local source.")
             install_tools_on_node(port)
+    if all_ok:
+        remove_shadowed(port, pairs)
 
     return all_ok
 
@@ -3442,13 +3559,14 @@ def _get_device_file_sizes(port):
     return None
 
 
-def _diff_against_device(resolved, filenames, device_sizes):
-    """Compares local file sizes against what's actually on the device.
-    Returns a list of (filename, reason) for anything missing or
-    size-mismatched (stale)."""
+def _diff_against_device(pairs, device_sizes):
+    """Compares local file sizes against what's actually on the device:
+    pairs is [(local file, path on the board)] (compile_for_board()).
+    Returns a list of (path on the board, reason) for anything missing
+    or size-mismatched (stale)."""
     problems = []
-    for fname in filenames:
-        local_size = (resolved / fname).stat().st_size
+    for local, fname in pairs:
+        local_size = Path(local).stat().st_size
         device_size = device_sizes.get(fname)
         if device_size is None:
             problems.append((fname, "missing"))

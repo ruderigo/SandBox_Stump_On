@@ -99,7 +99,26 @@ def tree(extra):
     # A fixed config, not the repository's (which is a real node's): the
     # snapshots must not change because someone renamed their bot.
     shutil.copy(HERE / "config.py", d / "fw" / "config.py")
+    if MPY_CROSS:
+        _compile_tree(d / "fw")
     return d / "fw"
+
+
+# MPY_CROSS=/path/to/mpy-cross: the same tests on the firmware compiled
+# to .mpy, as the Provisioner puts it on a board (compile_for_board).
+MPY_CROSS = os.environ.get("MPY_CROSS")
+
+
+def _compile_tree(fw):
+    for f in sorted(fw.rglob("*.py")):
+        if f.name in ("boot.py", "main.py", "config.py"):
+            continue
+        rel = f.relative_to(fw).as_posix()
+        r = subprocess.run([MPY_CROSS, "-o", str(f.with_suffix(".mpy")), "-s", rel, str(f)],
+                           capture_output=True, text=True)
+        if r.returncode:
+            raise SystemExit("mpy-cross failed on %s: %s" % (rel, r.stderr))
+        f.unlink()
 
 
 def run_mp(script, cwd, *args):
@@ -190,6 +209,16 @@ def main():
             failed.append("provisioner")
             annotate("provisioner", "\n".join(l for l in (r.stdout + r.stderr).splitlines()
                                               if l.startswith("FAIL") or "Error" in l)[-3000:])
+    if not only or "provisioner_mpy" in only:
+        r = subprocess.run([sys.executable, str(HERE / "provisioner_mpy_test.py")], capture_output=True, text=True)
+        ok = "FAILURES []" in r.stdout
+        print(("skip  " if ok and "skip:" in r.stdout else "ok    " if ok else "FAIL  ") + "provisioner_mpy"
+              + (" (needs mpy-cross)" if "skip:" in r.stdout else ""))
+        if not ok:
+            print((r.stdout + r.stderr)[-3000:])
+            failed.append("provisioner_mpy")
+            annotate("provisioner_mpy", "\n".join(l for l in (r.stdout + r.stderr).splitlines()
+                                                  if l.startswith("FAIL") or "Error" in l)[-3000:])
     # Stump on a computer (docs/PC.md): the same firmware on regular Python.
     # Needs the cryptography and pyserial packages (CI installs them).
     for name, script in (("pc_rnode_serial", "rnode_serial_test.py"), ("pc_rnode_ble", "rnode_ble_test.py"),

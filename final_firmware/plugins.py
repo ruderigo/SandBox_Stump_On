@@ -750,11 +750,13 @@ def discover():
     for name in sorted(entries):
         if name.startswith(".") or name in NOT_PLUGINS:
             continue
-        try:
-            os.stat(name + "/install.py")
-        except OSError:
-            continue
-        found.append(name)
+        for f in ("/install.py", "/install.mpy"):      # .mpy: compiled by the Provisioner
+            try:
+                os.stat(name + f)
+                found.append(name)
+                break
+            except OSError:
+                pass
     return found
 
 
