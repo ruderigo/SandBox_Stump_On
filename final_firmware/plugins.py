@@ -596,7 +596,7 @@ class Request:
     def form(self):
         if self._form is None:
             try:
-                self._form = _form(self.body.decode())
+                self._form = _form(webtext.text(self.body))
             except Exception:
                 self._form = {}
         return self._form

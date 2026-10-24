@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.0.0-beta.37
+- **Pentest hardening** (step 3 of `docs/ROADMAP.md`); the picture for the pentesters and the client teams: `docs/THREAT_MODEL.md`.
+  - **A forged Stump beacon is ignored.** The LXMF address in a `stump.node` beacon must be the beacon's own identity's: anyone could otherwise announce a beacon naming someone else's address and make a Stump take that person for a Stump.
+  - **Profiles cross the chain only with the chain secret's mark** (an HMAC): coming in over a chain link wasn't proof, since UDP can look like it comes from the Stump above. Open chains: as before. With a secret, update every Stump of the chain together: older ones don't share profiles with this one.
+  - **The Stump above proves the chain secret in its answer to a hello**; a plain answer (an older Stump) is taken, and `/admin` → Stump chain says to update it; one with another secret is ignored.
+  - **A request body that isn't UTF-8 no longer ends a request with no answer** (found by the new web fuzz test: the chat, the billboard, profiles, every `/admin` form, plugin pages).
+  - **msgpack refuses nesting deeper than 32** (the stack ran out first), and **LXMF refuses a payload of the wrong shape** as a parsing error (found by the new Reticulum fuzz test).
+  - Passwords (admin, operator) and the chain's tags are compared in constant time.
+  - **A pack can't replace the Stump's own code or a built-in plugin**, nor list files outside its folder (`tavern/../barkeep.py` was copied over the core).
+- Tests: `web_fuzz` (every route, every method, paths that climb out, odd bodies and headers, a canary that must never be served), `urns_fuzz` (mutated and random packets, LXMF, msgpack bombs, an announce flood), more in `chain_proto` and `provisioner`.
+
 ## 1.0.0-beta.36
 - **The chain, hardened** (step 2 of `docs/ROADMAP.md`).
   - **Only a good hello keeps a Stump in.** A Stump below another stayed in as long as it sent packets, whatever its hellos said: one whose chain secret changed, or a device that took over its address after it left, wasn't let go. Now packets are taken only while the hellos are good, and a hello with another secret puts that address out at once.

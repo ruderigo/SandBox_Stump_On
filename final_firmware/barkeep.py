@@ -1010,7 +1010,7 @@ def _check_admin_pw_now(pw):
                 want = getattr(config, "AUTH_ADMIN_PASSWORD", "") or getattr(config, "FSERVBOT_OP_PASSWORD", "")
             except ImportError:
                 want = ""
-            return bool(want) and pw == want
+            return bool(want) and webtext.same(pw, want)
         return False
     try:
         return bool(ident.check_admin_password(pw))
@@ -2323,17 +2323,8 @@ def _https_upgrade_page(target, path):
             "</body></html>")
 
 
-def _header_text(b):
-    """A request or header line as text: UTF-8, or Latin-1 when it isn't
-    valid UTF-8. Browsers and Python's urllib send a header like
-    X-Filename: thé.txt with é as ONE Latin-1 byte (0xE9); a plain
-    .decode() raised on it and the connection closed with no reply at
-    all (reported by the Android team, reproduced). Every byte maps to a
-    character in Latin-1, so this can't fail."""
-    try:
-        return b.decode()
-    except UnicodeError:
-        return "".join(chr(c) for c in b)
+_header_text = webtext.text    # a request or header line as text, never raising
+_text = webtext.text
 
 
 def _wants_json(headers):
@@ -2398,10 +2389,10 @@ async def _r_post_chat(reader, writer, method, path, headers, ip, identifier, se
     lang = i18n.get_lang(identifier)
     if _wants_json(headers):
         # Apps: the librarian's findings as data, with the reply too.
-        reply, found = _librarian(body.decode()[:200], lang)
+        reply, found = _librarian(_text(body)[:200], lang)
         await _send(writer, "200 OK", json.dumps({"reply": reply, "found": found}), "application/json")
     else:
-        reply = _process_command(body.decode()[:200], identifier, lang)
+        reply = _process_command(_text(body)[:200], identifier, lang)
         await _send(writer, "200 OK", reply, "text/plain")
 
 
@@ -2418,13 +2409,13 @@ async def _r_post_billboard(reader, writer, method, path, headers, ip, identifie
     if "application/json" in headers.get("content-type", ""):
         # An app may send {"title": ..., "body": ...} instead of a form.
         try:
-            data = json.loads(body.decode())
+            data = json.loads(_text(body))
             title = str(data.get("title", "") or "")
             post_body = str(data.get("body", "") or "")
         except (ValueError, AttributeError):
             pass
     else:
-        for kv in body.decode().split("&"):
+        for kv in _text(body).split("&"):
             if kv.startswith("title="):
                 title = billboard._url_decode(kv[6:])
             elif kv.startswith("body="):
@@ -2606,7 +2597,7 @@ async def _r_post_rrc_send(reader, writer, method, path, headers, ip, identifier
                      "application/json")
         return
     body = await _read_small_body(reader, length)
-    text = body.decode()
+    text = _text(body)
     if _greeting(identifier, ip) == "required" and not any(
             text.strip().lower() == c or text.strip().lower().startswith(c + " ") for c in _HELLO_OK):
         await _send(writer, "200 OK", json.dumps({
@@ -2758,7 +2749,7 @@ async def _r_hello(reader, writer, method, path, headers, ip, identifier, secure
     else:
         body = await _read_small_body(reader, int(headers.get("content-length", "0")))
         try:
-            d = json.loads(body.decode())
+            d = json.loads(_text(body))
             pub, sig = str(d["pub"]), str(d["sig"])
         except (ValueError, KeyError, TypeError, AttributeError):
             await _send(writer, "400 Bad Request", json.dumps({"hello": "required", "error": "bad_request"}),
@@ -2918,7 +2909,7 @@ async def _r_profile(reader, writer, method, path, headers, ip, identifier, secu
     if method == "POST":
         length = int(headers.get("content-length", "0"))
         body = await _read_small_body(reader, length)
-        for kv in body.decode().split("&"):
+        for kv in _text(body).split("&"):
             parts = kv.split("=", 1)
             if len(parts) == 2:
                 fields[parts[0]] = billboard._url_decode(parts[1])

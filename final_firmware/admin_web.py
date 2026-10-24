@@ -22,6 +22,8 @@ import theme
 import uasyncio as asyncio
 import ujson as json
 
+import webtext
+
 import barkeep as B
 
 
@@ -372,6 +374,8 @@ def _render_admin_chain_section(lang):
                      if up["parent_heard_s"] is not None else "")
             lines.append(i18n.t("admin_chain_member", lang, ssid=e(up["ssid"]), ip=up["ip"],
                                 parent=up["parent"], heard=heard))
+            if up.get("parent_verified") is False:
+                lines.append("<b>" + i18n.t("admin_chain_parent_plain", lang) + "</b>")
         else:
             lines.append(i18n.t("admin_chain_trying", lang, ssid=e(up["ssid"])))
     lines.append(i18n.t("admin_chain_below", lang, list=", ".join(st["below"])) if st["below"]
@@ -914,7 +918,7 @@ async def _r_post_admin_radiolink_json(reader, writer, method, path, headers, ip
         await B._send(writer, "403 Forbidden", json.dumps({"ok": False, "message": i18n.t("admin_bt_denied", lang)}),
                     "application/json")
     else:
-        kind = body.decode().split("link=", 1)[-1].split("&")[0] if b"link=" in body else ""
+        kind = webtext.text(body).split("link=", 1)[-1].split("&")[0] if b"link=" in body else ""
         r = radio.switch_link(kind)
         await B._send(writer, "200 OK", json.dumps({"ok": r in ("done", "same"), "message": i18n.t(
             "admin_link_r_" + r, lang)}), "application/json")
@@ -947,7 +951,7 @@ async def _r_post_admin_home(reader, writer, method, path, headers, ip, identifi
     length = int(headers.get("content-length", "0"))
     body = await B._read_small_body(reader, length)
     fields = {}
-    for kv in body.decode().split("&"):
+    for kv in webtext.text(body).split("&"):
         parts = kv.split("=", 1)
         if len(parts) == 2:
             fields[parts[0]] = billboard._url_decode(parts[1])
@@ -973,7 +977,7 @@ async def _r_post_admin_propagation(reader, writer, method, path, headers, ip, i
     length = int(headers.get("content-length", "0"))
     body = await B._read_small_body(reader, length)
     fields = {}
-    for kv in body.decode().split("&"):
+    for kv in webtext.text(body).split("&"):
         parts = kv.split("=", 1)
         if len(parts) == 2:
             fields[parts[0]] = billboard._url_decode(parts[1])
@@ -1009,7 +1013,7 @@ async def _r_post_admin_profiles(reader, writer, method, path, headers, ip, iden
     length = int(headers.get("content-length", "0"))
     body = await B._read_small_body(reader, length)
     fields = {}
-    for kv in body.decode().split("&"):
+    for kv in webtext.text(body).split("&"):
         parts = kv.split("=", 1)
         if len(parts) == 2:
             fields[parts[0]] = billboard._url_decode(parts[1])
@@ -1037,7 +1041,7 @@ async def _r_post_admin_setup(reader, writer, method, path, headers, ip, identif
     length = int(headers.get("content-length", "0"))
     body = await B._read_small_body(reader, length)
     fields = {}
-    for kv in body.decode().split("&"):
+    for kv in webtext.text(body).split("&"):
         parts = kv.split("=", 1)
         if len(parts) == 2:
             fields[parts[0]] = billboard._url_decode(parts[1])
@@ -1088,7 +1092,7 @@ async def _r_post_admin_poweroff(reader, writer, method, path, headers, ip, iden
     length = int(headers.get("content-length", "0"))
     body = await B._read_small_body(reader, length)
     fields = {}
-    for kv in body.decode().split("&"):
+    for kv in webtext.text(body).split("&"):
         parts = kv.split("=", 1)
         if len(parts) == 2:
             fields[parts[0]] = billboard._url_decode(parts[1])
@@ -1112,7 +1116,7 @@ async def _r_post_admin_radioretry(reader, writer, method, path, headers, ip, id
     length = int(headers.get("content-length", "0"))
     body = await B._read_small_body(reader, length)
     fields = {}
-    for kv in body.decode().split("&"):
+    for kv in webtext.text(body).split("&"):
         parts = kv.split("=", 1)
         if len(parts) == 2:
             fields[parts[0]] = billboard._url_decode(parts[1])
@@ -1132,7 +1136,7 @@ async def _r_post_admin_radiochat(reader, writer, method, path, headers, ip, ide
     length = int(headers.get("content-length", "0"))
     body = await B._read_small_body(reader, length)
     fields = {}
-    for kv in body.decode().split("&"):
+    for kv in webtext.text(body).split("&"):
         parts = kv.split("=", 1)
         if len(parts) == 2:
             fields[parts[0]] = billboard._url_decode(parts[1])
@@ -1158,7 +1162,7 @@ async def _r_post_admin_bluetooth_json(reader, writer, method, path, headers, ip
         await B._send(writer, "403 Forbidden", json.dumps({"ok": False, "message": i18n.t("admin_bt_denied", lang)}),
                     "application/json")
     else:
-        action = billboard._url_decode(body.decode().split("action=", 1)[-1].split("&")[0]) if b"action=" in body else ""
+        action = billboard._url_decode(webtext.text(body).split("action=", 1)[-1].split("&")[0]) if b"action=" in body else ""
         if action == "computer":
             r = radio.pair_computer()
             ok, key = r == "done", {"done": "admin_bt_computer_go", "usb": "admin_bt_computer_usb",
@@ -1183,7 +1187,7 @@ async def _r_post_admin_radio_json(reader, writer, method, path, headers, ip, id
                     "application/json")
     else:
         fields = {}
-        for kv in body.decode().split("&"):
+        for kv in webtext.text(body).split("&"):
             parts = kv.split("=", 1)
             if len(parts) == 2:
                 fields[parts[0]] = billboard._url_decode(parts[1])
@@ -1206,7 +1210,7 @@ async def _r_post_admin_radio(reader, writer, method, path, headers, ip, identif
     length = int(headers.get("content-length", "0"))
     body = await B._read_small_body(reader, length)
     fields = {}
-    for kv in body.decode().split("&"):
+    for kv in webtext.text(body).split("&"):
         parts = kv.split("=", 1)
         if len(parts) == 2:
             fields[parts[0]] = billboard._url_decode(parts[1])
@@ -1240,7 +1244,7 @@ async def _r_post_admin_layout(reader, writer, method, path, headers, ip, identi
     length = int(headers.get("content-length", "0"))
     body = await B._read_small_body(reader, length)
     fields = {}
-    for kv in body.decode().split("&"):
+    for kv in webtext.text(body).split("&"):
         parts = kv.split("=", 1)
         if len(parts) == 2:
             fields[parts[0]] = billboard._url_decode(parts[1])
@@ -1277,7 +1281,7 @@ async def _r_post_admin_theme(reader, writer, method, path, headers, ip, identif
     length = int(headers.get("content-length", "0"))
     body = await B._read_small_body(reader, length)
     fields, ticked, sections = {}, [], []
-    for kv in body.decode().split("&"):
+    for kv in webtext.text(body).split("&"):
         parts = kv.split("=", 1)
         if len(parts) != 2:
             continue
@@ -1330,7 +1334,7 @@ async def _r_post_admin_plugins(reader, writer, method, path, headers, ip, ident
     length = int(headers.get("content-length", "0"))
     body = await B._read_small_body(reader, length)
     fields = {}
-    for kv in body.decode().split("&"):
+    for kv in webtext.text(body).split("&"):
         parts = kv.split("=", 1)
         if len(parts) == 2:
             fields[parts[0]] = billboard._url_decode(parts[1])
@@ -1348,7 +1352,7 @@ async def _r_post_admin_plugins(reader, writer, method, path, headers, ip, ident
 async def _r_post_admin_logout(reader, writer, method, path, headers, ip, identifier, secure):
     length = int(headers.get("content-length", "0"))
     body = await B._read_small_body(reader, length)
-    for kv in body.decode().split("&"):
+    for kv in webtext.text(body).split("&"):
         if kv.startswith("admin_pass="):
             B._end_session(billboard._url_decode(kv[11:]))
     B._end_session(B._cookie(headers, B.ADMIN_COOKIE))
@@ -1364,7 +1368,7 @@ async def _r_post_admin(reader, writer, method, path, headers, ip, identifier, s
     length = int(headers.get("content-length", "0"))
     body = await B._read_small_body(reader, length)
     pw = ""
-    for kv in body.decode().split("&"):
+    for kv in webtext.text(body).split("&"):
         if kv.startswith("admin_pass="):
             pw = billboard._url_decode(kv[11:])
     lang = i18n.get_lang(identifier)
@@ -1401,7 +1405,7 @@ async def _r_post_admin_delete_post(reader, writer, method, path, headers, ip, i
     body = await B._read_small_body(reader, length)
     pw = ""
     timestamps = []
-    for kv in body.decode().split("&"):
+    for kv in webtext.text(body).split("&"):
         if kv.startswith("ts="):
             timestamps.append(billboard._url_decode(kv[3:]))
         elif kv.startswith("admin_pass="):
@@ -1441,7 +1445,7 @@ async def _r_post_admin_delete(reader, writer, method, path, headers, ip, identi
     body = await B._read_small_body(reader, length)
     pw = ""
     fnames = []
-    for kv in body.decode().split("&"):
+    for kv in webtext.text(body).split("&"):
         if kv.startswith("f="):
             fnames.append(B._clean_filename(billboard._url_decode(kv[2:])))
         elif kv.startswith("admin_pass="):

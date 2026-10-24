@@ -60,6 +60,36 @@ def url_decode(s):
         return "".join(chr(b) for b in buf)
 
 
+def text(b):
+    """Bytes from a request (a line, a header, a body) as text: UTF-8, or
+    Latin-1 when it isn't valid UTF-8 -- every byte maps to a character
+    there, so this can't fail. A plain .decode() raised on a body that
+    isn't UTF-8 and the request ended with no answer at all (found by
+    the web fuzz test, step 3 of the roadmap; first seen in a header
+    from the Android app)."""
+    try:
+        return b.decode()
+    except UnicodeError:
+        return "".join(chr(c) for c in b)
+
+
+def same(a, b):
+    """a == b for secrets (passwords, tags), in a time that doesn't tell
+    how much of a guess was right. Text or bytes."""
+    if a is None or b is None:
+        return False
+    if isinstance(a, str):
+        a = a.encode()
+    if isinstance(b, str):
+        b = b.encode()
+    # The length isn't secret; looping over the guess keeps a wrong length
+    # from returning faster than a wrong character would.
+    r = len(a) ^ len(b)
+    for i in range(len(a)):
+        r |= a[i] ^ b[i % len(b)] if b else 1
+    return r == 0
+
+
 def sd_available():
     """True when something is mounted at /sd."""
     try:

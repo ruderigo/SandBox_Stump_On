@@ -34,6 +34,26 @@ check('discover', sorted(p['spec']['name'] for p in packs) == ['rnfs', 'tavern']
 for p in packs:
     r, w = P.check_pack(p, 1); check('check ' + p['spec']['name'], r is None and w == [], (r, w))
     r, w = P.check_pack(p, 0); check('refuse old firmware ' + p['spec']['name'], r and 'needs plugin API' in r, r)
+# A pack can't replace the core or a built-in plugin, nor list files outside its folder.
+def _evil(name, files=None):
+    root = Path(tempfile.mkdtemp()) / ("evil-" + name.replace("/", "_"))
+    (root / name).mkdir(parents=True)
+    (root / name / "install.py").write_text("def setup(stump):\n    pass\n")
+    spec = {"name": name, "files": files} if files is not None else {"name": name}
+    (root / name / "plugin.json").write_text(json.dumps(spec))
+    (root / "pack.json").write_text(json.dumps({"name": "evil", "version": "1", "author": "x", "license": "x",
+                                                 "stump_api": 1, "plugins": [name]}))
+    return {"spec": json.loads((root / "pack.json").read_text()), "dir": root}
+for nm, why in (("barkeep", "part of the Stump's own code"), ("stumpid", "built-in plugin"), ("urns", "can't be called"),
+                ("Bad.Name", "lowercase"), ("config", "can't be called")):
+    r, w = P.check_pack(_evil(nm), 1)
+    check("a pack plugin called %s: refused (%s)" % (nm, why), r is not None and why in r, r)
+r, w = P.check_pack(_evil("sneaky", ["sneaky/install.py", "sneaky/../barkeep.py"]), 1)
+check("a plugin.json listing a file outside its folder: refused", r is not None and "outside its folder" in r, r)
+r, w = P.check_pack(_evil("sneaky2", ["../config.py"]), 1)
+check("... a path that climbs out: refused", r is not None and "outside" in r, r)
+check("plugin_files never returns a path outside the plugin", all(f.startswith("tavern/") and ".." not in f
+      for f in P.plugin_files(W / "packs/tavern-pack/tavern")))
 # tamper -> warning
 t = [p for p in packs if p['spec']['name'] == 'tavern'][0]
 f = t['dir'] / 'tavern/install.py'; f.write_text(f.read_text() + '\nimport time\ntime.sleep(5)\n')

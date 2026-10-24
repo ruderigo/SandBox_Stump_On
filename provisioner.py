@@ -322,17 +322,17 @@ DEFAULT_CREDIT_WEIGHTS = {"video": 3, "music": 2, "document": 1, "other": 1}
 #    for f in sorted(Path('final_firmware').rglob('*')) if f.is_file()]"
 EXPECTED_FILE_HASHES = {
     "_sd_web/billboard.txt": "e3b0c44298fc1c14",
-    "admin_web.py": "87099691ea811387",
-    "barkeep.py": "75294d1d802d31d6",
+    "admin_web.py": "c2495adcb9696646",
+    "barkeep.py": "be0faafac207ed57",
     "billboard.py": "73e95795f9430ea5",
     "boot_common.py": "dc95827c3989d1ca",
     "captive_portal.py": "35cb3a279ecc42db",
-    "chain.py": "be83d5e6ed06129e",
+    "chain.py": "78261c5f8428ddab",
     "config.py": "0e84493cd2e4069f",
     "conn.py": "b17cf4fb4f80fbbf",
     "discovery.py": "7164fc255ddd86a3",
     "docs/CHAIN.md": "9bf301ed3c4c0401",
-    "docs/CLIENT_QUICKSTART.md": "2e21f4d78a7f946f",
+    "docs/CLIENT_QUICKSTART.md": "4bfb2133b6476728",
     "docs/COMMANDS.md": "d538a664029721e9",
     "docs/ENGINEERING_NOTES.md": "0818b93764d68cf0",
     "docs/FIELD_TEST.md": "0cd367b92d89f230",
@@ -342,13 +342,13 @@ EXPECTED_FILE_HASHES = {
     "docs/PACKS.md": "2e89e3c28d80d72d",
     "docs/PC.md": "20d30bf55e5957d2",
     "docs/PLUGINS.md": "3f5b4a5ee6844305",
-    "example_node.py": "2c10bbbb4d00c1a7",
+    "example_node.py": "2812f9ef2bb2e0cf",
     "features.py": "81e8af361c64a911",
     "flasher_ui.py": "1d3035b1132bc87e",
     "fserv.py": "875e3892212ae541",
-    "fservbot/plugin.json": "260a39a7dcb461be",
+    "fservbot/plugin.json": "9442390694ac9bfd",
     "guard.py": "526fac7536abfe7f",
-    "i18n.py": "83b66b4584872ada",
+    "i18n.py": "db6ac8ef5540fb51",
     "keepalive.py": "b63eb6e7bb5c57cc",
     "layout.py": "e91796a128fff08f",
     "lib/bz2_fast_xtensawin.mpy": "ac55d9eda2126432",
@@ -360,17 +360,17 @@ EXPECTED_FILE_HASHES = {
     "node_common.py": "e1e748a3283da2f4",
     "peripherals/__init__.py": "d2bdac4de6de79de",
     "peripherals/adc_reader.py": "50a393bfa61641d4",
-    "plugins.py": "33adb59a00896a7e",
+    "plugins.py": "829c99f60571ba4d",
     "profiles.py": "af13b5e91b83d004",
     "propagation.py": "99b4bcebeeeff8a7",
     "radio.py": "56e01b273ceaab68",
     "rrc.py": "9c81d9d1692bb29f",
-    "rrc_mesh.py": "bd8d460082afd1d5",
+    "rrc_mesh.py": "951413bc4accb01a",
     "rrc_ui.py": "7146777ddd5f6d6a",
     "settings.py": "81fc227a176bea01",
     "store.py": "625ba090410222cf",
     "stump_tls.py": "32a9394408ae392e",
-    "stumpid/plugin.json": "5391dbf28a2f7a3f",
+    "stumpid/plugin.json": "a419d598249430f1",
     "theme.py": "f4012514d7f00016",
     "third_party/codec2/COPYING": "9ebb6f82b7380a62",
     "third_party/codec2/build_codec2_wasm.sh": "11aafe7aca8e7a71",
@@ -531,7 +531,7 @@ EXPECTED_FILE_HASHES = {
     "urns/destination.py": "29eadd36dbfe9e3e",
     "urns/identity.py": "1a98f90e034bfb19",
     "urns/interfaces/__init__.py": "f058f69c73c34294",
-    "urns/interfaces/chain.py": "15d0d880b1318c83",
+    "urns/interfaces/chain.py": "8f79a4adf8292e1a",
     "urns/interfaces/e32.py": "4cc3c2994c2d7972",
     "urns/interfaces/lora.py": "34ce816fe69c0b43",
     "urns/interfaces/rnode_ble.py": "3f3e6f3f82eda820",
@@ -542,17 +542,17 @@ EXPECTED_FILE_HASHES = {
     "urns/interfaces/wifi_serial.py": "4ce7c80aa6bf0846",
     "urns/link.py": "ef808679cefb1ac0",
     "urns/log.py": "4b5576693991c7a6",
-    "urns/lxmf.py": "a67218b713580252",
+    "urns/lxmf.py": "e0b81de45fc4de60",
     "urns/packet.py": "d8a3a0c4a3a9ebbf",
     "urns/resource.py": "e54f10289b5a85e6",
     "urns/reticulum.py": "88295a083390bdc5",
     "urns/transport.py": "ca8f0f641c111b04",
-    "urns/umsgpack.py": "7df3983d6abcf149",
+    "urns/umsgpack.py": "b1616a439fa0e915",
     "web/codec2.js": "2caf391c54505c61",
     "web/codec2.wasm": "342264605478d63f",
     "web/opus.js": "1cb7a20504785a6d",
     "web/opus.wasm": "4aecdb72f03d2486",
-    "webtext.py": "139e06a7a6bfec2c",
+    "webtext.py": "45ae20e596326b83",
 }
 
 # The exact set of files (relative paths, including subdirectories) that
@@ -823,10 +823,39 @@ def plugin_files(plugin_dir, spec=None):
     spec = _plugin_spec(d) if spec is None else spec
     listed = spec.get("files")
     if listed:
-        return [f for f in listed if (d.parent / f).is_file()]
+        # Only the plugin's own folder: a listed "../config.py" or
+        # "tavern/../barkeep.py" would have been copied over the core.
+        return [f for f in listed if isinstance(f, str) and _inside_plugin(f, d.name)
+                and (d.parent / f).is_file()]
     return sorted(f.relative_to(d.parent).as_posix() for f in d.rglob("*")
                   if f.is_file() and "__pycache__" not in f.parts
                   and not any(f.name.endswith(s) for s in MANIFEST_EXCLUDE_SUFFIXES))
+
+
+def _inside_plugin(rel, name):
+    parts = rel.replace("\\", "/").split("/")
+    return len(parts) >= 2 and parts[0] == name and not any(p in ("", ".", "..") for p in parts) \
+        and ":" not in rel
+
+
+def plugin_name_problem(name, fw=None):
+    """Why a plugin can't be called this, or None. Not a core module or
+    folder's name (a folder "barkeep/" is imported instead of barkeep.mpy),
+    not a built-in plugin's (an update would replace stumpid, the access
+    control), and a plain lowercase name."""
+    import re as _re
+    if not isinstance(name, str) or not _re.match(r"^[a-z][a-z0-9_]{1,23}$", name):
+        return "a plugin's name is 2-24 lowercase letters, digits or _"
+    if name in ("urns", "lib", "peripherals", "web", "docs", "third_party", "tools_payload", "sd", "rns",
+                "tls", "plugins_state", "boot", "main", "config"):
+        return "a plugin can't be called %s" % name
+    core = set(Path(f).stem for f in STUMP_APP_FILES if "/" not in f)
+    if name in core:
+        return "%s is a part of the Stump's own code" % name
+    for d, _ in discover_plugins(Path(fw or STUMP_APP_DIR)):
+        if d == name:
+            return "%s is a built-in plugin: a pack can't replace it" % name
+    return None
 
 
 def verify_plugin(plugin_dir, spec=None):
@@ -982,10 +1011,15 @@ def check_pack(pack, fw_api):
         return ("needs plugin API %d; this firmware has %s" % (need, fw_api or "none (too old)")), []
     for name in spec.get("plugins", []):
         pd = d / name
+        why = plugin_name_problem(name)
+        if why:
+            return why, []
         if not (pd / "install.py").is_file():
             return ("plugin folder %s/ has no install.py" % name), []
-        if name in ("urns", "lib", "peripherals", "web", "docs", "third_party", "tools_payload"):
-            return ("a plugin can't be called %s" % name), []
+        listed = (_plugin_spec(pd) or {}).get("files") or []
+        outside = [f for f in listed if not (isinstance(f, str) and _inside_plugin(f, name))]
+        if outside:
+            return ("%s/plugin.json lists files outside its folder: %s" % (name, ", ".join(map(str, outside[:3])))), []
         problems, unhashed = verify_plugin(pd)
         for rel, why in problems:
             warnings.append("%s: %s" % (rel, why))
