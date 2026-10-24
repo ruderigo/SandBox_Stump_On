@@ -330,7 +330,8 @@ def check_op_password(pw):
     a node that was never set up cannot be reconfigured by a passer-by
     who simply omits the argument.
     """
-    return bool(FSERVBOT_OP_PASSWORD) and pw == FSERVBOT_OP_PASSWORD
+    import webtext
+    return bool(FSERVBOT_OP_PASSWORD) and webtext.same(pw, FSERVBOT_OP_PASSWORD)
 
 
 # Old name, kept as a direct alias rather than a deprecated wrapper --

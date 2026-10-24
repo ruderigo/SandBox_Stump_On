@@ -67,18 +67,19 @@ NomadNet over the chain).
 
 From the attacker's side, after the cleanup (less code to review).
 
-- [ ] Every route's input: sizes, encodings, paths (`..`, odd names),
-      JSON depth
-- [ ] Auth and sessions: cookies, `/hello` replay, `/auth` timing,
-      admin lockouts across a chain
-- [ ] The chain as a way in: a fake Stump on the chain Wi-Fi, forged
-      beacons, the chain secret; the parent's answer to a hello (`STUMPCHAIN1ACK`)
-      isn't signed: a fake parent can make a Stump think it's linked
-- [ ] LoRa: floods, oversized resources, malformed packets, a fuzzer on
-      urns' parsers
-- [ ] Plugins and packs: hash checks, what an update can overwrite
-- [ ] A short threat model (docs), shared with the pentesters and the
-      client teams
+- [x] Every route's input: sizes, encodings, paths (`..`, odd names),
+      JSON depth (web_fuzz; bodies that aren't UTF-8 fixed)
+- [x] Auth and sessions: cookies, `/hello` replay, constant-time
+      compares; lockouts are per Stump (THREAT_MODEL.md)
+- [x] The chain as a way in: forged beacons ignored, profiles marked
+      with the secret, the parent's answer signed (chain_proto)
+- [x] LoRa: floods, malformed packets, a fuzzer on urns' parsers
+      (urns_fuzz; msgpack depth and LXMF shape fixed)
+- [x] Plugins and packs: hash checks, what an update can overwrite (a
+      pack can't replace the core or a built-in plugin)
+- [x] A short threat model: docs/THREAT_MODEL.md
+
+Done in 1.0.0-beta.37.
 
 ## 4. Enhancements (after 1-3)
 

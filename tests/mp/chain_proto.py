@@ -137,4 +137,63 @@ plugins._post_use.clear()
 m = plugins._post("tavern", "Tavernier", "main", "a plugin speaks")
 last = rrc.since("main", 0)[-1]
 check("a plugin's line is a bot's too", m and last["nick"] == "Tavernier" and last.get("bot") is True, last)
+
+# 7. Forged beacons: the LXMF address inside must be the beacon's own.
+from urns.identity import Identity
+from urns.destination import Destination
+from urns import const
+me = Identity()
+victim = Identity()
+pub = me.get_public_key()
+nh = Identity.full_hash(b"stump.node")[:const.NAME_HASH_LENGTH // 8]
+
+
+class Pkt:
+    def __init__(self, pubkey):
+        self.data = pubkey + nh + b"\x00" * 80
+
+
+class R:
+    delivery_destination = None
+
+
+own_lxmf = Destination.hash(me, "lxmf", "delivery")
+victim_lxmf = Destination.hash(victim, "lxmf", "delivery")
+rrc_mesh._note_stump_beacon(R(), umsgpack.packb(["stump", "Beta A", "Real", own_lxmf, []]), Pkt(pub))
+check("a beacon naming its own LXMF address: a Stump", rrc.is_stump(own_lxmf.hex()))
+rrc_mesh._note_stump_beacon(R(), umsgpack.packb(["stump", "Beta A", "Fake", victim_lxmf, []]), Pkt(pub))
+check("a beacon naming someone else's address: ignored (they stay a person)", not rrc.is_stump(victim_lxmf.hex()))
+
+# 8. Profiles cross the chain only with the chain secret's mark.
+config.CHAIN_SECRET = "s3cret"
+out = rrc_mesh._profiles_out('[{"nick": "ann"}]')
+check("profiles sent: marked with the secret", '"t"' in out and rrc_mesh._profiles_in(out) == [{"nick": "ann"}], out)
+check("... a plain list (an older Stump, or a forger): refused", rrc_mesh._profiles_in('[{"nick": "eve"}]') is None)
+forged = json.dumps({"r": '[{"nick": "eve"}]', "t": "00" * 16})
+check("... a wrong mark: refused", rrc_mesh._profiles_in(forged) is None)
+tampered = json.loads(out)
+tampered["r"] = '[{"nick": "eve"}]'
+check("... the records changed under a good mark: refused", rrc_mesh._profiles_in(json.dumps(tampered)) is None)
+config.CHAIN_SECRET = ""
+check("an open chain (no secret): the plain list, as before", rrc_mesh._profiles_in('[{"nick": "bob"}]') == [{"nick": "bob"}]
+      and rrc_mesh._profiles_out("[]") == "[]")
+config.CHAIN_SECRET = SECRET
+
+# 9. The Stump above proves the secret in its answer.
+from urns.interfaces.chain import ChainUplinkInterface, _ack_tag
+up = ChainUplinkInterface({"listen_ip": "192.168.4.23", "listen_port": 0, "forward_ip": "192.168.4.1",
+                           "forward_port": 4242, "secret": SECRET})
+parent = ("192.168.4.1", 4242)
+up.accept(HELLO_MAGIC + b"ACK" + _ack_tag(SECRET.encode(), "192.168.4.23", "192.168.4.1"), parent)
+check("a signed answer: the parent is seen, and verified", up.parent_seen and up.parent_verified is True)
+up2 = ChainUplinkInterface({"listen_ip": "192.168.4.23", "listen_port": 0, "forward_ip": "192.168.4.1",
+                            "forward_port": 4242, "secret": SECRET})
+up2.accept(HELLO_MAGIC + b"ACK", parent)
+check("a plain answer (an older Stump above): seen, and shown as not verified", up2.parent_seen and up2.parent_verified is False)
+up3 = ChainUplinkInterface({"listen_ip": "192.168.4.23", "listen_port": 0, "forward_ip": "192.168.4.1",
+                            "forward_port": 4242, "secret": SECRET})
+up3.accept(HELLO_MAGIC + b"ACK" + b"x" * 16, parent)
+check("an answer with another secret: ignored", not up3.parent_seen)
+up.accept(HELLO_MAGIC + b"ACK", parent)
+check("verified once: a plain answer after it doesn't undo that", up.parent_verified is True)
 print('FAILURES:', FAIL)

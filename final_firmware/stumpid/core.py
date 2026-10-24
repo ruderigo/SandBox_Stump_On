@@ -426,7 +426,7 @@ def check_admin_password(pw):
     password is unset.
     """
     if AUTH_ADMIN_PASSWORD:
-        return bool(pw) and pw == AUTH_ADMIN_PASSWORD
+        return bool(pw) and webtext.same(pw, AUTH_ADMIN_PASSWORD)
     try:
         import fservbot.core as fservbot_core
     except ImportError:

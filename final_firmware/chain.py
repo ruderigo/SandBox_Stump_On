@@ -548,6 +548,9 @@ def status():
             "ip": up.listen_ip if up else None,
             "parent": up.forward_ip if up else None,
             "parent_heard_s": int(now - up.parent_seen) if up and up.parent_seen else None,
+            # True: the Stump above proved the chain secret; False: it answered
+            # plainly (a release before 1.0.0-beta.37); None: no answer yet.
+            "parent_verified": getattr(up, "parent_verified", None) if up else None,
         },
         "lan_ip": _state["lan_ip"],
         "chain": chain_id(s),

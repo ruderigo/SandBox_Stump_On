@@ -61,6 +61,27 @@ def _hello_tag(secret, child_ip, hub_ip):
     return hmac_new(secret, (child_ip + ">" + hub_ip).encode()).digest()[:16]
 
 
+def _same(a, b):
+    """Tags compared in a time that doesn't tell how much was right."""
+    a, b = bytes(a), bytes(b)
+    if len(a) != len(b):
+        return False
+    r = 0
+    for i in range(len(a)):
+        r |= a[i] ^ b[i]
+    return r == 0
+
+
+def _ack_tag(secret, child_ip, hub_ip):
+    """The Stump above's answer proves it knows the secret too (since
+    1.0.0-beta.37): the answer to a hello used to be plain, so anything
+    answering from the parent's address looked like the parent."""
+    if not secret:
+        return b""
+    from ..crypto.hmac import new as hmac_new
+    return hmac_new(secret, (hub_ip + "<" + child_ip).encode()).digest()[:16]
+
+
 class ChainUplinkInterface(UDPInterface):
     """Unicast to the parent Stump (its access point address)."""
 
@@ -71,12 +92,25 @@ class ChainUplinkInterface(UDPInterface):
         config.setdefault("bitrate", 2000000)
         super().__init__(config)
         self.parent_seen = 0       # last time the parent answered a hello
+        # The parent's answer proved the chain secret (None: no answer yet,
+        # or no secret; False: a plain answer, an older Stump above).
+        self.parent_verified = None
 
     def accept(self, data, addr):
         # Only the parent, whose address we send to, talks on this link.
         if _ip_of(addr) != self.forward_ip:
             return False
         if data[:len(HELLO_MAGIC)] == HELLO_MAGIC:
+            tail = bytes(data[len(HELLO_MAGIC):])
+            if self._secret:
+                want = b"ACK" + _ack_tag(self._secret, self.listen_ip, self.forward_ip)
+                if _same(tail, want):
+                    self.parent_verified = True
+                elif tail == b"ACK" and self.parent_verified is not True:
+                    self.parent_verified = False     # an older Stump above: taken, shown
+                else:
+                    log("Chain: an answer from " + self.forward_ip + " with another secret: ignored", LOG_WARNING)
+                    return False
             if not self.parent_seen:
                 _link_event()                  # first answer: introduce ourselves
             self.parent_seen = time.time()     # the parent's answer to a hello
@@ -170,7 +204,7 @@ class ChainHubInterface(UDPInterface):
             if ip is None:
                 return False
             tag = data[len(HELLO_MAGIC):]
-            if tag != _hello_tag(self._secret, ip, self.listen_ip):
+            if not _same(tag, _hello_tag(self._secret, ip, self.listen_ip)):
                 self._refuse(ip)
                 return False
             self.refused.pop(ip, None)
@@ -178,7 +212,7 @@ class ChainHubInterface(UDPInterface):
             try:
                 # The answer goes back where the hello came from (a PC's
                 # hello script uses its own port; Reticulum is on the chain port).
-                self._socket.sendto(HELLO_MAGIC + b"ACK", addr)
+                self._socket.sendto(HELLO_MAGIC + b"ACK" + _ack_tag(self._secret, ip, self.listen_ip), addr)
                 self._socket.settimeout(0)
             except Exception:
                 pass
