@@ -13,7 +13,12 @@ of work done.
 
 ---
 
-## HF-001 — Browser-based WebSerial flasher
+## HF-001 — Browser-based WebSerial flasher — **to bring back (roadmap, step 4)**
+
+Decided in October 2026: bring it back (option (a) below), as an
+enhancement after the hardening work: see `docs/ROADMAP.md` in the
+repository. Until then `/flash` still works by URL, and `flasher_ui` is
+loaded only when it's opened, not at every boot.
 
 **Hidden from**: the `/tools` page (previously a prominent "Open the
 flasher →" button; later replaced with plain CLI provisioning steps
@@ -84,69 +89,15 @@ later cut down to downloads only), and stop `provisioner.py`'s
 
 ---
 
-## HF-002 — Awaiting-slot upload hash field
+## HF-002 — Awaiting-slot upload hash field — **removed (1.0.0-beta.35)**
 
-> **Update**: a real, working admin file-deletion feature (password-gated,
-> reusing `stumpid.core.check_admin_password()`, with FIFO storage
-> eviction at 75% capacity) shipped since this entry was first written
-> — originally as a drawer directly on `/files`, later moved to its own
-> unlinked `/admin` page (batch delete, one password covering multiple
-> files) once that drawer turned out to overflow its own container and
-> demand a password re-entry per file. That's a separate capability
-> from the one described below — deletion doesn't touch the
-> awaiting-slot mechanism at all, and this hash field is still exactly
-> as hidden and exactly as incomplete as when this entry was written.
-> Noted here only so nobody assumes "file management got worked on"
-> means this specific field did too.
-
-**Hidden from**: the file-upload box (previously a visible text input
-labelled "Awaiting-slot hash (optional)" next to the Upload button). The
-upload box itself has since moved from the home page to the Files page.
-
-**Still fully functional underneath**: the input element is still in
-the page (`id='uphash'`, `style='display:none'`), so the existing
-upload JS (`doUpload()`) still finds it and still sends an `X-Hash`
-header on every upload exactly as before. With the field hidden,
-nobody can type into it, so that header is now always empty — which
-the server already treats as "not an awaiting-slot upload," i.e.
-today's behavior is identical to a normal upload for everyone.
-
-**What it is**: `fserv.py`'s own header comment describes the intended
-design directly: in "regulated mode," someone with permission (the
-comment says "a practitioner") marks a slot as "awaiting hash X" while
-physically at the Stump. The matching person later types that same
-hash into this field when uploading, which routes their file into that
-specific pre-arranged slot (`fserv.py`'s `is_slot` branch in the
-`/upload` handler) rather than the general shared folder.
-
-**Why hidden, and the actual root cause found while investigating**:
-`fserv.mark_awaiting(hash_hex, note)` — the function that would create
-an awaiting slot in the first place — has **zero callers anywhere in
-this codebase**. There is no chat command, no admin action, nothing
-reachable by a normal operator that invokes it. The visible field was
-only ever the consumer half of a two-sided mechanism; the producer half
-was never wired into anything a person could actually trigger. That's
-a materially different, and more specific, problem than "the label is
-unclear" — the feature is genuinely unusable as shipped, not just
-under-explained.
-
-**Decision an epic would need to make**: either (a) complete it — add
-a real way to call `mark_awaiting()` (an `/admin` subcommand, a
-BarKeep command, whatever fits the access-control model in
-`README.md`'s "Access control" section) and then re-expose the field
-with instructions that actually make sense once the producer side
-exists, or (b) remove it — delete `mark_awaiting()`, `AWAITING_FILE`,
-`_awaiting()`, the `is_slot` branch in `/upload`'s handler (falling
-back to always saving into the normal shared folder), the `uphash`
-element and its JS wiring, and the now-unreferenced
-`home_awaiting_hash` i18n key.
-
-**Code locations**:
-- `barkeep.py` — the `uphash` input (now hidden), `doUpload()`'s
-  `X-Hash` header, the `/upload` handler's `is_slot` branch
-- `fserv.py` — `mark_awaiting()`, `AWAITING_FILE`, `_awaiting()`, and
-  the "Regulated mode" design comment near the top of the file
-- `i18n.py` — `home_awaiting_hash` (now unreferenced)
+Removed in the cleanup of October 2026: nothing could ever open a slot
+(`fserv.mark_awaiting()` had no caller), so the hidden field, the
+`X-Hash` header, the slot branch of `/upload`, `AWAITING_FILE` and the
+`home_awaiting_hash` key went. `/upload`'s JSON answer still carries
+`"slot": false`, so older clients reading it don't break. If regulated
+uploads come back, they start from a design with the producer side
+first.
 
 ---
 

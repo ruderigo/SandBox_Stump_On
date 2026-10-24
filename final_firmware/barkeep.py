@@ -32,7 +32,6 @@ import ubinascii
 import keepalive  # a rescue start, the watchdog's last restart
 import propagation
 import stump_tls as tls  # not "tls": MicroPython has a built-in module by that name
-import flasher_ui
 import webtext
 
 # Per-node greeter name. Falls back so this module still imports on its
@@ -4137,6 +4136,8 @@ async def _serve(reader, writer, secure=False):
             # Pass the address the client actually used, so the Chrome
             # flag printed on the page is copy-pasteable rather than a
             # placeholder someone has to work out.
+            # Loaded on first use, not at boot: few ever open it (HF-001).
+            import flasher_ui
             host = headers.get("host", "").split(":")[0] or "this-node"
             await _send(writer, "200 OK", flasher_ui.render_page(host))
 

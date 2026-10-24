@@ -1269,19 +1269,13 @@ See `LICENSE` for this build's own terms and the full third-party list.
 
 ## Hidden features
 
-Two things exist fully in the code, still work if you know the URL,
-but are deliberately unlinked from the visible UI — not deleted,
-because the actual remove-vs-keep decision was left open for a future
-JIRA epic rather than made silently. Full detail, code locations, and
-what each decision would need, in `docs/HIDDEN_FEATURES.md`:
+Features the code has but the pages don't link, with what each would
+need, in `docs/HIDDEN_FEATURES.md`:
 
-- **`HF-001`** — the browser-based WebSerial flasher (`/flash`, `/fw`).
-  `/tools` briefly showed plain CLI steps in its place; those are gone
-  from the page too now, replaced by pushing `README.md` itself to the
-  node instead (see "What ends up in `/sd/tools/`" above).
-- **`HF-002`** — the "awaiting-slot" upload hash field. The field
-  itself is unrelated to the file-deletion feature documented above —
-  that's a separate capability that shipped since this entry was
-  written, and doesn't touch the awaiting-slot mechanism at all.
+- **`HF-001`** — the browser-based WebSerial flasher (`/flash`, `/fw`):
+  still works by URL; to be brought back, linked from `/tools` (roadmap,
+  step 4).
+- **`HF-002`** — the "awaiting-slot" upload: **removed** in
+  1.0.0-beta.35 (nothing could open a slot).
 - **`HF-003`** — the Concierge (BarKeep) chat box: **brought back** as
   the librarian (above), on the Files and Billboard pages.

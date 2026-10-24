@@ -203,7 +203,6 @@ STRINGS = {
         "en": "Direct Messages",
         "es": "Mensajes directos",
     },
-    "rrc_you_are": {"fr": "tu es", "en": "you are", "es": "eres"},
     "rrc_not_sent": {
         "fr": "non envoyé — problème de connexion",
         "en": "not sent — connection problem",
@@ -211,11 +210,6 @@ STRINGS = {
     },
 
     # ---- rrc.py command replies ----
-    "help_header": {
-        "fr": "Voici ce que j'ai\u00a0:",
-        "en": "Here's what I've got:",
-        "es": "Esto es lo que tengo:",
-    },
     "help_msg": {
         "fr": "message privé, seul(e) cette personne le voit",
         "en": "private message, only they see it",
@@ -396,11 +390,6 @@ STRINGS = {
         "en": "Everyone's in here &mdash; <a href='/rrc'>open RRC</a>.",
         "es": "Todos están aquí — <a href='/rrc'>abre RRC</a>.",
     },
-    "bot_billboard_pointer": {
-        "fr": "Juste là — <a href='/billboard'>le babillard</a>.",
-        "en": "Right through there &mdash; <a href='/billboard'>the billboard</a>.",
-        "es": "Justo ahí — <a href='/billboard'>el tablón</a>.",
-    },
     "bot_files_no_card": {
         "fr": "L'étagère est vide pour l'instant — pas de carte dans le lecteur.",
         "en": "Shelf's empty right now &mdash; no card in the slot.",
@@ -438,16 +427,6 @@ STRINGS = {
     },
     "bot_credit_singular": {"fr": "crédit", "en": "credit", "es": "crédito"},
     "bot_credit_plural": {"fr": "crédits", "en": "credits", "es": "créditos"},
-    "bot_unknown": {
-        "fr": "Je ne connais pas celle-là. Essaie <b>menu</b>.",
-        "en": "Don't know that one. Try <b>menu</b>.",
-        "es": "No conozco esa. Prueba <b>menu</b>.",
-    },
-    "home_say_something": {
-        "fr": "Dis quelque chose…",
-        "en": "Say something...",
-        "es": "Di algo…",
-    },
     "home_you_label": {"fr": "Toi", "en": "You", "es": "Tú"},
     "home_bring_something": {
         "fr": "Envie de partager quelque chose\u00a0?",
@@ -944,7 +923,6 @@ STRINGS = {
         "es": "tu mensaje llegó con {minutes} min de retraso (dejado en un nodo de propagación) — no se hizo nada; reenvíalo directamente",
     },
     "voice_unplayable": {"fr": "format non pris en charge", "en": "format not supported", "es": "formato no compatible"},
-    "sym_voice": {"fr": "note vocale", "en": "voice note", "es": "nota de voz"},
     "sym_rate": {"fr": "ralentis", "en": "slow down", "es": "más despacio"},
     "about_tab_about": {
         "fr": "Projet (v1)",
@@ -1111,11 +1089,6 @@ STRINGS = {
         "en": "Read me",
         "es": "Léeme",
     },
-    "tools_tech_h2": {
-        "fr": "Outils du technicien",
-        "en": "Technician tools",
-        "es": "Herramientas del técnico",
-    },
     "admin_home_header": {"fr": "Section de la page d'accueil", "en": "Home page section", "es": "Sección de la página de inicio"},
     "admin_home_place": {
         "fr": "Où la placer",
@@ -1184,16 +1157,6 @@ STRINGS = {
     },
 
     # ---- Billboard ----
-    "billboard_shelf_empty": {
-        "fr": "Rien sur le babillard pour l'instant.",
-        "en": "Nothing on the shelf yet.",
-        "es": "Todavía no hay nada en el tablón.",
-    },
-    "billboard_post_placeholder": {
-        "fr": "écris un avis…",
-        "en": "write a notice...",
-        "es": "escribe un aviso…",
-    },
     "billboard_post_button": {"fr": "Publier", "en": "Post", "es": "Publicar"},
     "billboard_title_placeholder": {
         "fr": "titre de l'avis",
@@ -1399,16 +1362,6 @@ STRINGS = {
 
     # ---- stumpid: identity + room access (human-readable text only --
     # never the AUTH-CHALLENGE/OK/FAIL markers themselves) ----
-    "whoami_not_verified": {
-        "fr": "pas vérifié(e) — envoie /auth pour prouver une identité",
-        "en": "not verified -- send /auth to prove an identity",
-        "es": "no verificado — envía /auth para probar una identidad",
-    },
-    "whoami_verified": {
-        "fr": "vérifié(e) comme {hash}  surnom\u00a0: {nick}",
-        "en": "verified as {hash}  nick={nick}",
-        "es": "verificado como {hash}  apodo={nick}",
-    },
     "room_needs_verified": {
         "fr": "cette salle exige une identité vérifiée — envoie /auth d'abord",
         "en": "that room requires a verified identity -- send /auth first",

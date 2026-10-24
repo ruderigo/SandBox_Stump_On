@@ -14,12 +14,13 @@ behaviour**: the full suite stays green and the golden outputs stay
 identical throughout.
 
 - [ ] Dead code: functions nothing calls, fallbacks for paths that no
-      longer exist, config keys nothing reads
+      longer exist, config keys nothing reads (HF-002, the awaiting-slot
+      upload, removed)
 - [ ] Duplicates: the same helper written more than once (time and
       ticks, escaping, JSON answers, settings lookups)
 - [ ] barkeep.py split into smaller modules (pages, routes, admin)
 - [ ] Provisioner: menus and paths left from older flows
-- [ ] i18n: keys nothing uses
+- [x] i18n: keys nothing uses (12 removed)
 - [ ] Docs: behaviour that changed; the two CLIENT_QUICKSTART copies
       made from one source
 - [ ] Tests: ones that check the same thing twice
@@ -66,5 +67,9 @@ From the attacker's side, after the cleanup (less code to review).
 - [ ] NomadNet pack (L): browse NomadNet nodes from the Stump's web
       pages, and serve the Stump as a NomadNet node; a plugin page can
       be a navigation button
+- [ ] Browser flasher back (M): HF-001 in HIDDEN_FEATURES.md, linked
+      from /tools again; its catalog kept in step with the Provisioner's
+      firmware; images that may be shipped (RNode is GPL-3: its source
+      offer comes with it); WebSerial needs HTTPS or a Chrome flag
 - [ ] More boards (M each): one Provisioner profile per board (flash,
       PSRAM, radio, SD pins)
