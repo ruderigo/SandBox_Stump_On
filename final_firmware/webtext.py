@@ -60,6 +60,19 @@ def url_decode(s):
         return "".join(chr(b) for b in buf)
 
 
+def text(b):
+    """Bytes from a request (a line, a header, a body) as text: UTF-8, or
+    Latin-1 when it isn't valid UTF-8 -- every byte maps to a character
+    there, so this can't fail. A plain .decode() raised on a body that
+    isn't UTF-8 and the request ended with no answer at all (found by
+    the web fuzz test, step 3 of the roadmap; first seen in a header
+    from the Android app)."""
+    try:
+        return b.decode()
+    except UnicodeError:
+        return "".join(chr(c) for c in b)
+
+
 def sd_available():
     """True when something is mounted at /sd."""
     try:

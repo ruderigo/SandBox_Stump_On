@@ -62,6 +62,7 @@ TESTS = [
     ("store_atomic", "assert", []),
     ("admin_lazy", "assert", []),
     ("chain_proto", "assert", []),
+    ("web_fuzz", "assert", PACK_PLUGINS),
 ]
 
 _NORM = [
