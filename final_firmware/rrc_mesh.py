@@ -494,6 +494,9 @@ def _is_person(router, dest, packet):
         return False
 
 
+_forged = set()           # LXMF addresses named by beacons that weren't theirs (logged once)
+
+
 def _note_stump_beacon(router, app_data, packet):
     """A "stump.node" beacon from another node: remember its LXMF
     delivery hash (carried in the beacon's announce data) as a Stump,
@@ -508,6 +511,21 @@ def _note_stump_beacon(router, app_data, packet):
         from urns import umsgpack
         fields = umsgpack.unpackb(app_data)
         lxmf_hash = bytes(fields[3])
+        # The LXMF address must be the beacon's own identity's: the announce
+        # is signed by that identity, but the address inside is just data.
+        # Anyone could otherwise announce a beacon naming SOMEONE ELSE's
+        # address, and this Stump would take that person for a Stump (their
+        # messages read as a Stump's batches, their name off the lists).
+        from urns.destination import Destination
+        ident_hash = Identity.truncated_hash(bytes(packet.data[:off]))
+        if lxmf_hash != Destination.hash(ident_hash, "lxmf", "delivery"):
+            if lxmf_hash.hex() not in _forged:
+                if len(_forged) > 32:
+                    _forged.clear()
+                _forged.add(lxmf_hash.hex())
+                print("[rrc_mesh] a Stump beacon naming an address not its own (%s): ignored"
+                      % lxmf_hash.hex()[:8])
+            return True
         if len(fields) > 4:
             try:
                 import discovery
@@ -1073,9 +1091,61 @@ def _flush_profiles(router, dest_hash_hex, peer):
         if not recs:
             break
         # No "via": too big for one packet; the path to it is the chain's.
-        _send_queue.append((router, dest, json.dumps(recs), PROFILES_TITLE))
+        _send_queue.append((router, dest, _profiles_out(json.dumps(recs)), PROFILES_TITLE))
         cur = nxt
     peer["prof_seq"] = cur
+
+
+# Profiles (password hashes) cross the chain only with the chain secret's
+# mark: {"r": <records, as JSON text>, "t": HMAC-SHA256(secret, that text),
+# first 16 bytes, hex}. Coming in over a chain link isn't enough on its
+# own -- a device on a Stump's Wi-Fi can send UDP that looks like it comes
+# from the Stump above. Without a chain secret (an open chain), the plain
+# list as before. Older Stumps (before 1.0.0-beta.37) send and expect the
+# plain list: with a secret, update every Stump of the chain together.
+def _profiles_tag(secret, text):
+    from urns.crypto.hmac import new as hmac_new
+    import ubinascii
+    return ubinascii.hexlify(hmac_new(secret.encode(), text.encode()).digest()[:16]).decode()
+
+
+def _chain_secret():
+    try:
+        import chain
+        s = chain.settings()
+        return s["secret"] if s else ""
+    except Exception:
+        return ""
+
+
+def _profiles_out(text):
+    secret = _chain_secret()
+    if not secret:
+        return text
+    try:
+        import ujson as json
+    except ImportError:
+        import json
+    return json.dumps({"r": text, "t": _profiles_tag(secret, text)})
+
+
+def _profiles_in(content):
+    """The records in a profiles batch, or None if it isn't marked with
+    this chain's secret (when it has one)."""
+    try:
+        import ujson as json
+    except ImportError:
+        import json
+    data = json.loads(content or "[]")
+    secret = _chain_secret()
+    if not secret:
+        return data if isinstance(data, list) else (json.loads(data["r"]) if isinstance(data, dict) and "r" in data else [])
+    if not isinstance(data, dict) or not isinstance(data.get("r"), str) or not isinstance(data.get("t"), str):
+        return None
+    if data["t"] != _profiles_tag(secret, data["r"]):
+        return None
+    recs = json.loads(data["r"])
+    return recs if isinstance(recs, list) else None
 
 
 def _take_profiles(message):
@@ -1086,11 +1156,12 @@ def _take_profiles(message):
         return
     try:
         import profiles
-        try:
-            import ujson as json
-        except ImportError:
-            import json
-        n = profiles.merge(json.loads(message.content_as_string() or "[]"))
+        recs = _profiles_in(message.content_as_string())
+        if recs is None:
+            print("[rrc_mesh] profiles from %s ignored: not marked with this chain's secret"
+                  % message.source_hash.hex()[:8])
+            return
+        n = profiles.merge(recs)
         if n:
             rrc.release_registered_nicks()
             print("[rrc_mesh] %d profile(s) from %s" % (n, message.source_hash.hex()[:8]))

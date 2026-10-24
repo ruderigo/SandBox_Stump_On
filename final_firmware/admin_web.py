@@ -372,6 +372,8 @@ def _render_admin_chain_section(lang):
                      if up["parent_heard_s"] is not None else "")
             lines.append(i18n.t("admin_chain_member", lang, ssid=e(up["ssid"]), ip=up["ip"],
                                 parent=up["parent"], heard=heard))
+            if up.get("parent_verified") is False:
+                lines.append("<b>" + i18n.t("admin_chain_parent_plain", lang) + "</b>")
         else:
             lines.append(i18n.t("admin_chain_trying", lang, ssid=e(up["ssid"])))
     lines.append(i18n.t("admin_chain_below", lang, list=", ".join(st["below"])) if st["below"]
