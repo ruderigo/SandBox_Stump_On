@@ -101,6 +101,14 @@ async function run(name, root, simArgs, fill, keep) {
     check("Check: its button", await page.isVisible("#chk-go"));
     const ver = await page.textContent(".sub");
     check("the page names its release", /Stump 1\.0\.0-\S+/.test(ver), ver);
+    await page.click("nav button[data-tab=make]");
+    await page.check("input[name=mode][value=new]");
+    await page.check("input[name=f-radio][value=none]");
+    check("radio section hidden when there's no Heltec", !(await page.isVisible("#f-radio-params")));
+    await page.check("input[name=f-radio][value=ap]");
+    check("radio section appears with a Heltec, drop-downs filled", await page.isVisible("#f-radio-params")
+          && (await page.locator("#f-bw option").count()) === 10 && (await page.locator("#f-sf option").count()) === 8
+          && (await page.locator("#f-cr option").count()) === 4);
     await browser.close();
   }
 
@@ -114,6 +122,9 @@ async function run(name, root, simArgs, fill, keep) {
     await page.fill("#f-opw", "barkeep55");
     await page.fill("#f-ssid", "Home \"Net\""); await page.fill("#f-wpass", "pa'ss1234");
     await page.check("input[name=f-radio][value=ap]");
+    check("radio section shows when a Heltec is enabled", await page.isVisible("#f-radio-params")
+          && (await page.inputValue("#f-freq")) === "868.8" && (await page.inputValue("#f-bw")) === "125000");
+    await page.fill("#f-freq", "915"); await page.selectOption("#f-sf", "10");
     await page.click("#make-go");
     try { await page.waitForSelector("#worktitle .ok, #worktitle .err", { timeout: 240000 }); } catch (e) {}
     const title = await page.textContent("#worktitle"), result = await page.textContent("#result");

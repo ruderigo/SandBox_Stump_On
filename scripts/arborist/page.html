@@ -139,6 +139,21 @@
   <label class="choice"><input type="radio" name="f-radio" value="lan"> <span>It's on the home Wi-Fi, at <input type="text" id="f-hhost" placeholder="192.168.1.50" style="width:11em;padding:3px 6px"></span></label>
   <p class="hint">The Heltec itself is set up with the Provisioner (<code>rnodeconf</code>); this page only does the CAM.</p>
 
+  <div id="f-radio-params" class="hidden">
+    <label>Radio settings <span class="hint">· the CAM sets these on the Heltec</span></label>
+    <div class="two">
+      <div><label for="f-freq" class="hint">Frequency (MHz)</label><input type="text" id="f-freq" inputmode="decimal" value="868.8"></div>
+      <div><label for="f-bw" class="hint">Bandwidth (kHz)</label><select id="f-bw"></select></div>
+    </div>
+    <div class="two">
+      <div><label for="f-sf" class="hint">Spreading factor</label><select id="f-sf"></select></div>
+      <div><label for="f-cr" class="hint">Coding rate</label><select id="f-cr"></select></div>
+    </div>
+    <label for="f-txp" class="hint">TX power (dBm)</label>
+    <input type="number" id="f-txp" min="0" max="22" value="22" style="width:7em">
+    <p class="hint warn">These must match every other Stump on your mesh, or they won't hear each other.</p>
+  </div>
+
   <details class="more" id="f-more"><summary>More settings</summary>
     <h3>What it offers</h3>
     <label class="inline"><input type="checkbox" name="f-feat" value="chat" checked> Chat</label>
@@ -256,7 +271,21 @@ function chainView() {
 qa("input[name=f-chain]").forEach(function (r) { r.onchange = chainView; });
 $("f-subnet").oninput = chainView;
 $("f-newsecret").onclick = function () { $("f-secret").value = R.randomSecret(); };
-$("f-hhost").onfocus = function () { setVal("f-radio", "lan"); };
+$("f-hhost").onfocus = function () { setVal("f-radio", "lan"); radioView(); };
+
+// the radio drop-downs, once
+(function () {
+  function opt(sel, v, label, chosen) { var o = document.createElement("option"); o.value = v; o.textContent = label; if (chosen) o.selected = true; $(sel).appendChild(o); }
+  R.RADIO_BW.forEach(function (hz) { opt("f-bw", hz, (hz / 1000) + "", hz === 125000); });
+  for (var s = 5; s <= 12; s++) opt("f-sf", s, "SF" + s, s === 8);
+  for (var c = 5; c <= 8; c++) opt("f-cr", c, "4/" + c, c === 5);
+})();
+function radioView() { $("f-radio-params").classList.toggle("hidden", val("f-radio") === "none"); }
+qa("input[name=f-radio]").forEach(function (r) { r.onchange = radioView; });
+function fillRadio(a) {
+  a = a || R.radioAnswers(null);
+  $("f-freq").value = a.freqMhz; $("f-bw").value = a.bandwidth; $("f-sf").value = a.sf; $("f-cr").value = a.cr; $("f-txp").value = a.txpower;
+}
 
 // The form for a new Stump (a) = null, or filled with what a Stump has.
 function formFor(a) {
@@ -267,6 +296,7 @@ function formFor(a) {
       qa("input[name=f-feat]").forEach(function (c) { c.checked = c.value !== "about"; });
       $("f-theme").value = "paper"; $("f-mode").value = "open"; $("f-channel").value = 11; $("f-up").value = SSID;
       $("f-uppass").value = ""; $("f-subnet").value = 5; $("f-secret").value = ""; $("f-more").open = false;
+      fillRadio(null);
     }
     if ($("form").dataset.filled !== "new") {
       $("form").dataset.filled = "new";
@@ -275,7 +305,7 @@ function formFor(a) {
     $("f-pw-hint").textContent = "Unlocks /admin. Blank: /admin uses the BarKeep password below.";
     $("f-opw-hint").textContent = "Lets an operator edit BarKeep's replies from chat. Blank: editing off.";
     $("f-wpass").placeholder = "Its password";
-    chainView();
+    chainView(); radioView();
     return;
   }
   $("form").dataset.filled = "edit";
@@ -295,8 +325,9 @@ function formFor(a) {
   $("f-opw-hint").textContent = a.hasOpPw ? "Blank: the BarKeep password stays as it is."
     : "Lets an operator edit BarKeep's replies from chat. Blank: editing off.";
   $("f-wpass").placeholder = a.hasWifiPass ? "unchanged" : "Its password";
+  fillRadio(a.radioAnswers);
   if (a.chain !== "none" || a.hotspot || a.mode !== "open" || a.greeting) $("f-more").open = true;
-  chainView();
+  chainView(); radioView();
 }
 function answers(editing) {
   return {
@@ -305,6 +336,7 @@ function answers(editing) {
     hasPw: !!(editing && editing.hasPw), hasOpPw: !!(editing && editing.hasOpPw), requireAdmin: !editing,
     ssid: $("f-ssid").value, wpass: $("f-wpass").value, keepWifiPass: !!(editing && editing.hasWifiPass),
     radio: val("f-radio"), hhost: $("f-hhost").value,
+    freqMhz: $("f-freq").value, bandwidth: $("f-bw").value, sf: $("f-sf").value, cr: $("f-cr").value, txpower: $("f-txp").value,
     features: qa("input[name=f-feat]:checked").map(function (c) { return c.value; }),
     theme: $("f-theme").value, mode: $("f-mode").value, hotspot: $("f-hotspot").value,
     chain: val("f-chain"), channel: $("f-channel").value, upSsid: $("f-up").value, upPass: $("f-uppass").value,
@@ -477,10 +509,15 @@ async function flashMicroPython(P) {
 
 // -- Make or update ------------------------------------------------------------------
 async function make() {
-  var upd = mode() === "update", s = null;
+  var upd = mode() === "update", s = null, rad = null;
   if (!upd) {
-    s = R.settingsFrom(answers(null));
+    var a = answers(null);
+    s = R.settingsFrom(a);
     if (s.error) { $("make-err").textContent = s.error; return false; }
+    if (a.radio !== "none") {
+      rad = R.radioFrom(a);
+      if (rad.error) { $("make-err").textContent = rad.error; return false; }
+    }
     if (s.warn.length && !confirm(s.warn.join("\n") + "\n\nGo ahead anyway?")) return false;
     if (!confirm("This erases everything on the board. Go ahead?")) return false;
   }
@@ -514,6 +551,7 @@ async function make() {
     var tpl = new TextEncoder().encode(P.head.config_template);
     await R.upload(repl, [{ path: "config.py", data: tpl, sha256: await sha256(tpl) }]);
     await R.writeSettings(repl, s.values);
+    if (rad && !(await R.writeRadio(repl, rad.values))) log("note: the radio settings weren't saved to the board");
   }
   step(upd ? 3 : 6);
   await R.restart(repl);
@@ -537,9 +575,11 @@ async function readIt() {
   step(1); var repl = await readyRepl();
   step(2);
   if (!(await hasStump(repl))) throw new Error("There's no Stump on this board (no config.py). Use Make or update first.");
-  var c = await R.readSettings(repl), file = await R.readConfigFile(repl);
+  var c = await R.readSettings(repl), file = await R.readConfigFile(repl), radio = await R.readRadio(repl);
   step(3); await R.restart(repl); await closePort();
-  SETTINGS = { answers: R.answersFrom(c), file: file, sha: await sha256(file), name: c.NODE_NAME };
+  var ans = R.answersFrom(c);
+  ans.radioAnswers = R.radioAnswers(radio);
+  SETTINGS = { answers: ans, file: file, sha: await sha256(file), name: c.NODE_NAME };
   EDITING = SETTINGS.answers;
   formFor(EDITING);
   $("set-loaded").classList.remove("hidden");
@@ -549,8 +589,12 @@ async function readIt() {
   $("result").appendChild(para("Its settings are in the form above. It's running again meanwhile."));
 }
 async function saveIt() {
-  var s = R.settingsFrom(answers(SETTINGS.answers));
+  var a = answers(SETTINGS.answers), s = R.settingsFrom(a), rad = null;
   if (s.error) { $("set-err").textContent = s.error; return false; }
+  if (a.radio !== "none") {
+    rad = R.radioFrom(a);
+    if (rad.error) { $("set-err").textContent = rad.error; return false; }
+  }
   if (s.warn.length && !confirm(s.warn.join("\n") + "\n\nSave anyway?")) return false;
   steps("Saving its settings", ["Choose the board", "Connect", "Save", "Restart"]);
   step(0); await choosePort();
@@ -560,6 +604,7 @@ async function saveIt() {
   if ((await sha256(now)) !== SETTINGS.sha)
     throw new Error("This isn't the config.py read earlier (another board, or it changed since). Read its settings again, then save.");
   await R.writeSettings(repl, s.values);
+  if (rad && !(await R.writeRadio(repl, rad.values))) log("note: the radio settings weren't saved to the board");
   var after = await R.readConfigFile(repl);
   step(3); await R.restart(repl); await closePort();
   SETTINGS.file = after; SETTINGS.sha = await sha256(after);

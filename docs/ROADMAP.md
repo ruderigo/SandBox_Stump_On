@@ -107,6 +107,10 @@ Done in 1.0.0-beta.37.
         saved; Check
   - [ ] Windows: serial-check.html, then Arborist
   - [x] MicroPython's SHA-256 pinned in build_arborist.py (as micropython.org served it to CI)
+  - [x] Radio settings (freq/bw/SF/CR/TX power) via the firmware's
+        radio.save, when a Heltec is enabled (beta.42); the Heltec's own
+        rnodeconf provisioning stays with the Provisioner (GPL-3)
+  - [ ] On the bench: Arborist sets the radio on a CAM with a Heltec
   - [ ] Offered from the Stump: the Tools page (/sd/tools/arborist/),
         for a visitor's laptop to download and open
 - [ ] More boards (M each): one Provisioner profile per board (flash,
