@@ -48,6 +48,16 @@ jobs:
             ~/micropython-f32/micropython -c "compile(open('$f').read(), '$f', 'exec')" || exit 1
           done
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Playwright's Chromium (the flasher page's test)
+        run: |
+          npm install --no-save --prefix "$HOME/pw" playwright@1.56.0
+          "$HOME/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$HOME/pw/node_modules" >> "$GITHUB_ENV"
+
       - name: Test suite
         run: |
           export MICROPYTHON=$HOME/micropython-f32/micropython
@@ -67,6 +77,15 @@ jobs:
           python3 scripts/build_release.py "$V" dist-b > /dev/null
           diff dist-a/SHA256SUMS dist-b/SHA256SUMS
           cat dist-a/SHA256SUMS
+
+      - name: The flasher page, with MicroPython from micropython.org (to try on a board)
+        run: python3 scripts/build_flasher.py dist-flasher
+
+      - name: Keep the flasher page
+        uses: actions/upload-artifact@v4
+        with:
+          name: Stump-Flasher
+          path: dist-flasher/*.html
 
   # µReticulum (final_firmware/urns) against the reference rns/lxmf: keys,
   # addresses, signatures, encryption and LXMF messages, both directions
