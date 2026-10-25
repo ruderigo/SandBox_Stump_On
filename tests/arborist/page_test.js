@@ -111,6 +111,7 @@ async function run(name, root, simArgs, fill, keep) {
     const { page } = t;
     await page.fill("#f-name", "Café du Coin");
     await page.fill("#f-pw", "s3cret!"); await page.fill("#f-pw2", "s3cret!");
+    await page.fill("#f-opw", "barkeep55");
     await page.fill("#f-ssid", "Home \"Net\""); await page.fill("#f-wpass", "pa'ss1234");
     await page.check("input[name=f-radio][value=ap]");
     await page.click("#make-go");
@@ -132,7 +133,7 @@ async function run(name, root, simArgs, fill, keep) {
       const out = execFileSync(MP, ["-c", "import config as c\nb=[i for i in c.CONFIG['interfaces'] if i['name']=='Heltec Bridge'][0]\n" +
         "print(repr((c.NODE_NAME, c.AUTH_ADMIN_PASSWORD, c.FSERVBOT_OP_PASSWORD, c.WIFI_SSID, c.WIFI_PASS, b['enabled'], b['target_host'], b['target_port'], c.CHAIN_ENABLED, c.CHAIN_SECRET, c.BOT_NAME)))"],
         { cwd: root }).toString().trim();
-      check("... with the answers, as MicroPython reads them", out === "('Caf\u00e9 du Coin', 's3cret!', 's3cret!', 'Home \"Net\"', \"pa'ss1234\", True, '192.168.4.2', 7633, False, '', 'BarKeep')", out);
+      check("... with the answers (the two passwords independent), as MicroPython reads them", out === "('Caf\u00e9 du Coin', 's3cret!', 'barkeep55', 'Home \"Net\"', \"pa'ss1234\", True, '192.168.4.2', 7633, False, '', 'BarKeep')", out);
       check("... nothing of LaBuche's own config.py", !/LaBuche'|TeK|SalutComment|Bob's Glitch|Concierge/.test(cfg));
     }
     check("... no errors in the page", t.errors.length === 0, t.errors.join("\n"));
@@ -156,7 +157,8 @@ async function run(name, root, simArgs, fill, keep) {
     check("Settings: read (a running Stump stopped, then started again)", /Done/.test(title), title + " | " + (await page.textContent("#result")) + (await page.textContent("#log")).slice(-500));
     check("... the form shows its settings", (await page.inputValue("#f-name")) === "Café du Coin" && (await page.inputValue("#f-ssid")) === 'Home "Net"'
           && (await page.isChecked("input[name=f-radio][value=ap]")), await page.inputValue("#f-name"));
-    check("... its passwords not shown: blank means unchanged", (await page.inputValue("#f-pw")) === "" && (await page.getAttribute("#f-pw", "placeholder")) === "unchanged");
+    check("... its passwords not shown: blank means unchanged (both admin and BarKeep)", (await page.inputValue("#f-pw")) === ""
+          && (await page.getAttribute("#f-pw", "placeholder")) === "unchanged" && (await page.getAttribute("#f-opw", "placeholder")) === "unchanged");
     const [dl] = await Promise.all([page.waitForEvent("download"), page.click("#set-download")]);
     const copy = fs.readFileSync(await dl.path());
     check("a copy of its config.py, as on the board", copy.equals(fs.readFileSync(cfgPath)) && /^config-Caf.*\.py$/.test(dl.suggestedFilename()), dl.suggestedFilename());
@@ -165,15 +167,16 @@ async function run(name, root, simArgs, fill, keep) {
     await page.check("input[name=f-chain][value=member]");
     await page.fill("#f-up", "First-Stump");
     await page.fill("#f-subnet", "6");
+    await page.fill("#f-opw", "newbar42");            // change only the BarKeep password
     check("a chain member: a secret made for it", /^[0-9a-f]{16}$/.test(await page.inputValue("#f-secret")));
     await page.click("#set-save");
     title = await wait();
     check("... saved", /Done/.test(title), title + " | " + (await page.textContent("#result")) + (await page.textContent("#log")).slice(-500));
     fs.writeFileSync(path.join(root, "lora_boards.py"), "LORA_BOARDS = {}\n");
     const out = execFileSync(MP, ["-c", "import config as c\nb=[i for i in c.CONFIG['interfaces'] if i['name']=='Heltec Bridge'][0]\n" +
-      "print(repr((c.NODE_NAME, c.AUTH_ADMIN_PASSWORD, c.WIFI_PASS, c.CHAIN_ENABLED, c.CHAIN_UPLINK_SSID, c.CHAIN_SUBNET, b['target_host'])))"], { cwd: root }).toString().trim();
-    check("... as MicroPython reads them: the name, the chain, the Heltec at .6.2; the passwords kept",
-          out === "('Le Coin', 's3cret!', \"pa'ss1234\", True, 'First-Stump', 6, '192.168.6.2')", out);
+      "print(repr((c.NODE_NAME, c.AUTH_ADMIN_PASSWORD, c.FSERVBOT_OP_PASSWORD, c.WIFI_PASS, c.CHAIN_ENABLED, c.CHAIN_UPLINK_SSID, c.CHAIN_SUBNET, b['target_host'])))"], { cwd: root }).toString().trim();
+    check("... as MicroPython reads them: name + chain changed, admin + Wi-Fi kept, BarKeep password changed on its own",
+          out === "('Le Coin', 's3cret!', 'newbar42', \"pa'ss1234\", True, 'First-Stump', 6, '192.168.6.2')", out);
     fs.appendFileSync(cfgPath, "\n# changed by someone else\n");
     await page.fill("#f-name", "Other");
     await page.click("#set-save");

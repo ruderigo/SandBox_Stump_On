@@ -239,7 +239,8 @@
     var out = await repl.run(
       "import json\nimport config as c\nb=[i for i in c.CONFIG.get('interfaces',[]) if i.get('name')=='Heltec Bridge']\n" +
       "b=b[0] if b else {}\nd={}\nfor k in " + JSON.stringify(KEYS) + ":\n d[k]=getattr(c,k,None)\n" +
-      "d['HAS_ADMIN_PASSWORD']=bool(getattr(c,'AUTH_ADMIN_PASSWORD',''))\nd['HAS_WIFI_PASS']=bool(getattr(c,'WIFI_PASS',''))\n" +
+      "d['HAS_ADMIN_PASSWORD']=bool(getattr(c,'AUTH_ADMIN_PASSWORD',''))\nd['HAS_OP_PASSWORD']=bool(getattr(c,'FSERVBOT_OP_PASSWORD',''))\n" +
+      "d['HAS_WIFI_PASS']=bool(getattr(c,'WIFI_PASS',''))\n" +
       "d['HELTEC']={'there':bool(b),'enabled':bool(b.get('enabled')),'host':b.get('target_host',''),'port':b.get('target_port',7633)}\n" +
       "print('CFG'+json.dumps(d))\n", 30000);
     var m = /CFG(\{.*\})/.exec(out);
@@ -289,8 +290,9 @@
   function hex(n) { var u = new Uint8Array(n); crypto.getRandomValues(u); return Array.from(u).map(function (b) { return ("0" + b.toString(16)).slice(-2); }).join(""); }
 
   // The form's answers -> {values} for writeSettings, or {error}; {warn} too.
-  // The rules are /admin's (settings.py) and the Provisioner's.
-  // keepPw / keepWifiPass: blank means "as it is" (a Stump being changed).
+  // The rules are /admin's (settings.py) and the Provisioner's. A blank
+  // password or Wi-Fi password means "leave it"; requireAdmin (a new
+  // Stump) means at least one of the two passwords must end up set.
   function settingsFrom(a) {
     var v = {}, warn = [];
     function no(e) { return { error: e }; }
@@ -303,11 +305,23 @@
     var greet = (a.greeting || "").replace(/[\r\n]+/g, " ").trim();
     if (greet.length > 200) return no("The greeting: at most 200 characters.");
     v.MESH_GREETING = greet;
-    if (!(a.keepPw && !a.pw)) {
-      if ((a.pw || "").length < 4 || a.pw.length > 64) return no("The admin password: 4 to 64 characters.");
-      if (a.pw !== a.pw2) return no("The two passwords aren't the same.");
-      v.AUTH_ADMIN_PASSWORD = a.pw; v.FSERVBOT_OP_PASSWORD = a.pw;
+    // Two independent passwords, as the Provisioner sets them. Each blank
+    // means "leave it" (the template's blank on a new Stump, or the
+    // current value on one being changed -- there's no way to blank one
+    // that's set, same as Wi-Fi). /admin uses AUTH_ADMIN_PASSWORD, and
+    // falls back to FSERVBOT_OP_PASSWORD when it's blank (barkeep.py).
+    if (a.pw || a.pw2) {
+      if (a.pw.length < 4 || a.pw.length > 64) return no("The admin password: 4 to 64 characters.");
+      if (a.pw !== a.pw2) return no("The two admin passwords aren't the same.");
+      v.AUTH_ADMIN_PASSWORD = a.pw;
     }
+    if (a.opw) {
+      if (a.opw.length < 4 || a.opw.length > 64) return no("The BarKeep operator password: 4 to 64 characters.");
+      v.FSERVBOT_OP_PASSWORD = a.opw;
+    }
+    // A new Stump needs at least one way into /admin.
+    if (a.requireAdmin && !v.AUTH_ADMIN_PASSWORD && !a.hasPw && !v.FSERVBOT_OP_PASSWORD && !a.hasOpPw)
+      return no("Set an admin password (or a BarKeep operator password for /admin to reuse).");
     var ssid = (a.ssid || "").trim();
     if (ssid.length > 32 || ctl(ssid)) return no("The home Wi-Fi's name: at most 32 characters.");
     v.WIFI_SSID = ssid;
@@ -373,7 +387,7 @@
       mode: c.AUTH_MODE || "open", hotspot: c.SSID_NAME || "", chain: chain,
       channel: c.CHAIN_CHANNEL || 11, upSsid: c.CHAIN_UPLINK_SSID || "", upPass: c.CHAIN_UPLINK_PASS || "",
       subnet: c.CHAIN_SUBNET || 5, secret: c.CHAIN_SECRET || "",
-      hasPw: !!c.HAS_ADMIN_PASSWORD, hasWifiPass: !!c.HAS_WIFI_PASS
+      hasPw: !!c.HAS_ADMIN_PASSWORD, hasOpPw: !!c.HAS_OP_PASSWORD, hasWifiPass: !!c.HAS_WIFI_PASS
     };
   }
 

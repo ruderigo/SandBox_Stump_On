@@ -98,13 +98,23 @@ async function scenario(name, extra, chunk) {
   check("cable pulled mid-upload: says so at once", err && /went away/.test(err.message) && Date.now() - t0 < 5000, err && err.message);
 
   // -- the form's answers -> settings (the rules of /admin and the Provisioner) --
-  const base = { name: "Café du Coin", bot: "BarKeep", greeting: "", pw: "s3cret", pw2: "s3cret", ssid: "", wpass: "",
-                 radio: "none", features: ["chat", "files"], theme: "paper", mode: "open", hotspot: "", chain: "none" };
+  const base = { name: "Café du Coin", bot: "BarKeep", greeting: "", pw: "s3cret", pw2: "s3cret", opw: "", requireAdmin: true,
+                 ssid: "", wpass: "", radio: "none", features: ["chat", "files"], theme: "paper", mode: "open", hotspot: "", chain: "none" };
   const S = (o) => R.settingsFrom(Object.assign({}, base, o));
   let r = S({});
-  check("settings: a plain new Stump", !r.error && r.values.NODE_NAME === "Café du Coin" && r.values.AUTH_ADMIN_PASSWORD === "s3cret"
-        && r.values.FSERVBOT_OP_PASSWORD === "s3cret" && r.values.CHAIN_ENABLED === false && r.values.HELTEC.enabled === false
-        && r.values.SSID_NAME === null, JSON.stringify(r));
+  check("settings: a plain new Stump (admin password set, BarKeep's left off)", !r.error && r.values.NODE_NAME === "Café du Coin"
+        && r.values.AUTH_ADMIN_PASSWORD === "s3cret" && !("FSERVBOT_OP_PASSWORD" in r.values) && r.values.CHAIN_ENABLED === false
+        && r.values.HELTEC.enabled === false && r.values.SSID_NAME === null, JSON.stringify(r));
+  r = S({ opw: "barkeep99" });
+  check("settings: both passwords, independent (as the Provisioner)", !r.error && r.values.AUTH_ADMIN_PASSWORD === "s3cret"
+        && r.values.FSERVBOT_OP_PASSWORD === "barkeep99", JSON.stringify(r));
+  r = S({ pw: "", pw2: "", opw: "barkeep99" });
+  check("settings: BarKeep password only, admin blank (/admin reuses it)", !r.error && !("AUTH_ADMIN_PASSWORD" in r.values)
+        && r.values.FSERVBOT_OP_PASSWORD === "barkeep99", JSON.stringify(r));
+  r = S({ pw: "", pw2: "", opw: "" });
+  check("settings: a new Stump with neither password: refused", /admin password|BarKeep/.test(r.error || ""), JSON.stringify(r));
+  r = S({ opw: "ab" });
+  check("settings: too-short BarKeep password: refused", /BarKeep operator password/.test(r.error || ""), JSON.stringify(r));
   const errs = [
     [{ name: "" }, /name/], [{ name: "x".repeat(21) }, /name/], [{ pw: "abc", pw2: "abc" }, /password/], [{ pw2: "other" }, /aren't the same/],
     [{ wpass: "longenough" }, /no Wi-Fi name/], [{ ssid: "Home", wpass: "short" }, /8 to 63/],
@@ -115,10 +125,12 @@ async function scenario(name, extra, chunk) {
   ];
   const bad = errs.filter(([o, re]) => !re.test(S(o).error || ""));
   check("settings: each wrong answer refused, with why (" + errs.length + ")", !bad.length, JSON.stringify(bad.map(([o]) => [o, S(o)])));
-  r = S({ keepPw: true, pw: "", pw2: "" });
-  check("settings: a blank password on a Stump that has one: kept (not written)", !r.error && !("AUTH_ADMIN_PASSWORD" in r.values), JSON.stringify(r));
-  r = S({ keepPw: false, pw: "", pw2: "" });
-  check("... on a new one: refused", /password/.test(r.error || ""));
+  r = S({ requireAdmin: false, hasPw: true, hasOpPw: true, pw: "", pw2: "", opw: "" });
+  check("settings: blank passwords on a Stump that has them: both kept (not written)", !r.error
+        && !("AUTH_ADMIN_PASSWORD" in r.values) && !("FSERVBOT_OP_PASSWORD" in r.values), JSON.stringify(r));
+  r = S({ requireAdmin: false, hasPw: true, hasOpPw: true, pw: "", pw2: "", opw: "newbar99" });
+  check("settings: change only the BarKeep password, admin kept", !r.error && !("AUTH_ADMIN_PASSWORD" in r.values)
+        && r.values.FSERVBOT_OP_PASSWORD === "newbar99", JSON.stringify(r));
   r = S({ chain: "member", upSsid: "LaBuche-Stump.web.app", upPass: "", subnet: "7", secret: "abc", radio: "ap" });
   check("settings: a chain member, its Heltec on its own Wi-Fi at 192.168.<its number>.2", !r.error && r.values.CHAIN_SUBNET === 7
         && r.values.CHAIN_CHANNEL === 0 && r.values.HELTEC.host === "192.168.7.2" && r.values.HELTEC.enabled, JSON.stringify(r));
@@ -138,7 +150,7 @@ async function scenario(name, extra, chunk) {
     const repl = board(root, ["--running"]);
     try {
       await R.prepare(repl, 8000);
-      const want = S({ name: "L'Atelier \"2\"", ssid: "Home Net", wpass: "pa'ss\\word", radio: "lan", hhost: "192.168.1.50",
+      const want = S({ name: "L'Atelier \"2\"", opw: "barkeep99", ssid: "Home Net", wpass: "pa'ss\\word", radio: "lan", hhost: "192.168.1.50",
                        features: ["chat", "about"], theme: "oled", mode: "hybrid", hotspot: "Atelier", bot: "Bob",
                        greeting: "Hi, I'm Bob", chain: "member", upSsid: "First-Stump", upPass: "upPass12", subnet: "9", secret: "s3cr3t" });
       await R.writeSettings(repl, want.values);
@@ -151,17 +163,20 @@ async function scenario(name, extra, chunk) {
       check("read back: what was written", a.name === "L'Atelier \"2\"" && a.ssid === "Home Net" && a.radio === "lan" && a.hhost === "192.168.1.50"
             && a.features.join() === "chat,about" && a.theme === "oled" && a.mode === "hybrid" && a.hotspot === "Atelier" && a.bot === "Bob"
             && a.greeting === "Hi, I'm Bob" && a.chain === "member" && a.upSsid === "First-Stump" && a.upPass === "upPass12" && a.subnet === 9
-            && a.secret === "s3cr3t" && a.hasPw && a.hasWifiPass, JSON.stringify(a));
-      check("read: the passwords not sent to the page, only whether they're set", !("AUTH_ADMIN_PASSWORD" in got) && !("WIFI_PASS" in got)
-            && !JSON.stringify(got).includes("pa'ss"), JSON.stringify(got));
+            && a.secret === "s3cr3t" && a.hasPw && a.hasOpPw && a.hasWifiPass, JSON.stringify(a));
+      check("read: the passwords not sent to the page, only whether they're set", !("AUTH_ADMIN_PASSWORD" in got)
+            && !("FSERVBOT_OP_PASSWORD" in got) && !("WIFI_PASS" in got)
+            && !JSON.stringify(got).includes("pa'ss") && !JSON.stringify(got).includes("barkeep99"), JSON.stringify(got));
       const py = (await repl.run("import config as c\nprint(repr((c.WIFI_PASS, c.AUTH_ADMIN_PASSWORD, c.FSERVBOT_OP_PASSWORD, c.CHAIN_CHANNEL, c.SSID_INCLUDE_IP)))\n")).trim();
-      check("... and the passwords, as MicroPython reads them", py === "(\"pa'ss\\\\word\", 's3cret', 's3cret', 0, False)", py);
-      // A Stump changed again: a blank password stays, a chain left.
-      const again = R.settingsFrom(Object.assign({}, a, { keepPw: true, keepWifiPass: true, pw: "", pw2: "", wpass: "", chain: "none", radio: "ap" }));
+      check("... the two passwords are independent, as MicroPython reads them", py === "(\"pa'ss\\\\word\", 's3cret', 'barkeep99', 0, False)", py);
+      // Changed again: blank passwords stay, the BarKeep one changes, a chain left.
+      const again = R.settingsFrom(Object.assign({}, a, { requireAdmin: false, keepWifiPass: true, pw: "", pw2: "", opw: "newbar",
+                                                          wpass: "", chain: "none", radio: "ap" }));
       await R.writeSettings(repl, again.values);
       const py2 = (await repl.run("import config as c\nb=[i for i in c.CONFIG['interfaces'] if i['name']=='Heltec Bridge'][0]\n" +
-                                  "print(repr((c.WIFI_PASS, c.AUTH_ADMIN_PASSWORD, c.CHAIN_ENABLED, b['target_host'], b['enabled'])))\n")).trim();
-      check("changed again: blank passwords kept, out of the chain, the Heltec on its Wi-Fi", py2 === "(\"pa'ss\\\\word\", 's3cret', False, '192.168.4.2', True)", py2);
+                                  "print(repr((c.WIFI_PASS, c.AUTH_ADMIN_PASSWORD, c.FSERVBOT_OP_PASSWORD, c.CHAIN_ENABLED, b['target_host'], b['enabled'])))\n")).trim();
+      check("changed again: admin + Wi-Fi kept, BarKeep changed, out of the chain, Heltec on its Wi-Fi",
+            py2 === "(\"pa'ss\\\\word\", 's3cret', 'newbar', False, '192.168.4.2', True)", py2);
       // config.py, whole: read, put back; something that isn't Python: refused.
       const file = await R.readConfigFile(repl);
       check("its config.py read whole, byte for byte", Buffer.from(file).equals(fs.readFileSync(path.join(root, "config.py"))));

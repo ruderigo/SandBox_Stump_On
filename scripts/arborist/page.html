@@ -122,6 +122,10 @@
   </div>
   <p class="hint" id="f-pw-hint">For its <code>/admin</code> page. Keep it somewhere.</p>
 
+  <label for="f-opw">BarKeep operator password <span class="hint">· optional</span></label>
+  <input type="password" id="f-opw" maxlength="64">
+  <p class="hint" id="f-opw-hint">Lets an operator edit BarKeep's replies from chat. Blank: editing off, and <code>/admin</code> uses the admin password above.</p>
+
   <label for="f-ssid">Home Wi-Fi <span class="hint">· optional</span></label>
   <div class="two">
     <div><input type="text" id="f-ssid" maxlength="32" placeholder="Its name"></div>
@@ -266,9 +270,10 @@ function formFor(a) {
     }
     if ($("form").dataset.filled !== "new") {
       $("form").dataset.filled = "new";
-      ["f-pw", "f-pw2", "f-wpass"].forEach(function (id) { $(id).value = ""; $(id).placeholder = ""; });
+      ["f-pw", "f-pw2", "f-opw", "f-wpass"].forEach(function (id) { $(id).value = ""; $(id).placeholder = ""; });
     }
-    $("f-pw-hint").textContent = "For its /admin page. Keep it somewhere.";
+    $("f-pw-hint").textContent = "Unlocks /admin. Blank: /admin uses the BarKeep password below.";
+    $("f-opw-hint").textContent = "Lets an operator edit BarKeep's replies from chat. Blank: editing off.";
     $("f-wpass").placeholder = "Its password";
     chainView();
     return;
@@ -282,9 +287,13 @@ function formFor(a) {
   $("f-hotspot").value = a.hotspot; setVal("f-chain", a.chain);
   $("f-channel").value = a.channel; $("f-up").value = a.upSsid || SSID; $("f-uppass").value = a.upPass;
   $("f-subnet").value = a.subnet; $("f-secret").value = a.secret;
-  ["f-pw", "f-pw2", "f-wpass"].forEach(function (id) { $(id).value = ""; });
+  ["f-pw", "f-pw2", "f-opw", "f-wpass"].forEach(function (id) { $(id).value = ""; });
   $("f-pw").placeholder = $("f-pw2").placeholder = a.hasPw ? "unchanged" : "";
-  $("f-pw-hint").textContent = a.hasPw ? "Blank: the password stays as it is." : "It has none yet: give it one.";
+  $("f-pw-hint").textContent = a.hasPw ? "Blank: the admin password stays as it is."
+    : "It has none yet — give it one, or set the BarKeep password for /admin to reuse.";
+  $("f-opw").placeholder = a.hasOpPw ? "unchanged" : "";
+  $("f-opw-hint").textContent = a.hasOpPw ? "Blank: the BarKeep password stays as it is."
+    : "Lets an operator edit BarKeep's replies from chat. Blank: editing off.";
   $("f-wpass").placeholder = a.hasWifiPass ? "unchanged" : "Its password";
   if (a.chain !== "none" || a.hotspot || a.mode !== "open" || a.greeting) $("f-more").open = true;
   chainView();
@@ -292,7 +301,8 @@ function formFor(a) {
 function answers(editing) {
   return {
     name: $("f-name").value, bot: $("f-bot").value, greeting: $("f-greet").value,
-    pw: $("f-pw").value, pw2: $("f-pw2").value, keepPw: !!(editing && editing.hasPw),
+    pw: $("f-pw").value, pw2: $("f-pw2").value, opw: $("f-opw").value,
+    hasPw: !!(editing && editing.hasPw), hasOpPw: !!(editing && editing.hasOpPw), requireAdmin: !editing,
     ssid: $("f-ssid").value, wpass: $("f-wpass").value, keepWifiPass: !!(editing && editing.hasWifiPass),
     radio: val("f-radio"), hhost: $("f-hhost").value,
     features: qa("input[name=f-feat]:checked").map(function (c) { return c.value; }),
