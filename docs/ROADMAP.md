@@ -86,12 +86,85 @@ Done in 1.0.0-beta.37.
 - [ ] Storage layer (M-L): one place for SD, the board's flash, none,
       and the chain; storage profiles in features.py; files stored on a
       chain Stump that has room (needs 2)
-- [ ] NomadNet pack (L): browse NomadNet nodes from the Stump's web
-      pages, and serve the Stump as a NomadNet node; a plugin page can
-      be a navigation button
-- [ ] Browser flasher back (M): HF-001 in HIDDEN_FEATURES.md, linked
-      from /tools again; its catalog kept in step with the Provisioner's
-      firmware; images that may be shipped (RNode is GPL-3: its source
-      offer comes with it); WebSerial needs HTTPS or a Chrome flag
+- [ ] NomadNet pack (L): shelved for now
+- [ ] Browser flasher back (M), as one page saved on the computer: from
+      file://, Chrome and Edge allow Web Serial with no certificate
+      (checked: serial-check.html, macOS Chrome 156). The CAM only
+      (MicroPython is MIT, like the Stump; RNode is GPL-3, the Heltec
+      stays with the Provisioner). final_firmware/docs/FLASHER.md
+  - [x] Stump-Flasher-<release>.html: MicroPython 1.28, the Stump
+        compiled, a setup form (name, admin password, home Wi-Fi, the
+        Heltec), or an update that keeps the settings
+        (scripts/build_flasher.py; tests/flasher_test.py)
+  - [x] Built by CI (an artifact) and attached to each release
+  - [x] One page for the Provisioner's board jobs too: Settings (read,
+        change, save -- by the firmware's settings.py, as /admin; a
+        copy kept, one put back) and Check (restart, listen, sum up)
+  - [ ] The SD card: Tools, packs, wipe (slow over USB: say so)
+  - [x] On the bench: a Stump updated with it (1.0.0-beta.38, 2026-10-25)
+  - [ ] On the bench: a new Stump made with it; Settings read, changed,
+        saved; Check
+  - [ ] Windows: serial-check.html, then the flasher
+  - [x] MicroPython's SHA-256 pinned in build_flasher.py (as micropython.org served it to CI)
+  - [ ] Offered from the Stump: the Tools page (/sd/tools/flasher/),
+        for a visitor's laptop to download and open
 - [ ] More boards (M each): one Provisioner profile per board (flash,
       PSRAM, radio, SD pins)
+
+## 5. Pentest preparation
+
+From the checklist made with Gemini (2026-10-25, for 1.0.0-beta.38),
+sections I to IV, each against the code. Its section V (how the
+auditors are graded) stays out of the repository.
+
+**I. Boundaries** -- a proposal that breaks one fails before any code
+
+- [x] 1. Holding the board is game over: no eFuses, flash encryption or
+      boot passphrase; USB stays plug-and-play (THREAT_MODEL.md, known limits)
+- [ ] 2. Storage postures: room lines, DMs and voice notes in memory
+      only; the billboard (72 h), `/sd/shared/` (fserv.MAX_SD_RATIO) and
+      the propagation store on the card, never encrypted again. Check
+      the checklist's numbers against the code (DMs 72 h: yes; 60 per
+      person, voice ~2 MB / 10 per inbox, 150 notices: to check)
+- [x] 3. Port 80 stateless (the 2 s /rrc/poll), HTTPS only for `/admin`
+      and `/rrc/rec`, behind the `/tls-ok` check (barkeep.py, stump_tls.py)
+
+**II. One thread, never stalled** (over ~7 s the Heltec bridge drops)
+
+- [x] 4a. `prime_all_bridges()` before the long synchronous steps
+      (announces, LXMF signing); ed25519_iram.mpy loaded
+- [ ] 4b. Handshakes on 443 one at a time (three phones on `/admin` at
+      once): no lock today -- measure on the bench, then decide
+- [ ] 5. The propagation node's stamp checks yield between steps
+      (propagation.py): measure the longest step on a CAM
+- [x] 6. Slow and half-open connections: header and body deadlines,
+      per-address limits (conn.py; tests conn_limits, pc_conn)
+- [ ] 7. (the checklist's item 7 didn't come through: to add)
+
+**III. Protocol, identity, the chain**
+
+- [x] 8. Speed limits by network address (guard.py): CHAT_BURST 3,
+      CHAT_EVERY 2 s, 3 posts a minute, announces 6 per 60 s; wrong
+      passwords lock 30 s doubling to 15 min. An app header (e.g. an
+      `X-Stump-Session` for FireFly) must never be a rate-limit key
+- [x] 9. Room tiers (open, minted, hybrid) apply whatever AUTH_MODE is;
+      an unverified LoRa person in a tiered #lora-mesh goes to #main,
+      told why; `/auth` signatures over the challenge's hex
+      (tests access_golden, identity_matrix, mesh_room)
+- [x] 10a. Profiles only over a signed chain link, marked with the chain
+      secret, never over LoRa (rrc_mesh._take_profiles; chain_proto)
+- [ ] 10b. A profiles batch replayed by someone on a chain Stump's
+      Wi-Fi: check that an older batch can't roll back a newer
+      profile (newest wins), or keep recent batch ids
+- [x] 10c. A Stump looking for a new parent never joins one of its own
+      (chain._good_parent: "one of this Stump's own, below it")
+
+**IV. Tools, supply chain**
+
+- [x] 11. The Stump Flasher: every file's SHA-256 checked on the board;
+      an update keeps config.py, the identity and the card (bench,
+      beta.38); a config.py put back leaves config.py.bak; no GPL
+      (RNode) code in it or in /sd/tools/flasher/
+- [ ] 12. The HTTPS bench (bench/tls_probe.py, with the Android suite):
+      handshake time and free memory on a CAM, a wrong clock, mismatched
+      keys, /rrc/rec voice over HTTPS

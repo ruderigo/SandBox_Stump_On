@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.0-beta.39
+- **The Stump Flasher**: `Stump-Flasher-1.0.0-beta.39.html` on the release, one page saved on a computer and opened in Chrome or Edge (from the saved file, Web Serial needs no certificate). For a Freenove ESP32-S3-CAM on USB. Nothing to install. `final_firmware/docs/FLASHER.md`.
+  - **Make or update**: a new Stump (erases the board, MicroPython 1.28, the Stump compiled, its settings from a form) or an update that keeps its settings, its identity and its card. Each file's SHA-256 is checked on the board; a pulled cable never leaves half a module.
+  - **Settings**: a Stump's settings read into the same form (name, admin password, Wi-Fi, the Heltec, features, look, access, the bot, a chain) and saved by the firmware's own `settings.py`, as `/admin` does; passwords are never shown (blank keeps them); `config.py.bak` kept; a copy saved on the computer, or one put back.
+  - **Check**: restarts the Stump and listens to it start: its release, whether its pages came up, what went wrong; saved as a file to send.
+  - Built by `scripts/build_flasher.py` (MicroPython's image pinned by its SHA-256), by CI on every change and attached to each release. CAM only: MicroPython and esptool-js keep the MIT/Apache licences; the Heltec's RNode (GPL-3) stays with the Provisioner.
+- `docs/THREAT_MODEL.md`: holding the board is game over, by design (no eFuses, flash encryption or boot passphrase). `docs/ROADMAP.md`: step 5, pentest preparation.
+- Tests: `flasher` (the uploader against a pretend board running MicroPython's Unix port; the page in Chromium, Web Serial piped to it).
+
 ## 1.0.0-beta.38
 - **The billboard over LoRa** (asked by the FireFly team, for a LoRa Board tab): `/board [words]` (the newest notices, or those about the words, at most 5: `#<id> <title>`), `/board <id>` (the notice), `/post <title> | <body>` (`✓ #<id>` or why not), answered over LXMF like `/rooms`, and in the web chat too. The same rules as posting over Wi-Fi (title 80, body 600, the posting limit, the billboard switch); the short id is 6 digits of the notice's id. `CLIENT_QUICKSTART.md`, *Billboard*.
 - **When LoRa is lost** -- this Stump's Heltec by any link, or the radio of a Stump along the chain -- its reconnect gets 2 minutes (`LORA_GRACE_S`) with nothing said. Past that, whoever writes to LoRa (`#lora-mesh`, a DM to someone on LoRa) is told, once a minute, that the radio has been down N minutes and their message will go out when it's back; it waits (nobody on LoRa is dropped as silent meanwhile), up to an hour (`LORA_KEEP_S`). `/hw.json` → `lora`: `up`, `connecting`, `down` with `down_s`, or `none`. A Stump whose radio goes announces it at once (its beacon: `rad`, and `rh`, it has one), so the chain knows.

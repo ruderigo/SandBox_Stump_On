@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stump serial check</title>
+<style>
+  :root { --bg:#f6f3ee; --text:#222; --muted:#666; --ok:#1f7a3a; --bad:#a3271f; --panel:#fff; --line:#ddd; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#1b1916; --text:#eee; --muted:#aaa; --ok:#5fcf86; --bad:#ff7a6e; --panel:#26231f; --line:#3a352f; } }
+  body { background:var(--bg); color:var(--text); font:16px/1.5 system-ui, sans-serif; max-width:640px; margin:0 auto; padding:20px 16px 48px; }
+  h1 { font-size:1.4rem; margin:0 0 4px; }
+  .sub { color:var(--muted); margin:0 0 18px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px 16px; margin:12px 0; }
+  .row { display:flex; justify-content:space-between; gap:12px; padding:4px 0; border-bottom:1px solid var(--line); }
+  .row:last-child { border-bottom:0; }
+  .ok { color:var(--ok); font-weight:600; } .bad { color:var(--bad); font-weight:600; }
+  button { font:inherit; padding:10px 18px; border-radius:8px; border:0; background:#c8641e; color:#fff; cursor:pointer; }
+  button:disabled { opacity:.5; cursor:default; }
+  pre { background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:10px; white-space:pre-wrap; word-break:break-word; max-height:260px; overflow:auto; font-size:13px; }
+  #verdict { font-size:1.1rem; }
+</style>
+</head>
+<body>
+<h1>Stump serial check</h1>
+<p class="sub">Can this browser talk to a board over USB from a page saved on this computer? It changes nothing on the board.</p>
+
+<div class="card">
+  <div class="row"><span>Opened from</span><span id="proto"></span></div>
+  <div class="row"><span>Counts as a secure page</span><span id="secure"></span></div>
+  <div class="row"><span>Web Serial available</span><span id="serial"></span></div>
+  <div class="row"><span>Browser</span><span id="ua"></span></div>
+</div>
+
+<div class="card">
+  <p style="margin-top:0">Plug in the CAM (USB), then:</p>
+  <button id="go">Connect to the board</button>
+  <div class="row" style="margin-top:10px"><span>Port opened</span><span id="opened">-</span></div>
+  <div class="row"><span>Reset lines (needed to flash)</span><span id="signals">-</span></div>
+  <div class="row"><span>The board answered</span><span id="answered">-</span></div>
+  <pre id="out">(what the board says shows here)</pre>
+</div>
+
+<p id="verdict"></p>
+<p class="sub">Send the four lines at the top and the verdict back. Close this page, or unplug the board, when you're done.</p>
+
+<script>
+var $ = function (id) { return document.getElementById(id); };
+function mark(id, ok, text) { var e = $(id); e.textContent = text || (ok ? "yes" : "no"); e.className = ok ? "ok" : "bad"; }
+
+$("proto").textContent = location.protocol.replace(":", "") + (location.protocol === "file:" ? " (a saved file)" : "");
+mark("secure", window.isSecureContext);
+var hasSerial = "serial" in navigator;
+mark("serial", hasSerial);
+var ua = navigator.userAgent, m = ua.match(/(Edg|Chrome|Firefox|Version)\/(\d+)/);
+$("ua").textContent = (/Edg\//.test(ua) ? "Edge " : /Chrome\//.test(ua) ? "Chrome " : /Firefox\//.test(ua) ? "Firefox " :
+                       /Safari\//.test(ua) ? "Safari " : "") + (m ? m[2] : "") + (/(Mac OS X|Windows|Linux)/.exec(ua) || [""])[0].replace("Mac OS X", " · macOS").replace("Windows", " · Windows").replace("Linux", " · Linux");
+if (!hasSerial) {
+  $("go").disabled = true;
+  $("verdict").innerHTML = window.isSecureContext
+    ? "<span class='bad'>This browser has no Web Serial.</span> Try Chrome or Edge on a computer."
+    : "<span class='bad'>Not a secure page here, so no Web Serial.</span>";
+}
+
+$("go").onclick = async function () {
+  $("go").disabled = true;
+  var out = $("out"), port, reader, text = "";
+  try {
+    port = await navigator.serial.requestPort();
+    await port.open({ baudRate: 115200 });
+    mark("opened", true);
+  } catch (e) {
+    mark("opened", false, "no: " + e.message); $("go").disabled = false; return;
+  }
+  try {
+    // A no-op on the lines the bootloader uses (both released): proves we can drive them.
+    await port.setSignals({ dataTerminalReady: false, requestToSend: false });
+    mark("signals", true);
+  } catch (e) { mark("signals", false, "no: " + e.message); }
+  try {
+    var w = port.writable.getWriter();
+    await w.write(new Uint8Array([3, 3, 13, 10]));    // Ctrl-C twice, then Enter: MicroPython shows its prompt
+    w.releaseLock();
+    reader = port.readable.getReader();
+    var dec = new TextDecoder(), until = Date.now() + 2500;
+    while (Date.now() < until) {
+      var r = await Promise.race([reader.read(), new Promise(function (ok) { setTimeout(function () { ok({ timeout: true }); }, 300); })]);
+      if (r.timeout) continue;
+      if (r.done) break;
+      text += dec.decode(r.value, { stream: true });
+      out.textContent = text.slice(-2000);
+    }
+    var said = text.trim().length > 0;
+    mark("answered", said, said ? (/>>>/.test(text) ? "yes (MicroPython prompt)" : "yes") : "nothing yet");
+    $("verdict").innerHTML = "<span class='ok'>This browser can flash a CAM from a saved page.</span>";
+  } catch (e) {
+    mark("answered", false, "no: " + e.message);
+  } finally {
+    try { if (reader) { await reader.cancel(); reader.releaseLock(); } } catch (e) {}
+    try { await port.close(); } catch (e) {}
+    $("go").disabled = false;
+  }
+};
+</script>
+</body>
+</html>
