@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Builds the Stump flasher: one HTML page that makes a Freenove
-ESP32-S3-CAM into a Stump from Chrome or Edge, saved on the computer and
-opened from there -- nothing to install, no certificate.
+"""Builds Arborist: one HTML page that makes a Freenove ESP32-S3-CAM
+into a Stump, updates it, changes its settings and watches it start, from
+Chrome or Edge, saved on the computer and opened from there -- nothing to
+install, no certificate.
 
-    python3 scripts/build_flasher.py dist/ [--micropython FILE.bin]
+    python3 scripts/build_arborist.py dist/ [--micropython FILE.bin]
 
-Writes dist/Stump-Flasher-<release>.html, holding:
+Writes dist/Arborist-<release>.html, holding:
 
   esptool-js        the flashing code (Apache-2.0; its licence in the page)
   MicroPython 1.28  the ESP32_GENERIC_S3 SPIRAM_OCT image (MIT), the one the
@@ -25,7 +26,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 FW = ROOT / "final_firmware"
-HERE = Path(__file__).resolve().parent / "flasher"
+HERE = Path(__file__).resolve().parent / "arborist"
 sys.path.insert(0, str(ROOT))
 import provisioner as P  # noqa: E402
 
@@ -40,7 +41,7 @@ MICROPYTHON_SHA256 = os.environ.get("STUMP_MICROPYTHON_SHA256",
 
 # The template: config.py with these set to a fresh, unnamed Stump's values
 # (the page then writes the form's answers into it, as for a Stump being
-# changed: settingsFrom/writeSettings in flasher/repl.js). Every other
+# changed: settingsFrom/writeSettings in arborist/repl.js). Every other
 # line is config.py's own.
 ASKED = ("NODE_NAME", "WIFI_SSID", "WIFI_PASS", "AUTH_ADMIN_PASSWORD", "FSERVBOT_OP_PASSWORD")
 HELTEC_FRESH = {"HELTEC_ENABLED": False, "HELTEC_HOST": "192.168.4.2", "HELTEC_PORT": 7633}
@@ -170,7 +171,7 @@ def pack(entries, header):
 
 def build(out_dir, mp_path=None):
     rel = release()
-    print("Stump flasher, %s" % rel)
+    print("Arborist, %s" % rel)
     with tempfile.TemporaryDirectory() as tmp:
         app, mpy = compiled(board_files(), tmp)
     mp, mp_sha = micropython(mp_path)
@@ -195,7 +196,7 @@ def build(out_dir, mp_path=None):
         if k not in page:
             raise SystemExit("page.html has no %s" % k)
         page = page.replace(k, v)
-    out = Path(out_dir) / ("Stump-Flasher-%s.html" % re.sub(r"[^A-Za-z0-9._-]", "_", rel))
+    out = Path(out_dir) / ("Arborist-%s.html" % re.sub(r"[^A-Za-z0-9._-]", "_", rel))
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(page, encoding="utf-8")
     size = sum(len(d) for _, d in app)

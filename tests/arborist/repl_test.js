@@ -1,10 +1,10 @@
-// The flasher's board side (scripts/flasher/repl.js) against a pretend board
+// Arborist's board side (scripts/arborist/repl.js) against a pretend board
 // (board_sim.py: the REPL protocol, the code run by MicroPython's Unix port).
 //   node repl_test.js <micropython> <scratch dir>
 "use strict";
 const { spawn } = require("child_process");
 const fs = require("fs"), path = require("path"), crypto = require("crypto");
-const R = require(path.join(__dirname, "../../scripts/flasher/repl.js"));
+const R = require(path.join(__dirname, "../../scripts/arborist/repl.js"));
 const MP = process.argv[2], SCRATCH = process.argv[3], TEMPLATE = process.argv[4], FW = process.argv[5];
 const FAIL = [];
 function check(name, ok, info) {

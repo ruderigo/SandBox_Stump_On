@@ -1,11 +1,11 @@
-# The Stump Flasher
+# Arborist
 
 One HTML page for a **Freenove ESP32-S3-CAM** on a computer's USB, from
 Chrome or Edge: it makes the board a Stump, updates one, changes its
 settings and watches it start. Nothing to install, no certificate, no
 terminal: save the page, open the saved file, plug the board in.
 
-It's `Stump-Flasher-<release>.html` on each release (the version is in
+It's `Arborist-<release>.html` on each release (the version is in
 the name). It holds everything: MicroPython 1.28 for the ESP32-S3 with
 octal PSRAM (MIT licence), the Stump compiled for it, and esptool-js
 (Apache-2.0), which writes the board. Nothing is downloaded or sent
@@ -79,11 +79,11 @@ chain over the network.
 ## Building it
 
     pip install mpy-cross==1.28.0.post2
-    python3 scripts/build_flasher.py dist/ [--micropython FILE.bin]
+    python3 scripts/build_arborist.py dist/ [--micropython FILE.bin]
 
 Without `--micropython` it downloads the image the Provisioner uses
 (`CAM_FIRMWARE_LATEST_URL`) and checks its SHA-256
 (`MICROPYTHON_SHA256`). Built twice from the same commit, the page is
-the same, byte for byte. Tests: `tests/flasher_test.py` (the uploader
+the same, byte for byte. Tests: `tests/arborist_test.py` (the uploader
 against a pretend board running MicroPython's Unix port, and the page
 in Chromium with Web Serial piped to it).

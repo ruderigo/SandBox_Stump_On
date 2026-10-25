@@ -52,7 +52,7 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Playwright's Chromium (the flasher page's test)
+      - name: Playwright's Chromium (Arborist's test)
         run: |
           npm install --no-save --prefix "$HOME/pw" playwright@1.56.0
           "$HOME/pw/node_modules/.bin/playwright" install --with-deps chromium
@@ -78,14 +78,14 @@ jobs:
           diff dist-a/SHA256SUMS dist-b/SHA256SUMS
           cat dist-a/SHA256SUMS
 
-      - name: The flasher page, with MicroPython from micropython.org (to try on a board)
-        run: python3 scripts/build_flasher.py dist-flasher
+      - name: Arborist, with MicroPython from micropython.org (to try on a board)
+        run: python3 scripts/build_arborist.py dist-arborist
 
-      - name: Keep the flasher page
+      - name: Keep Arborist
         uses: actions/upload-artifact@v4
         with:
-          name: Stump-Flasher
-          path: dist-flasher/*.html
+          name: Arborist
+          path: dist-arborist/*.html
 
   # µReticulum (final_firmware/urns) against the reference rns/lxmf: keys,
   # addresses, signatures, encryption and LXMF messages, both directions

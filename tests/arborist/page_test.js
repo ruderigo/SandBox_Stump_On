@@ -1,8 +1,8 @@
-// The built flasher page, opened from file:// in Chromium, Web Serial
+// The built Arborist page, opened from file:// in Chromium, Web Serial
 // replaced by a pipe to the pretend board (board_sim.py), and esptool-js by
 // a stand-in (the flashing itself is esptool-js's, tested upstream): a new
 // Stump made, and one updated, end to end.
-//   node page_test.js <flasher.html> <micropython> <scratch dir>
+//   node page_test.js <Arborist.html> <micropython> <scratch dir>
 "use strict";
 const { chromium } = require("playwright");
 const { spawn, execFileSync } = require("child_process");

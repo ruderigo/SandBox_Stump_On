@@ -87,26 +87,27 @@ Done in 1.0.0-beta.37.
       and the chain; storage profiles in features.py; files stored on a
       chain Stump that has room (needs 2)
 - [ ] NomadNet pack (L): shelved for now
-- [ ] Browser flasher back (M), as one page saved on the computer: from
+- [ ] Browser flasher back (M), now Arborist: one page saved on the computer: from
       file://, Chrome and Edge allow Web Serial with no certificate
       (checked: serial-check.html, macOS Chrome 156). The CAM only
       (MicroPython is MIT, like the Stump; RNode is GPL-3, the Heltec
-      stays with the Provisioner). final_firmware/docs/FLASHER.md
-  - [x] Stump-Flasher-<release>.html: MicroPython 1.28, the Stump
+      stays with the Provisioner). final_firmware/docs/ARBORIST.md
+  - [x] Arborist-<release>.html: MicroPython 1.28, the Stump
         compiled, a setup form (name, admin password, home Wi-Fi, the
         Heltec), or an update that keeps the settings
-        (scripts/build_flasher.py; tests/flasher_test.py)
+        (scripts/build_arborist.py; tests/arborist_test.py)
   - [x] Built by CI (an artifact) and attached to each release
   - [x] One page for the Provisioner's board jobs too: Settings (read,
         change, save -- by the firmware's settings.py, as /admin; a
         copy kept, one put back) and Check (restart, listen, sum up)
   - [ ] The SD card: Tools, packs, wipe (slow over USB: say so)
   - [x] On the bench: a Stump updated with it (1.0.0-beta.38, 2026-10-25)
-  - [ ] On the bench: a new Stump made with it; Settings read, changed,
+  - [x] On the bench: Settings read from a Stump (2026-10-25)
+  - [ ] On the bench: a new Stump made with it; Settings changed and
         saved; Check
-  - [ ] Windows: serial-check.html, then the flasher
-  - [x] MicroPython's SHA-256 pinned in build_flasher.py (as micropython.org served it to CI)
-  - [ ] Offered from the Stump: the Tools page (/sd/tools/flasher/),
+  - [ ] Windows: serial-check.html, then Arborist
+  - [x] MicroPython's SHA-256 pinned in build_arborist.py (as micropython.org served it to CI)
+  - [ ] Offered from the Stump: the Tools page (/sd/tools/arborist/),
         for a visitor's laptop to download and open
 - [ ] More boards (M each): one Provisioner profile per board (flash,
       PSRAM, radio, SD pins)
@@ -161,7 +162,7 @@ auditors are graded) stays out of the repository.
 
 **IV. Tools, supply chain**
 
-- [x] 11. The Stump Flasher: every file's SHA-256 checked on the board;
+- [x] 11. Arborist: every file's SHA-256 checked on the board;
       an update keeps config.py, the identity and the card (bench,
       beta.38); a config.py put back leaves config.py.bak; no GPL
       (RNode) code in it or in /sd/tools/flasher/
