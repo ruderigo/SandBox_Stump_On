@@ -122,11 +122,15 @@ auditors are graded) stays out of the repository.
 
 - [x] 1. Holding the board is game over: no eFuses, flash encryption or
       boot passphrase; USB stays plug-and-play (THREAT_MODEL.md, known limits)
-- [ ] 2. Storage postures: room lines, DMs and voice notes in memory
+- [x] 2. Storage postures: room lines, DMs and voice notes in memory
       only; the billboard (72 h), `/sd/shared/` (fserv.MAX_SD_RATIO) and
-      the propagation store on the card, never encrypted again. Check
-      the checklist's numbers against the code (DMs 72 h: yes; 60 per
-      person, voice ~2 MB / 10 per inbox, 150 notices: to check)
+      the propagation store on the card, never encrypted again. The
+      checklist's numbers are all enforced in code, not just the TTLs:
+      rooms and DMs 60 each (`rrc.MAX_MESSAGES_PER_ROOM` rrc.py:816,
+      `MAX_DMS_PER_USER` rrc.py:924), voice 10/inbox and ~2 MB total
+      (`VOICE_PER_RECIPIENT`, `VOICE_TOTAL_BYTES` rrc.py:912-917), 150
+      notices (`billboard.MAX_ENTRIES_STORED` billboard.py:353). README
+      matches. TODO (future): a cap-flood test covering all five.
 - [x] 3. Port 80 stateless (the 2 s /rrc/poll), HTTPS only for `/admin`
       and `/rrc/rec`, behind the `/tls-ok` check (barkeep.py, stump_tls.py)
 
