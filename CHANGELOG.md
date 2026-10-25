@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.0-beta.42
+- **Arborist sets the radio** (the Heltec's host-controlled LoRa parameters): frequency, bandwidth, spreading factor, coding rate and TX power, in the Make and Settings forms when a Heltec is enabled. Written with the firmware's own `radio.save()` to `/radio.json` (applied to the bridge at boot, sent to the Heltec on connect) -- the same approach Settings uses for `config.py`. CAM-side only: the Heltec's own provisioning (EEPROM, `-w STATION`, Bluetooth) stays with the Provisioner (`rnodeconf`, GPL-3). The values default to the deployed mesh's (868.8 MHz / 125 kHz / SF8 / CR4/5 / 22 dBm) with a reminder they must match every Stump on the mesh. `final_firmware/docs/ARBORIST.md`.
+- Tests: `arborist` -- radio written and read back on a real MicroPython board (via `radio.save`/`store`), the bounds enforced, and the form's show/hide and drop-downs in the page.
+
 ## 1.0.0-beta.41
 - **The on-device browser flasher (HF-001) is retired**, replaced by Arborist. It served `/flash` over the Stump's plain-HTTP Wi-Fi, where Web Serial can't run (it needs a secure context), so it could never actually flash a board there; Arborist -- a page saved on the computer and opened from `file://` -- does. Removed: `flasher_ui.py`, the `/flash` and `/fw` routes and the Flash nav tile, and the flasher payload the Provisioner pushed to each card (`catalog.json`, `serial-check.html`, the board copy of `esptool-bundle.js` and its licence, the section READMEs) -- about 256 KB off every SD card. `esptool-bundle.js` stays in the repo as a build input for Arborist (`scripts/build_arborist.py`). `final_firmware/docs/ARBORIST.md`.
 - Tests updated: `tools_sections`, `provisioner`, `pc_chain` no longer expect a flasher section.

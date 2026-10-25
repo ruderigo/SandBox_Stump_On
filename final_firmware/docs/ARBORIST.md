@@ -72,9 +72,16 @@ The same as the Provisioner:
   read (another board, or a change since: read again)
 - `machine.reset()`
 
-Not done here (the Provisioner does them): the SD card's Tools and
-packs, the Heltec's own firmware, a Stump on a computer, checking a
-chain over the network.
+The **radio settings** are CAM-side (the RNode ships host-controlled): the
+form writes them with the firmware's own `radio.save()` to `/radio.json`,
+which the Stump applies to the bridge at boot and sends to the Heltec on
+connect -- the same shape as how Settings writes `config.py`. They default
+to the deployed mesh's values and must match every Stump on the mesh.
+
+Not done here (the Provisioner does them): the SD card's Tools and packs,
+the **Heltec's own provisioning** (EEPROM signing, `-w STATION` Wi-Fi,
+Bluetooth -- `rnodeconf`, GPL-3), a Stump on a computer, checking a chain
+over the network.
 
 ## Building it
 

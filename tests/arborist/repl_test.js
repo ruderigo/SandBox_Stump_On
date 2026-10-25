@@ -146,6 +146,11 @@ async function scenario(name, extra, chunk) {
     fs.copyFileSync(TEMPLATE, path.join(root, "config.py"));
     fs.copyFileSync(path.join(FW, "settings.py"), path.join(root, "settings.py"));
     fs.copyFileSync(path.join(FW, "lora_boards.py"), path.join(root, "lora_boards.py"));
+    fs.copyFileSync(path.join(FW, "store.py"), path.join(root, "store.py"));
+    // radio.py as-is, but its SETTINGS_FILE made board-root-relative so the Unix
+    // port writes it in the sim's cwd (on a real board "/radio.json" is littlefs root).
+    fs.writeFileSync(path.join(root, "radio.py"),
+      fs.readFileSync(path.join(FW, "radio.py"), "utf8").replace('SETTINGS_FILE = "/radio.json"', 'SETTINGS_FILE = "radio.json"'));
     const tplText = fs.readFileSync(TEMPLATE, "utf8");
     const repl = board(root, ["--running"]);
     try {
@@ -177,6 +182,26 @@ async function scenario(name, extra, chunk) {
                                   "print(repr((c.WIFI_PASS, c.AUTH_ADMIN_PASSWORD, c.FSERVBOT_OP_PASSWORD, c.CHAIN_ENABLED, b['target_host'], b['enabled'])))\n")).trim();
       check("changed again: admin + Wi-Fi kept, BarKeep changed, out of the chain, Heltec on its Wi-Fi",
             py2 === "(\"pa'ss\\\\word\", 's3cret', 'newbar', False, '192.168.4.2', True)", py2);
+      // -- the radio (the CAM's host-controlled Heltec settings) --
+      check("no radio saved yet: readRadio is null", (await R.readRadio(repl)) === null);
+      const rf = R.radioFrom({ freqMhz: "915", bandwidth: 250000, sf: 10, cr: 7, txpower: 17 });
+      check("radioFrom: MHz -> Hz, the canonical dict", !rf.error && rf.values.frequency === 915000000
+            && rf.values.bandwidth === 250000 && rf.values.sf === 10 && rf.values.cr === 7 && rf.values.txpower === 17, JSON.stringify(rf));
+      check("writeRadio reports it saved", (await R.writeRadio(repl, rf.values)) === true);
+      check("written to /radio.json by the firmware's radio.save", fs.existsSync(path.join(root, "radio.json")));
+      const back = await R.readRadio(repl);
+      check("readRadio: what was written", back && ["frequency", "bandwidth", "sf", "cr", "txpower"].every((k) => back[k] === rf.values[k]), JSON.stringify(back));
+      check("radioAnswers: back to the form (Hz -> MHz)", R.radioAnswers(back).freqMhz === "915"
+            && R.radioAnswers(back).bandwidth === 250000 && R.radioAnswers(back).sf === 10, JSON.stringify(R.radioAnswers(back)));
+      const rerr = [
+        [{ freqMhz: "99", bandwidth: 125000, sf: 8, cr: 5, txpower: 22 }, /frequency/],
+        [{ freqMhz: "868.8", bandwidth: 999, sf: 8, cr: 5, txpower: 22 }, /bandwidth/],
+        [{ freqMhz: "868.8", bandwidth: 125000, sf: 13, cr: 5, txpower: 22 }, /spreading/],
+        [{ freqMhz: "868.8", bandwidth: 125000, sf: 8, cr: 9, txpower: 22 }, /coding/],
+        [{ freqMhz: "868.8", bandwidth: 125000, sf: 8, cr: 5, txpower: 30 }, /TX power/],
+      ];
+      check("radioFrom refuses out-of-range values", rerr.every(([o, re]) => re.test(R.radioFrom(o).error || "")),
+            JSON.stringify(rerr.filter(([o, re]) => !re.test(R.radioFrom(o).error || "")).map(([o]) => [o, R.radioFrom(o)])));
       // config.py, whole: read, put back; something that isn't Python: refused.
       const file = await R.readConfigFile(repl);
       check("its config.py read whole, byte for byte", Buffer.from(file).equals(fs.readFileSync(path.join(root, "config.py"))));

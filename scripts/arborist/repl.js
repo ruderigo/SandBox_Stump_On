@@ -248,6 +248,52 @@
     return JSON.parse(m[1]);
   }
 
+  // -- the radio (the Heltec, host-controlled by the CAM) -----------------
+  // Saved in /radio.json (radio.SETTINGS_FILE), written into the bridge at
+  // boot and sent to the Heltec on connect -- so Arborist sets it with the
+  // firmware's own radio.save(), the same way Settings uses settings.py.
+  // The live radio.current() needs a running bridge, which there isn't at
+  // the REPL, so a read goes straight to the saved file.
+  var RADIO_BW = [7800, 10400, 15600, 20800, 31250, 41700, 62500, 125000, 250000, 500000];
+  // LaBuche's mesh, the defaults a new Stump starts from (must match the mesh).
+  var RADIO_DEFAULT = { frequency: 868800000, bandwidth: 125000, sf: 8, cr: 5, txpower: 22 };
+
+  async function readRadio(repl) {
+    var out = await repl.run("import json, store, radio\nprint('RAD'+json.dumps(store.load_json(radio.SETTINGS_FILE, None)))\n");
+    var m = /RAD(null|\{.*\})/.exec(out);
+    return m && m[1] !== "null" ? JSON.parse(m[1]) : null;
+  }
+  // Returns true if the firmware's radio.save wrote the file (it fails safe,
+  // returning False rather than throwing, e.g. a full disk).
+  async function writeRadio(repl, settings) {
+    var out = await repl.run("import json, radio\nprint('RSAVE' + ('1' if radio.save(json.loads(" + py(JSON.stringify(settings)) + ")) else '0'))\n");
+    return /RSAVE1/.test(out);
+  }
+  // The form's radio answers -> {values:{frequency,bandwidth,sf,cr,txpower}} or {error}.
+  // Bounds are radio.py's (FREQ 150-960 MHz, the SX126x bandwidths, SF 5-12, CR 4/5..4/8, TXP 0-22).
+  function radioFrom(a) {
+    function no(e) { return { error: e }; }
+    var mhz = parseFloat(a.freqMhz);
+    if (!isFinite(mhz)) return no("The frequency: a number in MHz, like 868.8.");
+    var hz = Math.round(mhz * 1e6);
+    if (hz < 150000000 || hz > 960000000) return no("The frequency: 150 to 960 MHz.");
+    var bw = parseInt(a.bandwidth, 10);
+    if (RADIO_BW.indexOf(bw) < 0) return no("The bandwidth isn't one the radio supports.");
+    var sf = parseInt(a.sf, 10);
+    if (!(sf >= 5 && sf <= 12)) return no("The spreading factor: 5 to 12.");
+    var cr = parseInt(a.cr, 10);
+    if (!(cr >= 5 && cr <= 8)) return no("The coding rate: 4/5 to 4/8.");
+    var txp = parseInt(a.txpower, 10);
+    if (!(txp >= 0 && txp <= 22) || String(txp) !== String(a.txpower).trim()) return no("The TX power: 0 to 22 dBm.");
+    return { values: { frequency: hz, bandwidth: bw, sf: sf, cr: cr, txpower: txp } };
+  }
+  // Saved radio (or the defaults) -> the form's radio answers.
+  function radioAnswers(r) {
+    r = r || RADIO_DEFAULT;
+    return { freqMhz: ("" + (r.frequency / 1e6)).replace(/\.0+$/, ""), bandwidth: r.bandwidth,
+             sf: r.sf, cr: r.cr, txpower: r.txpower };
+  }
+
   async function readConfigFile(repl) {
     var out = await repl.run("import binascii\nprint('F'+binascii.b2a_base64(open('config.py','rb').read()).decode().replace('\\n',''))\n");
     var m = /F([A-Za-z0-9+\/=]*)/.exec(out);
@@ -408,6 +454,8 @@
   var api = { Repl: Repl, prepare: prepare, restart: restart, upload: upload, boardInfo: boardInfo,
               readSettings: readSettings, writeSettings: writeSettings, readConfigFile: readConfigFile, putConfigFile: putConfigFile,
               settingsFrom: settingsFrom, answersFrom: answersFrom, bootSummary: bootSummary, randomSecret: function () { return hex(8); },
+              readRadio: readRadio, writeRadio: writeRadio, radioFrom: radioFrom, radioAnswers: radioAnswers,
+              RADIO_BW: RADIO_BW, RADIO_DEFAULT: RADIO_DEFAULT,
               FEATURES: FEATURES, THEMES: THEMES, MODES: MODES, sleep: sleep, b64: b64 };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.StumpRepl = api;
