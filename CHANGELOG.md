@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.0-beta.40
+- **Arborist sets both passwords, independently** (parity with the Provisioner): the **admin** password (`AUTH_ADMIN_PASSWORD`, unlocks `/admin`) and the **BarKeep operator** password (`FSERVBOT_OP_PASSWORD`, lets an operator edit BarKeep's replies from chat). Before, Arborist had one field and copied it into both. Each is its own field now; blank means "leave it", and `/admin` falls back to BarKeep's password when the admin one is blank, exactly as the firmware does (`barkeep.py`). A new Stump must have at least one of the two set. `final_firmware/docs/ARBORIST.md`.
+- Tests: `arborist` -- both passwords set apart, read back, and changed on their own, on a real MicroPython board and through the page.
+
 ## 1.0.0-beta.39
 - **Arborist**: `Arborist-1.0.0-beta.39.html` on the release, one page saved on a computer and opened in Chrome or Edge (from the saved file, Web Serial needs no certificate). For a Freenove ESP32-S3-CAM on USB. Nothing to install. `final_firmware/docs/ARBORIST.md`.
   - **Make or update** (it began as a flasher): a new Stump (erases the board, MicroPython 1.28, the Stump compiled, its settings from a form) or an update that keeps its settings, its identity and its card. Each file's SHA-256 is checked on the board; a pulled cable never leaves half a module.
