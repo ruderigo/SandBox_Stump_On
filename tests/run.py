@@ -233,16 +233,16 @@ def main():
             failed.append("provisioner_mpy")
             annotate("provisioner_mpy", "\n".join(l for l in (r.stdout + r.stderr).splitlines()
                                                   if l.startswith("FAIL") or "Error" in l)[-3000:])
-    if not only or "flasher" in only:
-        r = subprocess.run([sys.executable, str(HERE / "flasher_test.py")], capture_output=True, text=True,
+    if not only or "arborist" in only:
+        r = subprocess.run([sys.executable, str(HERE / "arborist_test.py")], capture_output=True, text=True,
                            env=dict(os.environ, MICROPYTHON=MP))
         ok = "FAILURES []" in r.stdout
-        print(("ok    " if ok else "FAIL  ") + "flasher" + (" (page test skipped: no Playwright)" if "skip: page" in r.stdout else
+        print(("ok    " if ok else "FAIL  ") + "arborist" + (" (page test skipped: no Playwright)" if "skip: page" in r.stdout else
                                                          " (skipped: no node)" if "skip: no node" in r.stdout else ""))
         if not ok:
             print((r.stdout + r.stderr)[-3000:])
-            failed.append("flasher")
-            annotate("flasher", "\n".join(l for l in (r.stdout + r.stderr).splitlines()
+            failed.append("arborist")
+            annotate("arborist", "\n".join(l for l in (r.stdout + r.stderr).splitlines()
                                           if "FAIL" in l or "Error" in l)[-3000:])
     # Stump on a computer (docs/PC.md): the same firmware on regular Python.
     # Needs the cryptography and pyserial packages (CI installs them).

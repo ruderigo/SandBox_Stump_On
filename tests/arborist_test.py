@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The Stump flasher (scripts/build_flasher.py, scripts/flasher/):
+"""Arborist (scripts/build_arborist.py, scripts/arborist/):
 
   - the config.py template: every asked setting and password out, the
     rest still config.py, still Python; and a template that would keep a
@@ -7,7 +7,7 @@
   - the page built (a stand-in MicroPython image: the real one comes from
     micropython.org at release)
   - repl_test.js: the raw REPL and the uploader against a pretend board
-    (tests/flasher/board_sim.py, the code run by MicroPython's Unix port)
+    (tests/arborist/board_sim.py, the code run by MicroPython's Unix port)
   - page_test.js: the page from file:// in Chromium, Web Serial piped to
     the pretend board: a new Stump made, one updated, one refused
 
@@ -30,7 +30,7 @@ def check(name, ok, info=""):
 
 
 def node_test(script, *args):
-    r = subprocess.run(["node", str(HERE / "flasher" / script)] + [str(a) for a in args],
+    r = subprocess.run(["node", str(HERE / "arborist" / script)] + [str(a) for a in args],
                        capture_output=True, text=True, timeout=1200)
     out = r.stdout + r.stderr
     for line in out.splitlines():
@@ -40,7 +40,7 @@ def node_test(script, *args):
 
 
 def main():
-    import build_flasher as B
+    import build_arborist as B
     tpl = B.config_template()
     for k in B.ASKED:
         check("template: %s empty" % k, "\n%s = ''\n" % k in tpl)
@@ -73,7 +73,7 @@ def main():
         print("skip: no node")
         print("FAILURES", FAIL)
         return
-    work = Path(tempfile.mkdtemp(prefix="stump-flasher-"))
+    work = Path(tempfile.mkdtemp(prefix="stump-arborist-"))
     try:
         fake = bytearray(os.urandom(600000))
         fake[0] = 0xE9
@@ -87,7 +87,7 @@ def main():
         B.MICROPYTHON_SHA256 = None              # the stand-in, from here on
         page = B.build(work / "dist", work / "mp.bin")
         html = page.read_text(encoding="utf-8")
-        check("built: Stump-Flasher-<release>.html", page.name == "Stump-Flasher-%s.html" % B.release())
+        check("built: Arborist-<release>.html", page.name == "Arborist-%s.html" % B.release())
         import re
         left = re.findall(r"@@(?:RELEASE|MICROPYTHON|SSID|PAYLOAD|ESPTOOL|ESPTOOL_LICENSE|REPL)@@", html)
         check("built: nothing left to fill in", not left, left)

@@ -1,4 +1,4 @@
-// Stump flasher: putting the Stump on a board that runs MicroPython, over
+// Arborist: putting the Stump on a board that runs MicroPython, over
 // its USB serial line -- the same steps as `mpremote` (what the Provisioner
 // uses), in the browser. Three parts:
 //
@@ -15,7 +15,7 @@
 //             answers of the setup form.
 //
 // No browser API here except TextEncoder/btoa/setTimeout, so the tests run
-// it in Node against a simulated board (tests/flasher_test.py).
+// it in Node against a simulated board (tests/arborist_test.py).
 (function (root) {
   "use strict";
   var enc = new TextEncoder(), dec = new TextDecoder();

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""A pretend board for the flasher's tests: MicroPython's REPL protocol on
+"""A pretend board for Arborist's tests: MicroPython's REPL protocol on
 stdin/stdout (the friendly REPL, the raw REPL, raw-paste mode with its flow
 control, the soft reset), each piece of code run by the real MicroPython
 Unix port with its folder as the board's filesystem.
