@@ -625,7 +625,6 @@ def _readme_head(text):
 # place instead of copying them again at ~1 KB/s.
 _MIGRATE = (
     ("provisioner", ("provisioner.py", "LICENSE", "Stump_Beta_A.zip"), ("Stump-",)),
-    ("flasher", ("esptool-bundle.js", "esptool-js-LICENSE.txt"), ()),
     ("firefly", (), ("FireFly-",)),
     ("rnfs", ("reticulum-LICENSE.txt",), ("rnfs-", "rnfs_", "lxmf-", "rnspure-")),
 )

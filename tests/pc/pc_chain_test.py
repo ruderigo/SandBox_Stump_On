@@ -70,7 +70,7 @@ check("packs installed", os.path.exists(os.path.join(folder, "tavern", "install.
       and os.path.exists(os.path.join(folder, "sd", "tools", "rnfs", "README.fr.md")))
 P._pc_install_tools(fw, folder)
 check("Tools page sections", all(os.path.exists(os.path.join(folder, "sd", "tools", d, "README.md"))
-                                 for d in ("provisioner", "flasher", "firefly")))
+                                 for d in ("provisioner", "firefly")))
 cfg = open(os.path.join(ROOT, "tests", "config.py"), encoding="utf-8").read()
 cfg += P._pc_config_block({"pc_hotspot_name": "Test hotspot", "pc_heltec": "none",
                            "chain": {"enabled": True}})

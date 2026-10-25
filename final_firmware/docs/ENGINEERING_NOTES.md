@@ -336,7 +336,7 @@ back on) goes at the end.
 **Tools page, behind `/admin` too.** *Tools page* lists every section
 and file of the card's `tools/` folder with a box to tick: a whole
 section, or single files, deleted from the SD card. The Provisioner
-puts its own tools (Provisioner, flasher, FireFly apps) back at its
+puts its own tools (Provisioner, FireFly apps) back at its
 next `--upload-app`, unless run with `--skip-tools`.
 
 **Per-browser overrides and logo, behind `/admin`.** The same login
