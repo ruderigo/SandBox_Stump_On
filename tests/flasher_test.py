@@ -76,6 +76,13 @@ def main():
         fake = bytearray(os.urandom(600000))
         fake[0] = 0xE9
         (work / "mp.bin").write_bytes(bytes(fake))
+        try:
+            B.build(work / "x", work / "mp.bin")
+            pinned = False
+        except SystemExit as e:
+            pinned = "expected 67c19ae1" in str(e)
+        check("an image that isn't the pinned MicroPython: the build stops", pinned)
+        B.MICROPYTHON_SHA256 = None              # the stand-in, from here on
         page = B.build(work / "dist", work / "mp.bin")
         html = page.read_text(encoding="utf-8")
         check("built: Stump-Flasher-<release>.html", page.name == "Stump-Flasher-%s.html" % B.release())

@@ -32,9 +32,11 @@ import provisioner as P  # noqa: E402
 MICROPYTHON_URL = P.CAM_FIRMWARE_LATEST_URL
 MICROPYTHON_VERSION = "1.28.0"
 MICROPYTHON_MPY = "6.3"          # the .mpy version MicroPython 1.28 loads
-# Pinned once read from the file the Provisioner downloads; until then the
-# build says the hash it got, for pinning here.
-MICROPYTHON_SHA256 = os.environ.get("STUMP_MICROPYTHON_SHA256") or None
+# The image as micropython.org served it to CI (1 758 064 bytes, 2026-10-25);
+# the build stops on any other. STUMP_MICROPYTHON_SHA256 overrides it
+# (another image: "" turns the check off and says the hash).
+MICROPYTHON_SHA256 = os.environ.get("STUMP_MICROPYTHON_SHA256",
+                                    "67c19ae123d84152019b57526ed5291dd0a2b4edd87655c5f76b46c9a62ff5dd") or None
 
 # The settings the page asks, as @@KEY@@ in the template, and the ones it
 # sets to a fresh Stump's defaults. Every other line is config.py's own.

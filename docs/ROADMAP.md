@@ -99,7 +99,7 @@ Done in 1.0.0-beta.37.
   - [x] Built by CI (an artifact) and attached to each release
   - [ ] On the bench: a CAM made with it, then one updated
   - [ ] Windows: serial-check.html, then the flasher
-  - [ ] MicroPython's SHA-256 pinned in build_flasher.py
+  - [x] MicroPython's SHA-256 pinned in build_flasher.py (as micropython.org served it to CI)
   - [ ] Offered from the Stump: the Tools page (/sd/tools/flasher/),
         for a visitor's laptop to download and open
 - [ ] More boards (M each): one Provisioner profile per board (flash,
