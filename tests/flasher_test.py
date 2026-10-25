@@ -42,8 +42,10 @@ def node_test(script, *args):
 def main():
     import build_flasher as B
     tpl = B.config_template()
-    for k in B.ASKED + B.HELTEC:
-        check("template: %s asked" % k, "@@%s@@" % k in tpl)
+    for k in B.ASKED:
+        check("template: %s empty" % k, "\n%s = ''\n" % k in tpl)
+    import re
+    check("template: the Heltec bridge off", re.search(r'"name": "Heltec Bridge",\s*"enabled": False,', tpl))
     check("template: LaBuche's names and passwords gone", not any(s in tpl for s in ("'TeK'", "TeK_Knoh", "SalutComment",
                                                                                      "Bob's Glitch", "'LaBuche'", "Concierge")))
     check("template: a fresh Stump's defaults (no chain, no greeting)", "CHAIN_ENABLED = False" in tpl and "CHAIN_SECRET = ''" in tpl
@@ -90,7 +92,8 @@ def main():
         left = re.findall(r"@@(?:RELEASE|MICROPYTHON|SSID|PAYLOAD|ESPTOOL|ESPTOOL_LICENSE|REPL)@@", html)
         check("built: nothing left to fill in", not left, left)
         check("built: esptool-js in it, its licence too", "window.esptool={" in html and "Apache License" in html)
-        node_test("repl_test.js", MP, work / "repl")
+        (work / "template.py").write_text(tpl, encoding="utf-8")
+        node_test("repl_test.js", MP, work / "repl", work / "template.py", B.FW)
         try:
             subprocess.run(["node", "-e", "require('playwright')"], check=True, capture_output=True, timeout=60)
             node_test("page_test.js", page, MP, work / "page")

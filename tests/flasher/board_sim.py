@@ -16,6 +16,7 @@ ap.add_argument("--micropython", required=True)
 ap.add_argument("--no-paste", action="store_true")
 ap.add_argument("--window", type=int, default=128)
 ap.add_argument("--running", action="store_true")
+ap.add_argument("--boot-log", default="")
 A = ap.parse_args()
 
 OUT = sys.stdout.buffer
@@ -63,6 +64,11 @@ say(b"ESP-ROM:esp32s3-20210327\r\nMicroPython v1.28.0 on 2026-04-06; Generic ESP
 if not running[0]:
     say(b">>> ")
 
+BOOT = (open(A.boot_log, "rb").read() if A.boot_log else
+        b"ESP-ROM:esp32s3-20210327\r\nMicroPython v1.28.0 on 2026-04-06\r\n==============================================\r\n"
+        b"Project Stump -- Beta A (1.0.0-beta.38)\r\n[watchdog] armed: the board restarts if it stops responding for 120 s\r\n"
+        b"[dns] captive portal on 192.168.4.1\r\n[web] serving on 192.168.4.1:80\r\n")
+line = b""
 mode, code, pend, got = "friendly", b"", b"", 0
 while True:
     data = os.read(0, 4096)
@@ -79,6 +85,13 @@ while True:
                 say(b"\r\n" + BANNER)
             elif not running[0]:
                 say(c)
+                line = (line + c)[-200:]
+                if c == b"\n":
+                    if line.strip() == b"import machine; machine.reset()":     # the board restarts: a Stump starting
+                        running[0] = True
+                        say(BOOT)
+                        threading.Thread(target=chatter, daemon=True).start()
+                    line = b""
         elif mode == "raw":
             if pend or c == b"\x05":
                 pend += c
@@ -99,6 +112,9 @@ while True:
                     say(b"OK")
                     finish(code)
                     code = b""
+            elif c == b"\x01":                # Ctrl-A again: the raw REPL afresh, as MicroPython does
+                code = b""
+                say(BANNER)
             elif c == b"\x02":
                 mode = "friendly"
                 say(b"\r\nMicroPython v1.28.0\r\n>>> ")

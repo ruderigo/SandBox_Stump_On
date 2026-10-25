@@ -336,7 +336,7 @@ EXPECTED_FILE_HASHES = {
     "docs/COMMANDS.md": "375b9c4112411919",
     "docs/ENGINEERING_NOTES.md": "0818b93764d68cf0",
     "docs/FIELD_TEST.md": "0cd367b92d89f230",
-    "docs/FLASHER.md": "476df11f6bd4886a",
+    "docs/FLASHER.md": "c717881d174c1e3c",
     "docs/HIDDEN_FEATURES.md": "2529e887b65ee598",
     "docs/HOME_BRANDING.md": "e1a1a9cf854dcdce",
     "docs/HTTPS_SETUP.md": "12cbbf2de7c38810",

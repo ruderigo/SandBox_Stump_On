@@ -97,6 +97,10 @@ Done in 1.0.0-beta.37.
         Heltec), or an update that keeps the settings
         (scripts/build_flasher.py; tests/flasher_test.py)
   - [x] Built by CI (an artifact) and attached to each release
+  - [x] One page for the Provisioner's board jobs too: Settings (read,
+        change, save -- by the firmware's settings.py, as /admin; a
+        copy kept, one put back) and Check (restart, listen, sum up)
+  - [ ] The SD card: Tools, packs, wipe (slow over USB: say so)
   - [ ] On the bench: a CAM made with it, then one updated
   - [ ] Windows: serial-check.html, then the flasher
   - [x] MicroPython's SHA-256 pinned in build_flasher.py (as micropython.org served it to CI)

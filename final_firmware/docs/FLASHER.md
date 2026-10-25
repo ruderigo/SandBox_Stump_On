@@ -1,7 +1,8 @@
 # The Stump Flasher
 
-One HTML page that makes a **Freenove ESP32-S3-CAM** into a Stump, from
-Chrome or Edge on a computer. Nothing to install, no certificate, no
+One HTML page for a **Freenove ESP32-S3-CAM** on a computer's USB, from
+Chrome or Edge: it makes the board a Stump, updates one, changes its
+settings and watches it start. Nothing to install, no certificate, no
 terminal: save the page, open the saved file, plug the board in.
 
 It's `Stump-Flasher-<release>.html` on each release (the version is in
@@ -28,6 +29,19 @@ everything else: its settings (`config.py`), its identity on the mesh,
 what's on its card. A Stump on an older MicroPython is told to use
 *A new Stump* instead (that erases the board, so it gets a new identity).
 
+**Settings** reads a Stump's settings into the same form -- its name,
+admin password, Wi-Fi, the radio, what it offers, its look, who may come
+in, the bot, a chain -- and saves what you change. Its identity, chat and
+files stay. Passwords aren't shown: left blank, they stay as they are.
+*Keep a copy of its config.py* saves it on the computer; *Put a config.py
+from this computer back* puts one back as it is (checked to be Python
+first). The one replaced stays on the board as `config.py.bak`.
+
+**Check** restarts the Stump and listens to it start for a minute: the
+release it runs, whether its pages came up, what went wrong (a
+traceback, the Wi-Fi it couldn't join). *Save what it said* keeps the
+whole of it as a file, to send to whoever helps.
+
 If the board isn't found: another USB cable (some only charge), another
 port; or hold BOOT, press and release RESET, let go of BOOT, and try again.
 
@@ -43,14 +57,24 @@ The same as the Provisioner:
   old one, so a cable pulled out never leaves half a module; a module
   arriving compiled (`.mpy`) has its `.py` removed, and the other way
 - `config.py`: `final_firmware/config.py` with every name, password and
-  Wi-Fi taken out at build time (the build stops if one is left), the
-  answers put in, a fresh Stump's defaults for the rest (no chain, open
-  access, chat + billboard + files, the paper theme). The fserv bot's
-  operator password is the admin password.
+  Wi-Fi taken out at build time (the build stops if one is left) and a
+  fresh Stump's values, then the form's answers written into it as for
+  *Settings*: by the firmware's own `settings.write_config` (what
+  `/admin` uses: each `KEY = value` in place of its line, the rest of the
+  file as it was, a temporary file then a rename), plus the Heltec
+  bridge's three lines in `CONFIG` (as the Provisioner edits them). A
+  result that isn't Python is undone. The rules are `/admin`'s and the
+  Provisioner's: a name of 20 characters at most, a chain's first Stump
+  is number 4 and sets the channel, the others 5 to 254, a Heltec on the
+  Stump's own Wi-Fi is 192.168.<number>.2. The fserv bot's operator
+  password is the admin password.
+- *Settings* checks that the `config.py` it saves over is the one it
+  read (another board, or a change since: read again)
 - `machine.reset()`
 
 Not done here (the Provisioner does them): the SD card's Tools and
-packs, a chain, the Heltec's own firmware.
+packs, the Heltec's own firmware, a Stump on a computer, checking a
+chain over the network.
 
 ## Building it
 

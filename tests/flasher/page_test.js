@@ -52,14 +52,16 @@ const FAKE_SERIAL = `
   Object.defineProperty(window, "esptool", { get: () => fake, set: () => {} });
 })();`;
 
-async function run(name, root, simArgs, fill) {
-  fs.rmSync(root, { recursive: true, force: true });
-  fs.mkdirSync(root, { recursive: true });
+async function run(name, root, simArgs, fill, keep) {
+  if (!keep) {
+    fs.rmSync(root, { recursive: true, force: true });
+    fs.mkdirSync(root, { recursive: true });
+  }
   if (fill) fill(root);
   const sim = spawn("python3", [path.join(__dirname, "board_sim.py"), "--root", root, "--micropython", MP].concat(simArgs),
                     { stdio: ["pipe", "pipe", "inherit"] });
   const browser = await chromium.launch();
-  const page = await browser.newPage();
+  const page = await browser.newPage({ acceptDownloads: true });
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
   page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()); });
@@ -79,18 +81,24 @@ async function run(name, root, simArgs, fill) {
     const errors = [];
     page.on("pageerror", (e) => errors.push(e.message));
     await page.goto("file://" + path.resolve(PAGE));
-    check("opened from file://: the form, not the gate (Chromium has Web Serial)", await page.isVisible("#form") && !(await page.isVisible("#gate")));
+    check("opened from file://: the form, not the gate (Chromium has Web Serial)", await page.isVisible("#f-name") && !(await page.isVisible("#gate")));
     check("no errors on load", errors.length === 0, errors.join("\n"));
-    await page.click("#go");
-    check("an empty password: the form says so", /password/i.test(await page.textContent("#formerr")) || await page.evaluate(() => !document.getElementById("pw").checkValidity()));
-    await page.fill("#pw", "secret1"); await page.fill("#pw2", "secret2");
-    await page.click("#go");
-    check("two passwords that differ: says so", /aren't the same/.test(await page.textContent("#formerr")), await page.textContent("#formerr"));
-    await page.fill("#pw2", "secret1");
-    await page.check("input[name=radio][value=lan]");
-    await page.fill("#hhost", "not an address");
-    await page.click("#go");
-    check("a Heltec address that isn't one: says so", /192\.168/.test(await page.textContent("#formerr")), await page.textContent("#formerr"));
+    await page.click("#make-go");
+    check("an empty password: the form says so", /password/i.test(await page.textContent("#make-err")), await page.textContent("#make-err"));
+    await page.fill("#f-pw", "secret1"); await page.fill("#f-pw2", "secret2");
+    await page.click("#make-go");
+    check("two passwords that differ: says so", /aren't the same/.test(await page.textContent("#make-err")), await page.textContent("#make-err"));
+    await page.fill("#f-pw2", "secret1");
+    await page.check("input[name=f-radio][value=lan]");
+    await page.fill("#f-hhost", "not an address");
+    await page.click("#make-go");
+    check("a Heltec address that isn't one: says so", /192\.168/.test(await page.textContent("#make-err")), await page.textContent("#make-err"));
+    await page.check("input[name=mode][value=update]");
+    check("update: the settings form goes away", !(await page.isVisible("#f-name")) && /Update/.test(await page.textContent("#make-go")));
+    await page.click("nav button[data-tab=settings]");
+    check("Settings: no form until a Stump's are read", !(await page.isVisible("#f-name")) && await page.isVisible("#set-read"));
+    await page.click("nav button[data-tab=check]");
+    check("Check: its button", await page.isVisible("#chk-go"));
     const ver = await page.textContent(".sub");
     check("the page names its release", /Stump 1\.0\.0-\S+/.test(ver), ver);
     await browser.close();
@@ -101,11 +109,11 @@ async function run(name, root, simArgs, fill) {
     const root = path.join(SCRATCH, "page_new");
     const t = await run("new", root, []);
     const { page } = t;
-    await page.fill("#name", "Café du Coin");
-    await page.fill("#pw", "s3cret!"); await page.fill("#pw2", "s3cret!");
-    await page.fill("#ssid", "Home \"Net\""); await page.fill("#wpass", "pa'ss");
-    await page.check("input[name=radio][value=ap]");
-    await page.click("#go");
+    await page.fill("#f-name", "Café du Coin");
+    await page.fill("#f-pw", "s3cret!"); await page.fill("#f-pw2", "s3cret!");
+    await page.fill("#f-ssid", "Home \"Net\""); await page.fill("#f-wpass", "pa'ss1234");
+    await page.check("input[name=f-radio][value=ap]");
+    await page.click("#make-go");
     try { await page.waitForSelector("#worktitle .ok, #worktitle .err", { timeout: 240000 }); } catch (e) {}
     const title = await page.textContent("#worktitle"), result = await page.textContent("#result");
     check("a new Stump: done", /Done/.test(title), title + " | " + result + " | " + (await page.textContent("#log")).slice(-800));
@@ -124,10 +132,74 @@ async function run(name, root, simArgs, fill) {
       const out = execFileSync(MP, ["-c", "import config as c\nb=[i for i in c.CONFIG['interfaces'] if i['name']=='Heltec Bridge'][0]\n" +
         "print(repr((c.NODE_NAME, c.AUTH_ADMIN_PASSWORD, c.FSERVBOT_OP_PASSWORD, c.WIFI_SSID, c.WIFI_PASS, b['enabled'], b['target_host'], b['target_port'], c.CHAIN_ENABLED, c.CHAIN_SECRET, c.BOT_NAME)))"],
         { cwd: root }).toString().trim();
-      check("... with the answers, as MicroPython reads them", out === "('Café du Coin', 's3cret!', 's3cret!', 'Home \"Net\"', \"pa'ss\", True, '192.168.4.2', 7633, False, '', 'BarKeep')", out);
+      check("... with the answers, as MicroPython reads them", out === "('Caf\u00e9 du Coin', 's3cret!', 's3cret!', 'Home \"Net\"', \"pa'ss1234\", True, '192.168.4.2', 7633, False, '', 'BarKeep')", out);
       check("... nothing of LaBuche's own config.py", !/LaBuche'|TeK|SalutComment|Bob's Glitch|Concierge/.test(cfg));
     }
     check("... no errors in the page", t.errors.length === 0, t.errors.join("\n"));
+    await t.browser.close(); t.sim.kill();
+  }
+
+  // -- Settings: read, changed, saved; a copy kept; one put back --------------------
+  {
+    const root = path.join(SCRATCH, "page_new");
+    const cfgPath = path.join(root, "config.py");
+    const t = await run("settings", root, ["--running"], null, true);
+    const { page } = t;
+    const wait = async () => {           // this action's end, not the one before's
+      try { await page.waitForFunction(() => !document.querySelector("#worktitle span"), null, { timeout: 10000 }); } catch (e) {}
+      try { await page.waitForSelector("#worktitle .ok, #worktitle .err", { timeout: 120000 }); } catch (e) {}
+      return page.textContent("#worktitle");
+    };
+    await page.click("nav button[data-tab=settings]");
+    await page.click("#set-read");
+    let title = await wait();
+    check("Settings: read (a running Stump stopped, then started again)", /Done/.test(title), title + " | " + (await page.textContent("#result")) + (await page.textContent("#log")).slice(-500));
+    check("... the form shows its settings", (await page.inputValue("#f-name")) === "Café du Coin" && (await page.inputValue("#f-ssid")) === 'Home "Net"'
+          && (await page.isChecked("input[name=f-radio][value=ap]")), await page.inputValue("#f-name"));
+    check("... its passwords not shown: blank means unchanged", (await page.inputValue("#f-pw")) === "" && (await page.getAttribute("#f-pw", "placeholder")) === "unchanged");
+    const [dl] = await Promise.all([page.waitForEvent("download"), page.click("#set-download")]);
+    const copy = fs.readFileSync(await dl.path());
+    check("a copy of its config.py, as on the board", copy.equals(fs.readFileSync(cfgPath)) && /^config-Caf.*\.py$/.test(dl.suggestedFilename()), dl.suggestedFilename());
+    await page.fill("#f-name", "Le Coin");
+    await page.click("#f-more summary");
+    await page.check("input[name=f-chain][value=member]");
+    await page.fill("#f-up", "First-Stump");
+    await page.fill("#f-subnet", "6");
+    check("a chain member: a secret made for it", /^[0-9a-f]{16}$/.test(await page.inputValue("#f-secret")));
+    await page.click("#set-save");
+    title = await wait();
+    check("... saved", /Done/.test(title), title + " | " + (await page.textContent("#result")) + (await page.textContent("#log")).slice(-500));
+    fs.writeFileSync(path.join(root, "lora_boards.py"), "LORA_BOARDS = {}\n");
+    const out = execFileSync(MP, ["-c", "import config as c\nb=[i for i in c.CONFIG['interfaces'] if i['name']=='Heltec Bridge'][0]\n" +
+      "print(repr((c.NODE_NAME, c.AUTH_ADMIN_PASSWORD, c.WIFI_PASS, c.CHAIN_ENABLED, c.CHAIN_UPLINK_SSID, c.CHAIN_SUBNET, b['target_host'])))"], { cwd: root }).toString().trim();
+    check("... as MicroPython reads them: the name, the chain, the Heltec at .6.2; the passwords kept",
+          out === "('Le Coin', 's3cret!', \"pa'ss1234\", True, 'First-Stump', 6, '192.168.6.2')", out);
+    fs.appendFileSync(cfgPath, "\n# changed by someone else\n");
+    await page.fill("#f-name", "Other");
+    await page.click("#set-save");
+    title = await wait();
+    check("saving over a config.py that changed since it was read: refused", /Stopped/.test(title) && /read earlier/.test(await page.textContent("#result")), await page.textContent("#result"));
+    check("... and the Stump started again, not left stopped at its prompt", /restarted the board/.test(await page.textContent("#log")));
+    await page.click("#tab-settings > details > summary");
+    await page.setInputFiles("#set-file", { name: "config-old.py", mimeType: "text/x-python", buffer: copy });
+    await page.click("#set-put");
+    title = await wait();
+    check("a kept copy put back: the board has it again", /Done/.test(title) && fs.readFileSync(cfgPath).equals(copy), title + (await page.textContent("#result")) + (await page.textContent("#log")).slice(-1500));
+    check("... no errors in the page", t.errors.length === 0, t.errors.join("\n"));
+    await t.browser.close(); t.sim.kill();
+  }
+
+  // -- Check: restarted, listened to ---------------------------------------------------
+  {
+    const root = path.join(SCRATCH, "page_new");
+    const t = await run("check", root, ["--running"], null, true);
+    const { page } = t;
+    await page.click("nav button[data-tab=check]");
+    await page.click("#chk-go");
+    try { await page.waitForSelector("#worktitle .ok, #worktitle .err", { timeout: 120000 }); } catch (e) {}
+    const sum = await page.textContent("#chk-sum");
+    check("Check: what it runs, its pages up", /1\.0\.0-beta\.38/.test(sum) && /up/.test(sum) && /v1\.28/.test(sum), sum + " | " + (await page.textContent("#result")));
+    check("... what it said, on the page", /\[web\] serving/.test(await page.textContent("#chk-log")));
     await t.browser.close(); t.sim.kill();
   }
 
@@ -141,8 +213,7 @@ async function run(name, root, simArgs, fill) {
     });
     const { page } = t;
     await page.check("input[name=mode][value=update]");
-    check("update: the settings fields go away", !(await page.isVisible("#newfields")) && /Update/.test(await page.textContent("#go")));
-    await page.click("#go");
+    await page.click("#make-go");
     try { await page.waitForSelector("#worktitle .ok, #worktitle .err", { timeout: 240000 }); } catch (e) {}
     const title = await page.textContent("#worktitle");
     check("update: done (the running Stump stopped first)", /Done/.test(title), title + " | " + (await page.textContent("#result")) + " | " + (await page.textContent("#log")).slice(-600));
@@ -158,7 +229,7 @@ async function run(name, root, simArgs, fill) {
     const root = path.join(SCRATCH, "page_update_none");
     const t = await run("none", root, []);
     await t.page.check("input[name=mode][value=update]");
-    await t.page.click("#go");
+    await t.page.click("#make-go");
     try { await t.page.waitForSelector("#worktitle .ok, #worktitle .err", { timeout: 60000 }); } catch (e) {}
     const res = await t.page.textContent("#result");
     check("update on a board with no Stump: stopped, with why", /no Stump on this board/.test(res), res);

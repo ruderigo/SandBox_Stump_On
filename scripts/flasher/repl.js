@@ -223,26 +223,178 @@
     progress(total, total, "");
   }
 
-  // config.py from the scrubbed template: each @@KEY@@ becomes the answer, as Python.
-  function pyValue(v) {
-    if (v === true) return "True";
-    if (v === false) return "False";
-    if (v === null || v === undefined) return "None";
-    if (typeof v === "number") { if (!isFinite(v) || Math.floor(v) !== v) throw new Error("not a whole number: " + v); return String(v); }
-    if (Array.isArray(v)) return "[" + v.map(pyValue).join(", ") + "]";
-    return py(v);
+  // -- settings: the board's config.py -------------------------------------
+  // Read: the values the form shows (passwords only as "set or not").
+  // Written by the firmware's own settings.write_config -- what /admin
+  // uses: each KEY = value in place of its line, the rest of the file as
+  // it was, a temporary file then a rename -- plus the Heltec bridge's
+  // three lines inside CONFIG (as the Provisioner edits them). The old
+  // file is kept as config.py.bak; a result that isn't Python is undone.
+  var KEYS = ["NODE_NAME", "BOT_NAME", "MESH_GREETING", "WIFI_SSID", "AUTH_MODE", "FEATURES", "THEME", "SSID_NAME",
+              "CHAIN_ENABLED", "CHAIN_UPLINK_SSID", "CHAIN_UPLINK_PASS", "CHAIN_SUBNET", "CHAIN_CHANNEL", "CHAIN_SECRET"];
+  var FEATURES = ["chat", "billboard", "files", "about"], THEMES = ["paper", "amber", "phosphor", "oled"],
+      MODES = ["open", "hybrid", "mandatory"];
+
+  async function readSettings(repl) {
+    var out = await repl.run(
+      "import json\nimport config as c\nb=[i for i in c.CONFIG.get('interfaces',[]) if i.get('name')=='Heltec Bridge']\n" +
+      "b=b[0] if b else {}\nd={}\nfor k in " + JSON.stringify(KEYS) + ":\n d[k]=getattr(c,k,None)\n" +
+      "d['HAS_ADMIN_PASSWORD']=bool(getattr(c,'AUTH_ADMIN_PASSWORD',''))\nd['HAS_WIFI_PASS']=bool(getattr(c,'WIFI_PASS',''))\n" +
+      "d['HELTEC']={'there':bool(b),'enabled':bool(b.get('enabled')),'host':b.get('target_host',''),'port':b.get('target_port',7633)}\n" +
+      "print('CFG'+json.dumps(d))\n", 30000);
+    var m = /CFG(\{.*\})/.exec(out);
+    if (!m) throw new Error("couldn't read its settings");
+    return JSON.parse(m[1]);
   }
-  function makeConfig(template, answers) {
-    var missing = [];
-    var out = template.replace(/@@([A-Z0-9_]+)@@/g, function (_, k) {
-      if (!(k in answers)) { missing.push(k); return "None"; }
-      return pyValue(answers[k]);
+
+  async function readConfigFile(repl) {
+    var out = await repl.run("import binascii\nprint('F'+binascii.b2a_base64(open('config.py','rb').read()).decode().replace('\\n',''))\n");
+    var m = /F([A-Za-z0-9+\/=]*)/.exec(out);
+    var s = atob(m ? m[1] : ""), u = new Uint8Array(s.length);
+    for (var i = 0; i < s.length; i++) u[i] = s.charCodeAt(i);
+    return u;
+  }
+
+  // values: {KEY: value} for config.py, and HELTEC: {enabled, host, port}.
+  async function writeSettings(repl, values) {
+    var top = {}, h = values.HELTEC || null;
+    Object.keys(values).forEach(function (k) { if (k !== "HELTEC") top[k] = values[k]; });
+    var code =
+      "import json, os, settings\nch=json.loads(" + py(JSON.stringify(top)) + ")\nH=json.loads(" + py(JSON.stringify(h)) + ")\n" +
+      "src=open('config.py').read()\nf=open('config.py.bak','w')\nf.write(src)\nf.close()\n" +
+      "if ch and not settings.write_config(ch,'config.py'):\n raise OSError('config.py not written')\n" +
+      "if H:\n L=open('config.py').read().split('\\n')\n blk=False\n done=0\n for i in range(len(L)):\n" +
+      "  l=L[i]\n  s=l.lstrip()\n  ind=l[:len(l)-len(s)]\n  if 'Heltec Bridge' in l:\n   blk=True\n  if not blk:\n   continue\n" +
+      "  if s.startswith('\"enabled\"'):\n   L[i]=ind+'\"enabled\": %r,' % bool(H['enabled'])\n   done+=1\n" +
+      "  elif s.startswith('\"target_host\"'):\n   L[i]=ind+'\"target_host\": %r,' % H['host']\n   done+=1\n" +
+      "  elif s.startswith('\"target_port\"'):\n   L[i]=ind+'\"target_port\": %d,' % int(H['port'])\n   done+=1\n   blk=False\n" +
+      " if done!=3:\n  raise OSError('no Heltec Bridge in config.py to set')\n f=open('config.py.tmp','w')\n f.write('\\n'.join(L))\n f.close()\n" +
+      " os.rename('config.py.tmp','config.py')\n" +
+      "try:\n compile(open('config.py').read(),'config.py','exec')\nexcept SyntaxError as e:\n" +
+      " f=open('config.py','w')\n f.write(src)\n f.close()\n raise OSError('the new config.py was not Python: put back as it was')\n" +
+      "print('SAVED')\n";
+    var out = await repl.run(code, 30000);
+    if (!/SAVED/.test(out)) throw new Error("its settings weren't saved");
+  }
+
+  // A config.py from this computer, put back as it is (checked to be Python first).
+  async function putConfigFile(repl, data, sha) {
+    await upload(repl, [{ path: "config.py.new", data: data, sha256: sha }]);
+    await repl.run("import os\ntry:\n compile(open('config.py.new').read(),'config.py','exec')\nexcept SyntaxError as e:\n" +
+                   " os.remove('config.py.new')\n raise OSError(\"that file isn't a config.py (not Python)\")\n" +
+                   "try:\n os.rename('config.py','config.py.bak')\nexcept OSError:\n pass\nos.rename('config.py.new','config.py')\n");
+  }
+
+  function ctl(s) { return /[\x00-\x1f\x7f]/.test(s); }
+  function hex(n) { var u = new Uint8Array(n); crypto.getRandomValues(u); return Array.from(u).map(function (b) { return ("0" + b.toString(16)).slice(-2); }).join(""); }
+
+  // The form's answers -> {values} for writeSettings, or {error}; {warn} too.
+  // The rules are /admin's (settings.py) and the Provisioner's.
+  // keepPw / keepWifiPass: blank means "as it is" (a Stump being changed).
+  function settingsFrom(a) {
+    var v = {}, warn = [];
+    function no(e) { return { error: e }; }
+    var name = (a.name || "").trim();
+    if (!name || name.length > 20 || ctl(name)) return no("The name: 1 to 20 characters.");
+    v.NODE_NAME = name;
+    var bot = (a.bot || "BarKeep").trim();
+    if (!bot || bot.length > 24 || ctl(bot)) return no("The bot's name: 1 to 24 characters.");
+    v.BOT_NAME = bot;
+    var greet = (a.greeting || "").replace(/[\r\n]+/g, " ").trim();
+    if (greet.length > 200) return no("The greeting: at most 200 characters.");
+    v.MESH_GREETING = greet;
+    if (!(a.keepPw && !a.pw)) {
+      if ((a.pw || "").length < 4 || a.pw.length > 64) return no("The admin password: 4 to 64 characters.");
+      if (a.pw !== a.pw2) return no("The two passwords aren't the same.");
+      v.AUTH_ADMIN_PASSWORD = a.pw; v.FSERVBOT_OP_PASSWORD = a.pw;
+    }
+    var ssid = (a.ssid || "").trim();
+    if (ssid.length > 32 || ctl(ssid)) return no("The home Wi-Fi's name: at most 32 characters.");
+    v.WIFI_SSID = ssid;
+    if (!(a.keepWifiPass && !a.wpass)) {
+      var wp = a.wpass || "";
+      if (wp && !ssid) return no("A Wi-Fi password, but no Wi-Fi name.");
+      if (wp && (wp.length < 8 || wp.length > 63)) return no("A Wi-Fi password is 8 to 63 characters.");
+      v.WIFI_PASS = wp;
+    }
+    var feats = FEATURES.filter(function (f) { return (a.features || []).indexOf(f) >= 0; });
+    if (!feats.length) warn.push("No features chosen: its pages offer nothing but /admin.");
+    v.FEATURES = feats;
+    if (THEMES.indexOf(a.theme || "paper") < 0) return no("Unknown theme.");
+    v.THEME = a.theme || "paper";
+    if (MODES.indexOf(a.mode || "open") < 0) return no("Unknown access mode.");
+    v.AUTH_MODE = a.mode || "open";
+    var hs = (a.hotspot || "").trim();
+    if (hs.length > 32 || ctl(hs)) return no("The Wi-Fi name it shows: at most 32 characters.");
+    v.SSID_NAME = hs || null; v.SSID_INCLUDE_IP = false;
+    var subnet = 4;
+    if (a.chain === "first" || a.chain === "member") {
+      var secret = (a.secret || "").trim();
+      if (secret.length > 64 || /['"\\]/.test(secret) || ctl(secret)) return no("The chain secret: at most 64 characters, no quotes or backslashes.");
+      if (!secret) warn.push("No chain secret: anyone on a Stump's Wi-Fi could join the chain.");
+      v.CHAIN_ENABLED = true; v.CHAIN_SECRET = secret;
+      if (a.chain === "first") {
+        var ch = parseInt(a.channel, 10);
+        if (!(ch >= 1 && ch <= 13)) return no("The chain's Wi-Fi channel: 1 to 13.");
+        v.CHAIN_UPLINK_SSID = ""; v.CHAIN_UPLINK_PASS = ""; v.CHAIN_SUBNET = 4; v.CHAIN_CHANNEL = ch;
+      } else {
+        var up = (a.upSsid || "").trim();
+        if (!up || up.length > 32 || ctl(up)) return no("The Wi-Fi name of the Stump it joins: 1 to 32 characters.");
+        subnet = parseInt(a.subnet, 10);
+        if (!(subnet >= 5 && subnet <= 254) || String(subnet) !== String(a.subnet).trim()) return no("This Stump's number in the chain: 5 to 254, a different one on each Stump.");
+        v.CHAIN_UPLINK_SSID = up; v.CHAIN_UPLINK_PASS = a.upPass || ""; v.CHAIN_SUBNET = subnet; v.CHAIN_CHANNEL = 0;
+      }
+    } else {
+      v.CHAIN_ENABLED = false;
+    }
+    if (a.radio === "lan") {
+      var host = (a.hhost || "").trim();
+      if (!/^(\d{1,3})(\.\d{1,3}){3}$/.test(host) || host.split(".").some(function (x) { return +x > 255; }))
+        return no("The Heltec's address looks like 192.168.1.50.");
+      if (!ssid) return no("A Heltec on the home Wi-Fi needs the home Wi-Fi's name.");
+      v.HELTEC = { enabled: true, host: host, port: 7633 };
+    } else if (a.radio === "ap") {
+      v.HELTEC = { enabled: true, host: "192.168." + subnet + ".2", port: 7633 };
+    } else {
+      v.HELTEC = { enabled: false, host: a.hhost && /^[\d.]+$/.test(a.hhost) ? a.hhost : "192.168." + subnet + ".2", port: 7633 };
+    }
+    return { values: v, warn: warn };
+  }
+
+  // What readSettings found -> the form's answers.
+  function answersFrom(c) {
+    var chain = !c.CHAIN_ENABLED ? "none" : c.CHAIN_UPLINK_SSID ? "member" : "first";
+    var subnet = chain === "member" ? c.CHAIN_SUBNET : 4, h = c.HELTEC || {};
+    var radio = !h.enabled ? "none" : h.host === "192.168." + subnet + ".2" ? "ap" : "lan";
+    return {
+      name: c.NODE_NAME || "", bot: c.BOT_NAME || "BarKeep", greeting: c.MESH_GREETING || "",
+      ssid: c.WIFI_SSID || "", radio: radio, hhost: radio === "lan" ? h.host : "",
+      features: Array.isArray(c.FEATURES) ? c.FEATURES : FEATURES.slice(0, 3), theme: c.THEME || "paper",
+      mode: c.AUTH_MODE || "open", hotspot: c.SSID_NAME || "", chain: chain,
+      channel: c.CHAIN_CHANNEL || 11, upSsid: c.CHAIN_UPLINK_SSID || "", upPass: c.CHAIN_UPLINK_PASS || "",
+      subnet: c.CHAIN_SUBNET || 5, secret: c.CHAIN_SECRET || "",
+      hasPw: !!c.HAS_ADMIN_PASSWORD, hasWifiPass: !!c.HAS_WIFI_PASS
+    };
+  }
+
+  // What a Stump says as it starts -> {release, micropython, serving, wifi, problems}.
+  function bootSummary(text) {
+    var lines = text.replace(/\r/g, "").split("\n"), m;
+    var out = { release: null, micropython: null, serving: false, ap: null, sta: null, problems: [], notes: [] };
+    if ((m = /Project Stump -- (.+?) \(([^)]+)\)/.exec(text))) out.release = m[2];
+    if ((m = /MicroPython (v[\w.\-]+)/.exec(text))) out.micropython = m[1];
+    out.serving = /\[web\] serving/.test(text);
+    lines.forEach(function (l) {
+      if (/Traceback|Error|FAILED|rescue start|couldn't|not armed/i.test(l) && out.problems.length < 12) out.problems.push(l.trim());
+      else if (/WiFi unavailable|\[watchdog\] armed|\[chain\]|\[radio\]|\[sd\]/i.test(l) && out.notes.length < 12) out.notes.push(l.trim());
     });
-    if (missing.length) throw new Error("no answer for " + missing.join(", "));
     return out;
   }
 
-  var api = { Repl: Repl, prepare: prepare, restart: restart, upload: upload, boardInfo: boardInfo, makeConfig: makeConfig, pyValue: pyValue, sleep: sleep, b64: b64 };
+  var api = { Repl: Repl, prepare: prepare, restart: restart, upload: upload, boardInfo: boardInfo,
+              readSettings: readSettings, writeSettings: writeSettings, readConfigFile: readConfigFile, putConfigFile: putConfigFile,
+              settingsFrom: settingsFrom, answersFrom: answersFrom, bootSummary: bootSummary, randomSecret: function () { return hex(8); },
+              FEATURES: FEATURES, THEMES: THEMES, MODES: MODES, sleep: sleep, b64: b64 };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.StumpRepl = api;
 })(typeof window !== "undefined" ? window : globalThis);

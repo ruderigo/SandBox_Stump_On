@@ -14,8 +14,8 @@ Writes dist/Stump-Flasher-<release>.html, holding:
   the Stump         the board's files from final_firmware/ (the plugins too),
                     modules compiled to .mpy for MicroPython 1.28 when
                     mpy-cross 1.28 is here (pip install mpy-cross==1.28.0.post2)
-  a config.py       template: final_firmware/config.py with every setting
-                    the page asks (and every password) taken out
+  a config.py       template: final_firmware/config.py with every name,
+                    password and Wi-Fi taken out (a fresh Stump's values)
 
 Packed as one gzip, in base64, inside the page; each file's SHA-256 is
 checked on the board after it's copied.
@@ -38,9 +38,12 @@ MICROPYTHON_MPY = "6.3"          # the .mpy version MicroPython 1.28 loads
 MICROPYTHON_SHA256 = os.environ.get("STUMP_MICROPYTHON_SHA256",
                                     "67c19ae123d84152019b57526ed5291dd0a2b4edd87655c5f76b46c9a62ff5dd") or None
 
-# The settings the page asks, as @@KEY@@ in the template, and the ones it
-# sets to a fresh Stump's defaults. Every other line is config.py's own.
+# The template: config.py with these set to a fresh, unnamed Stump's values
+# (the page then writes the form's answers into it, as for a Stump being
+# changed: settingsFrom/writeSettings in flasher/repl.js). Every other
+# line is config.py's own.
 ASKED = ("NODE_NAME", "WIFI_SSID", "WIFI_PASS", "AUTH_ADMIN_PASSWORD", "FSERVBOT_OP_PASSWORD")
+HELTEC_FRESH = {"HELTEC_ENABLED": False, "HELTEC_HOST": "192.168.4.2", "HELTEC_PORT": 7633}
 FRESH = {
     "SSID_NAME": None, "SSID_INCLUDE_IP": False, "BOT_NAME": "BarKeep", "MESH_GREETING": "",
     "AUTH_MODE": "open", "CREDITS_ENABLED": False, "FEATURES": ["chat", "billboard", "files"], "THEME": "paper",
@@ -58,8 +61,8 @@ def release():
 
 
 def config_template():
-    """config.py with the asked settings as @@KEY@@, the fresh defaults set,
-    and the Heltec bridge's enabled/target_host/target_port as @@HELTEC_*@@.
+    """config.py with the asked settings empty, the fresh defaults set,
+    and the Heltec bridge off.
     Fails if a setting is missing, or if any password or name of the
     folder's own config.py is still in it."""
     src = (FW / "config.py").read_text(encoding="utf-8")
@@ -67,7 +70,7 @@ def config_template():
     for line in src.splitlines(keepends=True):
         key = line.split("=", 1)[0].strip()
         if "=" in line and not line.startswith((" ", "\t", "#")) and key in ASKED:
-            out.append("%s = @@%s@@\n" % (key, key)); seen.add(key); continue
+            out.append("%s = ''\n" % key); seen.add(key); continue
         if "=" in line and not line.startswith((" ", "\t", "#")) and key in FRESH:
             out.append("%s = %r\n" % (key, FRESH[key])); seen.add(key); continue
         if "Heltec Bridge" in line:
@@ -76,14 +79,14 @@ def config_template():
             ind = line[:len(line) - len(line.lstrip())]
             for k, h in (('"enabled"', "HELTEC_ENABLED"), ('"target_host"', "HELTEC_HOST"), ('"target_port"', "HELTEC_PORT")):
                 if line.lstrip().startswith(k):
-                    line = "%s%s: @@%s@@,\n" % (ind, k, h); seen.add(h)
+                    line = "%s%s: %r,\n" % (ind, k, HELTEC_FRESH[h]); seen.add(h)
                     if h == "HELTEC_PORT":
                         block = False
         out.append(line)
     text = "".join(out)
     for key in list(ASKED) + list(FRESH):
         if key not in seen:                   # a setting config.py doesn't have yet: added
-            text += ("%s = @@%s@@\n" % (key, key)) if key in ASKED else ("%s = %r\n" % (key, FRESH[key]))
+            text += ("%s = ''\n" % key) if key in ASKED else ("%s = %r\n" % (key, FRESH[key]))
     missing = [h for h in HELTEC if h not in seen]
     if missing:
         raise SystemExit("config.py: no Heltec Bridge %s to fill in" % ", ".join(missing))
@@ -95,7 +98,7 @@ def config_template():
         if isinstance(v, str) and v and v != FRESH.get(key) and ("'%s'" % v in text or '"%s"' % v in text
                                                                  or ("PASS" in key and v in text)):
             raise SystemExit("the template still has %s's value from final_firmware/config.py" % key)
-    compile(text.replace("@@", "x_"), "config.py", "exec")      # still Python
+    compile(text, "config.py", "exec")      # still Python
     return text
 
 
