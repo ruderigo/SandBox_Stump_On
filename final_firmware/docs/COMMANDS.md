@@ -580,8 +580,6 @@ accepts the certificate (it fetches `/tls-ok` first).
 | GET | `/plugins.json` | What the plugins add: `{"api", "trigger", "plugins": [{"name","version","commands","pages"}]}` (see `PLUGINS.md`) |
 | GET, POST | `/p/<plugin>/…` | A plugin's own pages. Any address under `/p/` that no running plugin answers shows the home page, like any unknown address |
 | GET | `/home-file?f=` | A file from the card's `home/` folder, for the home page's own section (see `HOME_BRANDING.md`) |
-| GET | `/flash` | Browser-based flasher — hidden feature HF-001, not linked from `/tools` |
-| GET | `/fw?f=` | Firmware image / catalog for the flasher |
 | GET | `/lang?set=&next=` | Set language, redirect back |
 | GET | `/tls-ok` | Answers `ok`: what a plain-HTTP page fetches over HTTPS to check the browser accepts the certificate (see `HTTPS_SETUP.md`) |
 

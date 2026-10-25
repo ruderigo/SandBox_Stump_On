@@ -87,11 +87,11 @@ Done in 1.0.0-beta.37.
       and the chain; storage profiles in features.py; files stored on a
       chain Stump that has room (needs 2)
 - [ ] NomadNet pack (L): shelved for now
-- [ ] Browser flasher back (M), now Arborist: one page saved on the computer: from
-      file://, Chrome and Edge allow Web Serial with no certificate
-      (checked: serial-check.html, macOS Chrome 156). The CAM only
-      (MicroPython is MIT, like the Stump; RNode is GPL-3, the Heltec
-      stays with the Provisioner). final_firmware/docs/ARBORIST.md
+- [x] Browser flasher back, as Arborist: one page saved on the computer,
+      opened from file:// (Web Serial, no certificate). CAM only
+      (MicroPython is MIT; RNode is GPL-3, the Heltec stays with the
+      Provisioner). The old on-device /flash flasher (HF-001) retired in
+      beta.41. final_firmware/docs/ARBORIST.md
   - [x] Arborist-<release>.html: MicroPython 1.28, the Stump
         compiled, a setup form (name, admin password, home Wi-Fi, the
         Heltec), or an update that keeps the settings

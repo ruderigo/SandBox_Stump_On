@@ -13,7 +13,7 @@
 # messages. It does NOT cover: fservbot's dialogue CONTENT (that's
 # operator-authored text set via /fsadd -- translating an operator's
 # own words for them doesn't make sense; if they want a bilingual bot,
-# that's a separate feature, not this one), the Tools/Flash pages
+# that's a separate feature, not this one), the Tools page
 # (technician-facing, not the community-facing surface this exists
 # for), or every rare edge-case error string in the codebase. Anything
 # not in STRINGS falls back to English via t()'s own missing-key
@@ -135,7 +135,6 @@ STRINGS = {
     "nav_board": {"fr": "Babillard", "en": "Board", "es": "Tablón"},
     "nav_files": {"fr": "Fichiers", "en": "Files", "es": "Archivos"},
     "nav_tools": {"fr": "Outils", "en": "Tools", "es": "Herramientas"},
-    "nav_flash": {"fr": "Flasher", "en": "Flash", "es": "Grabar"},
     "tile_chat_sub": {
         "fr": "clavarder avec les gens ici",
         "en": "talk to whoever's here",
@@ -1300,9 +1299,9 @@ STRINGS = {
     },
     "admin_tools_header": {"fr": "Page Outils", "en": "Tools page", "es": "Página de herramientas"},
     "admin_tools_intro": {
-        "fr": "Coche ce qu'il faut retirer de la page Outils ; c'est effacé de la carte SD. Le Provisioner remet ses propres outils (Provisioner, flasheur, applis FireFly) à la prochaine mise à jour, sauf avec --skip-tools.",
-        "en": "Tick what to take off the Tools page; it's deleted from the SD card. The Provisioner puts its own tools (Provisioner, flasher, FireFly apps) back at its next update, unless run with --skip-tools.",
-        "es": "Marca lo que quieras quitar de la página de herramientas; se borra de la tarjeta SD. El Provisioner vuelve a poner sus propias herramientas (Provisioner, flasheador, apps FireFly) en su próxima actualización, salvo con --skip-tools.",
+        "fr": "Coche ce qu'il faut retirer de la page Outils ; c'est effacé de la carte SD. Le Provisioner remet ses propres outils (Provisioner, applis FireFly) à la prochaine mise à jour, sauf avec --skip-tools.",
+        "en": "Tick what to take off the Tools page; it's deleted from the SD card. The Provisioner puts its own tools (Provisioner, FireFly apps) back at its next update, unless run with --skip-tools.",
+        "es": "Marca lo que quieras quitar de la página de herramientas; se borra de la tarjeta SD. El Provisioner vuelve a poner sus propias herramientas (Provisioner, apps FireFly) en su próxima actualización, salvo con --skip-tools.",
     },
     "admin_tools_whole": {
         "fr": "toute la section ({n} fichiers)",

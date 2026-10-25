@@ -474,13 +474,6 @@ _ICON_TOOLS = (
     "a2.3 2.3 0 0 1-3.2-3.2z'/><path d='M14.5 6.5 17 4l3 3-2.5 2.5'/></svg>"
 )
 
-_ICON_FLASH = (
-    "<svg viewBox='0 0 24 24' width='24' height='24' fill='none' "
-    "stroke='currentColor' stroke-width='1.6' stroke-linecap='round' "
-    "stroke-linejoin='round'><path d='M13 2 4.5 13.5H11l-.5 8.5L19 10.5h-6.5z'/>"
-    "</svg>"
-)
-
 _ICON_ABOUT = (
     "<svg viewBox='0 0 24 24' width='24' height='24' fill='none' "
     "stroke='currentColor' stroke-width='1.6' stroke-linecap='round' "
@@ -896,7 +889,6 @@ _DESTINATIONS = {
     "board": ("/billboard", _BOARD_SMALL, "nav_board"),
     "files": ("/files", _ICON_FILES, "nav_files"),
     "tools": ("/tools", _ICON_TOOLS, "nav_tools"),
-    "flash": ("/flash", _ICON_FLASH, "nav_flash"),
     "about": ("/about", _ICON_ABOUT, "nav_about"),
 }
 
@@ -2292,7 +2284,7 @@ async def _read_small_body(reader, length, chunk=1024, cap=None):
 # these would break a page still open over HTTP, since the browser
 # refuses a cross-origin redirect for them.
 _NO_REDIRECT = ("/home-file", "/tls-ok", "/rrc/poll", "/rrc/voice", "/rrc/send", "/download", "/codec2", "/opus.", "/billboard.json",
-                "/files.json", "/plugins.json", "/chain.json", "/stumps.json", "/hw.json", "/admin/radio.json", "/admin/poweroff", "/admin/bluetooth.json", "/admin/bt.json", "/admin/radiolink.json", "/fw", "/tool?", "/lang", "/upload", "/post", "/chat")
+                "/files.json", "/plugins.json", "/chain.json", "/stumps.json", "/hw.json", "/admin/radio.json", "/admin/poweroff", "/admin/bluetooth.json", "/admin/bt.json", "/admin/radiolink.json", "/tool?", "/lang", "/upload", "/post", "/chat")
 
 
 def _own_ap_ip():
@@ -2638,31 +2630,6 @@ async def _r_get_rrc(reader, writer, method, path, headers, ip, identifier, secu
     rec = None if secure else tls.https_redirect(ip, "/rrc/rec")
     await _send(writer, "200 OK", rrc_ui.render_page(user["room"], user["nick"],
                                                      i18n.get_lang(identifier), rec_url=rec))
-
-
-
-async def _r_get_flash(reader, writer, method, path, headers, ip, identifier, secure):
-    # Pass the address the client actually used, so the Chrome
-    # flag printed on the page is copy-pasteable rather than a
-    # placeholder someone has to work out.
-    # Loaded on first use, not at boot: few ever open it (HF-001).
-    import flasher_ui
-    host = headers.get("host", "").split(":")[0] or "this-node"
-    await _send(writer, "200 OK", flasher_ui.render_page(host))
-
-
-
-async def _r_get_fw(reader, writer, method, path, headers, ip, identifier, secure):
-    raw_f = path.split("f=", 1)[-1] if "f=" in path else ""
-    fname = _clean_filename(billboard._url_decode(raw_f))
-    fpath = fserv.FW_DIR + "/" + fname
-    try:
-        size = os.stat(fpath)[6]
-        # Firmware images are megabytes; _send_file streams them
-        # in chunks so a 2MB image doesn't have to exist in RAM.
-        await _send_file(writer, fpath, size, fname)
-    except OSError:
-        await _send(writer, "404 Not Found", "no such image", "text/plain")
 
 
 
@@ -3280,10 +3247,6 @@ async def _serve(reader, writer, secure=False):
             await _r_get_rrc_rec(reader, writer, method, path, headers, ip, identifier, secure)
         elif method == "GET" and path.startswith("/rrc"):
             await _r_get_rrc(reader, writer, method, path, headers, ip, identifier, secure)
-        elif method == "GET" and path.startswith("/flash"):
-            await _r_get_flash(reader, writer, method, path, headers, ip, identifier, secure)
-        elif method == "GET" and path.startswith("/fw"):
-            await _r_get_fw(reader, writer, method, path, headers, ip, identifier, secure)
         elif method == "GET" and path.startswith("/lang"):
             await _r_get_lang(reader, writer, method, path, headers, ip, identifier, secure)
         elif method == "GET" and path.startswith("/about"):

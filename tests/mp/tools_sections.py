@@ -25,8 +25,8 @@ def tree():
     return out
 
 # A card as an older Provisioner left it: everything loose.
-for n in ("provisioner.py", "README.md", "LICENSE", "Stump_Beta_A.zip", "esptool-bundle.js",
-          "esptool-js-LICENSE.txt", "FireFly-Android-0.2.11.apk", "FireFly-RK3326-0.6.2.zip",
+for n in ("provisioner.py", "README.md", "LICENSE", "Stump_Beta_A.zip",
+          "FireFly-Android-0.2.11.apk", "FireFly-RK3326-0.6.2.zip",
           "rnfs-0.1.1-py3-none-any.whl", "lxmf-1.2.0-py3-none-any.whl", "rnspure-1.5.7-py3-none-any.whl",
           "rnfs-install.sh", "rnfs-install.bat", "rnfs-INSTALL.txt", "rnfs-LICENSE.txt",
           "reticulum-LICENSE.txt", "my-notes.txt"):
@@ -34,10 +34,10 @@ for n in ("provisioner.py", "README.md", "LICENSE", "Stump_Beta_A.zip", "esptool
 os.mkdir(T + '/rnfs'); put('rnfs/rnfs-install.sh', b'newer')     # already in its folder
 moved = fserv.migrate_tools()
 t = tree()
-check("loose tools moved into folders", moved == 16, (moved, t))
+check("loose tools moved into folders", moved == 14, (moved, t))
 check("provisioner folder", all(x in t for x in ("provisioner/provisioner.py", "provisioner/LICENSE",
       "provisioner/Stump_Beta_A.zip", "provisioner/Stump-README.md")), t)
-check("flasher, firefly, rnfs folders", all(x in t for x in ("flasher/esptool-bundle.js",
+check("firefly, rnfs folders", all(x in t for x in (
       "firefly/FireFly-Android-0.2.11.apk", "rnfs/README.md", "rnfs/lxmf-1.2.0-py3-none-any.whl",
       "rnfs/reticulum-LICENSE.txt")), t)
 check("the folder's own copy wins", open(T + '/rnfs/rnfs-install.sh').read() == 'newer')
@@ -47,10 +47,9 @@ check("second run moves nothing", fserv.migrate_tools() == 0)
 open(T + '/rnfs/README.md', 'w').write(
     "# rnfs — Reticulum Network File System\n\nFiles on the Reticulum network,\nby content ID.\n\n"
     "https://example\n\n## Installing\n\n- one\n")
-open(T + '/flasher/README.md', 'w').write("# Browser flasher\n\nFor the /flash page.\n")
 secs = {s["dir"]: s for s in fserv.tool_sections()}
 check("sections by folder, loose last", [s["dir"] for s in fserv.tool_sections()] ==
-      ["firefly", "flasher", "provisioner", "rnfs", ""], list(secs))
+      ["firefly", "provisioner", "rnfs", ""], list(secs))
 r = secs["rnfs"]
 check("title and summary from README", r["title"] == "rnfs — Reticulum Network File System"
       and r["summary"] == "Files on the Reticulum network, by content ID.", (r["title"], r["summary"]))
@@ -78,7 +77,7 @@ while True:
     if not m:
         break
     heads.append(m.group(1)); i += page[i:].find(m.group(0)) + len(m.group(0))
-check("page: a section per folder", heads[1:] == ["Browser flasher", "provisioner", "rnfs — Reticulum Network File System",
+check("page: a section per folder", heads[1:] == ["provisioner", "rnfs — Reticulum Network File System",
       "Autres fichiers"] and heads[0] in ("Applications", "Apps"), heads)
 check("page: summary and README", "<p class='sub'>Files on the Reticulum network, by content ID.</p>" in page
       and "<details class='readme'>" in page and "## Installing" in page)
@@ -91,8 +90,8 @@ check("json: apps keep a bare file name", [a["file"] for a in d["apps"]] ==
 names = [(f["section"], f["name"]) for f in d["files"]]
 check("json: files flat, with their section", ("rnfs", "rnfs-install.sh") in names
       and ("", "my-notes.txt") in names and ("rnfs", "README.md") not in names, names)
-check("json: sections", [s["dir"] for s in d["sections"]] == ["flasher", "provisioner", "rnfs", ""]
-      and d["sections"][2]["readme"] and d["sections"][1]["readme"] is None, d["sections"])
+check("json: sections", [s["dir"] for s in d["sections"]] == ["provisioner", "rnfs", ""]
+      and d["sections"][1]["readme"] and d["sections"][0]["readme"] is None, d["sections"])
 
 def get(f):
     s, c, body = req('/tool?f=' + f)
@@ -101,10 +100,9 @@ check("download from a folder", get('rnfs%2Frnfs-install.sh') == ('200', 'newer'
 check("download from a folder, plain slash", get('rnfs/rnfs-install.sh') == ('200', 'newer'))
 check("download a loose file", get('my-notes.txt')[0] == '200')
 put('old-tool.bin', b'loose')
-check("folder path falls back to a loose file", get('flasher/old-tool.bin') == ('200', 'loose'))
+check("folder path falls back to a loose file", get('firefly/old-tool.bin') == ('200', 'loose'))
 open(fserv.SD_MOUNT + '/secret.txt', 'w').write('no')
 for bad in ('..%2Fsecret.txt', 'rnfs%2F..%2F..%2Fsecret.txt', 'a%2Fb%2Fc.txt', '%2Fsecret.txt', '..'):
     s, body = get(bad)
     check("refused: " + bad, s == '404' and body != 'no', (s, body))
-check("flasher page loads the bundle from its folder", "/tool?f=flasher/esptool-bundle.js" in open(sys.argv[1] + '/../../final_firmware/flasher_ui.py').read())
 print("FAILURES", FAIL)

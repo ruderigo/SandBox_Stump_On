@@ -125,8 +125,9 @@ sys.argv.remove('--replace-config')
 calls.clear()
 P.refresh_tool_readmes('/dev/fake')
 rd = [c[-1] for c in calls if 'cp' in c]
-check('READMEs refreshed, every language', ':/sd/tools/flasher/README.fr.md' in rd and ':/sd/tools/flasher/README.es.md' in rd
-      and ':/sd/tools/rnfs/README.fr.md' in rd and ':/sd/tools/flasher/README.md' in rd, rd)
+check('READMEs refreshed for a section the Provisioner has (rnfs), the retired flasher skipped',
+      ':/sd/tools/rnfs/README.fr.md' in rd and ':/sd/tools/rnfs/README.md' in rd
+      and not any('/flasher/' in d for d in rd), rd)
 check('no README for a section not on the card', not any('/provisioner/' in d or '/firefly/' in d for d in rd), rd)
 # Stump on a computer: the config.py block (docs/PC.md)
 b = P._pc_config_block({"pc_hotspot_name": "Apt 3B", "pc_heltec": "usb", "pc_heltec_port": "COM5",

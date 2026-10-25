@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.0-beta.41
+- **The on-device browser flasher (HF-001) is retired**, replaced by Arborist. It served `/flash` over the Stump's plain-HTTP Wi-Fi, where Web Serial can't run (it needs a secure context), so it could never actually flash a board there; Arborist -- a page saved on the computer and opened from `file://` -- does. Removed: `flasher_ui.py`, the `/flash` and `/fw` routes and the Flash nav tile, and the flasher payload the Provisioner pushed to each card (`catalog.json`, `serial-check.html`, the board copy of `esptool-bundle.js` and its licence, the section READMEs) -- about 256 KB off every SD card. `esptool-bundle.js` stays in the repo as a build input for Arborist (`scripts/build_arborist.py`). `final_firmware/docs/ARBORIST.md`.
+- Tests updated: `tools_sections`, `provisioner`, `pc_chain` no longer expect a flasher section.
+
 ## 1.0.0-beta.40
 - **Arborist sets both passwords, independently** (parity with the Provisioner): the **admin** password (`AUTH_ADMIN_PASSWORD`, unlocks `/admin`) and the **BarKeep operator** password (`FSERVBOT_OP_PASSWORD`, lets an operator edit BarKeep's replies from chat). Before, Arborist had one field and copied it into both. Each is its own field now; blank means "leave it", and `/admin` falls back to BarKeep's password when the admin one is blank, exactly as the firmware does (`barkeep.py`). A new Stump must have at least one of the two set. `final_firmware/docs/ARBORIST.md`.
 - Tests: `arborist` -- both passwords set apart, read back, and changed on their own, on a real MicroPython board and through the page.

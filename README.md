@@ -340,7 +340,6 @@ final_firmware/              the CAM's firmware (core files hashed in provisione
 ├── billboard.py                 bulletin board storage + rendering
 ├── fserv.py                      file storage, streaming I/O, credit economy, home branding
 ├── captive_portal.py              AP bring-up + DNS redirect
-├── flasher_ui.py                   browser-based board flasher (WebSerial)
 ├── lora_boards.py                   LoRa pinout presets (native SPI radio boards)
 ├── fservbot/                         PLUGIN — channel bot
 ├── stumpid/                           PLUGIN — identity verification + room + mesh access
@@ -420,7 +419,7 @@ by default.
 
 ```
 example_node → captive_portal, barkeep, fserv, billboard, rrc_mesh, node_common, config
-barkeep      → billboard, fserv, rrc, rrc_ui, flasher_ui, i18n
+barkeep      → billboard, fserv, rrc, rrc_ui, i18n
 rrc_mesh     → rrc, stumpid.core (soft -- see below)
 stumpid.core → rrc, i18n
 rrc_ui       → rrc, i18n
@@ -532,7 +531,7 @@ from `/tools`:
   node was set up with), this README as `Stump-README.md`, `LICENSE`,
   and `Stump-<release>.zip` (`Stump-1.0.0-beta.35.zip`), the firmware built fresh from the technician's
   own `final_firmware/`;
-- **`flasher/`** — the browser flasher's assets (hidden feature HF-001).
+- **`flasher/`** — `esptool-bundle.js` + its licence, build inputs for Arborist (`scripts/build_arborist.py`); no longer shipped to the board (HF-001 retired, beta.41).
   It holds no firmware images: staging a GPL-3.0 RNode image there would
   make the node *convey* it, which needs its source offered alongside
   (see `tools_payload/images/README.txt`);
@@ -1278,7 +1277,7 @@ See `LICENSE` for this build's own terms and the full third-party list.
 Features the code has but the pages don't link, with what each would
 need, in `docs/HIDDEN_FEATURES.md`:
 
-- **`HF-001`** — the browser-based WebSerial flasher (`/flash`, `/fw`):
+- **`HF-001`** — the on-device WebSerial flasher (`/flash`, `/fw`): **retired in beta.41**, replaced by Arborist (`docs/ARBORIST.md`). Historical:
   still works by URL; to be brought back, linked from `/tools` (roadmap,
   step 4).
 - **`HF-002`** — the "awaiting-slot" upload: **removed** in

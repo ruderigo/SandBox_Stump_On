@@ -323,7 +323,7 @@ DEFAULT_CREDIT_WEIGHTS = {"video": 3, "music": 2, "document": 1, "other": 1}
 EXPECTED_FILE_HASHES = {
     "_sd_web/billboard.txt": "e3b0c44298fc1c14",
     "admin_web.py": "c2495adcb9696646",
-    "barkeep.py": "c8f43366eb7feb82",
+    "barkeep.py": "6490366e67dedb11",
     "billboard.py": "73e95795f9430ea5",
     "boot_common.py": "dc95827c3989d1ca",
     "captive_portal.py": "35cb3a279ecc42db",
@@ -334,22 +334,21 @@ EXPECTED_FILE_HASHES = {
     "docs/ARBORIST.md": "896b3ecc7121e49e",
     "docs/CHAIN.md": "9bf301ed3c4c0401",
     "docs/CLIENT_QUICKSTART.md": "9efb39165ce0b583",
-    "docs/COMMANDS.md": "375b9c4112411919",
-    "docs/ENGINEERING_NOTES.md": "0818b93764d68cf0",
+    "docs/COMMANDS.md": "bc919492171ca1c6",
+    "docs/ENGINEERING_NOTES.md": "72f7d19d7c5f03a4",
     "docs/FIELD_TEST.md": "0cd367b92d89f230",
-    "docs/HIDDEN_FEATURES.md": "2529e887b65ee598",
+    "docs/HIDDEN_FEATURES.md": "568bc132ab83a91b",
     "docs/HOME_BRANDING.md": "e1a1a9cf854dcdce",
     "docs/HTTPS_SETUP.md": "12cbbf2de7c38810",
     "docs/PACKS.md": "2e89e3c28d80d72d",
     "docs/PC.md": "20d30bf55e5957d2",
     "docs/PLUGINS.md": "3f5b4a5ee6844305",
-    "example_node.py": "0e0d8c57f0b738bc",
+    "example_node.py": "9bab921dbd759d88",
     "features.py": "81e8af361c64a911",
-    "flasher_ui.py": "1d3035b1132bc87e",
-    "fserv.py": "875e3892212ae541",
+    "fserv.py": "14d07285fb7518d6",
     "fservbot/plugin.json": "9442390694ac9bfd",
     "guard.py": "526fac7536abfe7f",
-    "i18n.py": "c8acad8fc3ede01b",
+    "i18n.py": "9954fc9d193ec16e",
     "keepalive.py": "b63eb6e7bb5c57cc",
     "layout.py": "e91796a128fff08f",
     "lib/bz2_fast_xtensawin.mpy": "ac55d9eda2126432",
@@ -499,13 +498,9 @@ EXPECTED_FILE_HASHES = {
     "tools_payload/apps/README.es.md": "26ec9046d7c4447a",
     "tools_payload/apps/README.fr.md": "afdbb2570e4cb770",
     "tools_payload/apps/README.md": "2e0f5a7aa18abdaf",
-    "tools_payload/flasher/README.es.md": "51131571a4aead12",
-    "tools_payload/flasher/README.fr.md": "3783d700c0d5a21f",
-    "tools_payload/flasher/README.md": "b5d9f0f3808bf523",
-    "tools_payload/flasher/catalog.json": "8dc38061d6bf49a3",
+    "tools_payload/flasher/README.md": "2c4d04f9fa3e4c39",
     "tools_payload/flasher/esptool-bundle.js": "ef7d5a237d3f273e",
     "tools_payload/flasher/esptool-js-LICENSE.txt": "1c25f29242785d63",
-    "tools_payload/flasher/serial-check.html": "bba1fafe356b9186",
     "tools_payload/images/README.txt": "10dbf1ed3e3eee26",
     "tools_payload/provisioner/README.es.md": "03d3bed76015cfa5",
     "tools_payload/provisioner/README.fr.md": "495780b8eb5ecc25",
@@ -3318,7 +3313,7 @@ def _tool_readmes(here):
     section this Provisioner knows: the built-in ones and each pack's."""
     out = []
     payload = here / "final_firmware" / "tools_payload"
-    for src, sec in (("provisioner", "provisioner"), ("flasher", "flasher"), ("apps", "firefly")):
+    for src, sec in (("provisioner", "provisioner"), ("apps", "firefly")):
         out += [(rd, sec) for rd in sorted((payload / src).glob("README*.md"))]
     for pack in discover_packs():
         tools = pack["dir"] / "tools"
@@ -3406,8 +3401,7 @@ def _install_tools_on_node(port):
     # own README.md. Mounting the card also moves tools left loose by
     # older Provisioners into their folders (fserv.migrate_tools), so
     # they're found in place below rather than copied again.
-    for d in (":/sd/tools", ":/sd/fw", ":/sd/tools/provisioner", ":/sd/tools/flasher",
-              ":/sd/tools/firefly"):
+    for d in (":/sd/tools", ":/sd/fw", ":/sd/tools/provisioner", ":/sd/tools/firefly"):
         run(["mpremote", "connect", port, "exec", MOUNT, "fs", "mkdir", d], timeout=25)
 
     installed, failed, by_card = [], [], []
@@ -3512,13 +3506,9 @@ def _install_tools_on_node(port):
         # Each section's README.md (what the Tools page shows about it).
         # Each in English (README.md) and, when there is one, the visitor's
         # language (README.fr.md, README.es.md).
-        for src, sec in (("provisioner", "provisioner"), ("flasher", "flasher"), ("apps", "firefly")):
+        for src, sec in (("provisioner", "provisioner"), ("apps", "firefly")):
             for rd in sorted((payload / src).glob("README*.md")):
                 push(rd, ":/sd/tools/%s/%s" % (sec, rd.name), sec + "/" + rd.name)
-        fl = payload / "flasher"
-        push(fl / "esptool-bundle.js", ":/sd/tools/flasher/esptool-bundle.js", "esptool-bundle.js")
-        push(fl / "esptool-js-LICENSE.txt", ":/sd/tools/flasher/esptool-js-LICENSE.txt", "licence")
-        push(fl / "catalog.json", ":/sd/fw/catalog.json", "catalog.json")
         img_dir = payload / "images"
         if img_dir.is_dir():
             for img in sorted(img_dir.glob("*.bin")):
@@ -3541,7 +3531,7 @@ def _install_tools_on_node(port):
                 push(app, ":/sd/tools/firefly/" + app.name, app.name)
     else:
         print("  (no tools_payload folder found next to the firmware --")
-        print("   the browser flasher won't be available on this node)")
+        print("   the FireFly apps and tool READMEs won't be installed on this node)")
     # Home-page branding (docs/HOME_BRANDING.md): a "home" folder next to
     # this provisioner goes to home/ on the card, like the tools. The node
     # creates that folder on the card when it mounts it (fserv.mount_sd).
@@ -3563,15 +3553,6 @@ def _install_tools_on_node(port):
     if installed:
         print("  Installed: " + ", ".join(installed))
         print("  Tools at   http://<node>/tools")
-        # Only claimed if the flasher's own assets are actually among
-        # what got installed -- this used to print unconditionally
-        # whenever ANYTHING installed, including a run where
-        # esptool-bundle.js never made it on at all (no tools_payload
-        # folder found, printed and confirmed directly above this very
-        # line). Telling someone the flasher is ready right next to a
-        # warning that it isn't was a real, self-contradicting bug.
-        if "esptool-bundle.js" in installed:
-            print("  Flasher at http://<node>/flash")
     for label, why in failed:
         print("  Could not copy %s: %s" % (label, why))
     if by_card:
@@ -5428,12 +5409,10 @@ def _pc_install_tools(fw, folder):
     payload = fw / "tools_payload"
     for src, dst in ((here / "provisioner.py", "provisioner/provisioner.py"),
                      (here / "README.md", "provisioner/Stump-README.md"),
-                     (here / "LICENSE", "provisioner/LICENSE"),
-                     (payload / "flasher" / "esptool-bundle.js", "flasher/esptool-bundle.js"),
-                     (payload / "flasher" / "esptool-js-LICENSE.txt", "flasher/esptool-js-LICENSE.txt")):
+                     (here / "LICENSE", "provisioner/LICENSE")):
         if src.is_file():
             _copy_if_changed(src, tools / dst)
-    for src, sec in (("provisioner", "provisioner"), ("flasher", "flasher"), ("apps", "firefly")):
+    for src, sec in (("provisioner", "provisioner"), ("apps", "firefly")):
         for f in sorted((payload / src).glob("*")):
             if f.is_file() and (f.name.startswith("README") or src == "apps"):
                 _copy_if_changed(f, tools / sec / f.name)
@@ -5448,9 +5427,7 @@ def _pc_install_tools(fw, folder):
                     old.unlink()
     except Exception as e:
         print("  (firmware zip for the Tools page skipped: %s)" % e)
-    cat = payload / "flasher" / "catalog.json"
-    if cat.is_file():
-        _copy_if_changed(cat, folder / "sd" / "fw" / "catalog.json")
+    # (the on-device flasher was retired in 1.0.0-beta.41; no catalog.json)
 
 
 def _pc_config_block(profile):
