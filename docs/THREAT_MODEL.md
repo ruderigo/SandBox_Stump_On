@@ -65,6 +65,7 @@ an ESP32-S3 CAM (MicroPython) or on a computer (the same code on Python).
 - **Chain packets aren't signed one by one.** Membership is (the hellos); each Reticulum packet carries its own end-to-end protection (signatures, encryption), but a device spoofing a chain Stump's address can still inject ordinary Reticulum traffic -- what any radio user can send anyway. Reticulum's per-packet access codes (IFAC) would close it at about a hundredfold slowdown on a CAM.
 - **An insider is trusted.** A Stump with the chain secret can push profiles (a nick, a password hash) to the others.
 - **Plugins are trusted code.** MicroPython has no sandbox; install only packs you trust.
+- **Holding the board is game over, by design.** No flash encryption, secure boot or eFuses, and no passphrase at start: they're irreversible on an ESP32-S3, they'd lock out the Provisioner and the Stump Flasher (the way a broken Stump is repaired), and a Stump has to start by itself when it's plugged in. Hardening that needs any of these is out of scope.
 - **What the Stump keeps, it keeps in the clear.** Room lines and DMs are in its memory, profiles and the identity table on its storage; the propagation node stores messages as they arrived (encrypted for their recipients). Holding the board is holding all of it, the admin password included (`config.py`).
 - **Denial of service by radio.** Nobody can stop someone filling the air; the Stump keeps its tables capped and its own airtime limited.
 - **Mixed releases.** A chain with Stumps before 1.0.0-beta.37 doesn't share profiles with newer ones when it has a secret, and their answers to hellos aren't signed (`/admin` says so).
@@ -77,6 +78,7 @@ Please try, and tell us what you find:
 - getting a file outside the shared folders, or writing one;
 - holding the Stump (connections, uploads, password checks) so others can't use it;
 - joining a chain without its secret, or making a Stump believe something about the chain;
-- from a radio: malformed packets, announce floods, forged beacons and LXMF messages.
+- from a radio: malformed packets, announce floods, forged beacons and LXMF messages;
+- the Stump Flasher (`Stump-Flasher-<release>.html`, `final_firmware/docs/FLASHER.md`): what it writes, and whether a page or a board can make it write something else.
 
 Reports: to the person running the project, with the release (`/node.json` → `release`), what you sent and what came back.
