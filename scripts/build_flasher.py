@@ -143,6 +143,8 @@ def micropython(path):
         raise SystemExit("MicroPython image: SHA-256 %s, expected %s" % (h, MICROPYTHON_SHA256))
     if not MICROPYTHON_SHA256:
         print("  MicroPython image SHA-256 %s (not pinned yet: STUMP_MICROPYTHON_SHA256)" % h)
+        if os.environ.get("GITHUB_ACTIONS"):       # shown on the run's page, and readable from the API
+            print("::notice title=MicroPython image SHA-256::%s %d bytes" % (h, len(data)))
     return data, h
 
 
