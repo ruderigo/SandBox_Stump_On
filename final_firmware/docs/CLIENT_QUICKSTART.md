@@ -848,6 +848,7 @@ and has, a map with short keys (it goes over LoRa too):
 | `s` | `[kind, free MB]`: `sd` (a CAM's card), `pc` (a computer's folder), `none` |
 | `pl` | The plugins running (at most 8 names) |
 | `rh` | It has a radio, online or not (since 1.0.0-beta.38; `rad` says whether it's online) |
+| `b` | This boot: a short random id, fixed until the Stump restarts (since 1.0.0-beta.43). A new value for a Stump you've seen means it restarted. |
 
 Treat every field as optional, and its value as untrusted.
 
@@ -884,7 +885,13 @@ RNS.Transport.request_path(beacon)
 
 Beacons go out at boot, every 30 minutes (`STUMP_ANNOUNCE_INTERVAL`)
 and within seconds of a new chain link, so on first sight of a peer,
-asking is faster than waiting. Only CAM
+asking is faster than waiting. Since 1.0.0-beta.43 a Stump also answers
+at once when a peer it knows restarts (its `b` changed) or beacons for
+the first time since this Stump started -- so after a restart (a reboot,
+install or update) a Stump re-lists the others (`/stumps.json`,
+`/chain.json` `stumps`) and re-names them in `#wifi-mesh` within seconds,
+not at the next half-hourly beacon and 2-minute announce. A client needs
+no change for this; it only makes the lists fill in faster. Only CAM
 nodes beacon: a standalone Heltec transport runs different firmware and
 has no chat of its own.
 
