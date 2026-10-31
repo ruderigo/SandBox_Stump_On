@@ -217,5 +217,6 @@ check("radio up again soon: not again (airtime)", not chain.radio_up(1100) and n
 check("radio up 10 min later: again", chain.radio_up(1000 + chain.RADIO_UP_EVERY) and chain.take_link_event())
 check("a new Stump heard: answer it", chain.stump_heard(5000) and chain.take_link_event())
 check("another within a minute: once is enough", not chain.stump_heard(5030) and not chain.take_link_event())
+check("... but owed: answered once the minute is up, once", not chain.take_owed(5040) and chain.take_owed(5060) and not chain.take_owed(5070))
 print("FAILURES", FAIL)
 sys.exit(1 if FAIL else 0)

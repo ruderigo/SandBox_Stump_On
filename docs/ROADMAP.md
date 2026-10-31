@@ -58,6 +58,9 @@ NomadNet over the chain).
 - [x] Mixed chains: a computer first and a CAM below (pc_chain), a CAM
       first and a computer below (pc_joins_cam), a Stump in the middle
       (pc_three_stumps, a computer with two networks)
+- [x] Recovery when an end Stump restarts: it lists and names the others
+      at once (beta.43; R36MAX team's change -- caps "b" per boot, answer a
+      first/restart beacon, owed answers queued). Bench pending on a CAM.
 - [ ] On the bench: a CAM in the middle of a real chain
 - [x] The path matrix across 1, 2 and 3 Stumps: DM to DM, room to room,
       client to Stump, visitors, and the paths that must not exist

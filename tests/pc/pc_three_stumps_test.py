@@ -8,7 +8,8 @@
 # names listed once, nothing echoed or doubled -- and the paths that must
 # not exist (a DM seen by anyone else, #main crossing). Then the chain
 # under stress: the middle Stump restarts (the ends find each other again,
-# and nothing said before arrives twice), and a Stump joins with the wrong
+# and nothing said before arrives twice), an end Stump restarts (it lists
+# and names the others again at once), and a Stump joins with the wrong
 # secret (refused, and the Stump above says so) then the right one.
 # Also what each Stump knows of the others (/chain.json "stumps": name,
 # release, chain protocol). Linux only. Run: python3 tests/pc/pc_three_stumps_test.py
@@ -228,6 +229,23 @@ try:
     again = {n: (count(n, "wifi-mesh", "from alpha"), count(n, "wifi-mesh", "from charlie"),
                  count(n, "wifi-mesh", "after the restart")) for n in ("Alpha", "Charlie")}
     check("... nothing said before arrives twice", all(v == (1, 1, 1) for v in again.values()), again)
+
+    # ── 7b. An end Stump restarts ────────────────────────────────────
+    # It forgot the others, while they all still know it. Back on the
+    # chain it lists them again (/chain.json "stumps", from their beacons)
+    # and names them in #wifi-mesh within moments -- not at their next
+    # half-hourly beacon and 2-minute announce. (A handheld Stump, the
+    # R36MAX, restarts often.)
+    stop("Charlie")
+    time.sleep(5)
+    start("Charlie")
+    relinked = wait(lambda: "127.0.9.2" in json.dumps(chain_json("Bravo")["below"]), 90)
+    knows = wait(lambda: {s.get("name") for s in chain_json("Charlie").get("stumps", [])} >= {"Alpha", "Bravo"}, 45)
+    check("an end Stump restarts: within 45 s it lists the other Stumps again", relinked and knows,
+          chain_json("Charlie").get("stumps"))
+    say("Charlie", "/join wifi-mesh")
+    named = wait(lambda: {"Alpha", "Bravo"} <= set(poll("Charlie", "wifi-mesh").get("stumps") or []), 45)
+    check("... and names them in #wifi-mesh (no mesh-xxxx)", named, poll("Charlie", "wifi-mesh").get("stumps"))
 
     # ── 8. The wrong secret, then the right one ──────────────────────
     stop("Charlie")
