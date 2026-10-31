@@ -149,7 +149,8 @@ shows the address as `lan_ip`.
   Stumps know them. (Before 1.0.0-beta.35 only who had spoken was.)
 - **What each Stump is.** Its beacon says its release, the chain
   protocol it speaks, its access mode, whether its radio is online, its
-  storage and its plugins. `/chain.json` → `stumps` lists them, and
+  storage, its plugins and this boot (`b`, since 1.0.0-beta.43: a new
+  value means it restarted). `/chain.json` → `stumps` lists them, and
   `/admin` → Stump chain shows each Stump's release, and says when one
   speaks an older protocol ("update it") or a newer one ("update this
   one"). A Stump keeps working with older and newer ones; what an older
