@@ -71,7 +71,7 @@ def link_event():
 # than these, to spare the airtime.
 RADIO_UP_EVERY = 600
 NEW_STUMP_EVERY = 60
-_intro = {"radio": -10 ** 9, "stump": -10 ** 9}
+_intro = {"radio": -10 ** 9, "stump": -10 ** 9, "owed": None}
 
 
 def radio_up(now=None):
@@ -91,7 +91,25 @@ def stump_heard(now=None):
     now = time.time() if now is None else now
     if now - _intro["stump"] >= NEW_STUMP_EVERY:
         _intro["stump"] = now
+        _intro["owed"] = None
         link_event()
+        return True
+    # Too soon after the last answer: owed, and given when the minute is up
+    # (take_owed). Dropped, a Stump that restarted just then -- another
+    # Stump's restart had just been answered -- waited for the half-hourly
+    # beacon to learn this one.
+    _intro["owed"] = _intro["stump"] + NEW_STUMP_EVERY
+    return False
+
+
+def take_owed(now=None):
+    """An answer stump_heard() put off: True once its minute is up
+    (example_node's beacon_loop then introduces this Stump)."""
+    now = time.time() if now is None else now
+    due = _intro["owed"]
+    if due is not None and now >= due:
+        _intro["owed"] = None
+        _intro["stump"] = now
         return True
     return False
 

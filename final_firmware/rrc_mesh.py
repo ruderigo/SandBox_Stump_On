@@ -664,19 +664,27 @@ def _note_stump_beacon(router, app_data, packet):
                 print("[rrc_mesh] a Stump beacon naming an address not its own (%s): ignored"
                       % lxmf_hash.hex()[:8])
             return True
+        answer = False
         if len(fields) > 4:
             try:
                 import discovery
-                discovery.heard(lxmf_hash.hex(), str(fields[2]), fields[4], fields[5] if len(fields) > 5 else None)
+                c = fields[5] if len(fields) > 5 else None
+                # Its first beacon since this Stump started, or the first of
+                # a new boot of its own ("b": it restarted, and forgot this
+                # Stump while this one still knew it): answer, as a new Stump
+                # is answered. Knowing it as a Stump from the chat alone
+                # (rrc.is_stump) isn't enough: it may not know this one.
+                answer = lxmf_hash.hex() not in discovery._known or discovery.restarted(lxmf_hash.hex(), c)
+                discovery.heard(lxmf_hash.hex(), str(fields[2]), fields[4], c)
             except Exception:
                 pass
         own = router.delivery_destination
         if own is None or lxmf_hash != bytes(own.hash):
             h = lxmf_hash.hex()
-            if not rrc.is_stump(h):
-                # A Stump new to this one: answer with this one's beacon,
-                # so it learns this Stump too (over the radio alone there's
-                # no chain link to do it).
+            if answer or not rrc.is_stump(h):
+                # A Stump new to this one (or new again, above): answer with
+                # this one's beacon, so it learns this Stump too (over the
+                # radio alone there's no chain link to do it).
                 try:
                     import chain
                     chain.stump_heard()

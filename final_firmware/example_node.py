@@ -34,7 +34,7 @@ except ImportError:
 STUMP_VERSION = "Beta A"
 # The exact release (a git tag "v" + this, built and signed by
 # .github/workflows/release.yml, which refuses a tag that doesn't match).
-STUMP_RELEASE = "1.0.0-beta.42"
+STUMP_RELEASE = "1.0.0-beta.43"
 
 # Node-type beacon: a second destination on this node's own identity,
 # aspect "stump.node", so clients can tell a Stump from a person without
@@ -541,7 +541,7 @@ def main():
                 waited += 5
                 try:
                     import chain as _chain
-                    if _chain.take_link_event():
+                    if _chain.take_link_event() or _chain.take_owed():
                         await asyncio.sleep(3)
                         try:
                             router.announce()

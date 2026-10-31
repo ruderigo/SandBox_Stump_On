@@ -282,6 +282,7 @@ def caps():
         out["pl"] = [n for n in plugins._order if plugins._active(n)][:8]
     except Exception:
         out["pl"] = []
+    out["b"] = BOOT                       # this boot (since 1.0.0-beta.43)
     return out
 
 
@@ -299,6 +300,26 @@ def beacon_data(version, node_name, lxmf_hash):
     except Exception:
         c = {}
     return umsgpack.packb(["stump", version, node_name, bytes(lxmf_hash), http, c])
+
+
+# This boot, in the beacon ("b"): a Stump that hears another's change knows
+# that one restarted -- and forgot everyone -- so it introduces itself again,
+# as to a Stump it never met (rrc_mesh). Random, so a CAM with its clock not
+# set yet has one too.
+try:
+    import os as _os
+    BOOT = "".join("%02x" % b for b in _os.urandom(3))
+except Exception:
+    BOOT = "%06x" % (int(time.time() * 1000) & 0xFFFFFF)
+
+
+def restarted(lxmf_hex, c):
+    """True when a Stump heard before now beacons another boot."""
+    old = _known.get(lxmf_hex)
+    if not old or not isinstance(c, dict) or not c.get("b"):
+        return False
+    before = (old.get("caps") or {}).get("b")
+    return bool(before) and before != c.get("b")
 
 
 # Other Stumps, from their beacons: LXMF hex -> {"name", "http", "at", "caps"}.
