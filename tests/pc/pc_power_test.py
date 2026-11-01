@@ -152,13 +152,19 @@ while time.time() - t0 < 90 and not back:
         back = get("/node.json")[0] == 200
     except Exception:
         time.sleep(1)
-check("run by hand, updated: it starts itself again and answers", up and back and hand.poll() is None
-      and any("this folder was updated" in l for l in out) and sum("on a computer:" in l for l in out) == 2,
+# (Windows has no exec: the new Stump is a new process, the old one ends.)
+new = hb_pid()
+check("run by hand, updated: it starts itself again and answers", up and back
+      and any("this folder was updated" in l for l in out)
+      and ((hand.poll() is None and sum("on a computer:" in l for l in out) == 2) if os.name != "nt"
+           else hand.poll() in (None, 0) and new is not None),
       (up, back, hand.poll(), "".join(out)[-2000:]))
 hand.terminate()
 try:
     hand.wait(timeout=20)
 except subprocess.TimeoutExpired:
     hand.kill()
+if os.name == "nt" and new:
+    subprocess.run(["taskkill", "/F", "/PID", new], capture_output=True)
 print("FAILURES", FAIL)
 sys.exit(1 if FAIL else 0)
