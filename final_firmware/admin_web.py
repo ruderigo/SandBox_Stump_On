@@ -622,11 +622,26 @@ def _render_admin_setup_section(lang, pw, notice=""):
                                               used=B._human_size(st["used"]), free=B._human_size(st["disk_free"]),
                                               pct=int(fserv.MAX_SD_RATIO * 100)) + "</small></p>"
                  "</details>")
+    comp = ""
+    aw = S.awake()
+    if aw is not None:
+        # This computer: kept awake while the Stump runs (caffeinate, ...).
+        state = ("admin_setup_awake_on" if aw["how"] else "admin_setup_awake_failed" if aw["on"]
+                 else "admin_setup_awake_off")
+        comp = ("<details class='inner'><summary>" + T("admin_setup_computer") + " <span class='pk'>"
+                + T(state) + "</span></summary>"
+                "<input type='hidden' name='computer' value='1'>"
+                "<label class='opt'><input type='checkbox' name='keep_awake' value='1'"
+                + (" checked" if aw["on"] else "") + (" disabled" if not aw["possible"] and not aw["on"] else "")
+                + "> " + T("admin_setup_keep_awake") + "</label>"
+                "<p class='sub'><small>" + T("admin_setup_keep_awake_note")
+                + ("" if aw["possible"] else " " + T("admin_setup_awake_none")) + "</small></p>"
+                "</details>")
     return ("<h2 class='sub'>" + T("admin_setup_header") + "</h2>" + notice
             + "<p class='sub'>" + T("admin_setup_intro") + "</p>"
             "<form method='POST' action='/admin/setup' class='post-form setup' autocomplete='off'>"
             "<input type='hidden' name='admin_pass' value='" + esc(pw) + "'>"
-            + names + files + store + access + feats
+            + names + files + store + comp + access + feats
             + "<button type='submit'>" + T("admin_setup_save") + "</button></form>"
             "<script>(function(){var w=document.getElementById('setupw');function f(){"
             "var c=document.querySelector(\"input[name=economy]:checked\");var on=c&&c.value==='custom';"
@@ -1079,7 +1094,7 @@ async def _r_post_admin_setup(reader, writer, method, path, headers, ip, identif
         labels = {"NODE_NAME": "admin_setup_node", "BOT_NAME": "admin_setup_bot",
                   "MESH_GREETING": "admin_setup_names", "FEATURES": "admin_setup_features",
                   "CREDIT_WEIGHTS": "admin_setup_files", "AUTH_MODE": "admin_setup_access",
-                  "PC_STORAGE_MB": "admin_setup_storage"}
+                  "PC_STORAGE_MB": "admin_setup_storage", "PC_KEEP_AWAKE": "admin_setup_computer"}
         what = ", ".join(i18n.t(labels.get(k, k), lang).split(" (")[0] for k in later)
         notice = "<p class='sub'><b>" + billboard._esc(msg or i18n.t("admin_setup_later", lang, what=what)) + "</b></p>"
         names = fserv._list_files() if fserv.sd_ok else []

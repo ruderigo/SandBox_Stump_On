@@ -1,5 +1,6 @@
 # Keeping a computer Stump alive on its own (keepalive.py, stump_pc.py's
-# supervisor), end to end: a Stump that stops responding is restarted
+# supervisor), end to end: the computer sleeping isn't a hang (it runs on);
+# a Stump that stops responding is restarted
 # (its heartbeat goes stale; macOS and Linux: frozen with SIGSTOP), one
 # that keeps failing to start (killed before it's up for long, three
 # times) comes back in a rescue start -- /node.json says "rescue", /admin
@@ -97,6 +98,19 @@ def scenario():
         return
     failed = 0
     if hasattr(signal, "SIGSTOP"):
+        # 0. The computer sleeps (a laptop's lid): the supervisor and the
+        # Stump are both suspended, longer than the watchdog. Waking up is
+        # not a hang: the same Stump goes on, not restarted.
+        os.kill(svc.pid, signal.SIGSTOP)
+        os.kill(pid, signal.SIGSTOP)
+        time.sleep(20)
+        os.kill(pid, signal.SIGCONT)
+        os.kill(svc.pid, signal.SIGCONT)
+        time.sleep(15)
+        log = open(os.path.join(folder, "stump.log"), encoding="utf-8", errors="replace").read()
+        check("the computer slept 20 s (watchdog 6 s): the same Stump runs on, not restarted",
+              running_pid(wait=5) == pid and "stopped responding" not in log, (pid, log[-600:]))
+        check("... the log says the computer was asleep", "the computer was asleep" in log, log[-400:])
         # 1. It stops responding (frozen): the supervisor restarts it.
         os.kill(pid, signal.SIGSTOP)
         t0 = time.time()

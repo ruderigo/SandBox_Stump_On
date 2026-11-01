@@ -125,6 +125,36 @@ check("... the card is that size now", os.statvfs("/sd")[2] <= mb * S.MB)
 for v in ("100", "lots", str(st["max_mb"] + 10 ** 6)):
     check("storage %r refused" % v, S.parse_form(dict(form, storage_mb=v))[1] == "storage_mb")
 check("a form without the storage field (the CAM's) leaves it alone", "PC_STORAGE_MB" not in S.parse_form(form)[0])
+# This computer: kept awake while the Stump runs (PC_KEEP_AWAKE). The real
+# command (caffeinate, systemd-inhibit) swapped for one that just waits
+# for this process, so it runs on any CI machine.
+import subprocess, time
+stump_host._awake_cmd = lambda pid: ([sys.executable, "-c", "import time; time.sleep(600)"], "test-hold")
+html = admin_web._render_admin_setup_section("en", "pw")
+check("the This computer group: the toggle, off, says it may sleep",
+      "name='keep_awake'" in html and "name='computer'" in html and "This computer" in html and "may sleep" in html
+      and "name='keep_awake' value='1' checked" not in html, html[-1500:])
+saved, later = S.apply(S.parse_form(dict(form, computer="1", keep_awake="1"))[0])
+proc = stump_host._awake["proc"]
+check("on: at once, kept in config.py, something holds the computer awake",
+      saved and later == [] and "PC_KEEP_AWAKE = True" in open(path).read() and stump_host.awake_status() == "test-hold"
+      and proc is not None and proc.poll() is None, (later, saved, stump_host._awake))
+html = admin_web._render_admin_setup_section("en", "pw")
+check("... /admin says kept awake, the box ticked", "kept awake" in html and "name='keep_awake' value='1' checked" in html)
+check("a form without the group (the CAM's) leaves it alone", "PC_KEEP_AWAKE" not in S.parse_form(form)[0])
+saved, later = S.apply(S.parse_form(dict(form, computer="1"))[0])
+time.sleep(0.2)
+check("off: the hold ends, kept in config.py", saved and later == [] and "PC_KEEP_AWAKE = False" in open(path).read()
+      and proc.poll() is not None and stump_host.awake_status() is None, (later, stump_host._awake))
+S.apply(S.parse_form(dict(form, computer="1", keep_awake="1"))[0])
+proc = stump_host._awake["proc"]
+proc.kill(); proc.wait()
+html = admin_web._render_admin_setup_section("en", "pw")
+check("the hold killed from outside: /admin says it isn't held", "not held" in html, html[-1200:])
+stump_host._awake_cmd = lambda pid: None
+html = admin_web._render_admin_setup_section("en", "pw")
+check("nothing here can keep it awake: /admin says so", "Nothing on this computer can keep it awake" in html)
+check("... and turning it on holds nothing", stump_host.keep_awake(True) is None and stump_host.awake_status() is None)
 os.remove(path)
 print("FAILURES", FAIL)
 sys.exit(1 if FAIL else 0)
