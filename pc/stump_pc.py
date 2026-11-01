@@ -50,6 +50,8 @@ def main():
     sys.path[:0] = [os.path.join(HERE, "pc_compat"), HERE]
     import stump_host
     stump_host.install(HERE)
+    if stump_host.setting("PC_KEEP_AWAKE", False):          # (/admin, This computer)
+        stump_host.keep_awake(True)
     print("[stump] on a computer: %s, Python %s" % (sys.platform, sys.version.split()[0]))
     print("[stump] folder: " + HERE)
     print("[stump] visitors reach it at http://%s/" % stump_host.hotspot_ip())
@@ -178,6 +180,9 @@ def _mark_watchdog():
         pass
 
 
+SLEPT_S = 10       # the watch loop late by this much: the computer slept
+
+
 def _wait_watched(child, t0, log):
     """child.wait(), but if the Stump's heartbeat (keepalive.py) goes stale
     -- its loop stopped -- it's ended, and "watchdog" returned so it's
@@ -185,11 +190,24 @@ def _wait_watched(child, t0, log):
     import time
     hb = os.path.join(HERE, ".heartbeat")
     limit = _watchdog_s()
+    last, woke = time.time(), 0
     while True:
         try:
             return child.wait(timeout=2)
         except Exception:
             pass
+        # This loop comes round every 2 s. Much longer since the last time
+        # means the whole computer was asleep (a laptop's lid, idle sleep):
+        # the Stump was suspended with it, not hung. It gets a full `limit`
+        # from now to beat again -- a real hang is still caught after that.
+        # (Before 1.0.0-beta.45 each wake-up restarted it as "stopped
+        # responding", and a night of sleeps ended in rescue starts.)
+        now = time.time()
+        if now - last > SLEPT_S:
+            woke = now
+            log.write("[stump] the computer was asleep (%d s): not a hang\n" % (now - last))
+            log.flush()
+        last = now
         if limit <= 0:
             continue
         try:
@@ -198,7 +216,7 @@ def _wait_watched(child, t0, log):
             continue
         if beat < t0:
             continue                 # not started beating yet (or an old file)
-        if time.time() - beat > limit:
+        if now - max(beat, woke) > limit:
             log.write("[stump] it stopped responding (no heartbeat for %d s): restarting it\n" % limit)
             log.flush()
             _mark_watchdog()
