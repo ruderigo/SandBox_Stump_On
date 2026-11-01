@@ -341,9 +341,9 @@ EXPECTED_FILE_HASHES = {
     "docs/HOME_BRANDING.md": "e1a1a9cf854dcdce",
     "docs/HTTPS_SETUP.md": "12cbbf2de7c38810",
     "docs/PACKS.md": "2e89e3c28d80d72d",
-    "docs/PC.md": "11999e3cc6363fd7",
+    "docs/PC.md": "226bba891edcb5a6",
     "docs/PLUGINS.md": "3f5b4a5ee6844305",
-    "example_node.py": "4ccd1278613f97f3",
+    "example_node.py": "010dc6fe843966d3",
     "features.py": "81e8af361c64a911",
     "fserv.py": "14d07285fb7518d6",
     "fservbot/plugin.json": "9442390694ac9bfd",
@@ -5370,6 +5370,17 @@ def _pc_copy_firmware(fw, folder):
     return changed
 
 
+def _pc_mark_updated(folder):
+    """Every file in place: a Stump already running in this folder restarts
+    on the new ones (stump_host.UPDATED_FILE, read at its heartbeat). It
+    used to go on with the old modules in memory and load new ones later:
+    /admin went blank after an update (1.0.0-beta.45)."""
+    try:
+        (Path(folder) / ".updated").write_text("%s %d\n" % (_folder_release(folder) or "?", int(time.time())), encoding="utf-8")
+    except OSError:
+        pass
+
+
 def _pc_install_packs(folder, packs):
     """Packs into a Stump folder: their plugins next to the firmware, their
     tools and home files in its sd/ folder, their themes in themes.json --
@@ -6364,6 +6375,7 @@ def setup_pc(folder=None, reconfigure=False):
         if r.state[r.index] == "now":
             r.end("fail", "fix what's marked, then: python3 provisioner.py --check-chain")
 
+    _pc_mark_updated(folder)
     r.start("Start")
     started = False
     run_cmd = "%s %s" % (_pc_python(folder), folder / "stump_pc.py")

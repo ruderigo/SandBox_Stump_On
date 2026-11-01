@@ -111,6 +111,12 @@ login altogether: `launchctl unload -w ~/Library/LaunchAgents/app.stump.node.pli
 (macOS), `schtasks /Delete /TN Stump /F` (Windows),
 `systemctl --user disable stump` (Linux).
 
+**Updating it** (`python3 provisioner.py --pc` again) while it runs is
+fine: once every new file is in place, the Provisioner touches `.updated`
+in the Stump folder, and the running Stump restarts on the new files
+within a few seconds (since 1.0.0-beta.46; before, it ran on with the old
+ones until the next restart, and `/admin` could show a blank page).
+
 ## The Heltec
 
 **On USB:** keep the Heltec's RNode firmware as it is and plug it in;

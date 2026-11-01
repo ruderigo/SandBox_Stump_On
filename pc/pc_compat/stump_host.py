@@ -85,7 +85,17 @@ def restart():
         sys.stdout.flush()
     except Exception:
         pass
+    if os.environ.get(SUPERVISED) != "1":
+        # Run by hand (python3 stump_pc.py): no supervisor to start it
+        # again, so it starts itself again, the same way.
+        try:
+            os.execv(sys.executable, [sys.executable, "-u", os.path.join(ROOT or ".", "stump_pc.py")])
+        except OSError as e:
+            print("[stump] couldn't start again (%s): start it yourself" % e, flush=True)
     os._exit(RESTART_CODE)
+
+
+SUPERVISED = "STUMP_SUPERVISED"     # set by stump_pc's supervisor for the Stump it runs
 
 
 HEARTBEAT_FILE = ".heartbeat"     # in the Stump folder: touched by the running Stump (keepalive.py)
@@ -93,12 +103,40 @@ HEARTBEAT_FILE = ".heartbeat"     # in the Stump folder: touched by the running 
 
 def heartbeat():
     """The Stump's loop is alive: the supervisor (stump_pc.py --service)
-    restarts it when this file goes stale."""
+    restarts it when this file goes stale. Also where an update is noticed
+    (UPDATED_FILE)."""
     try:
         with open(os.path.join(ROOT or ".", HEARTBEAT_FILE), "w") as f:
             f.write("%d %d\n" % (int(time.time()), os.getpid()))
     except (OSError, TypeError):
         pass
+    if updated():
+        print("[stump] this folder was updated (the Provisioner): restarting on the new files", flush=True)
+        restart()
+
+
+# The Provisioner touches this file when it has updated the folder (after
+# every file is in place). A Stump already running would go on with the
+# old modules in memory and load others, new, later (/admin's on first use:
+# a mix that broke /admin in 1.0.0-beta.45), so it restarts on the new ones.
+UPDATED_FILE = ".updated"
+_upd = {"seen": None}
+
+
+def _updated_mtime():
+    try:
+        return os.stat(os.path.join(ROOT or ".", UPDATED_FILE)).st_mtime
+    except (OSError, TypeError):
+        return 0
+
+
+def updated():
+    """Has the folder been updated since this Stump started?"""
+    m = _updated_mtime()
+    if _upd["seen"] is None:
+        _upd["seen"] = m              # (the first look: what this start runs on)
+        return False
+    return m != _upd["seen"]
 
 
 def setting(name, default):
