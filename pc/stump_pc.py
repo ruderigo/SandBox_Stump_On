@@ -242,7 +242,8 @@ def service():
         child = None
         try:
             child = subprocess.Popen([sys.executable, "-u", os.path.abspath(__file__)],
-                                     cwd=HERE, stdout=log, stderr=subprocess.STDOUT)
+                                     cwd=HERE, stdout=log, stderr=subprocess.STDOUT,
+                                     env=dict(os.environ, STUMP_SUPERVISED="1"))  # (stump_host.restart)
             code = _wait_watched(child, t0, log)
         except KeyboardInterrupt:
             if child is not None and child.poll() is None:

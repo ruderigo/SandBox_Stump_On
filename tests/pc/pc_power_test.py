@@ -81,6 +81,30 @@ if up:
     check("/admin: Turn off this Stump, and how to start it again", "action='/admin/poweroff'" in page
           and "Turn off this Stump" in page and os.path.basename(str(start)) in page
           and "confirm(" in page, page[page.find("poweroff") - 300:][:600])
+    # Updated while it runs (the Provisioner, every file in place): it
+    # restarts on the new files by itself, under its supervisor. It used
+    # to run on with the old modules in memory: /admin went blank.
+    def hb_pid():
+        try:
+            return open(os.path.join(folder, ".heartbeat")).read().split()[1]
+        except Exception:
+            return None
+    before = hb_pid()
+    P._pc_mark_updated(folder)
+    t0 = time.time()
+    while time.time() - t0 < 60 and hb_pid() in (None, before):
+        time.sleep(0.5)
+    back = False
+    while time.time() - t0 < 90 and not back:
+        try:
+            back = get("/node.json")[0] == 200
+        except Exception:
+            time.sleep(1)
+    check("updated while running: restarted on the new files, by itself (supervised)",
+          before and hb_pid() not in (None, before) and back, (before, hb_pid(), back))
+    get("/lang?set=en&next=/")          # (kept in memory: gone with the restart)
+    s, page = admin()
+    check("... /admin opens after it", "action='/admin/poweroff'" in page, page[:300])
     s, page = get("/admin/poweroff", b"")
     check("turning off (from the computer itself): it says so, and how to start it again",
           s == 200 and "turning off" in page and os.path.basename(str(start)) in page, page[:400])
@@ -101,5 +125,46 @@ log = open(os.path.join(folder, "stump.log"), encoding="utf-8", errors="replace"
     if os.path.exists(os.path.join(folder, "stump.log")) else ""
 check("the log says it was turned off, and not started again", "[stump] turned off" in log
       and "[stump] stopped\n" in log and "starting again" not in log, log[-1500:])
+check("the log says why it restarted", "this folder was updated" in log and "restarting (asked for)" in log, log[-2500:])
+
+# Run by hand (python3 stump_pc.py, no supervisor): updated, it starts
+# itself again (the same process, the new files).
+hand = subprocess.Popen([sys.executable, "-u", "stump_pc.py"], cwd=folder,
+                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+out = []
+import threading
+threading.Thread(target=lambda: [out.append(l) for l in hand.stdout], daemon=True).start()
+t0 = time.time()
+up = False
+while time.time() - t0 < 90 and not up:
+    try:
+        up = get("/node.json")[0] == 200 and os.path.exists(os.path.join(folder, ".heartbeat"))
+    except Exception:
+        time.sleep(1)
+time.sleep(6)                       # (a heartbeat or two: what it started on, seen)
+P._pc_mark_updated(folder)
+t0 = time.time()
+while time.time() - t0 < 60 and sum("on a computer:" in l for l in out) < 2:
+    time.sleep(0.5)
+back = False
+while time.time() - t0 < 90 and not back:
+    try:
+        back = get("/node.json")[0] == 200
+    except Exception:
+        time.sleep(1)
+# (Windows has no exec: the new Stump is a new process, the old one ends.)
+new = hb_pid()
+check("run by hand, updated: it starts itself again and answers", up and back
+      and any("this folder was updated" in l for l in out)
+      and ((hand.poll() is None and sum("on a computer:" in l for l in out) == 2) if os.name != "nt"
+           else hand.poll() in (None, 0) and new is not None),
+      (up, back, hand.poll(), "".join(out)[-2000:]))
+hand.terminate()
+try:
+    hand.wait(timeout=20)
+except subprocess.TimeoutExpired:
+    hand.kill()
+if os.name == "nt" and new:
+    subprocess.run(["taskkill", "/F", "/PID", new], capture_output=True)
 print("FAILURES", FAIL)
 sys.exit(1 if FAIL else 0)
