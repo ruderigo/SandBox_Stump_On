@@ -349,7 +349,7 @@ EXPECTED_FILE_HASHES = {
     "fservbot/plugin.json": "9442390694ac9bfd",
     "guard.py": "526fac7536abfe7f",
     "i18n.py": "9954fc9d193ec16e",
-    "keepalive.py": "b63eb6e7bb5c57cc",
+    "keepalive.py": "1c7c55ecb362d569",
     "layout.py": "e91796a128fff08f",
     "lib/bz2_fast_xtensawin.mpy": "ac55d9eda2126432",
     "lib/ed25519_fast_xtensawin.mpy": "96e74dac45f91687",

@@ -70,6 +70,28 @@ for _ in range(2 * W.RESCUE_AFTER + 1):     # (the first ends the stable run)
     W.begin()
 check("six failed starts (the rescue ones too): a rest, then a normal start", W._st["mode"] == "normal"
       and W.status()["failed_starts"] == 0, W.status())
+# Stopped during that rest (the Stop button, the Provisioner): not one more
+# failed start -- the next start is a normal one, with no second rest.
+W._save({"running": True, "stable": False, "planned": False, "short": 2 * W.RESCUE_AFTER - 1,
+         "mode": "rescue", "crash": None, "last": "a hang", "at": 0})
+rests = []
+
+
+def _stopped(s):
+    rests.append(s)
+    raise KeyboardInterrupt
+
+
+W._rest = _stopped
+try:
+    W.begin()
+except KeyboardInterrupt:
+    pass
+check("... the rest begins (six failed starts)", rests == [W.RESCUE_WAIT_S], rests)
+W._rest = lambda s: rests.append(s)
+mode = W.begin()
+check("stopped during the rest: the next start is normal, no second rest",
+      mode == "normal" and W.status()["failed_starts"] == 0 and rests == [W.RESCUE_WAIT_S], (mode, W.status(), rests))
 # The computer's supervisor restarted a Stump that stopped responding.
 d = W._load()
 d.update(wd=True)
