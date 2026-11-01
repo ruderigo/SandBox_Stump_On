@@ -161,6 +161,14 @@ own_lxmf = Destination.hash(me, "lxmf", "delivery")
 victim_lxmf = Destination.hash(victim, "lxmf", "delivery")
 rrc_mesh._note_stump_beacon(R(), umsgpack.packb(["stump", "Beta A", "Real", own_lxmf, []]), Pkt(pub))
 check("a beacon naming its own LXMF address: a Stump", rrc.is_stump(own_lxmf.hex()))
+
+# A Stump's name resolves from its beacon (discovery._known), without
+# waiting for its LXMF announce (router.peers) -- the mesh-xxxx window.
+class RP:
+    delivery_destination = None
+    peers = {}
+check("a Stump's name comes from its beacon, not only its LXMF announce",
+      rrc_mesh._known_name(RP(), own_lxmf.hex()) == "Real")
 rrc_mesh._note_stump_beacon(R(), umsgpack.packb(["stump", "Beta A", "Fake", victim_lxmf, []]), Pkt(pub))
 check("a beacon naming someone else's address: ignored (they stay a person)", not rrc.is_stump(victim_lxmf.hex()))
 
