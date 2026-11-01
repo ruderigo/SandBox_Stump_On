@@ -250,9 +250,23 @@ def _take_in_chain_stumps(router):
 def _known_name(router, h):
     try:
         entry = router.peers.get(bytes.fromhex(h))
-        return entry.get("name") if entry else None
+        if entry and entry.get("name"):
+            return entry.get("name")
     except Exception:
-        return None
+        pass
+    # Its LXMF announce (router.peers) hasn't arrived yet -- it's a
+    # separate, crypto-heavy broadcast on its own ~2-minute cycle. The
+    # Stump's beacon carries its name too and comes first, within seconds
+    # of a restart (beta.43's early re-introduction), so resolve the name
+    # from there rather than sitting on "mesh-xxxx" until the announce.
+    try:
+        import discovery
+        e = discovery._known.get(h)
+        if e and e.get("name"):
+            return e["name"]
+    except Exception:
+        pass
+    return None
 
 
 def _fix_nick(router, h, p):
