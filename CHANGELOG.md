@@ -1,7 +1,7 @@
 # Changelog
 
 ## 1.0.0-beta.50
-- **Everything points to this repository.** Stump is developed and released here (SandBox_Stump_On) from now on; LaBuche-Stump keeps the earlier releases (up to 1.0.0-beta.47) and no longer changes. Changed: the About page's link tile (*Project Stump*, to this repository, on every Stump), the Arborist section's README on the Tools page (where to find the release files, in three languages), the README's intro, `CLIENT_QUICKSTART.md`, `COMMANDS.md` and `PACKS.md`.
+- **Everything points to this repository.** Stump is developed and released here (SandBox_Stump_On) from now on; LaBuche-Stump keeps the earlier releases (up to 1.0.0-beta.48) and no longer changes. Changed: the About page's link tile (*Project Stump*, to this repository, on every Stump), the Arborist section's README on the Tools page (where to find the release files, in three languages), the README's intro, `CLIENT_QUICKSTART.md`, `COMMANDS.md` and `PACKS.md`.
 
 ## 1.0.0-beta.49
 - **Arborist's SD card section**: the Stump's card through its USB, each part saying how long it takes (about 1 KB a second).
