@@ -5,7 +5,8 @@ release it came in). Sizes compare to one of the four hardening
 milestones of October (conn.py, keepalive.py, fair uploads, password
 checks): **L** is about one of them, **M** about half.
 
-Smaller things noticed along the way go in [TODO.md](TODO.md).
+Smaller things noticed along the way go in [TODO.md](TODO.md). What
+only real hardware can check, sorted easiest first: [BENCH.md](BENCH.md).
 
 ## 1. Cleanup review (M)
 
@@ -103,19 +104,22 @@ Done in 1.0.0-beta.37.
   - [x] One page for the Provisioner's board jobs too: Settings (read,
         change, save -- by the firmware's settings.py, as /admin; a
         copy kept, one put back) and Check (restart, listen, sum up)
-  - [ ] The SD card: Tools, packs, wipe (slow over USB: say so)
+  - [x] The SD card: status, packs, the Tools page, wipe (slow over USB:
+        each part says how long) (beta.49)
+  - [ ] On the bench: the SD card section on a CAM (BENCH.md, 1 and 2)
   - [x] On the bench: a Stump updated with it (1.0.0-beta.38, 2026-10-25)
   - [x] On the bench: Settings read from a Stump (2026-10-25)
-  - [ ] On the bench: a new Stump made with it; Settings changed and
-        saved; Check
+  - [x] On the bench: a new Stump made with it (beta.39, Chrome on macOS)
+  - [ ] On the bench: Settings changed and saved; Check (BENCH.md, 1)
   - [ ] Windows: serial-check.html, then Arborist
   - [x] MicroPython's SHA-256 pinned in build_arborist.py (as micropython.org served it to CI)
   - [x] Radio settings (freq/bw/SF/CR/TX power) via the firmware's
         radio.save, when a Heltec is enabled (beta.42); the Heltec's own
         rnodeconf provisioning stays with the Provisioner (GPL-3)
   - [ ] On the bench: Arborist sets the radio on a CAM with a Heltec
-  - [ ] Offered from the Stump: the Tools page (/sd/tools/arborist/),
-        for a visitor's laptop to download and open
+  - [x] Offered from the Stump: the Tools page (/sd/tools/arborist/),
+        for a visitor's laptop to download and open (beta.49; on a CAM
+        by card reader: too big for USB)
 - [ ] More boards (M each): one Provisioner profile per board (flash,
       PSRAM, radio, SD pins)
 - [ ] For the RK3326 Provisioner (the handheld that makes Stumps from a

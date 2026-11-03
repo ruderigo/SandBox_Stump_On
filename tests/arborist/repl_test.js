@@ -223,6 +223,106 @@ async function scenario(name, extra, chunk) {
     } finally { repl.stop(); }
   }
 
+  // -- the SD card: status, wipe, a pack, the Tools page ------------------------
+  {
+    const root = path.join(SCRATCH, "card");
+    fs.rmSync(root, { recursive: true, force: true });
+    const card = path.join(root, "card");                       // the card, inside the board's folder
+    for (const d of ["shared/sub", "tools/provisioner", "home"]) fs.mkdirSync(path.join(card, d), { recursive: true });
+    fs.writeFileSync(path.join(card, "shared/a.txt"), "x".repeat(100));
+    fs.writeFileSync(path.join(card, "shared/sub/b.txt"), "y".repeat(30));
+    fs.writeFileSync(path.join(card, "tools/provisioner/Stump-1.0.0-beta.1.zip"), "old zip");
+    fs.writeFileSync(path.join(card, "fserv_ledger.json"), "{}");
+    R.CARD.root = "card"; R.CARD.mount = "";
+    // Packs made the Provisioner's way (hash_pack), zipped as a release does.
+    const { spawnSync } = require("child_process");
+    const mk = spawnSync("python3", ["-c", `
+import sys, json, zipfile, shutil
+from pathlib import Path
+sys.path.insert(0, ${JSON.stringify(path.join(FW, ".."))})
+import provisioner as P
+out = Path(sys.argv[1])
+def make(name, plugin, tamper=False):
+    d = out / (name + "-pack")
+    shutil.rmtree(d, ignore_errors=True)
+    (d / plugin).mkdir(parents=True)
+    (d / "tools").mkdir()
+    (d / "home").mkdir()
+    (d / plugin / "install.py").write_text("def setup(stump):\\n    pass\\n")
+    (d / plugin / "README.md").write_text("# readme\\n")
+    (d / plugin / "plugin.json").write_text(json.dumps({"plugin": plugin, "title": plugin, "version": "1.0"}))
+    (d / "tools" / "README.md").write_text("# " + name + " tools\\n")
+    (d / "tools" / "thing.bin").write_bytes(bytes(range(256)) * 20)
+    (d / "home" / "banner.txt").write_text("hello")
+    (d / "pack.json").write_text(json.dumps({"name": name, "version": "1.0", "author": "t", "license": "MIT",
+        "plugins": [plugin], "theme": {"name": name, "label": name, "colors": {"--bg": "#000"}}}))
+    P.hash_pack(d)
+    if tamper:
+        (d / "tools" / "thing.bin").write_bytes(b"swapped")
+    z = out / (name + "-pack-1.0.zip")
+    with zipfile.ZipFile(z, "w", zipfile.ZIP_DEFLATED) as zf:
+        for f in sorted(d.rglob("*")):
+            if f.is_file():
+                zf.write(f, d.name + "/" + f.relative_to(d).as_posix())
+make("demo", "demo")
+make("bad", "badplug", tamper=True)
+make("clash", "fservbot")
+with zipfile.ZipFile(out / "climb.zip", "w") as zf:
+    zf.writestr("../evil.txt", "x")
+`, root], { encoding: "utf8" });
+    check("test packs made", mk.status === 0, mk.stderr);
+    const zipOf = (n) => new Uint8Array(fs.readFileSync(path.join(root, n)));
+    const repl = board(root);
+    try {
+      await R.prepare(repl, 8000);
+      const st = await R.cardStatus(repl);
+      check("card status: present, its size, what's in each folder", st.present && st.total > 0 && st.free > 0
+            && JSON.stringify(st.dirs.shared) === "[130,2]" && st.dirs.tools[1] === 1 && st.dirs[""][1] === 1, JSON.stringify(st));
+      const known = { core: ["rrc", "barkeep", "fserv"], builtin: ["fservbot", "stumpid"] };
+      const demo = await R.packFrom(await R.readZip(zipOf("demo-pack-1.0.zip")), known);
+      check("a pack: read and checked, its parts sorted out", demo.plan && demo.plan.plugins.map((f) => f.path).join() === "demo/install.py"
+            && demo.plan.card.map((f) => f.path).sort().join() === "home/banner.txt,tools/demo/README.md,tools/demo/thing.bin"
+            && demo.plan.theme.name === "demo", JSON.stringify(demo.error || demo.plan && demo.plan.card.map((f) => f.path)));
+      const bad = await R.packFrom(await R.readZip(zipOf("bad-pack-1.0.zip")), known);
+      check("a pack with a file changed after it was hashed: refused", bad.error && /changed since/.test(bad.error), JSON.stringify(bad.error));
+      const clash = await R.packFrom(await R.readZip(zipOf("clash-pack-1.0.zip")), known);
+      check("a pack replacing a built-in plugin: refused", clash.error && /built-in plugin/.test(clash.error), JSON.stringify(clash.error));
+      let zerr = null;
+      try { await R.readZip(zipOf("climb.zip")); } catch (e) { zerr = e; }
+      check("a zip with a path that climbs out: refused whole", zerr && /climbs out/.test(zerr.message), zerr && zerr.message);
+      fs.mkdirSync(path.join(root, "demo"), { recursive: true });
+      fs.writeFileSync(path.join(root, "demo/install.mpy"), "stale compiled copy");
+      await R.installPack(repl, demo.plan);
+      const th = JSON.parse(fs.readFileSync(path.join(root, "themes.json"), "utf8"));
+      check("installed: the plugin on the flash (no README, no plugin.json), an old compiled copy gone",
+            fs.existsSync(path.join(root, "demo/install.py")) && !fs.existsSync(path.join(root, "demo/README.md"))
+            && !fs.existsSync(path.join(root, "demo/plugin.json")) && !fs.existsSync(path.join(root, "demo/install.mpy")));
+      check("... its tools in their section, its home files, its theme",
+            fs.readFileSync(path.join(card, "tools/demo/thing.bin")).length === 5120 && fs.existsSync(path.join(card, "home/banner.txt"))
+            && th.demo && th.demo.colors["--bg"] === "#000");
+      // The Tools page.
+      const tools = [["tools/provisioner/provisioner.py", "print('p')\n"], ["tools/provisioner/Stump-1.0.0-beta.9.zip", "new zip"],
+                     ["tools/firefly/README.md", "# FireFly\n"]].map(([p, d]) => ({ path: p, data: new Uint8Array(Buffer.from(d)), sha256: sha(Buffer.from(d)) }));
+      const ft = await R.fillTools(repl, tools);
+      check("the Tools page filled; the older firmware zip gone", ft.byReader.length === 0
+            && fs.readFileSync(path.join(card, "tools/provisioner/Stump-1.0.0-beta.9.zip"), "utf8") === "new zip"
+            && !fs.existsSync(path.join(card, "tools/provisioner/Stump-1.0.0-beta.1.zip")) && fs.existsSync(path.join(card, "tools/firefly/README.md")));
+      const n1 = await R.wipeCard(repl, "shared");
+      check("wipe the shared files: they go, the folder stays, the rest stays", n1 === 2 && fs.existsSync(path.join(card, "shared"))
+            && fs.readdirSync(path.join(card, "shared")).length === 0 && fs.existsSync(path.join(card, "tools/demo/thing.bin")), n1);
+      const n2 = await R.wipeCard(repl, "all");
+      check("wipe the whole card: nothing left on it; the flash untouched", n2 > 3 && fs.readdirSync(card).length === 0
+            && fs.existsSync(path.join(root, "demo/install.py")), n2 + " " + fs.readdirSync(card));
+      fs.rmSync(card, { recursive: true, force: true });
+      const none = await R.cardStatus(repl);
+      let nerr = null;
+      try { await R.wipeCard(repl, "all"); } catch (e) { nerr = e; }
+      check("no card: status says so, a wipe says so", none.present === false && nerr && /No SD card/.test(nerr.message), JSON.stringify(none));
+    } catch (e) {
+      check("the card on a board: ran through", false, e.stack + (e.traceback ? "\n" + e.traceback : ""));
+    } finally { repl.stop(); R.CARD.root = "/sd"; }
+  }
+
   const sum = R.bootSummary("ESP-ROM\r\nMicroPython v1.28.0 on 2026\r\nProject Stump -- Beta A (1.0.0-beta.38)\r\n[watchdog] armed: x\r\n" +
                             "WiFi unavailable (no AP)\r\nTraceback (most recent call last):\r\nOSError: [Errno 19] ENODEV\r\n[web] serving on 192.168.4.1:80\r\n");
   check("what it said at start, summed up", sum.release === "1.0.0-beta.38" && sum.micropython === "v1.28.0" && sum.serving

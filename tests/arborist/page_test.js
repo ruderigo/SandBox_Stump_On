@@ -238,6 +238,47 @@ async function run(name, root, simArgs, fill, keep) {
     await t.browser.close(); t.sim.kill();
   }
 
+  // -- the SD card tab (the board side: repl_test.js) ---------------------------------
+  {
+    const root = path.join(SCRATCH, "page_card");
+    const t = await run("card", root, []);
+    const page = t.page;
+    await page.click("nav button[data-tab=card]");
+    check("SD card tab: shown, the form hidden", await page.isVisible("#tab-card") && !(await page.isVisible("#form")));
+    const size = await page.textContent("#card-tools-size"), when = await page.textContent("#card-tools-time");
+    check("... the Tools page's size and time, from what the page carries", /MB/.test(size) && /minutes/.test(when), size + " / " + when);
+    // A real pack, zipped as a release does; and the same with one file swapped.
+    const zips = path.join(SCRATCH, "page_card_zips");
+    fs.rmSync(zips, { recursive: true, force: true }); fs.mkdirSync(zips, { recursive: true });
+    execFileSync("python3", ["-c", `
+import sys, zipfile
+from pathlib import Path
+pack = Path(sys.argv[1]); out = Path(sys.argv[2])
+for name, swap in (("good.zip", False), ("bad.zip", True)):
+    with zipfile.ZipFile(out / name, "w", zipfile.ZIP_DEFLATED) as zf:
+        for f in sorted(pack.rglob("*")):
+            if f.is_file() and "__pycache__" not in f.parts:
+                data = f.read_bytes()
+                if swap and f.name == "install.py":
+                    data += b"\\n# changed\\n"
+                zf.writestr(pack.name + "/" + f.relative_to(pack).as_posix(), data)
+`, path.join(__dirname, "../../packs/tavern-pack"), zips]);
+    await page.setInputFiles("#card-pack", path.join(zips, "good.zip"));
+    await page.waitForFunction(() => document.getElementById("card-pack-info").textContent.length > 0, null, { timeout: 15000 });
+    const info = await page.textContent("#card-pack-info");
+    check("a pack chosen: checked, what it brings and how long", /tavern .*checked/.test(info) && /a theme/.test(info)
+          && !(await page.isDisabled("#card-pack-go")), info);
+    await page.setInputFiles("#card-pack", path.join(zips, "bad.zip"));
+    await page.waitForFunction(() => document.getElementById("card-pack-info").className === "err", null, { timeout: 15000 });
+    const bad = await page.textContent("#card-pack-info");
+    check("a pack with a file changed: refused before anything is copied", /changed since/.test(bad) && await page.isDisabled("#card-pack-go"), bad);
+    await page.check("input[name=wipe][value=all]");
+    await page.click("#card-wipe-go");
+    check("wipe without typing WIPE: asks for it, nothing done", /Type WIPE/.test(await page.textContent("#card-err"))
+          && !(await page.isVisible("#work")));
+    await t.browser.close(); t.sim.kill();
+  }
+
   // -- updating a board with no Stump: refused ---------------------------------------
   {
     const root = path.join(SCRATCH, "page_update_none");

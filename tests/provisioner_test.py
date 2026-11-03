@@ -553,4 +553,31 @@ check('--answers-template: the questions with their defaults', tpl.get("node nam
       and tpl.get("start this stump automatically when you log in") is True and "_about" in tpl
       and P.ANSWERS["record"] is None, sorted(tpl)[:8])
 shutil.rmtree(tmp, ignore_errors=True)
+
+# Arborist on the Tools page (since 1.0.0-beta.49): a computer Stump gets it.
+tmp = Path(tempfile.mkdtemp())
+rel = P._folder_release(P.STUMP_APP_DIR)
+check('arborist_page: none here', P.arborist_page(tmp) is None)
+(tmp / "Arborist-0.0.1-old.html").write_text("other release")
+check('arborist_page: one from another release is never used', P.arborist_page(tmp) is None)
+(tmp / "dist").mkdir()
+page = tmp / "dist" / ("Arborist-%s.html" % rel)
+page.write_text("<html>arborist</html>")
+check('arborist_page: this release, in dist/', P.arborist_page(tmp) == page)
+folder = tmp / "Stump"
+(folder / "sd" / "tools" / "arborist").mkdir(parents=True)
+(folder / "sd" / "tools" / "arborist" / "Arborist-0.0.1-old.html").write_text("old")
+real_page = P.arborist_page
+P.arborist_page = lambda here=None, fw=None: page
+with contextlib.redirect_stdout(io.StringIO()):
+    P._pc_install_tools(P.STUMP_APP_DIR, folder)
+P.arborist_page = real_page
+arb = folder / "sd" / "tools" / "arborist"
+check('computer Stump: Arborist on its Tools page, with its READMEs, the old one gone',
+      (arb / page.name).read_text() == "<html>arborist</html>" and (arb / "README.md").is_file()
+      and (arb / "README.fr.md").is_file() and not (arb / "Arborist-0.0.1-old.html").exists(),
+      sorted(x.name for x in arb.iterdir()))
+check('the Tools page READMEs include Arborist\'s (kept up to date on a card)',
+      any(sec == "arborist" for _, sec in P._tool_readmes(P.Path(P.__file__).resolve().parent)))
+shutil.rmtree(tmp, ignore_errors=True)
 print('FAILURES', FAIL)

@@ -67,6 +67,7 @@
   <button type="button" role="tab" data-tab="make" aria-selected="true">Make or update</button>
   <button type="button" role="tab" data-tab="settings" aria-selected="false">Settings</button>
   <button type="button" role="tab" data-tab="check" aria-selected="false">Check</button>
+  <button type="button" role="tab" data-tab="card" aria-selected="false">SD card</button>
 </nav>
 
 <!-- Make or update ---------------------------------------------------------- -->
@@ -109,6 +110,33 @@
     <pre id="chk-log"></pre>
     <div class="row"><button type="button" class="plain small" id="chk-save">Save what it said</button></div>
   </div>
+</section>
+
+<!-- SD card -------------------------------------------------------------------------- -->
+<section class="card hidden" id="tab-card">
+  <p style="margin-top:0">The Stump's SD card, through its USB. Copies over USB are slow, about 1 KB a second: each part below says how long. With a card reader, files go faster.</p>
+  <h3>What's on it</h3>
+  <button type="button" class="plain" id="card-read">Look at the card</button>
+  <dl class="sum hidden" id="card-sum"></dl>
+
+  <h3>Install a pack</h3>
+  <p class="hint">A pack's zip from the release (<code>tavern-pack-….zip</code>, <code>rnfs-pack-….zip</code>). Every file is checked against the pack's own hashes before anything is copied; it starts the next time the Stump does.</p>
+  <input type="file" id="card-pack" accept=".zip,application/zip">
+  <p class="hint" id="card-pack-info"></p>
+  <div class="row"><button type="button" class="plain" id="card-pack-go" disabled>Install it</button></div>
+
+  <h3>Fill the Tools page</h3>
+  <p class="hint">What visitors can download from the Stump with no internet: the Provisioner, the firmware zip and the FireFly app, with each section's description (<span id="card-tools-size">about 1.5 MB</span>: <span id="card-tools-time">25 to 30 minutes</span> over USB). Files already there are replaced.</p>
+  <div class="row"><button type="button" class="plain" id="card-tools-go">Fill it</button></div>
+
+  <h3>Wipe the card</h3>
+  <label class="choice"><input type="radio" name="wipe" value="shared" checked> <span><b>The shared files only</b><br><span class="hint">What visitors uploaded. The Tools page, packs' files and the rest stay.</span></span></label>
+  <label class="choice"><input type="radio" name="wipe" value="all"> <span><b>Everything on the card</b><br><span class="hint">The Stump makes its folders again when it starts. The Tools page and packs' files go too.</span></span></label>
+  <p class="hint">Its identity, settings and chat are on the board itself, never on the card: they stay either way.</p>
+  <label for="card-confirm">Type <code>WIPE</code> to confirm</label>
+  <input type="text" id="card-confirm" autocomplete="off" maxlength="8">
+  <div class="row"><button type="button" class="plain" id="card-wipe-go">Wipe it</button></div>
+  <p class="err" id="card-err"></p>
 </section>
 
 <!-- the settings form: shown in Make (a new Stump) or Settings -->
@@ -238,7 +266,7 @@ function showTab(t) {
   if (BUSY) return;
   TAB = t;
   qa("nav button").forEach(function (b) { b.setAttribute("aria-selected", b.dataset.tab === t ? "true" : "false"); });
-  ["make", "settings", "check"].forEach(function (x) { $("tab-" + x).classList.toggle("hidden", x !== t); });
+  ["make", "settings", "check", "card"].forEach(function (x) { $("tab-" + x).classList.toggle("hidden", x !== t); });
   placeForm();
 }
 qa("nav button").forEach(function (b) { b.onclick = function () { showTab(b.dataset.tab); }; });
@@ -679,6 +707,110 @@ async function checkIt() {
 }
 $("chk-save").onclick = function () { download("stump-start-" + stamp() + ".txt", BOOTLOG.replace(/\r/g, "")); };
 
+// -- SD card -----------------------------------------------------------------------------
+function kb(n) { return n >= 1048576 ? (n / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(n / 1024)) + " KB"; }
+function usbTime(bytes) { var m = Math.max(1, Math.round(bytes / 1000 / 60)); return m < 2 ? "about a minute" : "about " + m + " minutes"; }
+function progressTo(label) {
+  var t0 = Date.now();
+  return function (d, t, p) {
+    var left = d && t > d ? (Date.now() - t0) / d * (t - d) / 1000 : 0;
+    bar(t ? d / t : 0, label + " " + kb(d) + " of " + kb(t) + (left > 5 ? " · about " + Math.ceil(left / 60) + " min left" : "") + (p ? " · " + p.split("/").pop() : ""));
+  };
+}
+// The board's own code, from what the page carries: its modules (a pack's
+// plugin can't take their name) and its built-in plugins (nor theirs).
+async function knownNames() {
+  var P = await payload(), core = {}, dirs = {}, builtin = {};
+  Object.keys(P.files).forEach(function (n) {
+    var m = /^app\/([^/]+)$/.exec(n);
+    if (m) core[m[1].replace(/\.(py|mpy)$/, "")] = 1;
+    m = /^app\/([^/]+)\/(.+)$/.exec(n);
+    if (m) { dirs[m[1]] = 1; if (/^install\.(py|mpy)$/.test(m[2])) builtin[m[1]] = 1; }
+  });
+  Object.keys(dirs).forEach(function (d) { if (!builtin[d]) core[d] = 1; });
+  return { core: Object.keys(core), builtin: Object.keys(builtin) };
+}
+async function toolsFiles() {
+  var P = await payload();
+  return Object.keys(P.files).filter(function (n) { return /^sd\/tools\//.test(n); }).map(function (n) {
+    return { path: n.slice(3), data: P.files[n].data, sha256: P.files[n].sha256 };
+  });
+}
+(async function () {
+  try {
+    var t = await toolsFiles(), n = t.reduce(function (a, f) { return a + f.data.length; }, 0);
+    if (n) { $("card-tools-size").textContent = kb(n); $("card-tools-time").textContent = usbTime(n); }
+  } catch (e) {}
+})();
+async function cardRead() {
+  steps("Looking at its card", ["Choose the board", "Connect", "Read the card", "Restart"]);
+  step(0); await choosePort();
+  step(1); var repl = await readyRepl();
+  step(2); var st = await R.cardStatus(repl);
+  step(3); await R.restart(repl); await closePort();
+  var dl = $("card-sum"); dl.innerHTML = ""; dl.classList.remove("hidden");
+  function row(k, v, cls) { var dt = document.createElement("dt"), dd = document.createElement("dd"); dt.textContent = k; dd.textContent = v; if (cls) dd.className = cls; dl.appendChild(dt); dl.appendChild(dd); }
+  if (!st.present) { row("Card", "none found (or it can't be read)", "err"); done(""); return; }
+  row("Card", kb(st.total) + ", " + kb(st.free) + " free");
+  var names = { shared: "Shared files", tools: "Tools page", home: "Home page", lxmf_pn: "Messages kept for others", plugins: "Plugins' data", fw: "Firmware images", about: "About page", "": "Other files" };
+  Object.keys(st.dirs).sort().forEach(function (d) {
+    var v = st.dirs[d];
+    row(names[d] || d + "/", kb(v[0]) + " · " + v[1] + " file" + (v[1] === 1 ? "" : "s"));
+  });
+  done("");
+}
+var PACK = null;
+$("card-pack").onchange = async function () {
+  PACK = null; $("card-pack-go").disabled = true; $("card-pack-info").className = "hint"; $("card-pack-info").textContent = "";
+  var f = $("card-pack").files[0];
+  if (!f) return;
+  try {
+    var r = await R.packFrom(await R.readZip(new Uint8Array(await f.arrayBuffer())), await knownNames());
+    if (r.error) { $("card-pack-info").className = "err"; $("card-pack-info").textContent = r.error; return; }
+    PACK = r.plan;
+    var flash = PACK.plugins.reduce(function (a, x) { return a + x.data.length; }, 0), card = PACK.card.reduce(function (a, x) { return a + x.data.length; }, 0);
+    $("card-pack-info").textContent = PACK.name + " " + PACK.version + ", checked: " + kb(flash) + " for the board" +
+      (card ? ", " + kb(card) + " for the card" : "") + (PACK.theme ? ", a theme" : "") + " — " + usbTime(flash + card) + " over USB." +
+      (PACK.byReader.length ? " Too big for USB, copy by card reader: " + PACK.byReader.join(", ") + "." : "");
+    $("card-pack-go").disabled = false;
+  } catch (e) { $("card-pack-info").className = "err"; $("card-pack-info").textContent = e.message; }
+};
+async function cardPack() {
+  if (!PACK) return;
+  steps("Installing " + PACK.name + " " + PACK.version, ["Choose the board", "Connect", "Copy it", "Restart"]);
+  step(0); await choosePort();
+  step(1); var repl = await readyRepl();
+  step(2); await R.installPack(repl, PACK, progressTo("Copying"));
+  step(3); await R.restart(repl); await closePort();
+  done("");
+  $("result").appendChild(para(PACK.name + " is on the Stump; it starts now, with the Stump." +
+    (PACK.byReader.length ? " Still to copy by card reader: " + PACK.byReader.join(", ") + "." : "")));
+}
+async function cardTools() {
+  var files = await toolsFiles(), n = files.reduce(function (a, f) { return a + f.data.length; }, 0);
+  if (!files.length) throw new Error("This page carries no Tools page files.");
+  if (!confirm("Copy the Tools page to its card? " + kb(n) + ", " + usbTime(n) + " over USB. Keep the cable in.")) return false;
+  steps("Filling the Tools page", ["Choose the board", "Connect", "Copy it", "Restart"]);
+  step(0); await choosePort();
+  step(1); var repl = await readyRepl();
+  step(2); var r = await R.fillTools(repl, files, progressTo("Copying"));
+  step(3); await R.restart(repl); await closePort();
+  done("");
+  $("result").appendChild(para("The Tools page is on its card." + (r.byReader.length ? " Too big for USB, copy by card reader: " + r.byReader.join(", ") + "." : "")));
+}
+async function cardWipe() {
+  var scope = val("wipe");
+  if ($("card-confirm").value.trim() !== "WIPE") { $("card-err").textContent = "Type WIPE in the box to confirm."; return false; }
+  steps(scope === "all" ? "Wiping the whole card" : "Wiping the shared files", ["Choose the board", "Connect", "Wipe", "Restart"]);
+  step(0); await choosePort();
+  step(1); var repl = await readyRepl();
+  step(2); var n = await R.wipeCard(repl, scope);
+  step(3); await R.restart(repl); await closePort();
+  $("card-confirm").value = "";
+  done("");
+  $("result").appendChild(para(n + " file" + (n === 1 ? "" : "s") + " removed. The Stump restarts."));
+}
+
 // -- running an action --------------------------------------------------------------
 async function act(fn, errId) {
   if (BUSY) return;
@@ -704,6 +836,7 @@ async function act(fn, errId) {
     BUSY = false;
     qa("#main button, #main input, #main select").forEach(function (i) { i.disabled = false; });
     $("set-put").disabled = !$("set-file").files.length;
+    $("card-pack-go").disabled = !PACK;
   }
 }
 $("make-go").onclick = function () { act(make, "make-err"); };
@@ -711,6 +844,10 @@ $("set-read").onclick = function () { act(readIt, "set-err"); };
 $("set-save").onclick = function () { act(saveIt, "set-err"); };
 $("set-put").onclick = function () { act(putIt); };
 $("chk-go").onclick = function () { act(checkIt); };
+$("card-read").onclick = function () { act(cardRead, "card-err"); };
+$("card-pack-go").onclick = function () { act(cardPack, "card-err"); };
+$("card-tools-go").onclick = function () { act(cardTools, "card-err"); };
+$("card-wipe-go").onclick = function () { act(cardWipe, "card-err"); };
 placeForm();
 </script>
 </body>

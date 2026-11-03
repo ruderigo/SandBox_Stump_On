@@ -451,7 +451,193 @@
     return out;
   }
 
+  // -- the SD card ------------------------------------------------------------
+  // At the REPL main.py hasn't run, so the card isn't mounted: the
+  // firmware's own fserv.mount_sd() does it (the pins live there), as the
+  // Provisioner does. Copies to the card run at about 1 KB/s: anything over
+  // USB_MAX goes by card reader instead (the Provisioner's APP_USB_MAX).
+  var CARD = { root: "/sd", mount: "import fserv\nif not fserv.sd_ok:\n fserv.mount_sd()\n" };
+  var USB_MAX = 1000000;
+  var RMTREE = "import os\ndef rm(p):\n n=0\n try:\n  es=list(os.ilistdir(p))\n except OSError:\n  return 0\n" +
+               " for e in es:\n  q=p+'/'+e[0]\n  if e[1]==0x4000:\n   n+=rm(q)\n   try:\n    os.rmdir(q)\n   except OSError:\n    pass\n" +
+               "  else:\n   try:\n    os.remove(q)\n    n+=1\n   except OSError:\n    pass\n return n\n";
+
+  // {present, total, free, dirs: {name: [bytes, files]}} (top-level files under "").
+  async function cardStatus(repl) {
+    var out = await repl.run(CARD.mount +
+      "import os, json\nR=" + py(CARD.root) + "\ndef size(p):\n t=n=0\n try:\n  es=list(os.ilistdir(p))\n except OSError:\n  return 0,0\n" +
+      " for e in es:\n  q=p+'/'+e[0]\n  if e[1]==0x4000:\n   a,b=size(q)\n   t+=a\n   n+=b\n  else:\n   try:\n    t+=os.stat(q)[6]\n   except OSError:\n    pass\n   n+=1\n return t,n\n" +
+      "try:\n os.stat(R)\n ok=True\nexcept OSError:\n ok=False\nd={'present':ok,'dirs':{}}\nif ok:\n s=os.statvfs(R)\n f=s[1] or s[0]\n" +
+      " d['total']=f*s[2]\n d['free']=f*s[3]\n top=[0,0]\n for e in list(os.ilistdir(R)):\n  q=R+'/'+e[0]\n  if e[1]==0x4000:\n" +
+      "   d['dirs'][e[0]]=list(size(q))\n  else:\n   try:\n    top[0]+=os.stat(q)[6]\n   except OSError:\n    pass\n   top[1]+=1\n" +
+      " if top[1]:\n  d['dirs']['']=top\nprint('CARD'+json.dumps(d))\n", 120000);
+    var m = /CARD(\{.*\})/.exec(out);
+    if (!m) throw new Error("couldn't read the card");
+    return JSON.parse(m[1]);
+  }
+
+  // scope "shared": the visitors' shared files only (the folder stays);
+  // "all": everything on the card (the Stump makes its folders again when
+  // it starts). Its flash -- identity, settings, chat -- is never touched.
+  // Returns how many files went.
+  async function wipeCard(repl, scope) {
+    if (scope !== "shared" && scope !== "all") throw new Error("wipe what?");
+    var target = scope === "shared" ? CARD.root + "/shared" : CARD.root;
+    var out = await repl.run(CARD.mount + RMTREE + "import os\ntry:\n os.stat(" + py(CARD.root) + ")\nexcept OSError:\n print('NOCARD')\nelse:\n" +
+                             " print('WIPED%d' % rm(" + py(target) + "))\n", 600000);
+    if (/NOCARD/.test(out)) throw new Error("No SD card in it (or the card can't be read): nothing wiped.");
+    var m = /WIPED(\d+)/.exec(out);
+    if (!m) throw new Error("the card wasn't wiped");
+    return +m[1];
+  }
+
+  // Files to the card: [{path (under the card), data, sha256}], each the
+  // way upload() does it (chunks, SHA-256 checked, then renamed).
+  async function toCard(repl, files, progress) {
+    var out = await repl.run(CARD.mount + "import os\ntry:\n os.stat(" + py(CARD.root) + ")\n print('HASCARD')\nexcept OSError:\n pass\n");
+    if (!/HASCARD/.test(out)) throw new Error("No SD card in it (or the card can't be read): nothing copied.");
+    await upload(repl, files.map(function (f) { return { path: CARD.root + "/" + f.path, data: f.data, sha256: f.sha256 }; }), progress);
+  }
+
+  // -- zips (a pack from its release) ------------------------------------------
+  // The central directory, stored and deflated entries; a path that climbs
+  // out (absolute, "..") refuses the whole zip, as the Provisioner does.
+  async function inflateRaw(u8) {
+    return new Uint8Array(await new Response(new Blob([u8]).stream().pipeThrough(new DecompressionStream("deflate-raw"))).arrayBuffer());
+  }
+  async function readZip(u8) {
+    var dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength), e = -1;
+    for (var i = u8.length - 22; i >= Math.max(0, u8.length - 65557); i--) if (dv.getUint32(i, true) === 0x06054b50) { e = i; break; }
+    if (e < 0) throw new Error("that isn't a zip file");
+    var n = dv.getUint16(e + 10, true), p = dv.getUint32(e + 16, true), out = {};
+    for (var k = 0; k < n; k++) {
+      if (dv.getUint32(p, true) !== 0x02014b50) throw new Error("a damaged zip file");
+      var method = dv.getUint16(p + 10, true), csize = dv.getUint32(p + 20, true), size = dv.getUint32(p + 24, true);
+      var nl = dv.getUint16(p + 28, true), xl = dv.getUint16(p + 30, true), cl = dv.getUint16(p + 32, true), off = dv.getUint32(p + 42, true);
+      var name = dec.decode(u8.subarray(p + 46, p + 46 + nl));
+      p += 46 + nl + xl + cl;
+      if (/\/$/.test(name)) continue;
+      if (/^\//.test(name) || /(^|\/)\.\.(\/|$)/.test(name) || /\\|:/.test(name)) throw new Error("a path that climbs out in the zip: " + name);
+      var data = off + 30 + dv.getUint16(off + 26, true) + dv.getUint16(off + 28, true), raw = u8.subarray(data, data + csize);
+      var body = method === 0 ? raw.slice() : method === 8 ? await inflateRaw(raw) : null;
+      if (!body) throw new Error(name + ": compressed a way this page can't read");
+      if (body.length !== size) throw new Error(name + ": damaged in the zip");
+      out[name] = body;
+    }
+    return out;
+  }
+  async function shaHex(u8) {
+    return Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", u8))).map(function (b) { return ("0" + b.toString(16)).slice(-2); }).join("");
+  }
+
+  // A pack zip -> {plan} or {error}. The Provisioner's checks: pack.json
+  // with name/version/author/license; each plugin's name not the Stump's own
+  // code nor a built-in plugin (known: {core: [names], builtin: [names]});
+  // every file against its hash (plugin.json, and pack.json for plugin.json
+  // itself and the tools/home files) -- one that doesn't match, is missing
+  // or has no hash refuses the pack. plan: {name, version, plugins: [files
+  // for the board], card: [files for the card], byReader: [card paths too
+  // big for USB], theme}.
+  var RESERVED = ["urns", "lib", "peripherals", "web", "docs", "third_party", "tools_payload", "sd", "rns", "tls",
+                  "plugins_state", "boot", "main", "config"];
+  async function packFrom(zip, known) {
+    function no(e) { return { error: e }; }
+    var names = Object.keys(zip), base = null;
+    names.forEach(function (n) { var m = /^(?:([^/]+)\/)?pack\.json$/.exec(n); if (m && (base === null || !m[1])) base = m[1] ? m[1] + "/" : ""; });
+    if (base === null) return no("No pack.json in that zip: it isn't a Stump pack.");
+    var spec;
+    try { spec = JSON.parse(dec.decode(zip[base + "pack.json"])); } catch (e) { return no("Its pack.json won't read."); }
+    var miss = ["name", "version", "author", "license"].filter(function (k) { return !spec[k]; });
+    if (miss.length) return no("Its pack.json has no " + miss.join(", ") + ".");
+    if (!/^[a-z][a-z0-9_-]{0,31}$/.test(spec.name)) return no("The pack's name isn't a plain name.");
+    known = known || {};
+    var plan = { name: spec.name, version: spec.version, plugins: [], card: [], byReader: [], theme: spec.theme || null };
+    var plugins = spec.plugins || [];
+    for (var i = 0; i < plugins.length; i++) {
+      var pn = plugins[i];
+      if (typeof pn !== "string" || !/^[a-z][a-z0-9_]{1,23}$/.test(pn)) return no("A plugin's name is 2-24 lowercase letters, digits or _.");
+      if (RESERVED.indexOf(pn) >= 0 || (known.core || []).indexOf(pn) >= 0) return no(pn + " is a part of the Stump's own code: a pack can't replace it.");
+      if ((known.builtin || []).indexOf(pn) >= 0) return no(pn + " is a built-in plugin: a pack can't replace it.");
+      var pj = zip[base + pn + "/plugin.json"];
+      if (!pj) return no(pn + ": no plugin.json.");
+      var want = (spec.plugin_hashes || {})[pn];
+      if (!want || (await shaHex(pj)).slice(0, 16) !== want) return no(pn + "/plugin.json doesn't match the pack's hash.");
+      var ps;
+      try { ps = JSON.parse(dec.decode(pj)); } catch (e) { return no(pn + "/plugin.json won't read."); }
+      var hashes = ps.hashes || {}, files;
+      if (Array.isArray(ps.files) && ps.files.length)
+        files = ps.files.filter(function (f) { return typeof f === "string" && f.indexOf(pn + "/") === 0 && !/(^|\/)\.\.?(\/|$)/.test(f) && zip[base + f]; });
+      else
+        files = names.filter(function (n) { return n.indexOf(base + pn + "/") === 0 && !/__pycache__|\.(pyc|bak|orig|swp)$|\.DS_Store$/.test(n); })
+                     .map(function (n) { return n.slice(base.length); });
+      for (var j = 0; j < files.length; j++) {
+        var f = files[j];
+        if (f === pn + "/plugin.json") continue;
+        if (!hashes[f]) return no(f + " has no hash in its plugin.json.");
+        if ((await shaHex(zip[base + f])).slice(0, 16) !== hashes[f]) return no(f + " changed since it was hashed: not installed.");
+      }
+      var listed = Object.keys(hashes);
+      for (var q = 0; q < listed.length; q++) if (!zip[base + listed[q]]) return no(listed[q] + " is missing from the pack.");
+      for (j = 0; j < files.length; j++) {
+        f = files[j];
+        if (/(^|\/)plugin\.json$/.test(f) || /\.md$/.test(f)) continue;       // not for the board (BOARD_EXCLUDE_*)
+        var d = zip[base + f];
+        plan.plugins.push({ path: f, data: d, sha256: await shaHex(d) });
+      }
+    }
+    var packHashes = spec.hashes || {};
+    var subs = ["tools", "home"];
+    for (var s = 0; s < subs.length; s++) {
+      if (spec[subs[s]] === false) continue;
+      var pre = base + subs[s] + "/";
+      var here = names.filter(function (n) { return n.indexOf(pre) === 0 && n.slice(pre.length).indexOf("/") < 0 && !/^\./.test(n.slice(pre.length)); }).sort();
+      for (var t = 0; t < here.length; t++) {
+        var rel = here[t].slice(base.length), fname = here[t].slice(pre.length), data = zip[here[t]];
+        if (!packHashes[rel]) return no(rel + " has no hash in the pack.json.");
+        if ((await shaHex(data)).slice(0, 16) !== packHashes[rel]) return no(rel + " changed since the pack was hashed: not installed.");
+        var dest = subs[s] === "tools" ? "tools/" + spec.name + "/" + fname : "home/" + fname;
+        if (data.length > USB_MAX) plan.byReader.push(dest);
+        else plan.card.push({ path: dest, data: data, sha256: await shaHex(data) });
+      }
+    }
+    return { plan: plan };
+  }
+
+  // A checked pack onto the board: its plugins on the flash (as source;
+  // a compiled copy left from before goes), its tools and home files on the
+  // card, its theme into themes.json. It starts at the next restart.
+  async function installPack(repl, plan, progress) {
+    if (plan.plugins.length) await upload(repl, plan.plugins, progress);
+    if (plan.card.length) await toCard(repl, plan.card, progress);
+    if (plan.theme && plan.theme.name) {
+      var out = await repl.run("import json\ntry:\n d=json.load(open('themes.json'))\nexcept Exception:\n d={}\nprint('TH'+json.dumps(d))\n");
+      var m = /TH(\{.*\})/.exec(out), cur = m ? JSON.parse(m[1]) : {};
+      cur[plan.theme.name] = { label: plan.theme.label || plan.theme.name, colors: plan.theme.colors || {} };
+      var data = enc.encode(JSON.stringify(cur));
+      await upload(repl, [{ path: "themes.json", data: data, sha256: await shaHex(data) }]);
+    }
+  }
+
+  // The Tools page from what the page carries (bundle entries "sd/tools/...":
+  // the Provisioner, its README and licence, the firmware zip, the FireFly
+  // apps and each section's README). Big ones are left for a card reader;
+  // an older firmware zip beside the new one goes, as the Provisioner does.
+  async function fillTools(repl, files, progress) {
+    var go = [], byReader = [];
+    files.forEach(function (f) { (f.data.length > USB_MAX * 2 ? byReader : go).push(f); });
+    await toCard(repl, go, progress);
+    var zip = go.filter(function (f) { return /^tools\/provisioner\/Stump-.*\.zip$/.test(f.path); })[0];
+    if (zip) {
+      var keep = zip.path.split("/").pop();
+      await repl.run("import os\nD=" + py(CARD.root + "/tools/provisioner") + "\nfor n in os.listdir(D):\n" +
+                     " if n.startswith('Stump-') and n.endswith('.zip') and n!=" + py(keep) + ":\n  os.remove(D+'/'+n)\n");
+    }
+    return { byReader: byReader.map(function (f) { return f.path; }) };
+  }
+
   var api = { Repl: Repl, prepare: prepare, restart: restart, upload: upload, boardInfo: boardInfo,
+              CARD: CARD, USB_MAX: USB_MAX, cardStatus: cardStatus, wipeCard: wipeCard, toCard: toCard,
+              readZip: readZip, packFrom: packFrom, installPack: installPack, fillTools: fillTools, shaHex: shaHex,
               readSettings: readSettings, writeSettings: writeSettings, readConfigFile: readConfigFile, putConfigFile: putConfigFile,
               settingsFrom: settingsFrom, answersFrom: answersFrom, bootSummary: bootSummary, randomSecret: function () { return hex(8); },
               readRadio: readRadio, writeRadio: writeRadio, radioFrom: radioFrom, radioAnswers: radioAnswers,
