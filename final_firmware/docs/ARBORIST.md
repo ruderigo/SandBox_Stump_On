@@ -21,6 +21,16 @@ header's length, a JSON header (`release`, `micropython`,
 order (`micropython.bin`, then `app/...`). `scripts/build_arborist.py`
 makes both.
 
+**From a Stump** (since 1.0.0-beta.49): the release zip has
+`Arborist-<release>.html` next to the Provisioner, which puts it on the
+Stump's Tools page (section *Arborist*), for a visitor's laptop to
+download with no internet. A computer Stump gets it with `--pc`. On a
+CAM it's too big for USB (about 2.5 MB: some 40 minutes), so the
+Provisioner lists it with the files to copy by card reader: into
+`tools/arborist/` on the card, with the `README*.md` files from
+`final_firmware/tools_payload/arborist/`. Only the Arborist of the same
+release is offered.
+
 ## Using it
 
 1. Save the page on the computer and open the saved file in Chrome or
@@ -51,6 +61,33 @@ first). The one replaced stays on the board as `config.py.bak`.
 release it runs, whether its pages came up, what went wrong (a
 traceback, the Wi-Fi it couldn't join). *Save what it said* keeps the
 whole of it as a file, to send to whoever helps.
+
+**SD card** (since 1.0.0-beta.49) works on the Stump's card through its
+USB. Copies over USB run at about 1 KB a second, so each part says how
+long it takes:
+
+- *What's on it*: the card's size and free space, and each folder's
+  (the shared files, the Tools page, the home page, the messages kept
+  for others, the plugins' data). Seconds.
+- *Install a pack*: choose a pack's zip from a release
+  (`tavern-pack-<v>.zip`, `rnfs-pack-<v>.zip`). Before anything is
+  copied, every file is checked against the pack's own hashes, as the
+  Provisioner checks them; a pack that would replace the Stump's own
+  code or a built-in plugin is refused. Its plugin goes on the board (as
+  source: Arborist can't compile in a browser, so the Stump compiles it
+  as it starts), its tools and home files on the card, its theme into
+  `themes.json`. It starts with the Stump. A file over 1 MB is left for
+  a card reader, and the page lists it. tavern: about a minute; rnfs:
+  about 17 minutes (its 1 MB of tools).
+- *Fill the Tools page*: what visitors download with no internet: the
+  Provisioner, its README and licence, the firmware zip, the FireFly
+  handheld app, and each section's description, as the Provisioner puts
+  them there. About 1.5 MB: 25 to 30 minutes. (The Android app, ~50 MB,
+  and Arborist itself still go by card reader.)
+- *Wipe the card*: the shared files only (what visitors uploaded), or
+  everything on the card; type `WIPE` to confirm. The Stump's identity,
+  settings and chat are on the board, never on the card: a wipe can't
+  touch them.
 
 If the board isn't found: another USB cable (some only charge), another
 port; or hold BOOT, press and release RESET, let go of BOOT, and try again.

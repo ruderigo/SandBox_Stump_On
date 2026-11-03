@@ -331,7 +331,7 @@ EXPECTED_FILE_HASHES = {
     "config.py": "0e84493cd2e4069f",
     "conn.py": "b17cf4fb4f80fbbf",
     "discovery.py": "c1808c59c1452dda",
-    "docs/ARBORIST.md": "8321aadbfd7cf00a",
+    "docs/ARBORIST.md": "a783f30ef8fac45f",
     "docs/CHAIN.md": "775bf418753c82ba",
     "docs/CLIENT_QUICKSTART.md": "5e41f745d376aaf0",
     "docs/COMMANDS.md": "88a2b4037bec8383",
@@ -343,7 +343,7 @@ EXPECTED_FILE_HASHES = {
     "docs/PACKS.md": "2e89e3c28d80d72d",
     "docs/PC.md": "b924bffc27091f02",
     "docs/PLUGINS.md": "3f5b4a5ee6844305",
-    "example_node.py": "d9b7cb5af743c652",
+    "example_node.py": "9c8d82937d28927f",
     "features.py": "81e8af361c64a911",
     "fserv.py": "14d07285fb7518d6",
     "fservbot/plugin.json": "45f850380dede0af",
@@ -498,6 +498,9 @@ EXPECTED_FILE_HASHES = {
     "tools_payload/apps/README.es.md": "26ec9046d7c4447a",
     "tools_payload/apps/README.fr.md": "afdbb2570e4cb770",
     "tools_payload/apps/README.md": "2e0f5a7aa18abdaf",
+    "tools_payload/arborist/README.es.md": "bc847a3151ee4e0f",
+    "tools_payload/arborist/README.fr.md": "ef5d436503eca8e9",
+    "tools_payload/arborist/README.md": "0a88ef90ce3be494",
     "tools_payload/flasher/README.md": "2c4d04f9fa3e4c39",
     "tools_payload/flasher/esptool-bundle.js": "ef7d5a237d3f273e",
     "tools_payload/flasher/esptool-js-LICENSE.txt": "1c25f29242785d63",
@@ -3450,7 +3453,7 @@ def _tool_readmes(here):
     section this Provisioner knows: the built-in ones and each pack's."""
     out = []
     payload = here / "final_firmware" / "tools_payload"
-    for src, sec in (("provisioner", "provisioner"), ("apps", "firefly")):
+    for src, sec in (("provisioner", "provisioner"), ("apps", "firefly"), ("arborist", "arborist")):
         out += [(rd, sec) for rd in sorted((payload / src).glob("README*.md"))]
     for pack in discover_packs():
         tools = pack["dir"] / "tools"
@@ -3666,6 +3669,15 @@ def _install_tools_on_node(port):
                     by_card.append("tools/firefly/" + app.name)
                     continue
                 push(app, ":/sd/tools/firefly/" + app.name, app.name)
+        # Arborist (~2.5 MB): 40 minutes over USB, so by card reader, with
+        # its README, into tools/arborist/ (since 1.0.0-beta.49).
+        page = arborist_page(here)
+        if page:
+            print("    %s (%d MB): too big to copy over USB -- put it on the SD card"
+                  % (page.name, max(1, round(page.stat().st_size / 1000000))))
+            print("      with a card reader, in tools/arborist/ on the card, with the README*.md")
+            print("      files from final_firmware/tools_payload/arborist/.")
+            by_card.append("tools/arborist/" + page.name)
     else:
         print("  (no tools_payload folder found next to the firmware --")
         print("   the FireFly apps and tool READMEs won't be installed on this node)")
@@ -5548,6 +5560,22 @@ def _pc_install_packs(folder, packs):
         tf.write_text(json.dumps(themes, ensure_ascii=False), encoding="utf-8")
 
 
+def arborist_page(here=None, fw=None):
+    """Arborist-<release>.html for this firmware's release, when it's next to
+    this Provisioner (the release zip carries it) or in dist/ (a local
+    build_arborist.py), else None. Only the same release: an Arborist from
+    another one would make a different Stump than this one."""
+    here = Path(here or Path(__file__).resolve().parent)
+    rel = _folder_release(fw or STUMP_APP_DIR)
+    if not rel:
+        return None
+    name = "Arborist-%s.html" % re.sub(r"[^A-Za-z0-9._-]", "_", rel)
+    for p in (here / name, here / "dist" / name):
+        if p.is_file():
+            return p
+    return None
+
+
 def _pc_install_tools(fw, folder):
     """The Tools page's sections in the Stump folder's sd/tools/: local
     copies, so nothing here is slow (no 1 MB limit either)."""
@@ -5576,6 +5604,18 @@ def _pc_install_tools(fw, folder):
     except Exception as e:
         print("  (firmware zip for the Tools page skipped: %s)" % e)
     # (the on-device flasher was retired in 1.0.0-beta.41; no catalog.json)
+    # Arborist, for a visitor's laptop to download (since 1.0.0-beta.49).
+    page = arborist_page(here, fw)
+    if page:
+        for f in sorted((payload / "arborist").glob("README*.md")):
+            _copy_if_changed(f, tools / "arborist" / f.name)
+        _copy_if_changed(page, tools / "arborist" / page.name)
+        for old in (tools / "arborist").glob("Arborist-*.html"):
+            if old.name != page.name:
+                old.unlink()
+    else:
+        print("  (Arborist for the Tools page: not here -- it comes with the release zip,")
+        print("   or build it: python3 scripts/build_arborist.py dist)")
 
 
 def _pc_config_block(profile):

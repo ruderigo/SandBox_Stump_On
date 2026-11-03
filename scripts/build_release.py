@@ -92,6 +92,12 @@ def main():
     # bench/: measurements run on a CAM (tls_probe.py: docs/HTTPS_SETUP.md step 0).
     for base in ("final_firmware", "packs", "pc", "bench"):
         entries += [(p, top + p.relative_to(ROOT).as_posix()) for p in files_under(ROOT / base) if p.suffix != ".zip"]
+    # Arborist, when build_arborist.py has made it in the same folder first
+    # (the release workflow does): next to the Provisioner, which puts it on
+    # a Stump's Tools page (since 1.0.0-beta.49).
+    arb = out / ("Arborist-%s.html" % version)
+    if arb.is_file():
+        entries.append((arb, top + arb.name))
     write_zip(out / ("Stump-%s.zip" % version), entries, stamp, manifest)
 
     (out / "provisioner.py").write_bytes((ROOT / "provisioner.py").read_bytes())

@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.0.0-beta.49
+- **Arborist's SD card section**: the Stump's card through its USB, each part saying how long it takes (about 1 KB a second).
+  - *What's on it*: the card's size and free space, and each folder's (shared files, Tools page, home page, messages kept for others, plugins' data).
+  - *Install a pack* from its release zip: every file checked against the pack's own hashes first, as the Provisioner does (a changed or unhashed file, a path that climbs out of the zip, a plugin named like the Stump's own code or a built-in plugin: refused). The plugin to the board (as source), tools and home files to the card, the theme into `themes.json`; anything over 1 MB is left for a card reader and listed. Both release packs pass.
+  - *Fill the Tools page*: the Provisioner, its README and licence, the firmware zip, the FireFly handheld app and the sections' READMEs (~1.5 MB, 25-30 minutes); an older firmware zip beside the new one goes.
+  - *Wipe the card*: the shared files only, or everything; typed confirmation. The identity, settings and chat are on the board, never touched.
+- **Arborist on the Stump's Tools page**: the release zip now carries `Arborist-<release>.html` next to the Provisioner, which puts it on the Tools page (section *Arborist*, in three languages) for a visitor's laptop to download offline. A computer Stump gets it with `--pc`; on a CAM it's too big for USB (~2.5 MB), so the Provisioner lists it with the files to copy by card reader. Only the Arborist of the same release is used.
+- `Stump-<release>.bundle` (and the page's payload) now also carries the Tools page's files, as `sd/tools/...` entries after the `app/...` ones (for the RK3326 Provisioner: a tool that only wants the board's files takes the `app/` ones). The page is about 1.6 MB bigger.
+- `docs/BENCH.md`: every pending bench check in one list, the quick, likely ones first; the roadmap points to it.
+- Docs: `ARBORIST.md`, `RELEASE.md` (build Arborist before the release zip to reproduce it).
+- Tests: `arborist` (the card on a pretend board: status, packs checked and installed, a changed file refused, a built-in's name refused, a climbing zip refused, the Tools page, both wipes, no card; in the browser: the tab, a real pack checked, a changed one refused, the typed confirmation), `provisioner` (Arborist on a computer Stump's Tools page, the same release only).
+
 ## 1.0.0-beta.48
 Asked by the RK3326 Provisioner team (the handheld app that makes Stumps from a gamepad, offline).
 - **`Stump-<release>.bundle` on each release**, listed in `SHA256SUMS`: what Arborist carries (MicroPython, the Stump compiled, the `config.py` template), byte for byte, as a file of its own -- a stable interface instead of reading it out of the Arborist page. Its header now also has the default Wi-Fi name (`default_ssid`). Format: `docs/ARBORIST.md`.

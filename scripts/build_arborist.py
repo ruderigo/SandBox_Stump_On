@@ -26,7 +26,10 @@ a file of its own, for tools that make Stumps the way Arborist does (the
 RK3326 Provisioner). Inside, after gunzip: 4 bytes (little-endian) the
 header's length, the JSON header (release, micropython, micropython_sha256,
 mpy, config_template, default_ssid, and files: [name, offset, length,
-sha256] each), then the files' bytes in order.
+sha256] each), then the files' bytes in order: micropython.bin, the
+board's files as app/<path>, then the Tools page's as sd/tools/<path>
+(since 1.0.0-beta.49; a tool that only wants the board's files takes the
+app/ ones).
 """
 import base64, gzip, hashlib, io, json, os, re, subprocess, sys, tempfile, urllib.request
 from pathlib import Path
@@ -176,15 +179,42 @@ def pack(entries, header):
     return gzip.compress(raw, compresslevel=9, mtime=0)
 
 
+def tools_files(tmp):
+    """The Tools page's files, as the Provisioner puts them on a card
+    (install_tools_on_node): [(path on the card, bytes)] -- the Provisioner
+    itself, its README and licence, the firmware zip, the FireFly apps small
+    enough for USB, and each section's READMEs. Arborist's SD card section
+    copies them (since 1.0.0-beta.49)."""
+    out = []
+    for src, dst in ((ROOT / "provisioner.py", "provisioner/provisioner.py"),
+                     (ROOT / "README.md", "provisioner/Stump-README.md"),
+                     (ROOT / "LICENSE", "provisioner/LICENSE")):
+        if src.is_file():
+            out.append(("tools/" + dst, src.read_bytes()))
+    z = Path(tmp) / P.firmware_zip_name(FW)
+    P._build_firmware_zip(z, FW)
+    out.append(("tools/provisioner/" + z.name, z.read_bytes()))
+    payload = FW / "tools_payload"
+    for src, sec in (("provisioner", "provisioner"), ("apps", "firefly")):
+        for f in sorted((payload / src).glob("*")):
+            if not f.is_file():
+                continue
+            readme = f.name.startswith("README") and f.name.endswith(".md")
+            if readme or (src == "apps" and f.stat().st_size <= P.APP_USB_MAX):
+                out.append(("tools/%s/%s" % (sec, f.name), f.read_bytes()))
+    return out
+
+
 def build(out_dir, mp_path=None):
     rel = release()
     print("Arborist, %s" % rel)
     with tempfile.TemporaryDirectory() as tmp:
         app, mpy = compiled(board_files(), tmp)
+        tools = tools_files(tmp)
     mp, mp_sha = micropython(mp_path)
     tpl = config_template()
     ssid = re.search(r'^DEFAULT_SSID = "([^"]*)"', (FW / "captive_portal.py").read_text(encoding="utf-8"), re.M).group(1)
-    entries = [("micropython.bin", mp)] + [("app/" + p, d) for p, d in app]
+    entries = [("micropython.bin", mp)] + [("app/" + p, d) for p, d in app] + [("sd/" + p, d) for p, d in tools]
     blob = pack(entries, {"release": rel, "micropython": MICROPYTHON_VERSION, "micropython_sha256": mp_sha,
                           "mpy": mpy, "config_template": tpl, "default_ssid": ssid})
     esptool = (FW / "tools_payload" / "flasher" / "esptool-bundle.js").read_text(encoding="utf-8")

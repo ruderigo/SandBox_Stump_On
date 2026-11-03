@@ -30,8 +30,10 @@ compare it once with the one published in the repository. The release
 identity is `d88b72f6e0deb5991f5a5aed5f3f3cdd`. `MANIFEST.json` gives the size and SHA-256 of
 every file *inside* every zip, e.g. to check one file on a node.
 
-**Reproducible:** `python3 scripts/build_release.py <version> dist/` on
-the tagged commit gives byte-identical files: same `SHA256SUMS`.
+**Reproducible:** `python3 scripts/build_arborist.py dist/`, then
+`python3 scripts/build_release.py <version> dist/` on the tagged commit,
+gives byte-identical files: same `SHA256SUMS`. (The release zip carries
+`Arborist-<version>.html` when it's in `dist/`, so build it first.)
 
 ## Making a release
 
