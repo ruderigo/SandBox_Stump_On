@@ -5,7 +5,7 @@ directly from the running code — not paraphrased. Where a reply is
 shown, that is what the field will actually see, verified against the
 source on the date this document was written.
 
-**Source and released builds**: https://github.com/ruderigo/SandBox_Stump_On (earlier releases, up to 1.0.0-beta.47: https://github.com/ruderigo/LaBuche-Stump)
+**Source and released builds**: https://github.com/ruderigo/SandBox_Stump_On (earlier releases, up to 1.0.0-beta.48: https://github.com/ruderigo/LaBuche-Stump)
 
 **Structure**: identity and access control first, since that's what
 needs the most thorough testing right now — the rest of the chat

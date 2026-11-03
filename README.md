@@ -9,7 +9,7 @@ one folder) from [Releases](https://github.com/ruderigo/SandBox_Stump_On/release
 check it (`sha256sum -c SHA256SUMS`, `gh attestation verify`, see
 [docs/RELEASE.md](docs/RELEASE.md)), and report what you find in Issues.
 What changed: [CHANGELOG.md](CHANGELOG.md). Earlier releases (up to
-1.0.0-beta.47) are also in
+1.0.0-beta.48) are also in
 [LaBuche-Stump](https://github.com/ruderigo/LaBuche-Stump), which no
 longer changes.
 
