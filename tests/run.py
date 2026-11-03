@@ -66,6 +66,7 @@ TESTS = [
     ("urns_fuzz", "assert", []),
     ("board_lora", "assert", []),
     ("lora_down", "assert", []),
+    ("address_announce", "assert", []),
 ]
 
 _NORM = [

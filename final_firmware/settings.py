@@ -28,7 +28,7 @@ WEIGHT_MAX = 99
 
 # Applied to the running Stump at once; the others need a restart.
 LIVE = ("CREDITS_ENABLED", "CREDIT_WEIGHTS", "AUTH_MODE", "FEATURES", "LIBRARIAN", "PC_STORAGE_MB",
-        "PC_KEEP_AWAKE")
+        "PC_KEEP_AWAKE", "REANNOUNCE_INTERVAL")
 
 # A computer's "card": the sd/ folder, PC_STORAGE_MB in size (never more
 # than the disk has free). Uploads fill it to fserv.MAX_SD_RATIO, then the
@@ -120,6 +120,11 @@ def current():
             "MESH_GREETING": g("MESH_GREETING", "") or "", "CREDITS_ENABLED": bool(credits),
             "CREDIT_WEIGHTS": weights, "AUTH_MODE": mode if mode in MODES else "open", "FEATURES": feats,
             "LIBRARIAN": librarian_on()}
+    try:
+        import announcer
+        out["REANNOUNCE_INTERVAL"] = announcer.every()
+    except ImportError:
+        out["REANNOUNCE_INTERVAL"] = int(g("REANNOUNCE_INTERVAL", 120))
     out.update(_storage_now())          # (no {**d} on the board's MicroPython)
     return out
 
@@ -209,6 +214,15 @@ def parse_form(fields):
         if mb < STORAGE_MIN_MB or mb > st["max_mb"]:
             return None, "storage_mb"
         out["PC_STORAGE_MB"] = mb
+    if "announce_min" in fields:
+        # Minutes in the form, seconds in config.py (announcer.py's bounds).
+        try:
+            mins = int(str(fields.get("announce_min")).strip())
+        except ValueError:
+            return None, "announce_min"
+        if mins < 1 or mins > 1440:
+            return None, "announce_min"
+        out["REANNOUNCE_INTERVAL"] = mins * 60
     if fields.get("computer") and on_computer():          # (the This computer group was on the form)
         out["PC_KEEP_AWAKE"] = bool(fields.get("keep_awake"))
     return out, None
@@ -327,6 +341,12 @@ def apply(changes):
         # with the Stump.
         if ("chat" in before["FEATURES"]) != ("chat" in changed["FEATURES"]):
             later.append("FEATURES")
+    if "REANNOUNCE_INTERVAL" in changed:
+        try:
+            import announcer
+            announcer.set_every(changed["REANNOUNCE_INTERVAL"])
+        except ImportError:
+            later.append("REANNOUNCE_INTERVAL")
     if "PC_KEEP_AWAKE" in changed:
         try:
             import stump_host

@@ -395,7 +395,14 @@ A node answers on two IPs with different guarantees:
   or the router reboots, unless the router reserves it.
 
 Over LoRa there are no IPs: the node is its LXMF `lxmf.delivery`
-address, taken from its announces.
+address, taken from its announces -- or, without waiting for one, from
+**`/address`** (since 1.0.0-beta.51, a card on the home page): the
+address as a QR code (the plain 32 hex characters, nothing around them),
+to copy, and its short form (the first 8, to recognise it in a list).
+An app that scans a QR code can take the address from there; one on the
+Stump's Wi-Fi gets it from `/node.json` below. The node announces every
+`REANNOUNCE_INTERVAL` seconds (2 minutes by default, set in `/admin`)
+and on demand from `/admin`'s *Announce now*.
 
 **`GET /node.json`** — who the node is, without joining anything
 (polling `/rrc/poll` puts you in the chat, and others see you arrive).

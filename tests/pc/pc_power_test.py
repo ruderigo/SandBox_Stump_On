@@ -81,6 +81,21 @@ if up:
     check("/admin: Turn off this Stump, and how to start it again", "action='/admin/poweroff'" in page
           and "Turn off this Stump" in page and os.path.basename(str(start)) in page
           and "confirm(" in page, page[page.find("poweroff") - 300:][:600])
+    # "Announce now" from /admin: the running Stump's own loop sends it
+    # (the LXMF address, then the Stump beacon), and says so in its log.
+    s, page = get("/admin/announce", b"admin_pass=pw")
+    t0 = time.time()
+    said = False
+    while time.time() - t0 < 20 and not said:
+        time.sleep(1)
+        try:
+            said = "[announce] on demand (/admin)" in open(os.path.join(folder, "stump.log"), encoding="utf-8", errors="replace").read()
+        except OSError:
+            pass
+    check("Announce now (/admin): the running Stump announces at once, and logs it", s == 200 and said, page[:300])
+    s2, page2 = get("/admin/announce", b"admin_pass=pw")
+    check("... asked again at once: told to wait (the radio's airtime)", s2 == 200 and "before the next" in page2
+          or "avant la suivante" in page2, page2[:300])
     # Updated while it runs (the Provisioner, every file in place): it
     # restarts on the new files by itself, under its supervisor. It used
     # to run on with the old modules in memory: /admin went blank.

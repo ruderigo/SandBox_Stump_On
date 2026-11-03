@@ -1051,7 +1051,7 @@ SSID_INCLUDE_IP = False             # only meaningful with a custom SSID_NAME --
 BOT_NAME  = "BarKeep"
 MESH_GREETING = ""                  # sent once per mesh peer, blank = off
 
-REANNOUNCE_INTERVAL = 120           # seconds between this node's own mesh announces
+REANNOUNCE_INTERVAL = 120           # seconds between this node's own mesh announces (60-86400; /admin sets it, live, and has "Announce now")
 STUMP_ANNOUNCE_INTERVAL = 1800      # seconds between stump.node beacon announces (see Architecture)
 THEME = "amber"                     # site theme: amber, phosphor, oled or paper (set by the provisioner)
 FEATURES = ["chat", "billboard", "files", "about"]   # features offered (set by the provisioner)

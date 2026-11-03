@@ -12,7 +12,7 @@
 LAYOUT_FILE = "/layout.json"
 
 NAV_DEFAULT = ("home", "chat", "board", "files", "tools", "about")
-TILES_DEFAULT = ("chat", "board", "files", "tools", "about")
+TILES_DEFAULT = ("chat", "board", "files", "tools", "address", "about")
 
 KINDS = ("nav", "tiles", "nav_hidden", "tiles_hidden")
 _saved = {}
