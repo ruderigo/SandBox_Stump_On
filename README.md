@@ -3,13 +3,15 @@
 [![Tests](https://github.com/ruderigo/SandBox_Stump_On/actions/workflows/tests.yml/badge.svg)](https://github.com/ruderigo/SandBox_Stump_On/actions/workflows/tests.yml)
 [![Release](https://img.shields.io/github/v/release/ruderigo/SandBox_Stump_On?include_prereleases)](https://github.com/ruderigo/SandBox_Stump_On/releases)
 
-**This repository is where Stump is beta-tested.** Download a release
+**This repository is where Stump is developed and released.** Download a release
 (`Stump-<version>.zip`: the Provisioner, the firmware and the packs in
 one folder) from [Releases](https://github.com/ruderigo/SandBox_Stump_On/releases),
 check it (`sha256sum -c SHA256SUMS`, `gh attestation verify`, see
 [docs/RELEASE.md](docs/RELEASE.md)), and report what you find in Issues.
-What changed: [CHANGELOG.md](CHANGELOG.md). The stable line is
-[LaBuche-Stump](https://github.com/ruderigo/LaBuche-Stump).
+What changed: [CHANGELOG.md](CHANGELOG.md). Earlier releases (up to
+1.0.0-beta.47) are also in
+[LaBuche-Stump](https://github.com/ruderigo/LaBuche-Stump), which no
+longer changes.
 
 ![demo](demo.gif)
 

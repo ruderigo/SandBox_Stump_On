@@ -11,4 +11,4 @@ to install.
 
 It carries MicroPython 1.28 (MIT) and this Stump's release, and checks
 every file it writes on the board. Release files and checksums:
-https://github.com/ruderigo/LaBuche-Stump/releases
+https://github.com/ruderigo/SandBox_Stump_On/releases

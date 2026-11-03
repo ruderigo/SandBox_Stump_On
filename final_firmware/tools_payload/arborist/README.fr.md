@@ -12,4 +12,4 @@ rien à installer.
 
 Elle contient MicroPython 1.28 (MIT) et la version de ce Stump, et
 vérifie chaque fichier qu'elle écrit sur la carte. Fichiers et sommes de
-contrôle : https://github.com/ruderigo/LaBuche-Stump/releases
+contrôle : https://github.com/ruderigo/SandBox_Stump_On/releases
