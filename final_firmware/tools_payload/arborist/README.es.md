@@ -11,4 +11,4 @@ que instalar.
 
 Lleva MicroPython 1.28 (MIT) y la versión de este Stump, y comprueba cada
 archivo que escribe en la placa. Archivos y sumas de comprobación:
-https://github.com/ruderigo/LaBuche-Stump/releases
+https://github.com/ruderigo/SandBox_Stump_On/releases

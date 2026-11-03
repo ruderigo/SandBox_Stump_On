@@ -3,7 +3,7 @@
 One page. Read it before writing any client code, especially before
 you hit `AUTH-CHALLENGE` cold and start reverse-engineering source.
 
-**Source and released builds**: https://github.com/ruderigo/SandBox_Stump_On (beta testing; stable: https://github.com/ruderigo/LaBuche-Stump)
+**Source and released builds**: https://github.com/ruderigo/SandBox_Stump_On (earlier releases, up to 1.0.0-beta.47: https://github.com/ruderigo/LaBuche-Stump)
 — this is the reference point for what's actually current. If something
 you're looking at (a forwarded zip, an older doc, a snippet someone
 pasted into chat) disagrees with what's there, the repo wins.

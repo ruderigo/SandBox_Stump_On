@@ -135,7 +135,7 @@ and lists any calls that would hold the node. Run it after every
 change. To publish, zip the folder (the folder itself at the top of the
 zip) as `tavern-pack-1.0.zip`.
 
-For now packs live in `packs/` in the LaBuche-Stump repository; the
+For now packs live in `packs/` in the SandBox_Stump_On repository; the
 Stump team reviews what's listed there. Signed packs can come later —
 the node already has Ed25519 through Reticulum, so a pack could be
 signed with its author's Reticulum identity.

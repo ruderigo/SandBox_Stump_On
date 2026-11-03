@@ -1075,7 +1075,7 @@ were too compact.
 **The About and Tools pages now mirror the public site.** The About
 page follows labuche-stump.web.app as it is now: three views — Project
 (v1), How to Connect, Apps & Handhelds — with the site's current copy in
-all three languages, its five link tiles (LaBuche-Stump, FireFly-Android,
+all three languages, its five link tiles (Project Stump, FireFly-Android,
 FireFly_RK3326, LinkedIn, email), and its device cards for the two
 FireFly apps. The hardware photo gallery the site dropped is gone too,
 along with its `/about/img` route. Where the node can do better than the
