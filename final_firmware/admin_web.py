@@ -585,6 +585,23 @@ def _render_admin_setup_section(lang, pw, notice=""):
              + "' required value='" + esc(s["BOT_NAME"]) + "'></label>"
              "<label>" + T("admin_setup_greeting", n=S.GREETING_MAX) + "<br><textarea name='greeting' rows='3' maxlength='"
              + str(S.GREETING_MAX) + "'>" + esc(s["MESH_GREETING"]) + "</textarea></label></details>")
+    # Announcing: the timer (minutes here, seconds in config.py), and
+    # "Announce now" (a button of this form sent to /admin/announce).
+    import announcer
+    st = announcer.status()
+    every_min = max(1, s["REANNOUNCE_INTERVAL"] // 60)
+    when = (T("admin_announce_pending") if st["pending"] else
+            T("admin_announce_never") if st["ago"] is None else
+            T("admin_announce_ago", ago=_ago(st["ago"], lang), next=_ago(st["next_in"], lang)))
+    ann = ("<details class='inner'><summary>" + T("admin_setup_announce") + " <span class='pk'>"
+           + T("admin_announce_every", n=every_min) + "</span></summary>"
+           "<label>" + T("admin_setup_announce_min") + "<br><input name='announce_min' type='number' min='1' max='1440' value='"
+           + str(every_min) + "'></label>"
+           "<p class='sub'><small>" + T("admin_setup_announce_note") + "</small></p>"
+           "<p class='sub'>" + esc(when) + "</p>"
+           "<button type='submit' class='plain' formaction='/admin/announce' formnovalidate>"
+           + T("admin_announce_now") + "</button>"
+           "</details>")
     w = s["CREDIT_WEIGHTS"]
     files = ("<details class='inner'><summary>" + T("admin_setup_files") + " <span class='pk'>"
              + T("admin_setup_" + eco).split(" — ")[0] + "</span></summary>"
@@ -641,7 +658,7 @@ def _render_admin_setup_section(lang, pw, notice=""):
             + "<p class='sub'>" + T("admin_setup_intro") + "</p>"
             "<form method='POST' action='/admin/setup' class='post-form setup' autocomplete='off'>"
             "<input type='hidden' name='admin_pass' value='" + esc(pw) + "'>"
-            + names + files + store + comp + access + feats
+            + names + ann + files + store + comp + access + feats
             + "<button type='submit'>" + T("admin_setup_save") + "</button></form>"
             "<script>(function(){var w=document.getElementById('setupw');function f(){"
             "var c=document.querySelector(\"input[name=economy]:checked\");var on=c&&c.value==='custom';"
@@ -1078,7 +1095,7 @@ async def _r_post_admin_setup(reader, writer, method, path, headers, ip, identif
             label = {"node_name": "admin_setup_node", "bot_name": "admin_setup_bot",
                      "greeting": "admin_setup_names", "economy": "admin_setup_files",
                      "auth_mode": "admin_setup_access",
-                     "storage_mb": "admin_setup_storage"}.get(bad) or "admin_setup_w_" + bad[2:]
+                     "storage_mb": "admin_setup_storage", "announce_min": "admin_setup_announce"}.get(bad) or "admin_setup_w_" + bad[2:]
             msg = i18n.t("admin_setup_invalid", lang, field=i18n.t(label, lang).split(" (")[0])
         else:
             before = stump_settings.current()
@@ -1094,7 +1111,8 @@ async def _r_post_admin_setup(reader, writer, method, path, headers, ip, identif
         labels = {"NODE_NAME": "admin_setup_node", "BOT_NAME": "admin_setup_bot",
                   "MESH_GREETING": "admin_setup_names", "FEATURES": "admin_setup_features",
                   "CREDIT_WEIGHTS": "admin_setup_files", "AUTH_MODE": "admin_setup_access",
-                  "PC_STORAGE_MB": "admin_setup_storage", "PC_KEEP_AWAKE": "admin_setup_computer"}
+                  "PC_STORAGE_MB": "admin_setup_storage", "PC_KEEP_AWAKE": "admin_setup_computer",
+                  "REANNOUNCE_INTERVAL": "admin_setup_announce"}
         what = ", ".join(i18n.t(labels.get(k, k), lang).split(" (")[0] for k in later)
         notice = "<p class='sub'><b>" + billboard._esc(msg or i18n.t("admin_setup_later", lang, what=what)) + "</b></p>"
         names = fserv._list_files() if fserv.sd_ok else []
@@ -1144,6 +1162,40 @@ async def _r_post_admin_radioretry(reader, writer, method, path, headers, ip, id
         names = fserv._list_files() if fserv.sd_ok else []
         notice = "<p class='sub'>" + billboard._esc(msg) + "</p>"
         await B._send(writer, "200 OK", B._page(notice + _render_admin_file_list_page(lang, names, pw)))
+
+
+def _ago(s, lang):
+    """A duration for people: "45 s", "3 min", "2 h"."""
+    s = int(s or 0)
+    if s < 90:
+        return "%d s" % s
+    if s < 90 * 60:
+        return "%d min" % ((s + 30) // 60)
+    return "%d h" % ((s + 1800) // 3600)
+
+
+async def _r_post_admin_announce(reader, writer, method, path, headers, ip, identifier, secure):
+    # /admin's "Announce now": the LXMF address (and the Stump beacon) at
+    # once, at most every announcer.NOW_GAP seconds (the radio's airtime).
+    length = int(headers.get("content-length", "0"))
+    body = await B._read_small_body(reader, length)
+    fields = {}
+    for kv in webtext.text(body).split("&"):
+        parts = kv.split("=", 1)
+        if len(parts) == 2:
+            fields[parts[0]] = billboard._url_decode(parts[1])
+    pw = fields.get("admin_pass", "")
+    if not B._admin_ok(pw, identifier):
+        await B._send(writer, "403 Forbidden", "Invalid admin password", "text/plain")
+        return
+    import announcer
+    lang = i18n.get_lang(identifier)
+    ok, wait = announcer.request()
+    msg = (i18n.t("admin_announce_asked", lang) if ok else
+           i18n.t("admin_announce_wait", lang, s=wait))
+    names = fserv._list_files() if fserv.sd_ok else []
+    notice = "<p class='sub'><b>" + billboard._esc(msg) + "</b></p>"
+    await B._send(writer, "200 OK", B._page(notice + _render_admin_file_list_page(lang, names, pw)))
 
 
 async def _r_post_admin_radiochat(reader, writer, method, path, headers, ip, identifier, secure):
@@ -1507,6 +1559,8 @@ async def route(reader, writer, method, path, headers, ip, identifier, secure):
         await _r_post_admin_setup(reader, writer, method, path, headers, ip, identifier, secure)
     elif method == "POST" and path.startswith("/admin/poweroff"):
         await _r_post_admin_poweroff(reader, writer, method, path, headers, ip, identifier, secure)
+    elif method == "POST" and path.startswith("/admin/announce"):
+        await _r_post_admin_announce(reader, writer, method, path, headers, ip, identifier, secure)
     elif method == "POST" and path.startswith("/admin/radioretry"):
         await _r_post_admin_radioretry(reader, writer, method, path, headers, ip, identifier, secure)
     elif method == "POST" and path.startswith("/admin/radiochat"):

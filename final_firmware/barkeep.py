@@ -366,6 +366,13 @@ h2{
   display:grid; gap:10px; grid-template-columns:repeat(auto-fit, minmax(160px, 1fr));
   margin-top:14px;
 }
+.panel.addr{text-align:center;}
+.panel.addr .qr{background:#fff; display:inline-block; padding:6px; border-radius:6px; line-height:0;}
+.panel.addr .qr svg{width:min(240px,70vw); height:auto;}
+.panel.addr label{display:block; margin-top:12px; color:var(--muted); font-size:.85rem;}
+.addr-long{font-family:monospace; font-size:.95rem; width:100%; max-width:24em; text-align:center; padding:8px;
+  background:var(--panel-2); color:var(--text); border:1px solid var(--border); border-radius:6px;}
+.addr-name{font-weight:bold; margin:10px 0 0;}
 .link-tile{
   display:flex; flex-direction:column; text-decoration:none;
   background:var(--panel-2); border:1px solid var(--border); border-radius:6px;
@@ -482,6 +489,14 @@ _ICON_ABOUT = (
     "stroke-width='1.4'/></svg>"
 )
 
+_ICON_ADDRESS = (
+    "<svg viewBox='0 0 24 24' width='24' height='24' fill='none' "
+    "stroke='currentColor' stroke-width='1.6' stroke-linecap='round' "
+    "stroke-linejoin='round'><rect x='3.5' y='3.5' width='6' height='6' rx='1'/>"
+    "<rect x='14.5' y='3.5' width='6' height='6' rx='1'/><rect x='3.5' y='14.5' width='6' height='6' rx='1'/>"
+    "<path d='M14.5 14.5h2.5v2.5M20.5 14.5v.01M14.5 20.5h.01M17.5 17.5h3v3h-3z'/></svg>"
+)
+
 _ICON_HOME = (
     "<svg viewBox='0 0 24 24' width='24' height='24' fill='none' "
     "stroke='currentColor' stroke-width='1.6' stroke-linecap='round' "
@@ -538,6 +553,7 @@ _HOME_TILES = (
     ("board", "billboard", "/billboard", _ICON_BOARD, "nav_board", "tile_board_sub"),
     ("files", "files", "/files", _ICON_FILES, "nav_files", "tile_files_sub"),
     ("tools", None, "/tools", _ICON_TOOLS, "nav_tools", "tile_tools_sub"),
+    ("address", None, "/address", _ICON_ADDRESS, "tile_address", "tile_address_sub"),
     ("about", "about", "/about", _ICON_ABOUT, "nav_about", "tile_about_sub"),
 )
 
@@ -2010,6 +2026,45 @@ def _render_about_page(lang):
     )
 
 
+_QR = {}          # {address: its QR code's SVG}: made once (half a second on a CAM)
+
+
+def _address_qr(addr):
+    svg = _QR.get(addr)
+    if svg is None:
+        import qr
+        _QR.clear()
+        svg = _QR[addr] = qr.svg(addr)
+    return svg
+
+
+def _render_address_page(lang):
+    """This Stump's LXMF address, to add it in an app (FireFly, Sideband...)
+    at once instead of waiting to hear it announce itself: a QR code of
+    the address (the plain 32 hex characters, what FireFly's "add address"
+    takes), the address to copy, and its short form (the first 8, as logs
+    and lists show it: to recognise it, not to reach it)."""
+    node = rrc.NODE or {}
+    addr, name = node.get("lxmf") or "", node.get("name") or ""
+    esc = billboard._esc
+    head = ("<h1>" + i18n.t("addr_title", lang) + "</h1>" + i18n.switcher_html(lang, "/address")
+            + "<p class='sub'>" + i18n.t("addr_intro", lang) + "</p>")
+    if len(addr) != 32:
+        body = "<div class='panel'><p>" + i18n.t("addr_not_ready", lang) + "</p></div>"
+    else:
+        body = ("<div class='panel addr'>"
+                "<div class='qr'>" + _address_qr(addr) + "</div>"
+                + ("<p class='addr-name'>" + esc(name) + "</p>" if name else "") +
+                "<label for='addr-long'>" + i18n.t("addr_long", lang) + "</label>"
+                "<input id='addr-long' class='addr-long' readonly value='" + addr + "' onclick='this.select()' "
+                "aria-label='" + esc(i18n.t("addr_long", lang)) + "'>"
+                "<p class='sub'>" + i18n.t("addr_short", lang) + " <code>&lt;" + addr[:8] + "&gt;</code> &middot; "
+                + i18n.t("addr_short_note", lang) + "</p>"
+                "</div>"
+                "<p class='sub'>" + i18n.t("addr_how", lang) + "</p>")
+    return head + body + _nav_except(lang, "address") + _release_line()
+
+
 def _render_billboard_page(lang):
     sorts = "".join("<option value='%s'>%s</option>" % (k, i18n.t("sort_" + k, lang))
                     for k in ("newest", "oldest", "title"))
@@ -3251,6 +3306,8 @@ async def _serve(reader, writer, secure=False):
             await _r_get_lang(reader, writer, method, path, headers, ip, identifier, secure)
         elif method == "GET" and path.startswith("/about"):
             await _r_get_about(reader, writer, method, path, headers, ip, identifier, secure)
+        elif method == "GET" and (path == "/address" or path.startswith("/address?")):
+            await _send(writer, "200 OK", _page(_render_address_page(i18n.get_lang(identifier))))
         elif method == "GET" and path.startswith("/tools.json"):
             await _r_get_tools_json(reader, writer, method, path, headers, ip, identifier, secure)
         elif path == "/hello" or path.startswith("/hello?"):

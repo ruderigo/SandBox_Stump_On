@@ -34,7 +34,7 @@ except ImportError:
 STUMP_VERSION = "Beta A"
 # The exact release (a git tag "v" + this, built and signed by
 # .github/workflows/release.yml, which refuses a tag that doesn't match).
-STUMP_RELEASE = "1.0.0-beta.50"
+STUMP_RELEASE = "1.0.0-beta.51"
 
 # Node-type beacon: a second destination on this node's own identity,
 # aspect "stump.node", so clients can tell a Stump from a person without
@@ -470,10 +470,13 @@ def main():
         print("Free memory:", gc.mem_free(), "bytes")
         print("Running... (Ctrl+C to stop)")
 
+    import announcer          # the interval (/admin, live) and "Announce now"
+
     async def initial_announce():
         await asyncio.sleep(0.5)
         try:
             router.announce()
+            announcer.done()
             if DEBUG >= 1:
                 print("Announced as:", NODE_NAME)
         except Exception as e:
@@ -554,7 +557,17 @@ def main():
 
     async def reannounce_loop():
         while True:
-            await asyncio.sleep(REANNOUNCE_INTERVAL)
+            # Every announcer.every() seconds (set live from /admin), or at
+            # once when /admin asks ("Announce now"), counted a second at a
+            # time -- no wall clock needed.
+            waited, manual = 0, False
+            while waited < announcer.every():
+                await asyncio.sleep(1)
+                announcer.tick()
+                waited += 1
+                if announcer.take():
+                    manual = True
+                    break
             # router.announce() is fully synchronous -- confirmed zero
             # yield points anywhere in its call chain -- so this freezes
             # the entire event loop, including the Heltec bridge's own
@@ -579,11 +592,22 @@ def main():
                 pass  # never let a diagnostic aid block the actual announce
             try:
                 router.announce()
-                if DEBUG >= 2:
+                announcer.done()
+                if manual:
+                    print("[announce] on demand (/admin): LXMF address", dest.hexhash)
+                elif DEBUG >= 2:
                     print("[Re-announced]")
             except Exception as e:
                 if DEBUG >= 2:
                     print("Re-announce error:", e)
+            if manual and beacon is not None:
+                # The Stump beacon too, so the other Stumps learn its name
+                # at once (its own cycle is half an hour).
+                await asyncio.sleep(2)
+                try:
+                    beacon.announce(app_data=stump_beacon_data(dest, NODE_NAME))
+                except Exception as e:
+                    print("[announce] beacon:", e)
             gc.collect()
 
     _original_run = rns.run

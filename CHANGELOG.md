@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.0-beta.51
+- **Its address, from the home page**: a new card, *Its address*, opens `/address`: the Stump's LXMF address as a QR code, in full to copy, and in short (`<9b5c4744>`, to recognise it in a list). Add the Stump in FireFly, Sideband or any LXMF app at once, without waiting for it to announce itself. The QR code holds the plain 32 characters (what FireFly's *Add address* takes; a phone's camera reads it as text to copy). It's made on the Stump itself (`qr.py`: byte mode, error correction M), so the page needs no internet and no script, once per address (about half a second on a CAM). The admin can move or hide the card like the others (`/admin` → layout).
+- **Announcing, from `/admin`**: Stump settings → *Announcing*:
+  - the timer: every 1 to 1440 minutes (`REANNOUNCE_INTERVAL`, 2 minutes as before), applied at once;
+  - **Announce now**: the LXMF address, then the Stump beacon (so the other Stumps learn its name too), at once; at most every 30 s, for the radio's airtime;
+  - when it last went out, and when the next will.
+  `announcer.py` holds the timer and the request; `example_node`'s loop counts the seconds (no wall clock needed on a CAM).
+- Docs: `CLIENT_QUICKSTART.md` (Addresses), README, `BENCH.md` (two quick checks).
+- Tests: `address_announce` (the page and its card, the QR code's known-good modules, both languages, the timer's bounds and live change, Announce now and its spacing, the password), `pc_power_test` (Announce now on a running computer Stump: announced at once, logged). The QR encoder was checked module for module against Project Nayuki's reference encoder and decoded by zxing-cpp, for every mask and versions 1 to 8.
+
 ## 1.0.0-beta.50
 - **Everything points to this repository.** Stump is developed and released here (SandBox_Stump_On) from now on; LaBuche-Stump keeps the earlier releases (up to 1.0.0-beta.48) and no longer changes. Changed: the About page's link tile (*Project Stump*, to this repository, on every Stump), the Arborist section's README on the Tools page (where to find the release files, in three languages), the README's intro, `CLIENT_QUICKSTART.md`, `COMMANDS.md` and `PACKS.md`.
 

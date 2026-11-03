@@ -9,7 +9,7 @@ are measurements that inform a decision rather than pass or fail.
 Tick a box when it passes on the bench (with the date and release). A
 check that fails: note what you saw, and bring the log.
 
-Last sorted: 2026-11-03, for 1.0.0-beta.49.
+Last sorted: 2026-11-03, for 1.0.0-beta.51.
 
 ## 1. Quick wins (one device, minutes)
 
@@ -40,6 +40,17 @@ Last sorted: 2026-11-03, for 1.0.0-beta.49.
 - [ ] **Arborist: the SD card, what's on it** (beta.49) on LaBuche3.
       Expected: its size and free space, and a line per folder (shared
       files, Tools page, ...) that matches what `/files` and `/tools` show.
+- [ ] **Its address, from the home page** (beta.51): on a phone on the
+      Stump's Wi-Fi, the home page's *Its address* card. Expected: a QR
+      code the phone's camera reads as the 32-character address (the same
+      as `/node.json`'s `lxmf`), the address to copy, its short form.
+      Paste it in FireFly (Conversations, Add address): a chat opens at
+      once.
+- [ ] **Announce now, and the timer** (beta.51): `/admin` → Stump
+      settings → *Announcing* → *Announce now*. Expected: the log says
+      `[announce] on demand (/admin)`; another Stump or FireFly lists it
+      within seconds. Set the timer to 5 minutes, Save: the line under
+      it counts to the next one, no restart.
 - [ ] **The computer wizard from a file** (beta.48), into a scratch
       folder, start-at-login off:
       `python3 provisioner.py --pc --answers-template > a.json`, set
