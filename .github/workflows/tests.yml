@@ -113,6 +113,10 @@ jobs:
         run: pip install pytest cryptography ${{ matrix.pip }}
       - name: urns against them
         run: python -m pytest -v tests/reference
+      - name: The NomadNet pack, browsed by the reference library over a real link
+        run: |
+          pip install pyserial
+          python tests/pc/pc_nomadnet_test.py
 
   # Stump on a computer (docs/PC.md) on the systems people will run it on:
   # a Stump folder made by the Provisioner, started, every page checked.
