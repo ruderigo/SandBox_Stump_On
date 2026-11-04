@@ -69,6 +69,20 @@ check("the page's QR code is the link's; the plain address still there to copy",
 n20 = len(qr.matrix(barkeep.address_link({"name": "N" * 20, "lxmf": real_hex, "key": key})))
 check("... a 20-character name still fits (version 9 for plain letters)", n20 == 17 + 4 * 9, n20)
 check("no key: the plain address", barkeep.address_link({"lxmf": real_hex}) == real_hex)
+
+# The second code, for LXMF apps that don't know Stumps: Columba's
+# lxma://<address>:<public key, hex> (1.0.0-beta.53).
+lx = barkeep.lxma_link(rrc.NODE)
+check("the lxma link: lxma://<address>:<the same key, 128 lowercase hex>",
+      lx == "lxma://" + real_hex + ":" + binascii.hexlify(pub).decode() and lx == lx.lower() and len(lx) == 7 + 32 + 1 + 128, lx)
+check("... none without a key, or with a key that isn't 64 bytes",
+      barkeep.lxma_link({"lxmf": real_hex}) == "" and barkeep.lxma_link({"lxmf": real_hex, "key": "AAAA"}) == "")
+s, ct, b = req('/address')
+check("the page has both codes and the switch (no script)",
+      barkeep._QR.get(link) in b and barkeep._QR.get(lx) in b and "id='qk-lx'" in b and "Columba</label>" in b
+      and "<script" not in b.split("class='panel addr'")[1].split("</div>")[0], b[:300])
+check("... FireFly's shown first", "id='qk-ff' class='qk' checked" in b)
+check("... both codes kept, made once", len(barkeep._QR) == 2)
 rrc.NODE = {"name": "LaBuche", "lxmf": ADDR}
 
 # ── announcing: the timer and "Announce now" ────────────────────────

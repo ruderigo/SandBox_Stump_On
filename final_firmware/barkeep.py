@@ -374,6 +374,17 @@ h2{
   background:var(--panel-2); color:var(--text); border:1px solid var(--border); border-radius:6px;}
 .addr-name{font-weight:bold; margin:10px 0 0;}
 .addr-open{display:inline-block; margin-top:8px;}
+.addr-pick{display:flex; justify-content:center; gap:6px; margin:0 0 10px;}
+.addr-pick label{margin:0; padding:6px 12px; border:1px solid var(--border); border-radius:6px; cursor:pointer;
+  color:var(--text); font-size:.9rem;}
+.qk{position:absolute; opacity:0; pointer-events:none;}
+#qk-ff:checked ~ .addr-pick label[for='qk-ff'], #qk-lx:checked ~ .addr-pick label[for='qk-lx']{
+  background:var(--panel-2); border-color:var(--accent, var(--text)); font-weight:bold;}
+#qk-ff:focus-visible ~ .addr-pick label[for='qk-ff'], #qk-lx:focus-visible ~ .addr-pick label[for='qk-lx']{outline:2px solid;}
+.panel.addr .qr-lx, .addr-note-lx{display:none;}
+#qk-lx:checked ~ .qr-ff, #qk-lx:checked ~ .addr-note-ff{display:none;}
+#qk-lx:checked ~ .qr-lx{display:inline-block;}
+#qk-lx:checked ~ .addr-note-lx{display:block;}
 .link-tile{
   display:flex; flex-direction:column; text-decoration:none;
   background:var(--panel-2); border:1px solid var(--border); border-radius:6px;
@@ -2034,9 +2045,35 @@ def _address_qr(addr):
     svg = _QR.get(addr)
     if svg is None:
         import qr
-        _QR.clear()
+        # Kept: this address's codes (the page's two). Another address
+        # (or the name changed): start again.
+        a = addr[7:39] if "://" in addr else addr
+        if any((k[7:39] if "://" in k else k) != a for k in _QR) or len(_QR) >= 2:
+            _QR.clear()
         svg = _QR[addr] = qr.svg(addr)
     return svg
+
+
+def _key_hex(key):
+    """The node's base64url public key as lowercase hex, or "" if it isn't
+    64 bytes."""
+    import ubinascii
+    try:
+        raw = ubinascii.a2b_base64((key + "=" * (-len(key) % 4)).replace("-", "+").replace("_", "/"))
+    except Exception:
+        return ""
+    return ubinascii.hexlify(raw).decode() if len(raw) == 64 else ""
+
+
+def lxma_link(node):
+    """The second QR code on /address (1.0.0-beta.53), for LXMF apps that
+    don't know Stumps: lxma://<address>:<public key, 128 hex>, Columba's
+    contact format (its IdentityQrCodeUtils: lowercase hex, exactly 32 and
+    128 characters). "" without a key. Sideband has no contact QR code (it
+    takes the pasted address) and MeshChat none yet (it learns peers from
+    announces)."""
+    addr, kh = node.get("lxmf") or "", _key_hex(node.get("key") or "")
+    return "lxma://" + addr + ":" + kh if len(addr) == 32 and kh else ""
 
 
 def address_link(node):
@@ -2067,9 +2104,21 @@ def _render_address_page(lang):
     if len(addr) != 32:
         body = "<div class='panel'><p>" + i18n.t("addr_not_ready", lang) + "</p></div>"
     else:
-        body = ("<div class='panel addr'>"
-                "<div class='qr'>" + _address_qr(address_link(node)) + "</div>"
-                + ("<p><a class='addr-open' href='" + _attr_esc(address_link(node)) + "'>" + i18n.t("addr_open", lang) + "</a></p>"
+        lx = lxma_link(node)
+        if lx:
+            # Two codes, one shown: a CSS switch (radio buttons), no script.
+            codes = ("<input type='radio' name='qk' id='qk-ff' class='qk' checked>"
+                     "<input type='radio' name='qk' id='qk-lx' class='qk'>"
+                     "<div class='addr-pick'><label for='qk-ff'>" + i18n.t("addr_for_ff", lang) + "</label>"
+                     "<label for='qk-lx'>" + i18n.t("addr_for_lx", lang) + "</label></div>"
+                     "<div class='qr qr-ff'>" + _address_qr(address_link(node)) + "</div>"
+                     "<div class='qr qr-lx'>" + _address_qr(lx) + "</div>"
+                     "<p class='sub addr-note-ff'>" + i18n.t("addr_note_ff", lang) + "</p>"
+                     "<p class='sub addr-note-lx'>" + i18n.t("addr_note_lx", lang) + "</p>")
+        else:
+            codes = "<div class='qr'>" + _address_qr(address_link(node)) + "</div>"
+        body = ("<div class='panel addr'>" + codes
+                + ("<p class='addr-note-ff'><a class='addr-open' href='" + _attr_esc(address_link(node)) + "'>" + i18n.t("addr_open", lang) + "</a></p>"
                    if node.get("key") else "")
                 + ("<p class='addr-name'>" + esc(name) + "</p>" if name else "") +
                 "<label for='addr-long'>" + i18n.t("addr_long", lang) + "</label>"

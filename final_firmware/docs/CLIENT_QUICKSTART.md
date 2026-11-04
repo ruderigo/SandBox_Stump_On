@@ -426,7 +426,22 @@ it doesn't, drop the link. A link without `stump=` is someone else's to
 define; one without `key=` is just an address to wait for. The link is
 about 145 characters (a version 8 QR code at error correction M for a
 name of up to 15 plain letters; longer or accented names, version 9 to
-12). A Stump that hasn't got its key yet shows the plain address. The node announces every
+12). A Stump that hasn't got its key yet shows the plain address.
+
+Since 1.0.0-beta.53 the page has a second code, behind a *FireFly* /
+*Columba* switch, for apps that don't know Stumps: Columba's contact
+format, the same address and key in lowercase hex.
+
+```
+lxma://<address>:<public key, 128 hex characters>
+```
+
+An app that wants to file the Stump as a Stump reads the first; one
+that only wants a contact can read either. Sideband takes the pasted
+address (it has no contact QR code); MeshChat learns it from its
+announce.
+
+The node announces every
 `REANNOUNCE_INTERVAL` seconds (2 minutes by default, set in `/admin`)
 and on demand from `/admin`'s *Announce now*.
 
