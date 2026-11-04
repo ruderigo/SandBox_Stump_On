@@ -10,7 +10,7 @@ https://github.com/afit21/rnfs   (licence MIT, voir rnfs-LICENSE.txt)
 Lance d'abord « rnfs daemon » et laisse-le tourner ; toutes les autres
 commandes passent par lui.
 
-## L'installer depuis ce Stump
+## L'installer depuis cette Bûche
 
 Il te faut Python 3.11 ou plus récent (python.org sur Windows et macOS ;
 la plupart des Linux l'ont déjà). Télécharge ces fichiers depuis cette
@@ -58,17 +58,17 @@ fichier, avec le Reticulum rapide intégré :
     24.04+, Raspberry Pi   sudo apt install ./rnfs_<version>_amd64.deb
     OS 64 bits
 
-Ils pèsent des dizaines de Mo : si ce Stump les a, le technicien les a
+Ils pèsent des dizaines de Mo : si cette Bûche les a, le technicien les a
 copiés sur sa carte SD (dans tools/rnfs/) avec un lecteur de cartes, et
 ils sont listés ici aussi.
 
-## Sur ce Stump
+## Sur cette Bûche
 
 Dans le clavardage : !shelf liste les fichiers que les gens d'ici
 recommandent, !shelf add <cid> <titre> en ajoute un, et les liens rnfs
 partagés dans le clavardage sont rassemblés sur la page /p/rnfs/.
 
-Si ce Stump fait tourner un nœud de propagation (messages gardés pour
+Si cette Bûche fait tourner un nœud de propagation (messages gardés pour
 les gens hors ligne), les messages LXMF de rnfs peuvent s'en servir :
 mets son adresse dans ~/.rnfs/rnfs.toml sous la forme
 lxmf_propagation_node = "<32 chiffres hexadécimaux>"
@@ -83,6 +83,6 @@ lxmf_propagation_node = "<32 chiffres hexadécimaux>"
   et **LXMF** sont de **Mark Qvist** : https://reticulum.network —
   licence Reticulum, voir reticulum-LICENSE.txt.
 
-Ce Stump ne fait que les distribuer, pour qu'on puisse les obtenir sans
+Cette Bûche ne fait que les distribuer, pour qu'on puisse les obtenir sans
 internet. Les questions sur rnfs, les signalements de bogues et les
 remerciements vont à son auteur, sur la page du projet.

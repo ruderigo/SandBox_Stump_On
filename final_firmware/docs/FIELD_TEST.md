@@ -256,7 +256,7 @@ See `PC.md`. A Mac or a Windows PC, and a Heltec.
       minute or two. `/admin` → *Profils enregistrés*: reset its
       password, log in with the new one. The FireFly app's `/auth`
       button still verifies.
-- [ ] **Stump settings** (`/admin` → System → *Réglages du Stump*), on
+- [ ] **Stump settings** (`/admin` → System → *Réglages de la Bûche*), on
       the laptop and on LaBuche: switch file sharing to a custom economy
       (video 5) and *Who may enter* to hybrid, Save: "Saved. It's in
       place." -- the files page shows the new costs, an unverified

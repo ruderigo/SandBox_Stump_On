@@ -1,11 +1,11 @@
 # Provisioner
 
-La herramienta que instala y actualiza los nodos Stump desde una computadora conectada por USB: la versión exacta con la que se instaló este nodo.
+La herramienta que instala y actualiza los Troncos desde una computadora conectada por USB: la versión exacta con la que se instaló este Tronco.
 
 ## Qué hay aquí
 
 - `provisioner.py`: el Provisioner.
-- `Stump-<versión>.zip` (por ejemplo `Stump-1.0.0-beta.35.zip`): el código fuente del firmware de este nodo.
+- `Stump-<versión>.zip` (por ejemplo `Stump-1.0.0-beta.35.zip`): el código fuente del firmware de este Tronco.
 - `Stump-README.md`: el manual completo (en inglés).
 - `LICENSE`: la licencia de todo el conjunto (MIT).
 

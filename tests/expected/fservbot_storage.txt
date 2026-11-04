@@ -9,5 +9,5 @@ stumpid file <work>/sdm/plugins/stumpid/stumpid.json
 >> /fsset op broadcast 5 ['periodic notice every 5 minutes']
 notice before talk: None hi from saved state
 >> just chatting []
-notice posts 1 0 BarKeep BarKeep — bot de fichiers de ce Stump. !help pour
+notice posts 1 0 BarKeep BarKeep — bot de fichiers de cette Bûche. !help po
 saved at ['fservbot.json']

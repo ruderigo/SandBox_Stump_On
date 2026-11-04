@@ -1951,7 +1951,7 @@ def _render_about_page(lang):
         "<p>" + i18n.t("about_creator_p", lang) + "</p>"
         "<div class='links-grid'>"
         "<a class='link-tile' href='https://github.com/ruderigo/SandBox_Stump_On' target='_blank' rel='noopener'>"
-        "<div class='title'>Project Stump</div><div class='desc'>" + i18n.t("about_link_stump_desc", lang) + "</div></a>"
+        "<div class='title'>LaBuche-Stump</div><div class='desc'>" + i18n.t("about_link_stump_desc", lang) + "</div></a>"
         "<a class='link-tile' href='https://github.com/ruderigo/FireFly-Android' target='_blank' rel='noopener'>"
         "<div class='title'>FireFly-Android</div><div class='desc'>" + i18n.t("about_link_android_desc", lang) + "</div></a>"
         "<a class='link-tile' href='https://github.com/ruderigo/FireFly_RK3326_R36MAX_R36S' target='_blank' rel='noopener'>"
@@ -2014,7 +2014,7 @@ def _render_about_page(lang):
 
     return (
         "<pre class='art'>" + BARKEEP_ART + "</pre>"
-        "<h1 class='doctitle'>Projet Stump &amp; Fireflies</h1>"
+        "<h1 class='doctitle'>LaBuche-Stump &amp; Fireflies</h1>"
         + i18n.switcher_html(lang, "/about") +
         "<p class='tagline'>" + i18n.t("about_tagline", lang) + "</p>"
         + tabs +
