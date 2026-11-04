@@ -1,6 +1,6 @@
 {
   "name": "rnfs",
-  "version": "1.1",
+  "version": "1.2",
   "author": "Project Stump",
   "license": "MIT",
   "stump_api": 1,
@@ -12,8 +12,8 @@
   "tools": true,
   "home": false,
   "hashes": {
-    "tools/README.es.md": "00ea9496e5d99fe9",
-    "tools/README.fr.md": "fa38bef40a81a97f",
+    "tools/README.es.md": "dbaa0800a65478bd",
+    "tools/README.fr.md": "716de28d185abdc8",
     "tools/README.md": "c8c5aae665199b21",
     "tools/lxmf-1.2.0-py3-none-any.whl": "805f053e61082f58",
     "tools/reticulum-LICENSE.txt": "851a55a19e4367da",
@@ -24,7 +24,7 @@
     "tools/rnspure-1.5.7-py3-none-any.whl": "20489039ada391b1"
   },
   "plugin_hashes": {
-    "rnfs": "32efcab28d7d0df6"
+    "rnfs": "b5c74236d6e4d782"
   },
   "credits": "rnfs by Afi Hogan (afit21), MIT, https://github.com/afit21/rnfs. Reticulum (rnspure) and LXMF by Mark Qvist, Reticulum License, https://reticulum.network."
 }

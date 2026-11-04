@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.0-beta.53
+- **Each language names the Stump its own way.** French says *la Bûche*, Spanish *el Tronco* (*un Tronco*), English keeps *the Stump*, everywhere a visitor or the admin reads it: the pages, /admin (Stump settings, Restart, Power off, the restart's waiting screen), the chat's bot and room texts, profiles, the About page, the file bot, the rnfs pack's strings and the Tools page's READMEs. French grammar follows the feminine (*cette Bûche*, *elle*, *redémarrez-la*). The product's own name, as a title, is **LaBuche-Stump** (the About page's heading and link tile, "What is LaBuche-Stump?"). Unchanged on purpose: technical names (`stump.node`, `#wifi-mesh`, `stump.log`, `Stump-<release>.zip`, the boot banner `Project Stump -- ...` that Arborist reads).
+- rnfs pack 1.2 (its French and Spanish strings).
+
 ## 1.0.0-beta.52
 - **The address QR code says it's a Stump** (asked by the FireFly team): it now holds `lxmf://<address>?stump=<name>&key=<public key>` instead of the bare address. `stump=` tells an app at once that it's a Stump, and its name, so it can file it under Stumps without waiting for a beacon (5-15 s over LoRa when all goes well, up to half an hour if one is lost, never without a radio). `key=`, the identity's 64-byte public key in base64url, lets the app check it against the address (a faked code can't claim another's) and reach the Stump at once, before any announce. The page keeps the plain address to copy for other apps, and adds *Open in FireFly* (the same link). Format and the check: `CLIENT_QUICKSTART.md`, Addresses.
 - `qr.py` goes up to version 20 (666 bytes; the link needs version 8 for most names, 9-12 for long or accented ones). Every version 1-20, under all 8 masks, matches Project Nayuki's reference encoder module for module, and decodes with zxing-cpp.

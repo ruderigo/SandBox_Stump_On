@@ -1,11 +1,11 @@
 # Provisioner
 
-L'outil qui installe et met à jour les nœuds Stump, depuis un ordinateur branché en USB : la version exacte avec laquelle ce nœud a été installé.
+L'outil qui installe et met à jour les Bûches, depuis un ordinateur branché en USB : la version exacte avec laquelle cette Bûche a été installée.
 
 ## Ce qu'il y a ici
 
 - `provisioner.py` — le Provisioner lui-même.
-- `Stump-<version>.zip` (par exemple `Stump-1.0.0-beta.35.zip`) — le code source du micrologiciel de ce nœud.
+- `Stump-<version>.zip` (par exemple `Stump-1.0.0-beta.35.zip`) — le code source du micrologiciel de cette Bûche.
 - `Stump-README.md` — le manuel complet (en anglais).
 - `LICENSE` — la licence de l'ensemble (MIT).
 
