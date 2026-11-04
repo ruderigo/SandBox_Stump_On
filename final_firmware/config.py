@@ -66,6 +66,13 @@ MESH_GREETING_MAX = 200
 # destination, not this node's main identity.
 REANNOUNCE_INTERVAL = 120
 
+# LXMF stamps (opt-in, /admin -> Stump settings -> Announcing). A
+# Sideband user can require a stamp on every message they receive; with
+# this on, the Stump keeps and uses the tickets it's given, and a computer
+# Stump makes the stamp by proof of work (a board can't). Off: no stamps,
+# no tickets, as before 1.0.0-beta.53.
+LXMF_STAMPS = False
+
 # Announce rebroadcast throttling. When this node relays for the mesh,
 # it won't rebroadcast more than ANNOUNCE_RATE_MAX announces from the
 # same source within ANNOUNCE_RATE_WINDOW seconds -- protects the wider

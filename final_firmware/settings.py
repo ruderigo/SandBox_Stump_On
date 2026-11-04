@@ -28,7 +28,7 @@ WEIGHT_MAX = 99
 
 # Applied to the running Stump at once; the others need a restart.
 LIVE = ("CREDITS_ENABLED", "CREDIT_WEIGHTS", "AUTH_MODE", "FEATURES", "LIBRARIAN", "PC_STORAGE_MB",
-        "PC_KEEP_AWAKE", "REANNOUNCE_INTERVAL")
+        "PC_KEEP_AWAKE", "REANNOUNCE_INTERVAL", "LXMF_STAMPS")
 
 # A computer's "card": the sd/ folder, PC_STORAGE_MB in size (never more
 # than the disk has free). Uploads fill it to fserv.MAX_SD_RATIO, then the
@@ -125,6 +125,11 @@ def current():
         out["REANNOUNCE_INTERVAL"] = announcer.every()
     except ImportError:
         out["REANNOUNCE_INTERVAL"] = int(g("REANNOUNCE_INTERVAL", 120))
+    try:
+        from urns import lxmf
+        out["LXMF_STAMPS"] = bool(lxmf.STAMPS[0])
+    except ImportError:
+        out["LXMF_STAMPS"] = bool(g("LXMF_STAMPS", False))
     out.update(_storage_now())          # (no {**d} on the board's MicroPython)
     return out
 
@@ -223,6 +228,7 @@ def parse_form(fields):
         if mins < 1 or mins > 1440:
             return None, "announce_min"
         out["REANNOUNCE_INTERVAL"] = mins * 60
+        out["LXMF_STAMPS"] = bool(fields.get("lxmf_stamps"))     # (a box in the same group)
     if fields.get("computer") and on_computer():          # (the This computer group was on the form)
         out["PC_KEEP_AWAKE"] = bool(fields.get("keep_awake"))
     return out, None
@@ -347,6 +353,12 @@ def apply(changes):
             announcer.set_every(changed["REANNOUNCE_INTERVAL"])
         except ImportError:
             later.append("REANNOUNCE_INTERVAL")
+    if "LXMF_STAMPS" in changed:
+        try:
+            from urns import lxmf
+            lxmf.STAMPS[0] = bool(changed["LXMF_STAMPS"])
+        except ImportError:
+            later.append("LXMF_STAMPS")
     if "PC_KEEP_AWAKE" in changed:
         try:
             import stump_host

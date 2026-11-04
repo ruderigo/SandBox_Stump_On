@@ -618,6 +618,16 @@ def main():
 
     async def run_with_reannounce():
         asyncio.create_task(keepalive.loop())
+        # LXMF stamps (opt-in, /admin): tickets kept on the board, the
+        # stamp maker idle unless a contact asks for one.
+        try:
+            from urns import lxmf as _lx
+            import config as _cfg
+            _lx.STAMPS[0] = bool(getattr(_cfg, "LXMF_STAMPS", False))
+            router.load_tickets("lxmf_tickets.bin")
+            asyncio.create_task(router.stamp_loop())
+        except Exception as e:
+            print("[stamps] not started:", e)
         asyncio.create_task(initial_announce())
         asyncio.create_task(reannounce_loop())
         if beacon is not None:

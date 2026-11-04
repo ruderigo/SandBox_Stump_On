@@ -13,6 +13,115 @@ from .crypto.hashes import sha256
 
 APP_NAME = "lxmf"
 
+# Stamps and tickets (upstream LXMF: LXStamper.py, LXMessage.py,
+# LXMRouter.py). A recipient can require a stamp on every message sent to
+# it: proof of work over a 768 KB block made from the message's id
+# ("cost" n: its SHA-256 must start with n zero bits), or, from a sender
+# it gave a ticket to, sha256(ticket + message id)[:16], which costs one
+# hash. Sideband requires stamps only if its user turns that on (cost
+# 1-32), and gives a ticket to the contacts it marks trusted.
+TICKET_LENGTH = 16
+STAMP_SIZE = 32
+WORKBLOCK_EXPAND_ROUNDS = 3000
+TICKETS_MAX = 64            # tickets kept (one per contact)
+COSTS_MAX = 128             # stamp costs kept (one per announced contact)
+# Off unless the admin turns it on (/admin -> Stump settings -> Announcing,
+# config.LXMF_STAMPS): off, no ticket is kept or used, no stamp made,
+# exactly as before 1.0.0-beta.53.
+STAMPS = [False]
+ROUTER = [None]             # the node's router (for /admin's status line)
+
+
+def stamp_cost_from_app_data(app_data):
+    """The stamp cost an LXMF announce asks for, or None (upstream
+    LXMF.stamp_cost_from_app_data: [name, cost, ...] since LXMF 0.5)."""
+    if not app_data:
+        return None
+    try:
+        b0 = app_data[0]
+        if (0x90 <= b0 <= 0x9f) or b0 == 0xdc:
+            d = umsgpack.unpackb(app_data)
+            if isinstance(d, list) and len(d) > 1:
+                c = d[1]
+                if isinstance(c, int) and not isinstance(c, bool) and 0 < c <= 254:
+                    return c
+    except Exception:
+        pass
+    return None
+
+
+def ticket_stamp(ticket, message_id):
+    """The stamp a ticket gives a message: one hash, whatever the cost."""
+    return sha256(bytes(ticket) + bytes(message_id))[:TICKET_LENGTH]
+
+
+def _ms():
+    try:
+        return time.ticks_ms()
+    except AttributeError:
+        return int(time.monotonic() * 1000)
+
+
+def _since(t0):
+    try:
+        return time.ticks_diff(time.ticks_ms(), t0)
+    except AttributeError:
+        return int(time.monotonic() * 1000) - t0
+
+
+def _wall():
+    """Unix time (tickets carry Unix expiry times)."""
+    return time.time() + (946684800 if sys.platform == "esp32" else 0)
+
+
+class StampJob:
+    """Makes one proof-of-work stamp, a slice at a time (step()), so the
+    node keeps answering while it works: the work block (3000 rounds of
+    HKDF), then random stamps until one's hash is under the target."""
+
+    def __init__(self, message_id, cost, rounds=WORKBLOCK_EXPAND_ROUNDS):
+        from .crypto.hkdf import hkdf
+        self._hkdf = hkdf
+        self.mid = bytes(message_id)
+        self.cost = cost
+        self.rounds = rounds
+        self.target = 1 << (256 - cost)
+        self.wb = None
+        self.n = 0
+        self.tries = 0
+        self.stamp = None
+
+    def step(self, budget_ms=40):
+        """Works for about budget_ms; True once the stamp is found."""
+        import os
+        try:
+            import uhashlib as hl
+        except ImportError:
+            import hashlib as hl
+        t0 = _ms()
+        if self.wb is None:
+            self.wb = bytearray(self.rounds * 256)
+        while self.n < self.rounds:
+            n = self.n
+            self.wb[n * 256:(n + 1) * 256] = self._hkdf(
+                length=256, derive_from=self.mid,
+                salt=sha256(self.mid + umsgpack.packb(n)), context=None)
+            self.n += 1
+            if _since(t0) >= budget_ms:
+                return False
+        while True:
+            s = os.urandom(STAMP_SIZE)
+            h = hl.sha256()
+            h.update(self.wb)           # fed in place: no 768 KB copy per try
+            h.update(s)
+            self.tries += 1
+            if int.from_bytes(h.digest(), "big") <= self.target:
+                self.stamp = s
+                self.wb = None
+                return True
+            if _since(t0) >= budget_ms:
+                return False
+
 # Standard LXMF fields
 FIELD_EMBEDDED_LXMS    = 0x01
 FIELD_TELEMETRY        = 0x02
@@ -80,6 +189,8 @@ class LXMessage:
         self.title = title
         self.content = content
         self.fields = fields if fields is not None else {}
+        self.stamp = None              # a proof-of-work stamp, made before pack()
+        self.outbound_ticket = None    # the recipient's ticket: the stamp is one hash
 
         self.timestamp = None
         self.signature = None
@@ -143,32 +254,34 @@ class LXMessage:
     def register_failed_callback(self, callback):
         self._failed_callback = callback
 
-    def pack(self):
-        """Pack message into wire format"""
-        if self.packed:
-            raise ValueError("Message already packed")
+    def _hash_payload(self):
+        """[timestamp, title, content, fields] and the bytes hashed for the
+        message id, set once (a stamp is made from the id before pack())."""
+        if getattr(self, "_hashed", None) is None:
+            self._set_timestamp()
+            payload = [self.timestamp, self.title, self.content, self.fields]
+            hashed_part = self._destination.hash + self._source.hash + umsgpack.packb(payload)
+            self.hash = sha256(hashed_part)
+            self.message_id = self.hash
+            self._hashed = (payload, hashed_part)
+        return self._hashed
 
+    def _set_timestamp(self):
         if self.timestamp is None:
             platform = sys.platform
             # https://docs.micropython.org/en/latest/library/time.html
             if platform == "esp32":
                 # Micropython on ESP32 uses epoch time of 2000-01-01 so for Unix time need to add 946,684,800 seconds
                 self.timestamp = 946684800 + time.time()
-            elif platform == "rp2":
-                # Micropython on rp2 uses standard unix epoch 1970-01-01
-                self.timestamp = time.time()
             else:
                 self.timestamp = time.time()
 
-        payload = [self.timestamp, self.title, self.content, self.fields]
+    def pack(self):
+        """Pack message into wire format"""
+        if self.packed:
+            raise ValueError("Message already packed")
 
-        # Compute message hash (message_id)
-        hashed_part = b""
-        hashed_part += self._destination.hash
-        hashed_part += self._source.hash
-        hashed_part += umsgpack.packb(payload)
-        self.hash = sha256(hashed_part)
-        self.message_id = self.hash
+        payload, hashed_part = self._hash_payload()
 
         # Sign: hash(dest + source + payload) + message_hash
         signed_part = hashed_part + self.hash
@@ -178,6 +291,16 @@ class LXMessage:
         except:
             pass
         self.signature_validated = True
+
+        # The stamp goes after the four fields, outside what's hashed and
+        # signed (upstream LXMessage.pack): from a ticket, or made already.
+        stamp = None
+        if self.outbound_ticket is not None:
+            stamp = ticket_stamp(self.outbound_ticket, self.hash)
+        elif self.stamp is not None:
+            stamp = self.stamp
+        if stamp is not None:
+            payload = payload + [stamp]
 
         # Assemble packed message
         packed_payload = umsgpack.packb(payload)
@@ -372,6 +495,20 @@ class LXMRouter:
 
         self.MESSAGE_EXPIRY = 30 * 24 * 60 * 60  # 30 days
 
+        # Stamps (see the top of this file).
+        self.stamp_costs = {}       # destination hash -> the cost its announce asks
+        self.tickets = {}           # destination hash -> [expires, ticket] it gave us
+        self.TICKETS_FILE = None    # where tickets are kept across restarts (the node sets it)
+        # The highest cost this node makes stamps for by proof of work. A
+        # CAM can't (the work block alone is ~90 s and 768 KB): 0, tickets
+        # only. A computer: ~1 s at 8, ~13 s at 12, minutes at 16.
+        self.stamp_max_cost = 0 if sys.platform == "esp32" else 20
+        self.unstamped = {}         # destination hash -> cost: sent without the stamp it asks
+        self._stamp_queue = []      # [message, destination, interface] waiting for a stamp
+        self._stamp_job = None
+        self.stamps_made = 0
+        ROUTER[0] = self
+
     def register_delivery_identity(self, identity, display_name=None, stamp_cost=None):
         """Register identity for receiving LXMF messages.
         Creates the lxmf.delivery destination and sets up callbacks."""
@@ -499,14 +636,155 @@ class LXMRouter:
             desired_method=desired_method or LXMessage.OPPORTUNISTIC,
         )
 
-        msg.pack()
+        if self._stamp_first(msg, destination_hash, dest, None):
+            return msg
+        self._dispatch(msg, dest, None)
+        return msg
 
-        if msg.method == LXMessage.OPPORTUNISTIC:
+    def _dispatch(self, msg, dest, interface):
+        """Packs and sends a message (its stamp, if any, already made)."""
+        msg.pack()
+        if interface is not None:
+            if msg.method != LXMessage.OPPORTUNISTIC:
+                log("LXMF message too big for one packet on " + str(interface), LOG_ERROR)
+                return None
+            msg.send(attached_interface=interface)
+        elif msg.method == LXMessage.OPPORTUNISTIC:
             msg.send()
         elif msg.method == LXMessage.DIRECT:
             self._send_direct(msg, dest)
-
         return msg
+
+    # ---- stamps and tickets ----
+
+    def _ticket_for(self, destination_hash):
+        t = self.tickets.get(destination_hash)
+        if t is None:
+            return None
+        if _wall() >= t[0]:
+            del self.tickets[destination_hash]
+            return None
+        return t[1]
+
+    def _stamp_first(self, msg, destination_hash, dest, interface):
+        """Prepares the stamp a recipient asks for. False: send now (no
+        stamp needed, or a ticket's, made in pack()). True: queued, sent
+        by stamp_loop() once its proof of work is done."""
+        if not STAMPS[0]:
+            return False
+        ticket = self._ticket_for(destination_hash)
+        if ticket is not None:
+            msg.outbound_ticket = ticket
+            return False
+        cost = self.stamp_costs.get(destination_hash)
+        if not cost:
+            return False
+        if cost > self.stamp_max_cost:
+            # Sent anyway: an app that doesn't enforce stamps takes it.
+            if self.unstamped.get(destination_hash) != cost:
+                log("LXMF " + destination_hash.hex()[:8] + " asks for stamps (cost " + str(cost)
+                    + "), too costly here: sent without one. It arrives if that app gives this node"
+                    " a ticket (Sideband: mark it trusted)", LOG_WARNING)
+            self.unstamped[destination_hash] = cost
+            return False
+        msg._hash_payload()
+        self._stamp_queue.append([msg, dest, interface])
+        log("LXMF " + destination_hash.hex()[:8] + " asks for stamps (cost " + str(cost)
+            + "): making one", LOG_NOTICE)
+        return True
+
+    async def stamp_loop(self, budget_ms=40):
+        """Makes queued stamps one at a time, in slices, then sends each
+        message. Started by the node (example_node)."""
+        try:
+            import uasyncio as asyncio
+        except ImportError:
+            import asyncio
+        while True:
+            if not self._stamp_queue:
+                await asyncio.sleep(1)
+                continue
+            msg, dest, iface = self._stamp_queue[0]
+            try:
+                cost = (self.stamp_costs.get(msg.destination_hash) or 0) if STAMPS[0] else 0
+                ticket = self._ticket_for(msg.destination_hash) if STAMPS[0] else None
+                if ticket is not None or not cost:
+                    # A ticket arrived meanwhile, or it stopped asking.
+                    msg.outbound_ticket = ticket
+                else:
+                    if self._stamp_job is None or self._stamp_job.mid != msg.message_id:
+                        self._stamp_job = StampJob(msg.message_id, cost)
+                    if not self._stamp_job.step(budget_ms):
+                        await asyncio.sleep(0)
+                        continue
+                    msg.stamp = self._stamp_job.stamp
+                    self.stamps_made += 1
+                    log("LXMF stamp made for " + msg.destination_hash.hex()[:8] + " (cost "
+                        + str(cost) + ", " + str(self._stamp_job.tries) + " tries)", LOG_NOTICE)
+                self._stamp_job = None
+                self._stamp_queue.pop(0)
+                self._dispatch(msg, dest, iface)
+            except Exception as e:
+                log("LXMF stamp error: " + str(e), LOG_ERROR)
+                self._stamp_job = None
+                if self._stamp_queue and self._stamp_queue[0][0] is msg:
+                    self._stamp_queue.pop(0)
+            await asyncio.sleep(0)
+
+    def _take_ticket(self, message):
+        """Keeps the ticket a signed message carries (FIELD_TICKET:
+        [expires, 16 bytes]): our replies to its sender then cost a hash."""
+        try:
+            if not STAMPS[0] or not message.signature_validated:
+                return
+            entry = (message.fields or {}).get(FIELD_TICKET)
+            if not (isinstance(entry, list) and len(entry) > 1):
+                return
+            expires, ticket = entry[0], entry[1]
+            if not isinstance(expires, (int, float)) or _wall() >= expires:
+                return
+            if not isinstance(ticket, bytes) or len(ticket) != TICKET_LENGTH:
+                return
+            src = message.source_hash
+            old = self.tickets.get(src)
+            if old is not None and old[1] == ticket:
+                return
+            if old is None and len(self.tickets) >= TICKETS_MAX:
+                self.tickets.pop(min(self.tickets, key=lambda k: self.tickets[k][0]))
+            self.tickets[src] = [expires, ticket]
+            self.unstamped.pop(src, None)
+            log("LXMF ticket from " + src.hex()[:8] + ": replies to it carry its stamp", LOG_NOTICE)
+            self._save_tickets()
+        except Exception as e:
+            log("LXMF ticket error: " + str(e), LOG_ERROR)
+
+    def _save_tickets(self):
+        if not self.TICKETS_FILE:
+            return
+        try:
+            tmp = self.TICKETS_FILE + ".tmp"
+            with open(tmp, "wb") as f:
+                f.write(umsgpack.packb(self.tickets))
+            import os
+            os.rename(tmp, self.TICKETS_FILE)
+        except Exception as e:
+            log("LXMF could not save tickets: " + str(e), LOG_ERROR)
+
+    def load_tickets(self, path):
+        """Where tickets are kept; loads those still valid."""
+        self.TICKETS_FILE = path
+        try:
+            with open(path, "rb") as f:
+                d = umsgpack.unpackb(f.read())
+        except Exception:
+            return
+        now = _wall()
+        if isinstance(d, dict):
+            for k, v in d.items():
+                if (isinstance(k, bytes) and isinstance(v, list) and len(v) == 2
+                        and isinstance(v[0], (int, float)) and v[0] > now
+                        and isinstance(v[1], bytes) and len(v[1]) == TICKET_LENGTH):
+                    self.tickets[k] = v
 
     def _send_via(self, destination_hash, content, title, fields, interface):
         """One packet on one interface (the radio), whatever links or paths
@@ -523,12 +801,9 @@ class LXMRouter:
         source = Destination(self.delivery_identity, Destination.OUT, Destination.SINGLE, APP_NAME, "delivery")
         msg = LXMessage(destination=dest, source=source, content=content, title=title,
                         fields=fields, desired_method=LXMessage.OPPORTUNISTIC)
-        msg.pack()
-        if msg.method != LXMessage.OPPORTUNISTIC:
-            log("LXMF message too big for one packet on " + str(interface), LOG_ERROR)
-            return None
-        msg.send(attached_interface=interface)
-        return msg
+        if self._stamp_first(msg, destination_hash, dest, interface):
+            return msg
+        return self._dispatch(msg, dest, interface)
 
     def _find_active_link_for(self, destination_hash):
         """Return an ACTIVE OutgoingLink we previously opened to this LXMF
@@ -697,6 +972,7 @@ class LXMRouter:
             self.delivered_ids[message.hash] = time.time()
             self._clean_delivered_ids()
 
+            self._take_ticket(message)
             if self._delivery_callback:
                 try:
                     self._delivery_callback(message)
@@ -760,6 +1036,7 @@ class LXMRouter:
             self.delivered_ids[message.hash] = time.time()
             self._clean_delivered_ids()
 
+            self._take_ticket(message)
             if self._delivery_callback:
                 try:
                     self._delivery_callback(message)
@@ -820,6 +1097,7 @@ class LXMRouter:
             packet.prove()
 
             # Deliver to application
+            self._take_ticket(message)
             if self._delivery_callback:
                 try:
                     self._delivery_callback(message)
@@ -844,6 +1122,14 @@ class LXMRouter:
             "name": display_name,
             "timestamp": time.time(),
         }
+        cost = stamp_cost_from_app_data(app_data)
+        if cost:
+            if destination_hash not in self.stamp_costs and len(self.stamp_costs) >= COSTS_MAX:
+                self.stamp_costs.pop(next(iter(self.stamp_costs)))
+            self.stamp_costs[destination_hash] = cost
+        else:
+            self.stamp_costs.pop(destination_hash, None)
+            self.unstamped.pop(destination_hash, None)
 
         log("LXMF peer: " + (display_name or "?") +
             " [" + destination_hash.hex()[:8] + "]", LOG_VERBOSE)
