@@ -1,7 +1,8 @@
 # Project Stump -- qr.py
 #
-# A QR code, as an SVG, for short text (the Stump's address on its
-# /address page): byte mode, error correction M, versions 1-10. Made on
+# A QR code, as an SVG, for short text (the Stump's address link on
+# its /address page): byte mode, error correction M, versions 1-20 (up to
+# 666 bytes). Made on
 # the Stump itself, so the page needs no internet and no script.
 #
 # The algorithm is the QR standard's (ISO/IEC 18004), in the shape of
@@ -10,9 +11,10 @@
 # the mask with the lowest penalty. tests/mp/qr_test.py checks every
 # module against an independent encoder (segno), for each mask.
 
-_ECC = (10, 16, 26, 18, 24, 16, 18, 22, 22, 26)     # M: error codewords per block, versions 1-10
-_BLOCKS = (1, 1, 1, 2, 2, 4, 4, 4, 5, 5)            # M: blocks
-MAX_VERSION = 10
+# Error correction M, versions 1-20: error codewords per block, and blocks.
+_ECC = (10, 16, 26, 18, 24, 16, 18, 22, 22, 26, 30, 22, 22, 24, 24, 28, 28, 26, 26, 26)
+_BLOCKS = (1, 1, 1, 2, 2, 4, 4, 4, 5, 5, 5, 8, 9, 9, 10, 10, 11, 13, 14, 16)
+MAX_VERSION = 20
 
 
 def _raw_modules(ver):

@@ -81,6 +81,19 @@ if up:
     check("/admin: Turn off this Stump, and how to start it again", "action='/admin/poweroff'" in page
           and "Turn off this Stump" in page and os.path.basename(str(start)) in page
           and "confirm(" in page, page[page.find("poweroff") - 300:][:600])
+    # /address: the QR code's link (also the page's "Open in FireFly"), its
+    # key giving this Stump's real address (the FireFly team checks that).
+    import re, base64, hashlib
+    s, page = get("/address")
+    m = re.search(r"href='(lxmf://([0-9a-f]{32})\?stump=([^&']*)&(?:amp;)?key=([A-Za-z0-9_-]{86}))'", page)
+    node = __import__("json").loads(get("/node.json")[1])
+    ok = False
+    if m:
+        pub = base64.urlsafe_b64decode(m.group(4) + "==")
+        ih = hashlib.sha256(pub).digest()[:16]
+        nh = hashlib.sha256(b"lxmf.delivery").digest()[:10]
+        ok = hashlib.sha256(nh + ih).digest()[:16].hex() == m.group(2) == node.get("lxmf")
+    check("/address on a running Stump: the link, its key giving its real LXMF address", ok, page[:400] if not m else m.group(1)[:80])
     # "Announce now" from /admin: the running Stump's own loop sends it
     # (the LXMF address, then the Stump beacon), and says so in its log.
     s, page = get("/admin/announce", b"admin_pass=pw")
