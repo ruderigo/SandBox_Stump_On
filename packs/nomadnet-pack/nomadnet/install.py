@@ -21,6 +21,7 @@ BODY_MAX = 300         # a notice's text shown, in characters
 
 _api = []
 _door = [None]
+_hub = [None]          # the rrc.hub destination: NomadNet's chat (hub.py)
 
 
 def setup(stump):
@@ -30,6 +31,13 @@ def setup(stump):
     for name, fn in (("index", _index), ("rooms", _rooms), ("room", _room), ("say", _say),
                      ("board", _board), ("notice", _notice), ("files", _files)):
         d.handle("/page/" + name + ".mu", fn)
+    if stump.setting("HUB", True):
+        from . import hub
+        h = stump.node("rrc", "hub")
+        h.on_link(hub.on_link)
+        _hub[0] = h
+        stump.every(1, hub.tick)
+    stump.page("", _web, nav=lambda lang: stump.t("card", lang), sub=lambda lang: stump.t("card_sub", lang))
     every = max(5, int(stump.setting("ANNOUNCE_MIN", 30) or 30))
     stump.every(every * 60, _announce)
     stump.every(60, _first_announce)
@@ -46,6 +54,29 @@ def _first_announce():
 def _announce():
     if _door[0] is not None and _door[0].announce(_name()):
         _announced[0] = True
+    if _hub[0] is not None:
+        _hub[0].announce(_name())
+
+
+def _hub_src():
+    """The hub's own sender hash in RRC envelopes: its destination's."""
+    try:
+        return _hub[0].dest.hash
+    except Exception:
+        return b"\x00" * 16
+
+
+def _hub_link(room):
+    """A link that opens this room in NomadNet's Channels (rrc://)."""
+    h = _hub[0].hexhash if _hub[0] is not None else None
+    if not h:
+        return ""
+    return "`F79d`[" + _t("hub_open") + "`rrc://" + h + "/" + room + "]`f"
+
+
+def _canon(room):
+    import rrc
+    return rrc.canon(str(room).strip().lstrip("#").lower())
 
 
 # ── helpers ──────────────────────────────────────────────────────────
@@ -222,8 +253,10 @@ def _rooms(path, data, who):
             topic = rrc.topic(r, _lang()) or ""
         except Exception:
             topic = ""
-        out += ("`F79d`[#" + esc(r) + "`:/page/room.mu`room=" + r + "]`f  "
-                + _t("people", n=n) + ("  " + esc(topic[:80]) if topic else "") + "\n")
+        out += ("`F79d`[#" + _inline(r) + "`:/page/room.mu`room=" + r + "]`f  "
+                + _t("people", n=n) + ("  " + _inline(topic[:80]) if topic else "") + "\n")
+        if _hub[0] is not None:
+            out += "    " + _hub_link(r) + "\n"
     return out + _nav()
 
 
@@ -255,6 +288,8 @@ def _room_page(room, who, note=""):
     else:
         out += "`*" + _t("identify") + "`*\n"
     out += "`F79d`[" + _t("refresh") + "`:/page/room.mu`room=" + room + "]`f\n"
+    if _hub[0] is not None:
+        out += _hub_link(room) + "  " + _t("hub_why") + "\n"
     return out + _nav()
 
 
@@ -379,3 +414,24 @@ def _size(n):
     if n >= 1024:
         return "%d KB" % (n // 1024)
     return "%d B" % n
+
+
+# ── the Stump's own web page: how to reach it from NomadNet ──────────
+
+def _web(req):
+    s = _api[0]
+    e = s.esc
+    t = lambda k, **kw: s.t(k, req.lang, **kw)
+    node = _door[0].hexhash if _door[0] is not None else None
+    hub = _hub[0].hexhash if _hub[0] is not None else None
+    out = ["<h1>" + e(t("web_title")) + "</h1><p class='sub'>" + e(t("web_intro")) + "</p>"]
+    if not node:
+        return "".join(out) + "<div class='panel'><p>" + e(t("web_starting")) + "</p></div>"
+    out.append("<div class='panel'><h2>" + e(t("web_pages")) + "</h2><p>" + e(t("web_pages_how")) + "</p>"
+               "<p><code>" + node + "</code></p></div>")
+    if hub:
+        out.append("<div class='panel'><h2>" + e(t("web_chat")) + "</h2><p>" + e(t("web_chat_how")) + "</p>"
+                   "<p><code>" + hub + "</code></p><p class='sub'>" + e(t("web_chat_rooms")) + " "
+                   + ", ".join("<code>rrc://" + hub + "/" + e(r) + "</code>" for r in _room_list()) + "</p></div>")
+    out.append("<p class='sub'>" + e(t("web_meshchat")) + "</p>")
+    return "".join(out)

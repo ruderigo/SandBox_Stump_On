@@ -133,6 +133,12 @@ wrong (the replies are chat-room lines: `<nick> text`, `[DM] ...`).
       in a room: it shows in the Stump's chat as `nomad-xxxx` or your
       name. Then MeshChat (its NomadNet browser). Then over LoRa.
       Switch it off in `/admin` → Plugins: the pages stop answering.
+- [ ] **NomadNet's chat in the Stump's rooms** (same pack): in NomadNet,
+      a room's *Chat in NomadNet* link (or Channels → New hub, the
+      address from the Stump's *NomadNet* card). Expected: the hub
+      named after the Stump, #main with its last lines; say something:
+      it shows on the web and in FireFly; answer from FireFly: it shows
+      in NomadNet. Then over LoRa. If you have MeshChatX: the same.
 - [ ] **Simple pack**: from Sideband, write to the Stump. Expected: the
       first answer ends with the tip; write `simple`: answers become
       sentences ("rod: hi", "maria joined."); `simple off` goes back.

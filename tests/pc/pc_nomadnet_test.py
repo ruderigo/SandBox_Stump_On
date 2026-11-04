@@ -2,8 +2,9 @@
 # official Reticulum library (what NomadNet and MeshChat run) on the
 # other side of a TCP link, browsing it as NomadNet does: a path request
 # to the Stump's nomadnetwork.node, a link, Identify, page requests, and
-# a line said in a room through a form. Needs rns (pip install rns):
-# run by the "reference" job. Run: python3 tests/pc/pc_nomadnet_test.py
+# a line said in a room through a form; then its RRC hub, from a bare
+# client (cbor2) and from NomadNet's own chat client (nomadnet/RRC.py).
+# Needs rns, cbor2 and nomadnet (pip): run by the "reference" job. Run: python3 tests/pc/pc_nomadnet_test.py
 import os, shutil, subprocess, sys, tempfile, time, json, urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -124,7 +125,115 @@ try:
     check("... and in the Stump's chat, for everyone", "hello from the reference library" in poll, poll[-600:])
     b = page("/page/board.mu")
     check("the billboard", b is not None and "<40|title`>" in b, b)
+    s, rooms_page = 200, page("/page/rooms.mu")
     link.teardown()
+
+    # The RRC hub, as NomadNet's Channels speaks it (nomadnet/RRC.py), with
+    # an independent CBOR library (cbor2).
+    import cbor2, os as _os
+    hubh = RNS.Destination.hash(stump_id, "rrc", "hub")
+    check("the rooms page links each room into NomadNet's chat", "`rrc://" + hubh.hex() + "/main]" in (rooms_page or ""), rooms_page)
+    RNS.Transport.request_path(hubh)
+    t0 = time.time()
+    while not RNS.Transport.has_path(hubh) and time.time() - t0 < 60:
+        time.sleep(0.5)
+        if int(time.time() - t0) % 10 == 0:
+            RNS.Transport.request_path(hubh)
+    hdest = RNS.Destination(RNS.Identity.recall(hubh), RNS.Destination.OUT, RNS.Destination.SINGLE, "rrc", "hub")
+    got = []
+    hl = RNS.Link(hdest)
+    t0 = time.time()
+    while hl.status != RNS.Link.ACTIVE and time.time() - t0 < 30:
+        time.sleep(0.2)
+    check("a link to its RRC hub", hl.status == RNS.Link.ACTIVE)
+    hl.set_packet_callback(lambda data, pkt: got.append(cbor2.loads(data)))
+    hl.identify(me)
+    time.sleep(1)
+
+    def env(t, room=None, body=None, nick=None):
+        e = {0: 1, 1: t, 2: _os.urandom(8), 3: int(time.time() * 1000), 4: me.hash}
+        if room is not None: e[5] = room
+        if body is not None: e[6] = body
+        if nick: e[7] = nick
+        RNS.Packet(hl, cbor2.dumps(e)).send()
+
+    def wait_for(pred, secs=20):
+        t0 = time.time()
+        while time.time() - t0 < secs:
+            for e in list(got):
+                if pred(e):
+                    return e
+            time.sleep(0.2)
+        return None
+
+    env(1, body={0: "nomadnet", 1: "0.1", 2: {0: True, 1: True}}, nick="Zoe")
+    w = wait_for(lambda e: e.get(1) == 2)
+    check("HELLO -> WELCOME, named after the Stump", w is not None and w[6][0] == "Souche", got)
+    env(10, room="main")
+    check("JOIN -> JOINED", wait_for(lambda e: e.get(1) == 11 and e.get(5) == "main") is not None, got)
+    check("... with the room's recent lines", wait_for(lambda e: e.get(1) == 20
+          and e.get(6) == "hello from the reference library") is not None, got)
+    env(20, room="main", body="hi from Channels", nick="Zoe")
+    time.sleep(2)
+    s, poll = get("/rrc/poll?room=main&since=0")
+    check("MSG from the hub: in the Stump's room", "hi from Channels" in poll, poll[-500:])
+    import http.client
+    c = http.client.HTTPConnection(IP, PORT, timeout=10)
+    c.request("POST", "/rrc/send?room=main", body="hello Zoe, from the web".encode(),
+              headers={"Cookie": "stump_v=v" + "7" * 20})
+    c.getresponse().read()
+    m = wait_for(lambda e: e.get(1) == 20 and e.get(6) == "hello Zoe, from the web")
+    check("a line said on the web reaches NomadNet's chat", m is not None and m.get(5) == "main", got[-5:])
+    env(20, room="main", body="/list")
+    check("/list", wait_for(lambda e: e.get(1) == 21 and str(e.get(6)).startswith("Registered public rooms:")) is not None, got[-3:])
+    hl.teardown()
+    # NomadNet's own chat client (nomadnet/RRC.py), unchanged.
+    from nomadnet import RRC as NRRC
+    class App:
+        identity = me
+        class rns:
+            @staticmethod
+            def get_medium_path_timeout():
+                return 30
+        peer_settings = {"display_name": "Zoe"}
+        storagepath = work
+        rrc_history_per_room_cap = 500
+        rrc_filter_loaded_history = True
+        rrc_max_accepted_resource_size = 262144
+        rrc_ephemeral_notices = 600
+    mgr = NRRC.RRCManager(App())
+    mgr._store_path = lambda: os.path.join(work, "rrc.store")
+    mgr._history_root = lambda: os.path.join(work, "rrc_history")
+    hubh = RNS.Destination.hash(stump_id, "rrc", "hub")
+    hub = mgr.add_hub(hubh, name="Souche")
+    hub.connect()
+    t0 = time.time()
+    while hub.status != NRRC.RRCHub.STATUS_CONNECTED and time.time() - t0 < 90:
+        time.sleep(0.5)
+    check("NomadNet's client connects to the Stump's hub", hub.status == NRRC.RRCHub.STATUS_CONNECTED, (hub.status, getattr(hub, "status_text", "")))
+    check("... and learns its name", hub.hub_name == "Souche", hub.hub_name)
+    hub.join_room("main")
+    t0 = time.time()
+    while "main" not in hub.rooms and time.time() - t0 < 20:
+        time.sleep(0.3)
+    check("NomadNet joins #main", "main" in hub.rooms, hub.rooms)
+    time.sleep(3)
+    texts = [m.text for m in hub.get_messages("main")]
+    check("... and shows its recent lines", "hello from the reference library" in texts, texts)
+    hub.send_message("main", "typed in NomadNet's Channels")
+    time.sleep(2)
+    s, poll = get("/rrc/poll?room=main&since=0")
+    check("what Zoe types reaches the Stump's room", "typed in NomadNet's Channels" in poll, poll[-400:])
+    import http.client
+    c = http.client.HTTPConnection(IP, PORT, timeout=10)
+    c.request("POST", "/rrc/send?room=main", body="hi Zoe from a browser".encode(), headers={"Cookie": "stump_v=v" + "8" * 20})
+    c.getresponse().read()
+    t0 = time.time()
+    while time.time() - t0 < 15 and not any(m.text == "hi Zoe from a browser" for m in hub.get_messages("main")):
+        time.sleep(0.3)
+    got = [(m.nick, m.text) for m in hub.get_messages("main")]
+    check("a browser's line shows in NomadNet, with its nick", any(t == "hi Zoe from a browser" and n for n, t in got), got[-5:])
+    hub.disconnect()
 finally:
     stump.terminate()
     try:

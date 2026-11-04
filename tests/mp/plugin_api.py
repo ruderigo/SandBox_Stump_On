@@ -23,7 +23,7 @@ check('loaded', running == ['dice', 'fservbot', 'stumpid'], running)
 st = {p['name']: p for p in plugins.status()}
 check('crashy failed', st['crashy']['state'] == 'failed' and 'setup broke' in st['crashy']['error'], st['crashy'])
 check('crashy gate removed', all(g[2] != 'crashy' for g in plugins._gates))
-check('future refused', st['future']['state'] == 'failed' and 'API 2' in st['future']['error'], st['future'])
+check('future refused', st['future']['state'] == 'failed' and 'API 99' in st['future']['error'], st['future'])
 check('marker after load is running-phase', plugins._read_marker() == {'plugin': None})
 import dice.install as D
 check('refusals', [t for t in D.TICKS if t.startswith('refused')] and 'NOT REFUSED' not in D.TICKS, D.TICKS)

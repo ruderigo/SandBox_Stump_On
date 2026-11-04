@@ -361,7 +361,7 @@ EXPECTED_FILE_HASHES = {
     "node_common.py": "e1e748a3283da2f4",
     "peripherals/__init__.py": "d2bdac4de6de79de",
     "peripherals/adc_reader.py": "50a393bfa61641d4",
-    "plugins.py": "4fcd251aa576dd13",
+    "plugins.py": "7a998e0e53b39e0c",
     "profiles.py": "af13b5e91b83d004",
     "propagation.py": "99b4bcebeeeff8a7",
     "qr.py": "7f8550209d5f6abd",
@@ -906,7 +906,12 @@ def lint_plugin(plugin_dir):
         for n, line in enumerate(lines, 1):
             code = line.split("#", 1)[0]
             for pat, why in _LINT_PATTERNS:
-                if pat in code:
+                # The call itself, not a longer name ending the same way
+                # (handle_input( isn't input(, my_time.sleep( is).
+                i = code.find(pat)
+                while i > 0 and (code[i - 1].isalnum() or code[i - 1] == "_"):
+                    i = code.find(pat, i + 1)
+                if i >= 0:
                     out.append((f.relative_to(Path(plugin_dir).parent).as_posix(), n, why))
     return out
 

@@ -12,6 +12,17 @@ and browse it, over the Stump's Wi-Fi or over LoRa:
 - **Files**: the shared files' names and sizes. Downloading stays on the
   Stump's Wi-Fi (the Files page): too heavy for the radio.
 
+**NomadNet's own chat, in the Stump's rooms.** The pack also makes the
+Stump an RRC hub (the chat protocol NomadNet's *Channels* speaks): in
+NomadNet, Channels → New hub, the hub address (on the Stump's home
+page, card *NomadNet*), or the *Chat in NomadNet* link next to each
+room on its pages. The hub's rooms are the Stump's rooms: what people
+say on the web, in FireFly or over LXMF shows in NomadNet, and the
+other way round. `/list` and `/who` work; private messages to a
+NomadNet user arrive as notices, and `/msg <name> <text>` sends one.
+MeshChatX and Eridanus speak RRC too and should work the same
+(untested).
+
 Writing (in a room, on the billboard) takes an identity the app proves
 to the node (NomadNet: the page menu, *Identify*). It goes through the
 same checks as a message from an LXMF app: the Stump's access mode, the
@@ -26,3 +37,4 @@ later (plugin API 2).
 | Setting (`config.py`) | Default | |
 |---|---|---|
 | `NOMADNET_ANNOUNCE_MIN` | 30 | Minutes between announces (5 or more) |
+| `NOMADNET_HUB` | True | Be an RRC hub too |

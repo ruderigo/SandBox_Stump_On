@@ -80,7 +80,7 @@ _services = {}    # name -> (plugin, obj)
 _mesh_out = []    # [priority, seq, plugin, fn], sorted: what the Stump sends apps over LXMF
 _doors = {}       # (app, aspects) -> Door: a plugin's Reticulum destination
 _net = [None]     # the Stump's identity, once Reticulum is up (network_ready)
-DOOR_APPS_RESERVED = ("lxmf", "stump", "rnstransport", "rrc")
+DOOR_APPS_RESERVED = ("lxmf", "stump", "rnstransport")
 DOOR_REQUEST_MAX = 4096        # bytes a request to a plugin's destination may carry
 _seq = [0]
 _cmd_use = {}     # client_id -> [last_ms, window_start_ms, count]
@@ -857,6 +857,29 @@ class Door:
         if self.dest is not None:
             self._register(path)
 
+    def on_link(self, fn):
+        """fn(session) for each link opened to this destination (a
+        Session: send(), on_packet(), remote_hex(), is_open(), close()).
+        Links arriving while the plugin is off are closed."""
+        self._on_link = fn
+        if self.dest is not None:
+            self._register_links()
+
+    def _register_links(self):
+        door = self
+
+        def established(link):
+            fn = getattr(door, "_on_link", None)
+            if fn is None or not _active(door.plugin):
+                try:
+                    link.teardown()
+                except Exception:
+                    pass
+                return
+            _call(door.plugin, "link", fn, Session(link, door.plugin))
+
+        self.dest.set_link_established_callback(established)
+
     def announce(self, app_data=None):
         if self.dest is None or not _active(self.plugin):
             return False
@@ -874,6 +897,8 @@ class Door:
             pass
         for p in self._handlers:
             self._register(p)
+        if getattr(self, "_on_link", None) is not None:
+            self._register_links()
 
     def _register(self, path):
         from urns.destination import Destination
@@ -895,6 +920,52 @@ class Door:
             return res.encode("utf-8") if isinstance(res, str) else bytes(res)
 
         self.dest.register_request_handler(path, response_generator=gen, allow=Destination.ALLOW_ALL)
+
+
+class Session:
+    """One link to a plugin's destination, as the plugin sees it."""
+
+    def __init__(self, link, plugin):
+        self._link = link
+        self._plugin = plugin
+
+    def remote_hex(self):
+        """The identity the other side proved (Identify), hex; or None."""
+        try:
+            r = self._link.remote_identity
+            return r.hash.hex() if r is not None else None
+        except Exception:
+            return None
+
+    def is_open(self):
+        try:
+            from urns.link import Link
+            return self._link.status == Link.ACTIVE and _active(self._plugin)
+        except Exception:
+            return False
+
+    def send(self, data):
+        """One packet on the link (keep it under ~380 bytes)."""
+        if not self.is_open():
+            return False
+        self._link.send(bytes(data))
+        return True
+
+    def on_packet(self, fn):
+        """fn(data) for each packet the other side sends."""
+        plugin = self._plugin
+
+        def cb(plaintext, packet):
+            if _active(plugin):
+                _call(plugin, "packet", fn, bytes(plaintext))
+
+        self._link.set_packet_callback(cb)
+
+    def close(self):
+        try:
+            self._link.teardown()
+        except Exception:
+            pass
 
 
 def network_ready(identity):

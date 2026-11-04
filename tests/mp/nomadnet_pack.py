@@ -100,6 +100,100 @@ check("switched off in /admin: pages answer nothing, no announce",
 plugins.set_enabled('nomadnet', True)
 check("... and back on", get("index.mu") is not None)
 
+# ── The RRC hub: NomadNet's own chat in the Stump's rooms ─────────────
+from nomadnet import cbor, hub
+hubdoor = plugins._doors[("rrc", ("hub",))]
+check("the hub's destination: rrc.hub", hubdoor.dest is not None and hubdoor.dest.hash == Destination.hash(node, "rrc", "hub"))
+b = get("rooms.mu")
+check("rooms list: a Chat in NomadNet link per room (rrc://)", "`rrc://" + hubdoor.hexhash + "/main]" in b, b)
+
+
+class FakeSession:
+    def __init__(self, who):
+        self.who, self.out, self.cb, self.open = who, [], None, True
+    def remote_hex(self):
+        return self.who.hash.hex() if self.who else None
+    def is_open(self):
+        return self.open
+    def send(self, d):
+        assert len(d) < 380, len(d)
+        self.out.append(cbor.loads(d))
+        return True
+    def on_packet(self, fn):
+        self.cb = fn
+    def close(self):
+        self.open = False
+
+
+def env(t, room=None, body=None, nick=None):
+    e = {0: 1, 1: t, 2: b"12345678", 3: 0, 4: rrcme.hash}
+    if room is not None: e[5] = room
+    if body is not None: e[6] = body
+    if nick: e[7] = nick
+    return cbor.dumps(e)
+
+
+rrcme = Identity()
+fs = FakeSession(rrcme)
+hub.on_link(fs)
+fs.cb(env(1, body={0: "nomadnet", 1: "0.1", 2: {0: True, 1: True}}, nick="Zoe"))
+types = [e[1] for e in fs.out]
+check("HELLO -> WELCOME, with the Stump's name and limits, then a greeting notice",
+      types[:2] == [2, 21] and fs.out[0][6][0] == "LaBuche" and fs.out[0][6][3][2] == 300, fs.out[:2])
+fs.out.clear()
+fs.cb(env(10, room="main"))
+check("JOIN -> JOINED", fs.out and fs.out[0][1] == 11 and fs.out[0][5] == "main", fs.out)
+check("... and the room is told Zoe arrived", any(m.get('body') == '✓ ~Zoe' for m in rrc.since('main', 0)), rrc.since('main', 0)[-2:])
+hub.tick()
+check("... with the last lines from before", any(e[1] == 20 and e.get(6) == "bonjour from nomadnet" for e in fs.out), fs.out)
+fs.out.clear()
+fs.cb(env(20, room="main", body="hi from Channels", nick="Zoe"))
+said = [m for m in rrc.since('main', 0) if m.get('body') == 'hi from Channels']
+check("MSG from NomadNet: in the Stump's room, as Zoe", len(said) == 1 and said[0]['nick'] == 'Zoe', rrc.since('main', 0)[-2:])
+hub.tick()
+check("... not sent back to Zoe", not any(e.get(6) == "hi from Channels" for e in fs.out), fs.out)
+rrc.post('main', 'rod', 'hello Zoe')
+hub.tick()
+m = [e for e in fs.out if e[1] == 20 and e.get(6) == 'hello Zoe']
+check("someone on the Stump speaks: Zoe gets it, with the nick", len(m) == 1 and m[0][7] == 'rod' and m[0][5] == 'main', fs.out)
+fs.out.clear()
+fs.cb(env(20, room="main", body="/list"))
+check("/list: the hub's room list notice", fs.out and fs.out[0][1] == 21 and fs.out[0][6].startswith("Registered public rooms:\n  main"), fs.out)
+fs.out.clear()
+fs.cb(env(20, room="main", body="/who main"))
+check("/who: members in main", fs.out and fs.out[0][6].startswith("members in main: ") and "Zoe (" in fs.out[0][6], fs.out)
+fs.out.clear()
+fs.cb(env(30, body=b"pp"))
+check("PING -> PONG", fs.out and fs.out[0][1] == 31 and fs.out[0][6] == b"pp", fs.out)
+fs.out.clear()
+rrc.touch_user('v' + 'r' * 20, nick='rod')
+rrc.send_dm('rod', 'Zoe', 'psst')
+hub.tick()
+check("a DM to Zoe: a notice", any(e[1] == 21 and 'rod' in e[6] and 'psst' in e[6] for e in fs.out), fs.out)
+fs.out.clear()
+fs.cb(env(10, room="nope"))
+check("JOIN a room that isn't here: ERROR", fs.out and fs.out[0][1] == 40, fs.out)
+fs.cb(b"\xff\x00garbage")
+check("garbage: ignored", True)
+anon = FakeSession(None)
+hub.on_link(anon)
+anon.cb(env(1, body={}))
+check("not identified: refused", anon.out and anon.out[0][1] == 40, anon.out)
+fs.out.clear()
+fs.cb(env(12, room="main"))
+check("PART -> PARTED, the room told", fs.out and fs.out[0][1] == 13 and any(m.get('body') == '✗ ~Zoe' for m in rrc.since('main', 0)), fs.out)
+fs.open = False
+hub.tick()
+check("link closed: session dropped", fs not in hub._sessions)
+check("CBOR: a round trip", cbor.loads(cbor.dumps({1: [b"x", "é", -5, None, True, 70000]})) == {1: [b"x", "é", -5, None, True, 70000]})
+
+# The card on the Stump's own home page, and its page.
+s_, ct, b = req('/')
+check("a NomadNet card on the home page", "href='/p/nomadnet/'" in b, b[-1500:])
+s_, ct, b = req('/p/nomadnet/')
+check("its page: the node's and the hub's addresses, the rooms' rrc:// links",
+      s_.startswith("200") and door.hexhash in b and hubdoor.hexhash in b and "rrc://" + hubdoor.hexhash + "/main" in b, b[-800:])
+
 try:
     plugins.Api('evil').node('lxmf', 'delivery')
     check("a plugin can't take the core's names", False)
