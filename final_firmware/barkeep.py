@@ -373,6 +373,7 @@ h2{
 .addr-long{font-family:monospace; font-size:.95rem; width:100%; max-width:24em; text-align:center; padding:8px;
   background:var(--panel-2); color:var(--text); border:1px solid var(--border); border-radius:6px;}
 .addr-name{font-weight:bold; margin:10px 0 0;}
+.addr-open{display:inline-block; margin-top:8px;}
 .link-tile{
   display:flex; flex-direction:column; text-decoration:none;
   background:var(--panel-2); border:1px solid var(--border); border-radius:6px;
@@ -2026,7 +2027,7 @@ def _render_about_page(lang):
     )
 
 
-_QR = {}          # {address: its QR code's SVG}: made once (half a second on a CAM)
+_QR = {}          # {link: its QR code's SVG}: made once (about a second on a CAM)
 
 
 def _address_qr(addr):
@@ -2038,12 +2039,26 @@ def _address_qr(addr):
     return svg
 
 
+def address_link(node):
+    """What /address's QR code holds (since 1.0.0-beta.52, asked by the
+    FireFly team): lxmf://<address>?stump=<name>&key=<public key>. "stump"
+    says it's a Stump, and its name, before any beacon arrives; "key" (the
+    64-byte public key, base64url) lets an app check it against the address
+    and reach the Stump without an announce. The plain address when
+    there's no key (docs/CLIENT_QUICKSTART.md, Addresses)."""
+    addr, key = node.get("lxmf") or "", node.get("key") or ""
+    if not key:
+        return addr
+    return "lxmf://" + addr + "?stump=" + _url_encode(node.get("name") or "") + "&key=" + key
+
+
 def _render_address_page(lang):
     """This Stump's LXMF address, to add it in an app (FireFly, Sideband...)
     at once instead of waiting to hear it announce itself: a QR code of
-    the address (the plain 32 hex characters, what FireFly's "add address"
-    takes), the address to copy, and its short form (the first 8, as logs
-    and lists show it: to recognise it, not to reach it)."""
+    its link (address_link: the address, that it's a Stump, its name and
+    its key), the plain address to copy (what any app's "add address"
+    takes), and its short form (the first 8, as logs and lists show it: to
+    recognise it, not to reach it)."""
     node = rrc.NODE or {}
     addr, name = node.get("lxmf") or "", node.get("name") or ""
     esc = billboard._esc
@@ -2053,7 +2068,9 @@ def _render_address_page(lang):
         body = "<div class='panel'><p>" + i18n.t("addr_not_ready", lang) + "</p></div>"
     else:
         body = ("<div class='panel addr'>"
-                "<div class='qr'>" + _address_qr(addr) + "</div>"
+                "<div class='qr'>" + _address_qr(address_link(node)) + "</div>"
+                + ("<p><a class='addr-open' href='" + _attr_esc(address_link(node)) + "'>" + i18n.t("addr_open", lang) + "</a></p>"
+                   if node.get("key") else "")
                 + ("<p class='addr-name'>" + esc(name) + "</p>" if name else "") +
                 "<label for='addr-long'>" + i18n.t("addr_long", lang) + "</label>"
                 "<input id='addr-long' class='addr-long' readonly value='" + addr + "' onclick='this.select()' "

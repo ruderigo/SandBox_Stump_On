@@ -34,7 +34,7 @@ except ImportError:
 STUMP_VERSION = "Beta A"
 # The exact release (a git tag "v" + this, built and signed by
 # .github/workflows/release.yml, which refuses a tag that doesn't match).
-STUMP_RELEASE = "1.0.0-beta.51"
+STUMP_RELEASE = "1.0.0-beta.52"
 
 # Node-type beacon: a second destination on this node's own identity,
 # aspect "stump.node", so clients can tell a Stump from a person without
@@ -420,7 +420,11 @@ def main():
     # session and the LXMF address are the same node.
     try:
         import rrc
-        rrc.NODE = {"name": NODE_NAME, "lxmf": dest.hexhash}
+        import webtext
+        # "key": the identity's public key (X25519 then Ed25519, 64 bytes),
+        # base64url: /address's QR code carries it, so an app can check it
+        # against the address and reach this Stump without an announce.
+        rrc.NODE = {"name": NODE_NAME, "lxmf": dest.hexhash, "key": webtext.b64url(rns.identity.get_public_key())}
         rrc.NODE_IDENTITY[0] = rns.identity          # signs its half of /hello
         rrc.NODE_INFO = {"version": STUMP_VERSION, "release": STUMP_RELEASE}
     except Exception:

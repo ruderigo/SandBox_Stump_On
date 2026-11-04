@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.0-beta.52
+- **The address QR code says it's a Stump** (asked by the FireFly team): it now holds `lxmf://<address>?stump=<name>&key=<public key>` instead of the bare address. `stump=` tells an app at once that it's a Stump, and its name, so it can file it under Stumps without waiting for a beacon (5-15 s over LoRa when all goes well, up to half an hour if one is lost, never without a radio). `key=`, the identity's 64-byte public key in base64url, lets the app check it against the address (a faked code can't claim another's) and reach the Stump at once, before any announce. The page keeps the plain address to copy for other apps, and adds *Open in FireFly* (the same link). Format and the check: `CLIENT_QUICKSTART.md`, Addresses.
+- `qr.py` goes up to version 20 (666 bytes; the link needs version 8 for most names, 9-12 for long or accented ones). Every version 1-20, under all 8 masks, matches Project Nayuki's reference encoder module for module, and decodes with zxing-cpp.
+- Tests: `address_announce` (the link; its key, from a real identity, gives the address; a 20-character name fits; no key, the plain address), `pc_power_test` (on a running computer Stump, the page's link carries a key that gives its real address).
+
 ## 1.0.0-beta.51
 - **Its address, from the home page**: a new card, *Its address*, opens `/address`: the Stump's LXMF address as a QR code, in full to copy, and in short (`<9b5c4744>`, to recognise it in a list). Add the Stump in FireFly, Sideband or any LXMF app at once, without waiting for it to announce itself. The QR code holds the plain 32 characters (what FireFly's *Add address* takes; a phone's camera reads it as text to copy). It's made on the Stump itself (`qr.py`: byte mode, error correction M), so the page needs no internet and no script, once per address (about half a second on a CAM). The admin can move or hide the card like the others (`/admin` → layout).
 - **Announcing, from `/admin`**: Stump settings → *Announcing*:

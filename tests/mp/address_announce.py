@@ -42,6 +42,35 @@ s, ct, b = req('/address')
 check("... in the visitor's language", "L'adresse de ce Stump" in b and "Ajouter une adresse" in b)
 i18n.set_lang('192.168.4.50', 'en')
 
+# The QR code's link (asked by the FireFly team): the address, that it's a
+# Stump and its name, and its public key, which must give the address.
+from urns.identity import Identity
+from urns.destination import Destination
+import webtext
+ident = Identity()
+real = Destination.hash(ident, "lxmf", "delivery")
+real_hex = binascii.hexlify(real).decode()
+key = webtext.b64url(ident.get_public_key())
+check("the key, base64url: 86 characters, no padding, URL-safe", len(key) == 86 and "=" not in key and "+" not in key
+      and "/" not in key, key)
+rrc.NODE = {"name": "B\u00fbche 3", "lxmf": real_hex, "key": key}
+link = barkeep.address_link(rrc.NODE)
+check("the link: lxmf://<address>?stump=<name, encoded>&key=<key>",
+      link == "lxmf://" + real_hex + "?stump=B%C3%BBche%203&key=" + key, link)
+pad = key + "=" * (-len(key) % 4)
+pub = binascii.a2b_base64(pad.replace("-", "+").replace("_", "/"))
+nh = hashlib.sha256(b"lxmf.delivery").digest()[:10]
+ih = hashlib.sha256(pub).digest()[:16]
+check("... its key gives its address (what an app checks: a faked code can't claim another's)",
+      len(pub) == 64 and hashlib.sha256(nh + ih).digest()[:16] == real)
+s, ct, b = req('/address')
+check("the page's QR code is the link's; the plain address still there to copy",
+      barkeep._QR.get(link) is not None and barkeep._QR[link] in b and "value='" + real_hex + "'" in b)
+n20 = len(qr.matrix(barkeep.address_link({"name": "N" * 20, "lxmf": real_hex, "key": key})))
+check("... a 20-character name still fits (version 9 for plain letters)", n20 == 17 + 4 * 9, n20)
+check("no key: the plain address", barkeep.address_link({"lxmf": real_hex}) == real_hex)
+rrc.NODE = {"name": "LaBuche", "lxmf": ADDR}
+
 # ── announcing: the timer and "Announce now" ────────────────────────
 s, ct, b = admin_page()
 check("/admin: the Announcing group, every 2 min, the button",

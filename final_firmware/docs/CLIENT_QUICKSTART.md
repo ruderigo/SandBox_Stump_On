@@ -396,11 +396,37 @@ A node answers on two IPs with different guarantees:
 
 Over LoRa there are no IPs: the node is its LXMF `lxmf.delivery`
 address, taken from its announces -- or, without waiting for one, from
-**`/address`** (since 1.0.0-beta.51, a card on the home page): the
-address as a QR code (the plain 32 hex characters, nothing around them),
-to copy, and its short form (the first 8, to recognise it in a list).
-An app that scans a QR code can take the address from there; one on the
-Stump's Wi-Fi gets it from `/node.json` below. The node announces every
+**`/address`** (since 1.0.0-beta.51, a card on the home page): a QR
+code, the plain address to copy, and its short form (the first 8 hex
+characters, to recognise it in a list). An app on the Stump's Wi-Fi can
+also take the address from `/node.json` below.
+
+Since 1.0.0-beta.52 the QR code (and the page's *Open in FireFly*, the
+same link) holds a link, so an app knows at once it's a Stump, with no
+beacon to wait for:
+
+```
+lxmf://<address>?stump=<name>&key=<public key>
+```
+
+- `<address>`: the 32 lowercase hex characters of its `lxmf.delivery`
+  destination.
+- `stump=`: its name, percent-encoded as UTF-8 (`B%C3%BBche%203`). Its
+  presence says it's a Stump; the name is what it calls itself (the
+  beacon, signed, has the last word).
+- `key=`: its identity's public key, 64 bytes (the X25519 key, then the
+  Ed25519 key, as in a Reticulum announce), base64url with no padding:
+  86 characters.
+
+**Check the key before trusting the link** (anyone can print a QR code):
+`identity_hash = SHA-256(key)[:16]`, then `SHA-256(SHA-256("lxmf.delivery")[:10]
++ identity_hash)[:16]` must equal the address. If it does, you can
+reach the Stump with that key at once, before any announce arrives. If
+it doesn't, drop the link. A link without `stump=` is someone else's to
+define; one without `key=` is just an address to wait for. The link is
+about 145 characters (a version 8 QR code at error correction M for a
+name of up to 15 plain letters; longer or accented names, version 9 to
+12). A Stump that hasn't got its key yet shows the plain address. The node announces every
 `REANNOUNCE_INTERVAL` seconds (2 minutes by default, set in `/admin`)
 and on demand from `/admin`'s *Announce now*.
 

@@ -35,6 +35,13 @@ def url_encode(s):
     return out
 
 
+def b64url(b):
+    """base64url with no padding (RFC 4648 section 5): a 64-byte key is
+    86 characters, safe in a URL as it is."""
+    import binascii
+    return binascii.b2a_base64(b).decode().strip().replace("+", "-").replace("/", "_").rstrip("=")
+
+
 def url_decode(s):
     """application/x-www-form-urlencoded text, decoded as UTF-8 (browsers
     send "é" as %C3%A9: each %XX is a byte, not a character). Falls back
