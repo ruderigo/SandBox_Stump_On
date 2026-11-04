@@ -3,6 +3,7 @@
 ## 1.0.0-beta.52
 - **The address QR code says it's a Stump** (asked by the FireFly team): it now holds `lxmf://<address>?stump=<name>&key=<public key>` instead of the bare address. `stump=` tells an app at once that it's a Stump, and its name, so it can file it under Stumps without waiting for a beacon (5-15 s over LoRa when all goes well, up to half an hour if one is lost, never without a radio). `key=`, the identity's 64-byte public key in base64url, lets the app check it against the address (a faked code can't claim another's) and reach the Stump at once, before any announce. The page keeps the plain address to copy for other apps, and adds *Open in FireFly* (the same link). Format and the check: `CLIENT_QUICKSTART.md`, Addresses.
 - `qr.py` goes up to version 20 (666 bytes; the link needs version 8 for most names, 9-12 for long or accented ones). Every version 1-20, under all 8 masks, matches Project Nayuki's reference encoder module for module, and decodes with zxing-cpp.
+- Tests run on a pretend 512 MB card (`harness.py`): the upload tests measured the CI machine's real disk, and one over 75% full made every upload a 507 "card full" (it stopped this release's build, and a PR run the same day). Nothing changed in the Stump.
 - Tests: `address_announce` (the link; its key, from a real identity, gives the address; a 20-character name fits; no key, the plain address), `pc_power_test` (on a running computer Stump, the page's link carries a key that gives its real address).
 
 ## 1.0.0-beta.51
