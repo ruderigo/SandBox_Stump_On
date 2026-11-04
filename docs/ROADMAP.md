@@ -159,7 +159,8 @@ auditors are graded) stays out of the repository.
       `MAX_DMS_PER_USER` rrc.py:924), voice 10/inbox and ~2 MB total
       (`VOICE_PER_RECIPIENT`, `VOICE_TOTAL_BYTES` rrc.py:912-917), 150
       notices (`billboard.MAX_ENTRIES_STORED` billboard.py:353). README
-      matches. TODO (future): a cap-flood test covering all five.
+      matches. All five flooded past their cap in `tests/mp/cap_flood.py`
+      (1.0.0-beta.53).
 - [x] 3. Port 80 stateless (the 2 s /rrc/poll), HTTPS only for `/admin`
       and `/rrc/rec`, behind the `/tls-ok` check (barkeep.py, stump_tls.py)
 

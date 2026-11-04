@@ -40,17 +40,20 @@ Last sorted: 2026-11-03, for 1.0.0-beta.51.
 - [ ] **Arborist: the SD card, what's on it** (beta.49) on LaBuche3.
       Expected: its size and free space, and a line per folder (shared
       files, Tools page, ...) that matches what `/files` and `/tools` show.
-- [ ] **Its address, from the home page** (beta.51): on a phone on the
-      Stump's Wi-Fi, the home page's *Its address* card. Expected: a QR
-      code the phone's camera reads as the 32-character address (the same
-      as `/node.json`'s `lxmf`), the address to copy, its short form.
-      Paste it in FireFly (Conversations, Add address): a chat opens at
-      once.
-- [ ] **Announce now, and the timer** (beta.51): `/admin` → Stump
+- [ ] **Its address, from the home page** (beta.51-53): on a phone on the
+      Stump's Wi-Fi, the home page's *Its address* card. Expected: two
+      QR codes behind a FireFly / Columba switch. FireFly's scans as
+      `lxmf://<address>?stump=...&key=...` and files it under Stumps at
+      once. Columba's (Contacts, add, scan) as `lxma://<address>:<key>`
+      and adds a contact at once. The address to copy (the same as
+      `/node.json`'s `lxmf`) pastes into Sideband's New conversation.
+      On a CAM, time the first opening (two codes made, then kept).
+- [x] **Announce now, and the timer** (beta.51): `/admin` → Stump
       settings → *Announcing* → *Announce now*. Expected: the log says
       `[announce] on demand (/admin)`; another Stump or FireFly lists it
       within seconds. Set the timer to 5 minutes, Save: the line under
-      it counts to the next one, no restart.
+      it counts to the next one, no restart. *Done 2026-11-03: heard
+      almost at once.*
 - [ ] **The computer wizard from a file** (beta.48), into a scratch
       folder, start-at-login off:
       `python3 provisioner.py --pc --answers-template > a.json`, set

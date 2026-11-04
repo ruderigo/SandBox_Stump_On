@@ -67,6 +67,7 @@ TESTS = [
     ("board_lora", "assert", []),
     ("lora_down", "assert", []),
     ("address_announce", "assert", []),
+    ("cap_flood", "assert", []),
 ]
 
 _NORM = [
