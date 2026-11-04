@@ -14,7 +14,7 @@ def check(n, c, i=''):
 
 check("off by default", chain.settings() is None and chain.status() == {"enabled": False})
 s, ct, b = admin_page()
-check("no chain section when off", "Stump chain" not in b and "Chaîne de Stumps" not in b)
+check("no chain section when off", "Stump chain" not in b and "Chaîne de Bûches" not in b)
 
 config.CHAIN_ENABLED = True
 config.CHAIN_UPLINK_SSID = "Unit 3B"
@@ -65,5 +65,5 @@ st = chain.settings()
 chain.interfaces(st, None, None, "192.168.4.1")
 s, ct, b = admin_page()
 check("admin: root line and the no-secret warning",
-      ("Premier Stump" in b or "First Stump" in b) and "CHAIN_SECRET" in b, b[b.find('chain'):][:400])
+      ("Première Bûche" in b or "First Stump" in b) and "CHAIN_SECRET" in b, b[b.find('chain'):][:400])
 print('FAILURES:', FAIL)

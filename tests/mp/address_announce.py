@@ -39,7 +39,7 @@ check("the QR code: version 3 (29 modules), the known-good modules", len(m) == 2
 check("... made once, then kept", barkeep._QR.get(ADDR) is not None and barkeep._address_qr(ADDR) is barkeep._QR[ADDR])
 i18n.set_lang('192.168.4.50', 'fr')
 s, ct, b = req('/address')
-check("... in the visitor's language", "L'adresse de ce Stump" in b and "Ajouter une adresse" in b)
+check("... in the visitor's language", "L'adresse de cette Bûche" in b and "Ajouter une adresse" in b)
 i18n.set_lang('192.168.4.50', 'en')
 
 # The QR code's link (asked by the FireFly team): the address, that it's a

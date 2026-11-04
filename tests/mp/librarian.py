@@ -125,7 +125,7 @@ check("sort: one icon in any language, the translated choices in its list", "cla
       and "Plus récents" in b and "content:'\\21C5'" in b)
 check("the librarian: a firefly that opens into a chat, with suggestions", "class='ff-btn'" in b
       and "id='ffp'" in b and " hidden>" in b[b.find("id='ffp'"):][:200] and "As-tu un film ?</button>" in b)
-for lang, h2 in (('fr', 'Un Stump, trois montages'), ('en', 'One Stump, three setups'), ('es', 'Un Stump, tres montajes')):
+for lang, h2 in (('fr', 'Une Bûche, trois montages'), ('en', 'One Stump, three setups'), ('es', 'Un Tronco, tres montajes')):
     i18n.set_lang(IP, lang)
     s, ct, b = req('/about')
     check("About (%s): the three setups and who connects" % lang, h2 in b and "ESP32-S3-CAM + Heltec V3" in b
