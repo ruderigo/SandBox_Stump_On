@@ -101,6 +101,34 @@ Last sorted: 2026-11-03, for 1.0.0-beta.51.
       on a Windows PC with the CAM on USB. Expected: the port is found;
       Check works; then an update.
 
+## 3b. Other LXMF apps (beta.53): does the Stump answer them?
+
+Each app on a phone, the Stump added from `/address` (or by its
+address). Send `!help`, then `hello`, over the Stump's Wi-Fi (TCP to
+the laptop Stump) and, where the app has it, over LoRa (an RNode).
+Expected each time: BarKeep's help, then the hello in `#lora-mesh`
+(or `#main`), and the app shows both as delivered. Note what looks
+wrong (the replies are chat-room lines: `<nick> text`, `[DM] ...`).
+
+- [ ] **Sideband** (Wi-Fi, then LoRa)
+- [ ] **Columba** (Wi-Fi; LoRa if it has the RNode)
+- [ ] **MeshChat** (on the laptop: it finds the Stump by its announce)
+- [ ] **NomadNet** (on the laptop, the Conversations tab)
+- [ ] **Stamps, off** (the default): in Sideband, Settings → *Require
+      stamps*, cost 8. Expected: the Stump's replies no longer arrive
+      (Sideband drops them); `/admin` shows nothing new.
+- [ ] **Stamps, on, a computer Stump**: `/admin` → Stump settings →
+      Announcing → *LXMF stamps*. Expected: replies arrive again,
+      a second or two late; `stump.log` says `stamp made ... (cost 8`;
+      `/admin`: *Stamps made: 1* and more.
+- [ ] **Stamps, on, a CAM**: the same. Expected: replies don't arrive,
+      `/admin` names Sideband's user under *Require a stamp too costly
+      here*. Then in Sideband mark the Stump as trusted and send once:
+      `stump.log` says `ticket from ...`, and replies arrive from then on
+      (and after the CAM restarts).
+- [ ] **Cost 16 on the laptop Stump**: how long a reply takes (minutes
+      expected), and that the chat stays usable meanwhile.
+
 ## 4. Measurements (they inform a decision, not pass or fail)
 
 - [ ] **4b. Three phones on HTTPS `/admin` at once** (pentest prep):

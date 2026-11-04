@@ -68,6 +68,7 @@ TESTS = [
     ("lora_down", "assert", []),
     ("address_announce", "assert", []),
     ("cap_flood", "assert", []),
+    ("lxmf_stamps", "assert", []),
 ]
 
 _NORM = [

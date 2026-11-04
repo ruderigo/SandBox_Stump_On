@@ -473,6 +473,25 @@ a 404 there as "this node doesn't do that", not as an error. With chat
 off, the node also stops bridging chat over the mesh — LXMF messages to
 it aren't answered — though its `stump.node` beacon still announces.
 
+## Stamps (since 1.0.0-beta.53, opt-in)
+
+LXMF lets a recipient require a *stamp* on every message sent to it
+(upstream `LXStamper`: proof of work over a 768 KB block made from the
+message id, "cost" n leading zero bits), or a *ticket* it handed out
+(`FIELD_TICKET`, `[expires, 16 bytes]`; the stamp is then
+`SHA-256(ticket + message id)[:16]`). Sideband requires stamps only
+if its user turns that on, and gives tickets to contacts marked
+trusted.
+
+The Stump does nothing about stamps unless its admin ticks *LXMF
+stamps* (`/admin` → Stump settings → Announcing, `LXMF_STAMPS`).
+Then it reads each announce's stamp cost, keeps the tickets it's given
+(across restarts, until they expire) and stamps its replies with them;
+without a ticket, a computer Stump makes the stamp by proof of work (up
+to cost 20, a second at 8, minutes at 16), a board can't and sends the
+message without one. The Stump itself never requires stamps: send it
+messages as usual. Its announce says cost `None`.
+
 ## HTTPS
 
 A node with a certificate installed (see `HTTPS_SETUP.md`) also serves

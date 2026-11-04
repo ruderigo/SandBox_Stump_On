@@ -598,6 +598,10 @@ def _render_admin_setup_section(lang, pw, notice=""):
            "<label>" + T("admin_setup_announce_min") + "<br><input name='announce_min' type='number' min='1' max='1440' value='"
            + str(every_min) + "'></label>"
            "<p class='sub'><small>" + T("admin_setup_announce_note") + "</small></p>"
+           "<label class='opt'><input type='checkbox' name='lxmf_stamps' value='1'"
+           + (" checked" if s.get("LXMF_STAMPS") else "") + "> " + T("admin_setup_stamps") + "</label>"
+           "<p class='sub'><small>" + T("admin_setup_stamps_note") + "</small></p>"
+           + _stamps_status(T) +
            "<p class='sub'>" + esc(when) + "</p>"
            "<button type='submit' class='plain' formaction='/admin/announce' formnovalidate>"
            + T("admin_announce_now") + "</button>"
@@ -1588,3 +1592,26 @@ async def route(reader, writer, method, path, headers, ip, identifier, secure):
     else:
         return False
     return True
+
+
+def _stamps_status(T):
+    """With stamps on: what this Stump did about them (made, tickets kept,
+    contacts asking more than it can make)."""
+    try:
+        from urns import lxmf
+        if not lxmf.STAMPS[0]:
+            return ""
+        r = lxmf.ROUTER[0]
+        if r is None:
+            return ""
+    except Exception:
+        return ""
+    import billboard
+    names = []
+    for h in list(r.unstamped)[:5]:
+        p = r.peers.get(h) or {}
+        names.append(billboard._esc(p.get("name") or ("<" + h.hex()[:8] + ">")))
+    out = "<p class='sub'><small>" + T("admin_stamps_status", made=r.stamps_made, tickets=len(r.tickets)) + "</small></p>"
+    if names:
+        out += "<p class='sub'><small>" + T("admin_stamps_unstamped", names=", ".join(names)) + "</small></p>"
+    return out
