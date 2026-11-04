@@ -334,7 +334,7 @@ EXPECTED_FILE_HASHES = {
     "discovery.py": "c1808c59c1452dda",
     "docs/ARBORIST.md": "a783f30ef8fac45f",
     "docs/CHAIN.md": "775bf418753c82ba",
-    "docs/CLIENT_QUICKSTART.md": "40720c02b69dacd3",
+    "docs/CLIENT_QUICKSTART.md": "adc467e970d59cd1",
     "docs/COMMANDS.md": "c17a3263eeeae767",
     "docs/ENGINEERING_NOTES.md": "72f7d19d7c5f03a4",
     "docs/FIELD_TEST.md": "e7f7b3878fda4de3",
