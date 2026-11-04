@@ -65,9 +65,12 @@ class R:
         pass
 
 
+B = '12' * 16                      # a Stump known only by its beacon (no peer record yet)
+rrc.mark_stump(B)
 rrc_mesh._send_item((R(), bytes.fromhex(S), "x"))
+rrc_mesh._send_item((R(), bytes.fromhex(B), "x"))
 rrc_mesh._send_item((R(), bytes.fromhex(H), "x"))
-check("to another Stump: not reworded; to a person: through the hook", seen == [H], seen)
+check("to another Stump (chain or beacon): never through the hook; to a person: through it", seen == [H], seen)
 plugins._mesh_out.pop(0)
 
 plugins.set_enabled('simple', False)

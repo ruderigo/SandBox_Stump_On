@@ -1622,7 +1622,10 @@ def _send_item(item):
         try:
             h = dest_hash_bytes.hex()
             p = _peers.get(h)
-            if not (p and p.get("stump")):
+            # Every way this Stump knows another Stump: its peer record
+            # (chain or LoRa), its beacon. Stumps always get the original
+            # lines, whatever packs are on.
+            if not ((p and p.get("stump")) or rrc.is_stump(h)):
                 import plugins
                 if plugins._mesh_out:
                     text, title = plugins.mesh_out(h, text, title)
