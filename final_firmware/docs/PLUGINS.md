@@ -44,6 +44,8 @@ only install plugins you trust.
 | `stump.page("votes", fn, nav=None, sub="", raw=False)` | A page at `/p/<plugin>/votes`; `nav="Votes"` also adds a home-page card (`nav` and `sub` can be a string, `{lang: string}` or `fn(lang)`) |
 | `stump.every(60, fn)` | `fn()` every 60 seconds (1 s at the shortest) |
 | `stump.provide("name", obj)` / `stump.service("name")` | Share an object with other plugins |
+| `stump.mesh_out(fn, priority=50)` | **API 2.** `fn(dest_hex, text, title)` for each LXMF message the Stump sends to a person's app (never to another Stump); return `None`, or a new `(text, title)` |
+| `door = stump.node("nomadnetwork", "node")` | **API 2.** A Reticulum destination of the Stump's own identity. `door.handle("/page/index.mu", fn)`: `fn(path, data, remote_hex)` answers a link request (bytes or str; `None`: no answer; `remote_hex` is the identity the visitor proved, or `None`). `door.announce(app_data)`. The core's names (`lxmf`, `stump`, `rrc`, ...) are refused; requests over 4 KB too. It answers only while the plugin is on |
 | `stump.setting("SIDES", 6)` | Reads `TAVERN_SIDES` from `config.py` |
 | `stump.storage()` | Your own folder, `/sd/plugins/<plugin>/`; `None` without an SD card |
 | `stump.storage_file("data.json", legacy=None)` | A file in that folder (moving `legacy` there the first time) |
@@ -208,3 +210,11 @@ file; it also warns about calls that would hold the node
 - `packs/tavern-pack/` and `packs/rnfs-pack/`: commands with `!`
   triggers, listeners, a flood-guard gate, timers, pages with home
   cards, storage, translations.
+
+
+## Plugin API versions
+
+- **1**: everything above but `mesh_out` and `node`.
+- **2** (1.0.0-beta.53): `stump.mesh_out()` and `stump.node()`. A plugin
+  that uses them says `STUMP_API = 2` (and `"stump_api": 2` in its
+  pack); older firmware refuses it instead of failing at start.

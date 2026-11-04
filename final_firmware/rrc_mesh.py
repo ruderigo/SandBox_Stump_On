@@ -1616,6 +1616,18 @@ def _send_item(item):
         prime_all_bridges()
     except Exception:
         pass
+    if via is None:
+        # Plugins may reword what goes to a person's app (API 2: mesh_out),
+        # never what goes to another Stump.
+        try:
+            h = dest_hash_bytes.hex()
+            p = _peers.get(h)
+            if not (p and p.get("stump")):
+                import plugins
+                if plugins._mesh_out:
+                    text, title = plugins.mesh_out(h, text, title)
+        except Exception as e:
+            print("[rrc_mesh] mesh_out:", e)
     try:
         if via is not None:
             rtr.send_message(dest_hash_bytes, text, title=title, via=via)

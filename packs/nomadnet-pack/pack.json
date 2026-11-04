@@ -1,0 +1,16 @@
+{
+  "name": "nomadnet",
+  "version": "1.0",
+  "author": "Project Stump",
+  "license": "MIT",
+  "stump_api": 2,
+  "description": "The Stump as a Nomad Network node: NomadNet and MeshChat users browse its home page, rooms, billboard and file list, and can talk in the rooms and post notices, over Wi-Fi or LoRa.",
+  "ram_kb": 25,
+  "plugins": [
+    "nomadnet"
+  ],
+  "hashes": {},
+  "plugin_hashes": {
+    "nomadnet": "51c0b16997840bc4"
+  }
+}

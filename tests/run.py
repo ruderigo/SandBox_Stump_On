@@ -26,6 +26,8 @@ PACKS = ROOT / "packs"
 MP = os.environ.get("MICROPYTHON", "micropython")
 TEST_PLUGINS = [HERE / "plugins" / n for n in ("dice", "crashy", "future")]
 PACK_PLUGINS = [PACKS / "tavern-pack" / "tavern", PACKS / "rnfs-pack" / "rnfs"]
+NOMADNET = [PACKS / "nomadnet-pack" / "nomadnet"]
+SIMPLE = [PACKS / "simple-pack" / "simple"]
 
 # name, kind, extra plugin folders
 TESTS = [
@@ -69,6 +71,8 @@ TESTS = [
     ("address_announce", "assert", []),
     ("cap_flood", "assert", []),
     ("lxmf_stamps", "assert", []),
+    ("nomadnet_pack", "assert", NOMADNET),
+    ("simple_pack", "assert", SIMPLE),
 ]
 
 _NORM = [

@@ -1,0 +1,42 @@
+{
+  "plugin": "nomadnet",
+  "title": "NomadNet (the Stump as a Nomad Network node)",
+  "version": "1.0",
+  "plugin_api": 2,
+  "summary": "NomadNet and MeshChat browse the Stump like any Nomad Network node, over Wi-Fi or LoRa: its home page, its rooms (read, and say something), the billboard (read, and post) and the list of shared files. Writing takes an identity the app proves (Identify). Pages in the Stump's default language.",
+  "modifies_core_files": false,
+  "binds_ports": false,
+  "starts_tasks": false,
+  "hooks": [
+    "node nomadnetwork.node: /page/index.mu rooms.mu room.mu say.mu board.mu notice.mu files.mu",
+    "every NOMADNET_ANNOUNCE_MIN minutes (30): announces the node, with the Stump's name"
+  ],
+  "runtime_storage": {
+    "path": "",
+    "note": "Nothing stored: the pages show the Stump's own rooms, billboard and files."
+  },
+  "wizard": {
+    "note": "Everything has a working default.",
+    "prompts": [
+      {
+        "key": "NOMADNET_ANNOUNCE_MIN",
+        "prompt": "Minutes between NomadNet announces (5 or more)",
+        "type": "int",
+        "default": 30,
+        "advanced": true,
+        "writes_to": "config.py"
+      }
+    ]
+  },
+  "files": [
+    "nomadnet/__init__.py",
+    "nomadnet/install.py",
+    "nomadnet/strings.py",
+    "nomadnet/plugin.json"
+  ],
+  "hashes": {
+    "nomadnet/__init__.py": "2d75e659e253ac99",
+    "nomadnet/install.py": "d5c1cc466be253e5",
+    "nomadnet/strings.py": "ffbcae817c7f4ff2"
+  }
+}
