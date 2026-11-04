@@ -12,6 +12,39 @@ import fserv
 fserv.SD_MOUNT = ROOT; fserv.SHARED_DIR = ROOT + '/shared'; fserv.TOOLS_DIR = ROOT + '/tools'
 fserv.HOME_DIR = ROOT + '/home'; fserv.LEDGER_FILE = ROOT + '/ledger.json'
 fserv.sd_ok = True
+
+
+# The card: a pretend 512 MB one, what's in the test's _sd_web folder
+# counted as used. fserv measured the real disk under it (statvfs), so a
+# CI machine with its disk over 75% full made every upload a 507 "card
+# full" (twice on 2026-11-03). A test that wants a fuller card sets its
+# own (upload_fair does).
+CARD_BYTES = 512 * 1024 * 1024
+
+
+def _card_used(p):
+    n = 0
+    try:
+        for e in os.ilistdir(p):
+            q = p + '/' + e[0]
+            if e[1] == 0x4000:
+                n += _card_used(q)
+            else:
+                try:
+                    n += os.stat(q)[6]
+                except OSError:
+                    pass
+    except OSError:
+        pass
+    return n
+
+
+def _card_stats():
+    used = _card_used(ROOT)
+    return (CARD_BYTES, CARD_BYTES - used, used / CARD_BYTES)
+
+
+fserv.get_storage_stats = _card_stats
 import billboard
 billboard.storage_file = lambda: ROOT + '/billboard.txt'
 import barkeep
