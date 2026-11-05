@@ -454,6 +454,18 @@ def main():
                                         ", channel %d" % CHAIN["channel"] if CHAIN["channel"] and chain.is_root(CHAIN) else "",
                                         " and on %s (the Wi-Fi it joined)" % chain._state["lan_ip"]
                                         if chain._state["lan_ip"] else ""))
+    # A computer Stump also finds, and is found by, Reticulum apps on its
+    # networks with no setup (NomadNet, Sideband, MeshChat: their default
+    # AutoInterface). /admin -> This computer switches it off. A board
+    # can't (IPv4-only sockets).
+    try:
+        import settings as _settings
+        import config as _cfg
+        if not RESCUE and _settings.on_computer() and getattr(_cfg, "LOCAL_DISCOVERY", True):
+            rns.config["interfaces"] = list(rns.config.get("interfaces", [])) + \
+                [{"type": "AutoInterface", "name": "Local network", "enabled": True}]
+    except Exception as e:
+        print("[auto] not added:", e)
     rns.setup_interfaces()
     # Who may be in #lora-mesh follows the access mode, like every room
     # (stumpid: open, hybrid, mandatory). LORA_MESH_LOCKED = True in

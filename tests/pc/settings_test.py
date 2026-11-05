@@ -155,6 +155,16 @@ stump_host._awake_cmd = lambda pid: None
 html = admin_web._render_admin_setup_section("en", "pw")
 check("nothing here can keep it awake: /admin says so", "Nothing on this computer can keep it awake" in html)
 check("... and turning it on holds nothing", stump_host.keep_awake(True) is None and stump_host.awake_status() is None)
+# Local-network discovery (AutoInterface, 1.0.0-beta.55): on by default,
+# a box in This computer, applied at the next start.
+html = admin_web._render_admin_setup_section("en", "pw")
+check("local discovery: on by default, a box in This computer",
+      "name='local_discovery' value='1' checked" in html and S.current().get("LOCAL_DISCOVERY") is True, html[-800:])
+saved, later = S.apply(S.parse_form(dict(form, computer="1", ld_shown="1"))[0])
+check("... unticked: saved, applies at restart", S.current().get("LOCAL_DISCOVERY") is False and "LOCAL_DISCOVERY" in later
+      and "LOCAL_DISCOVERY = False" in open(path).read(), (later,))
+saved, later = S.apply(S.parse_form(dict(form, computer="1"))[0])
+check("... a form without the box leaves it alone", S.current().get("LOCAL_DISCOVERY") is False)
 os.remove(path)
 print("FAILURES", FAIL)
 sys.exit(1 if FAIL else 0)

@@ -130,6 +130,8 @@ def current():
         out["LXMF_STAMPS"] = bool(lxmf.STAMPS[0])
     except ImportError:
         out["LXMF_STAMPS"] = bool(g("LXMF_STAMPS", False))
+    if on_computer():
+        out["LOCAL_DISCOVERY"] = bool(g("LOCAL_DISCOVERY", True))
     out.update(_storage_now())          # (no {**d} on the board's MicroPython)
     return out
 
@@ -231,6 +233,8 @@ def parse_form(fields):
         out["LXMF_STAMPS"] = bool(fields.get("lxmf_stamps"))     # (a box in the same group)
     if fields.get("computer") and on_computer():          # (the This computer group was on the form)
         out["PC_KEEP_AWAKE"] = bool(fields.get("keep_awake"))
+        if fields.get("ld_shown"):                     # (the box was on the form)
+            out["LOCAL_DISCOVERY"] = bool(fields.get("local_discovery"))
     return out, None
 
 

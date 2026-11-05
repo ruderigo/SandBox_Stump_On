@@ -657,6 +657,10 @@ def _render_admin_setup_section(lang, pw, notice=""):
                 + "> " + T("admin_setup_keep_awake") + "</label>"
                 "<p class='sub'><small>" + T("admin_setup_keep_awake_note")
                 + ("" if aw["possible"] else " " + T("admin_setup_awake_none")) + "</small></p>"
+                "<input type='hidden' name='ld_shown' value='1'>"
+                "<label class='opt'><input type='checkbox' name='local_discovery' value='1'"
+                + (" checked" if s.get("LOCAL_DISCOVERY", True) else "") + "> " + T("admin_setup_local_discovery") + "</label>"
+                "<p class='sub'><small>" + T("admin_setup_local_discovery_note") + _auto_peers(T) + "</small></p>"
                 "</details>")
     return ("<h2 class='sub'>" + T("admin_setup_header") + "</h2>" + notice
             + "<p class='sub'>" + T("admin_setup_intro") + "</p>"
@@ -1615,3 +1619,15 @@ def _stamps_status(T):
     if names:
         out += "<p class='sub'><small>" + T("admin_stamps_unstamped", names=", ".join(names)) + "</small></p>"
     return out
+
+
+def _auto_peers(T):
+    """How many Reticulum apps the local-network discovery has found now."""
+    try:
+        from urns.transport import Transport
+        for i in Transport.interfaces:
+            if type(i).__name__ == "AutoInterface" and i.online:
+                return " " + T("admin_auto_peers", n=len(i.peers))
+    except Exception:
+        pass
+    return ""
