@@ -88,7 +88,7 @@ KNOWN_BOARDS = {
     ("303a", "1001"): "ESP32-S3 with native USB — likely the Freenove CAM",
     ("303a", "0002"): "ESP32-S3 with native USB — likely the Freenove CAM",
     ("10c4", "ea60"): "CP2102 UART bridge — likely the Heltec V3",
-    ("1a86", "7523"): "CH340 UART bridge — likely the Heltec V3",
+    ("1a86", "7523"): "CH340 UART bridge — a Freenove ESP32-WROVER, or a Heltec V3",
 }
 
 # Substrings that mark a guess as pointing at the Heltec. Checked against
@@ -125,7 +125,7 @@ def _guess_board(vid, pid, device, description):
     if by_name == "native USB":
         return "native USB device — likely the Freenove CAM"
     if by_name == "UART bridge":
-        return "UART bridge device — likely the Heltec V3"
+        return "UART bridge device — a Heltec V3 or an ESP32-WROVER"
     return "unknown board"
 
 DEFAULT_RADIO = {
@@ -2701,7 +2701,7 @@ def choose_board(role=None):
     # to decide by itself.
     heltec_label = "Heltec V3 (Control Plane — RNS/LoRa mesh, bridged to a CAM)"
     heltec_transport_label = "Heltec V3 (Standalone Transport — microReticulum firmware, no CAM)"
-    cam_label = "ESP32-S3-CAM (Data Plane — local vault + web)"
+    cam_label = "Stump board: ESP32-S3-CAM or ESP32-WROVER (Data Plane — local vault + web)"
     guess = chosen["guess"]
     if guess and guess != "unknown board":
         print(f"\n  USB identification suggests: {guess}")
@@ -2710,8 +2710,24 @@ def choose_board(role=None):
         print(f"\n  Couldn't identify this board from USB alone ({chosen['description']}).")
 
     if role:
+        # Behind a USB-serial bridge there's a Heltec V3 (an ESP32-S3) or a
+        # WROVER Stump board (an original ESP32): the USB ids can't tell,
+        # the chip can. esptool reads it (read-only) before anything is
+        # written (beta.56: a WROVER was taken for a Heltec).
+        chip = None
+        if role == "cam" and guess and "bridge" in guess.lower():
+            print("  Asking the chip which board this is (a few seconds)...")
+            chip = detect_chip(chosen_device)
+        if chip in ("esp32", "esp32s3"):
+            if chip == "esp32":
+                print(green("  The chip says: an original ESP32 — a WROVER Stump board. One USB port is normal for it."))
+                return chosen_device
+            print(yellow("  The chip says: an ESP32-S3 behind a USB bridge — that's a Heltec V3, not a Stump board."
+                         " Flashing the wrong board is destructive."))
+            return chosen_device if ask_yes_no("  Use this port anyway?", False) else None
         named = {"heltec": "Heltec", "heltec_transport": "Heltec", "cam": "CAM"}[role]
-        if guess and guess != "unknown board" and named.lower() not in guess.lower():
+        if guess and guess != "unknown board" and named.lower() not in guess.lower() \
+                and not (role == "cam" and "WROVER" in guess):
             print(yellow("  That doesn't look like a %s. Flashing the wrong board is destructive." % named))
             if not ask_yes_no("  Use this port anyway?", False):
                 return None
@@ -5224,7 +5240,7 @@ def route_for(role):
     if role == "cam":
         return Route("Setting up a Stump board", key="cam", steps=[
             ("Check", "you", "the tools on this computer, and the Stump firmware folder"),
-            ("Board", "you", "pick the CAM's USB port"),
+            ("Board", "you", "pick the Stump board's USB port"),
             ("Questions", "you", "all of them now: flash or not, name, Wi-Fi, chain, the Heltec, "
                                  "packs, bot, features, look"),
             ("Flash", "auto", "MicroPython onto the board (erases it)"),
@@ -6773,7 +6789,7 @@ def main():
         # existed in choose_board(); same fix applied here up front.
         heltec_label = "Heltec V3 (Control Plane — RNS/LoRa mesh)"
         heltec_transport_label = "Heltec V3 (Standalone Transport — microReticulum firmware)"
-        cam_label = "ESP32-S3-CAM (Data Plane — local vault + web)"
+        cam_label = "Stump board: ESP32-S3-CAM or ESP32-WROVER (Data Plane — local vault + web)"
         board_choice = ask_choice(
             "What kind of board is this?",
             [heltec_label, heltec_transport_label, cam_label],

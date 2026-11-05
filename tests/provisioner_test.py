@@ -631,4 +631,24 @@ check('... and next time, nomadnet is kept up to date, not offered again',
 P._pc_ensure_venv, P._pc_configure_existing, P._pc_install_tools, P.ask_yes_no = saved
 shutil.rmtree(upd, ignore_errors=True)
 shutil.rmtree(tmp, ignore_errors=True)
+# The board step, a Stump board on a USB bridge (the WROVER: one USB port,
+# a CH340): the chip is asked, not the USB ids, and a WROVER goes through
+_sv = (P.scan_boards, P.detect_chip, P.ask_yes_no)
+P.scan_boards = lambda: [{"device": "/dev/cu.usbserial-1120", "description": "USB Serial",
+                          "guess": P._guess_board(None, None, "/dev/cu.usbserial-1120", "")}]
+asked = []
+P.ask_yes_no = lambda q, d=False: asked.append(q) or False
+for chip, want in (("esp32", "/dev/cu.usbserial-1120"), ("esp32s3", None), (None, "/dev/cu.usbserial-1120")):
+    P.detect_chip = lambda port, c=chip: c
+    answers("1")
+    with contextlib.redirect_stdout(io.StringIO()) as said:
+        got = P.choose_board("cam")
+    check('board step, a bridge port, the chip says %s: %s' % (chip, want), got == want
+          and "doesn't look like a CAM" not in said.getvalue()
+          and (chip != "esp32" or "WROVER" in said.getvalue())
+          and (chip != "esp32s3" or "Heltec" in said.getvalue()), said.getvalue()[-400:])
+check('... only the S3 behind a bridge asks before going on', len(asked) == 1, asked)
+check('a CH340 is a WROVER or a Heltec', "WROVER" in P.KNOWN_BOARDS[("1a86", "7523")]
+      and "Heltec" in P.KNOWN_BOARDS[("1a86", "7523")])
+P.scan_boards, P.detect_chip, P.ask_yes_no = _sv
 print('FAILURES', FAIL)
