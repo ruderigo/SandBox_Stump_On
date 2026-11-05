@@ -12,7 +12,7 @@
 import time
 
 VERSION = "1.0"
-STUMP_API = 2
+STUMP_API = 3
 
 ROOM_LINES = 15        # lines shown per room
 BOARD_SHOWN = 12       # notices shown
@@ -37,6 +37,9 @@ def setup(stump):
         h.on_link(hub.on_link)
         _hub[0] = h
         stump.every(1, hub.tick)
+    from . import browse, hubs
+    browse.setup(stump)
+    hubs.setup(stump)
     stump.page("", _web, nav=lambda lang: stump.t("card", lang), sub=lambda lang: stump.t("card_sub", lang))
     every = max(5, int(stump.setting("ANNOUNCE_MIN", 30) or 30))
     stump.every(every * 60, _announce)
@@ -268,14 +271,14 @@ def _room_page(room, who, note=""):
     if not _may_read(_lxmf_of(who)):
         return _head("#" + room) + _t("mandatory") + "\n" + _nav()
     out = _head("#" + room)
-    lines = [m for m in rrc.since(room, 0) if m.get("kind") in ("msg", "me", "system")][-ROOM_LINES:]
+    lines = [m for m in rrc.since(room, 0) if m.get("kind") in ("msg", "me", "action", "system")][-ROOM_LINES:]
     if not lines:
         out += "`*" + _t("room_empty") + "`*\n"
     for m in lines:
         body = _inline(m.get("body") or "")
         if m.get("kind") == "system":
             out += "`Faaa" + body + "`f\n"
-        elif m.get("kind") == "me":
+        elif m.get("kind") in ("me", "action"):
             out += "* " + _inline(m.get("nick") or "") + " " + body + "\n"
         else:
             out += "`!" + _inline(m.get("nick") or "") + "`! " + body + "\n"

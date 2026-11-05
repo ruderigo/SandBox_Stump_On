@@ -136,6 +136,7 @@ class Reticulum:
         "WiFiSerialInterface": "wifi_serial",  # custom addition -- the Heltec Bridge
         "RNodeSerialInterface": "rnode_serial", # a Heltec on USB, for Stump on a computer
         "RNodeBLEInterface":    "rnode_ble",    # a Heltec over Bluetooth, for Stump on a computer
+        "AutoInterface":        "auto",        # Reticulum's local-network discovery (computers)
         "ChainUplinkInterface": "chain",       # Stump-to-Stump over Wi-Fi (chain.py)
         "ChainHubInterface":    "chain",
     }

@@ -313,3 +313,14 @@ the folder, writes files as UTF-8 without line-ending translation, and
 answers `os.statvfs` with the storage quota. The firmware itself only
 gained the USB Heltec interface (`urns/interfaces/rnode_serial.py`) and
 a few "on a computer" branches (the hotspot address, port 8080).
+
+
+## Found on the local network (since 1.0.0-beta.55)
+
+A computer Stump speaks Reticulum's AutoInterface, the discovery
+NomadNet, Sideband and MeshChat use by default: any of them on the same
+Wi-Fi or network finds the Stump, and the Stump finds them, with nothing
+to configure (IPv6 link-local, ports 29716-29717 and 42671). It's on by
+default; `/admin` → This computer → *Find Reticulum apps on the local
+network* switches it off at the next start, and says how many it has
+found. A CAM can't: its MicroPython has no IPv6.

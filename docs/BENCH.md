@@ -147,6 +147,22 @@ wrong (the replies are chat-room lines: `<nick> text`, `[DM] ...`).
 - [ ] **Cost 16 on the laptop Stump**: how long a reply takes (minutes
       expected), and that the chat stays usable meanwhile.
 
+## 3c. NomadNet from the Stump (beta.55)
+
+- [ ] **Found with no setup**: NomadNet (default config) on a laptop on
+      the same Wi-Fi as the computer Stump. Expected: the Stump's node
+      and LXMF address appear in NomadNet within a minute; `/admin` →
+      This computer says "1 app(s) found". Then Sideband on a phone on
+      that Wi-Fi: the Stump appears in its announces.
+- [ ] **Browse**: on the Stump, *NomadNet: browse* lists the laptop's
+      NomadNet node; open it, follow a link, send a form.
+- [ ] **Join a hub**: in `/admin` → *NomadNet hubs joined*, add a known
+      public RRC hub (its address) with room `main`. Expected: "connected",
+      a room `#main-<name>` in the chat; say something there, see it in
+      NomadNet's Channels on that hub; answer, see it on the Stump.
+- [ ] **People heard**: the NomadNet page lists the laptop's NomadNet
+      user; `/msg` them from the chat: it arrives in NomadNet.
+
 ## 4. Measurements (they inform a decision, not pass or fail)
 
 - [ ] **4b. Three phones on HTTPS `/admin` at once** (pentest prep):

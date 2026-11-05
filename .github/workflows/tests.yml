@@ -115,8 +115,10 @@ jobs:
         run: python -m pytest -v tests/reference
       - name: The NomadNet pack, browsed by the reference library over a real link
         run: |
-          pip install pyserial cbor2 nomadnet
+          pip install pyserial cbor2 nomadnet "git+https://github.com/kc1awv/rrcd@f6d7e9d72bf83c70d7a9373ae8c5edaa052a7bf2"
           python tests/pc/pc_nomadnet_test.py
+      - name: Found with no setup on a shared network (AutoInterface, two network namespaces)
+        run: sudo "$(which python)" tests/pc/pc_autointerface_test.py
 
   # Stump on a computer (docs/PC.md) on the systems people will run it on:
   # a Stump folder made by the Provisioner, started, every page checked.

@@ -1,9 +1,9 @@
 {
   "plugin": "nomadnet",
   "title": "NomadNet (the Stump as a Nomad Network node and RRC hub)",
-  "version": "1.0",
-  "plugin_api": 2,
-  "summary": "NomadNet and MeshChat browse the Stump like any Nomad Network node, over Wi-Fi or LoRa: its home page, its rooms (read, and say something), the billboard (read, and post) and the list of shared files. And NomadNet's own chat (Channels) joins the Stump's rooms live: the Stump is an RRC hub, its rooms the hub's rooms, both ways with the web, FireFly and LXMF. Writing takes an identity the app proves. A card on the Stump's home page gives both addresses.",
+  "version": "1.1",
+  "plugin_api": 3,
+  "summary": "NomadNet and MeshChat browse the Stump like any Nomad Network node, over Wi-Fi or LoRa, and NomadNet's chat joins its rooms live (the Stump is an RRC hub). The other way too: people on the Stump browse the NomadNet nodes it hears, and the admin can bridge other communities' hubs into rooms here. People heard by their LXMF announce are listed. Writing takes an identity the app proves.",
   "modifies_core_files": false,
   "binds_ports": false,
   "starts_tasks": false,
@@ -12,11 +12,15 @@
     "node rrc.hub: RRC sessions (HELLO, JOIN, MSG, ACTION, PART, PING; /list, /who)",
     "every 1 s: the rooms' new lines and DMs out to each RRC session",
     "every NOMADNET_ANNOUNCE_MIN minutes (30): announces the node and the hub, with the Stump's name",
-    "page /p/nomadnet/ (home card): both addresses"
+    "page /p/nomadnet/ (home card): both addresses",
+    "on_announce nomadnetwork.node: the nodes heard",
+    "connect: links to other nodes (pages) and hubs (rrc.hub)",
+    "admin panel: NomadNet hubs joined",
+    "pages /p/nomadnet/nodes, /p/nomadnet/view, /p/nomadnet/hubs"
   ],
   "runtime_storage": {
-    "path": "",
-    "note": "Nothing stored: the pages show the Stump's own rooms, billboard and files."
+    "path": "/sd/plugins/nomadnet/hubs.json",
+    "note": "The hubs the admin joined. Without an SD card they last until the next restart."
   },
   "wizard": {
     "note": "Everything has a working default.",
@@ -37,13 +41,17 @@
     "nomadnet/strings.py",
     "nomadnet/hub.py",
     "nomadnet/cbor.py",
+    "nomadnet/browse.py",
+    "nomadnet/hubs.py",
     "nomadnet/plugin.json"
   ],
   "hashes": {
     "nomadnet/__init__.py": "2d75e659e253ac99",
-    "nomadnet/install.py": "7f642303cf04ec1e",
-    "nomadnet/strings.py": "24394fe81c6b69d7",
-    "nomadnet/hub.py": "49eda5f1ba928c14",
-    "nomadnet/cbor.py": "e1ebc15689dfb4cc"
+    "nomadnet/install.py": "87ebfaab76845f17",
+    "nomadnet/strings.py": "a1d282c91aa3f278",
+    "nomadnet/hub.py": "c929a15159f73f3c",
+    "nomadnet/cbor.py": "e1ebc15689dfb4cc",
+    "nomadnet/browse.py": "95419dbebae9a239",
+    "nomadnet/hubs.py": "55f5b934c532cc3e"
   }
 }

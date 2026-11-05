@@ -116,6 +116,8 @@ def _render_admin_file_list_page(lang, names, pw):
         + _card("people", "\U0001f465", _render_admin_profiles_section(lang, pw),
                 T("admin_profiles_peek", n=len(profiles.all_profiles())))
         + _card("plugins", "\U0001f9e9", _render_admin_plugins_section(lang, pw), _plugins_peek(lang))
+        + "".join(_card("pp-" + name, "\U0001f9e9", "<h2 class='sub'>" + billboard._esc(title) + "</h2>" + html, "")
+                  for name, title, html in plugins.admin_panels(lang, pw))
         + _card("https", "\U0001f512", _render_admin_tls_line(lang), "")
         + _card("power", "\u23fb", _render_admin_power_section(lang, pw), ""))
     return (
@@ -657,6 +659,10 @@ def _render_admin_setup_section(lang, pw, notice=""):
                 + "> " + T("admin_setup_keep_awake") + "</label>"
                 "<p class='sub'><small>" + T("admin_setup_keep_awake_note")
                 + ("" if aw["possible"] else " " + T("admin_setup_awake_none")) + "</small></p>"
+                "<input type='hidden' name='ld_shown' value='1'>"
+                "<label class='opt'><input type='checkbox' name='local_discovery' value='1'"
+                + (" checked" if s.get("LOCAL_DISCOVERY", True) else "") + "> " + T("admin_setup_local_discovery") + "</label>"
+                "<p class='sub'><small>" + T("admin_setup_local_discovery_note") + _auto_peers(T) + "</small></p>"
                 "</details>")
     return ("<h2 class='sub'>" + T("admin_setup_header") + "</h2>" + notice
             + "<p class='sub'>" + T("admin_setup_intro") + "</p>"
@@ -1420,6 +1426,26 @@ async def _r_post_admin_plugins(reader, writer, method, path, headers, ip, ident
         await B._send(writer, "200 OK", B._page(notice + _render_admin_file_list_page(lang, names, pw)))
 
 
+async def _r_post_admin_panel(reader, writer, method, path, headers, ip, identifier, secure):
+    """A form from a plugin's own /admin section (plugins.admin_panel)."""
+    length = int(headers.get("content-length", "0"))
+    body = await B._read_small_body(reader, length)
+    fields = {}
+    for kv in webtext.text(body).split("&"):
+        parts = kv.split("=", 1)
+        if len(parts) == 2:
+            fields[billboard._url_decode(parts[0])] = billboard._url_decode(parts[1])
+    pw = fields.get("admin_pass", "")
+    if not B._admin_ok(pw, identifier):
+        await B._send(writer, "403 Forbidden", "Invalid admin password", "text/plain")
+        return
+    lang = i18n.get_lang(identifier)
+    msg = plugins.admin_panel_post(fields.get("plugin", ""), fields, lang)
+    names = fserv._list_files() if fserv.sd_ok else []
+    notice = "<p class='sub'>" + billboard._esc(msg) + "</p>" if msg else ""
+    await B._send(writer, "200 OK", B._page(notice + _render_admin_file_list_page(lang, names, pw)))
+
+
 async def _r_post_admin_logout(reader, writer, method, path, headers, ip, identifier, secure):
     length = int(headers.get("content-length", "0"))
     body = await B._read_small_body(reader, length)
@@ -1579,6 +1605,8 @@ async def route(reader, writer, method, path, headers, ip, identifier, secure):
         await _r_post_admin_layout(reader, writer, method, path, headers, ip, identifier, secure)
     elif method == "POST" and (path.startswith("/admin/theme") or path.startswith("/admin/tools")):
         await _r_post_admin_theme(reader, writer, method, path, headers, ip, identifier, secure)
+    elif method == "POST" and path.startswith("/admin/panel"):
+        await _r_post_admin_panel(reader, writer, method, path, headers, ip, identifier, secure)
     elif method == "POST" and path.startswith("/admin/plugins"):
         await _r_post_admin_plugins(reader, writer, method, path, headers, ip, identifier, secure)
     elif method == "POST" and path.startswith("/admin/logout"):
@@ -1615,3 +1643,15 @@ def _stamps_status(T):
     if names:
         out += "<p class='sub'><small>" + T("admin_stamps_unstamped", names=", ".join(names)) + "</small></p>"
     return out
+
+
+def _auto_peers(T):
+    """How many Reticulum apps the local-network discovery has found now."""
+    try:
+        from urns.transport import Transport
+        for i in Transport.interfaces:
+            if type(i).__name__ == "AutoInterface" and i.online:
+                return " " + T("admin_auto_peers", n=len(i.peers))
+    except Exception:
+        pass
+    return ""
