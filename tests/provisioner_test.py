@@ -79,6 +79,10 @@ def fake_run(cmd, timeout=None, **kw):
         return True, repr(sizes)
     return True, ''
 P.run = fake_run
+# No downloads in tests: the Provisioner's own mpy-cross install is
+# stood in for (asked for once, here: no mpy-cross on the test machine).
+ENSURED = []
+P.ensure_mpy_cross = lambda: ENSURED.append(1) or None
 pushed_theme = {}
 orig = P._merge_board_themes
 def spy(port, themes):
@@ -134,6 +138,7 @@ check('a WROVER: voice engines on its SD card, not in flash',
       ':/sd/web/opus.wasm' in w_dests and ':/sd/web/codec2.wasm' in w_dests
       and ':web/opus.wasm' not in w_dests and ':web/opus.js' in w_dests, [d for d in w_dests if 'web' in d])
 MACHINE[0] = 'ESP32S3 module with Octal-SPIRAM with ESP32S3'
+check('no mpy-cross here: the Provisioner goes to install its own (not left to memory)', ENSURED, ENSURED)
 check('chip from esptool: an S3, an original ESP32',
       P.chip_from_esptool('Detecting chip type... ESP32-S3') == 'esp32s3'
       and P.chip_from_esptool('Chip type:          ESP32-D0WD-V3 (revision v3.1)') == 'esp32'

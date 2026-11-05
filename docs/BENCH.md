@@ -165,8 +165,8 @@ wrong (the replies are chat-room lines: `<nick> text`, `[DM] ...`).
 
 ## 3d. A Stump on an ESP32-WROVER (beta.56)
 
-- [ ] **Set up**: `pip install mpy-cross==1.28.0.post2`, then
-      `python3 provisioner.py` → *A Stump board* on the WROVER. Expected:
+- [ ] **Set up**: `python3 provisioner.py` → *A Stump board* on the
+      WROVER (it installs mpy-cross itself the first time). Expected:
       "original ESP32 (a WROVER board)", the generic SPIRAM image, the
       modules compiled, the voice engines onto the SD card, the Stump
       boots (its Wi-Fi appears).

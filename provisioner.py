@@ -3086,6 +3086,45 @@ MPY_SOURCE_ONLY = ("boot.py", "main.py", "config.py")     # run or read as sourc
 _MPY = {}
 
 
+MPY_CROSS_PIN = "mpy-cross==1.28.0.post2"      # matches the boards' MicroPython 1.28 (.mpy 6.3)
+MPY_TOOLS_VENV = Path.home() / ".provisioner" / "tools" / "mpy-cross"
+
+
+def _venv_python(venv):
+    return venv / ("Scripts/python.exe" if sys.platform.startswith("win") else "bin/python")
+
+
+def ensure_mpy_cross():
+    """An mpy-cross the Provisioner can use, installed by itself when
+    missing (1.0.0-beta.56): once, into its own small environment under
+    ~/.provisioner/tools, so the system's Python (Homebrew's refuses
+    `pip install` outright) is left alone. Needs the internet that once;
+    without it the modules go as source, as before. Returns the command
+    or None."""
+    cmd, _ = _mpy_cross_cmd()
+    if cmd:
+        return cmd
+    print("  mpy-cross isn't here: installing it for the Provisioner (once, about 1 MB) ...")
+    py = _venv_python(MPY_TOOLS_VENV)
+    try:
+        if not py.exists():
+            MPY_TOOLS_VENV.parent.mkdir(parents=True, exist_ok=True)
+            subprocess.run([sys.executable, "-m", "venv", str(MPY_TOOLS_VENV)],
+                           check=True, capture_output=True, timeout=180)
+        r = subprocess.run([str(py), "-m", "pip", "install", "--quiet", "--disable-pip-version-check", MPY_CROSS_PIN],
+                           capture_output=True, text=True, timeout=300)
+        if r.returncode != 0:
+            raise RuntimeError((r.stderr or r.stdout).strip()[-300:])
+    except Exception as e:
+        print(yellow("  Couldn't install it (%s). Modules go as source; to add it yourself: pip3 install %s"
+                     % (str(e)[:160] or "no internet?", MPY_CROSS_PIN)))
+        return None
+    _MPY.pop("cmd", None)
+    cmd, ver = _mpy_cross_cmd()
+    print("  mpy-cross ready (.mpy %s)." % ver if cmd else "  mpy-cross installed but doesn't run: modules go as source.")
+    return cmd
+
+
 def _mpy_cross_cmd():
     """(command, mpy version "6.3") for an mpy-cross here, or (None, None)."""
     if "cmd" not in _MPY:
@@ -3098,6 +3137,8 @@ def _mpy_cross_cmd():
             pass
         if shutil.which("mpy-cross"):
             cands.append([shutil.which("mpy-cross")])
+        if _venv_python(MPY_TOOLS_VENV).exists():
+            cands.append([str(_venv_python(MPY_TOOLS_VENV)), "-m", "mpy_cross"])     # the one the Provisioner installed
         for c in cands:
             try:
                 out = subprocess.run(c + ["--version"], capture_output=True, text=True, timeout=30).stdout
@@ -3124,6 +3165,10 @@ def compile_for_board(port, root, rels):
     module compiled to .mpy when the board and an mpy-cross here agree on
     the version, as it is otherwise. Says once which it is."""
     cmd, ver = _mpy_cross_cmd()
+    if not cmd and "tried" not in _MPY:
+        _MPY["tried"] = True
+        if ensure_mpy_cross():
+            cmd, ver = _mpy_cross_cmd()
     board = _board_mpy_version(port) if cmd else None
     use = bool(cmd) and board == ver
     if "said" not in _MPY:
@@ -3274,9 +3319,8 @@ def upload_stump_app(port, app_dir=None):
         to_sd = [f for f in present if f.startswith("web/") and f.endswith(".wasm")]
         present = [f for f in present if f not in to_sd]
         print("  A WROVER board (4 MB flash): the voice engines go on its SD card.")
-        if not _mpy_cross_cmd()[0]:
-            print(yellow("  Its flash is tight: pip install mpy-cross==1.28.0.post2 first, so the"))
-            print(yellow("  modules go compiled (about half the size). Continuing as source."))
+        if not ensure_mpy_cross():
+            print(yellow("  Its flash is tight without compiled modules: it may not all fit."))
 
     # Content-hash check: catches ANY stale file by comparing against
     # known-good hashes, not the local folder's own say-so, and does it
