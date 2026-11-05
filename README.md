@@ -29,7 +29,8 @@ without a radio.
 
 | Stump | Radio | What it adds | Set up with |
 |---|---|---|---|
-| **ESP32-S3-CAM + Heltec V3** | Heltec V3 over Wi-Fi | The original: a pocket-sized, low-power node with its own Wi-Fi for visitors and an SD card for files | `python3 provisioner.py` → *A Stump CAM*, then *A Heltec for a CAM* |
+| **ESP32-S3-CAM + Heltec V3** | Heltec V3 over Wi-Fi | The original: a pocket-sized, low-power node with its own Wi-Fi for visitors and an SD card for files | `python3 provisioner.py` → *A Stump board*, then *A Heltec for a CAM* |
+| **ESP32-WROVER + Heltec V3** (Freenove ESP32-WROVER v3.0) | Heltec V3 over Wi-Fi | The same, on the original ESP32: its microSD slot on board, 4 MB of flash (the voice engines go on the card) | `python3 provisioner.py` → *A Stump board* (it reads the chip and flashes the right MicroPython), then *A Heltec for a CAM* |
 | **macOS / Windows / Linux + Heltec V3** | Heltec V3 on USB or Bluetooth | A computer as a full node: more storage and speed, on the LoRa mesh directly; USB ⇄ Bluetooth and pairing from `/admin` | `python3 provisioner.py --pc` → the Heltec on USB |
 | **macOS / Windows / Linux** | none | A computer as a node with no radio of its own: it reaches LoRa through another Stump it's chained to | `python3 provisioner.py --pc` → no Heltec |
 
@@ -59,6 +60,8 @@ See [Chained Stumps](#chained-stumps).
 | | On hardware | In the lab only |
 |---|---|---|
 | ESP32-S3-CAM + Heltec V3 | ✓ | |
+| ESP32-WROVER (Freenove v3.0): MicroPython, PSRAM (4.18 MB free), SD card | ✓ (5 Nov 2026) | |
+| ESP32-WROVER as a full Stump | | ✓ (beta.56; on the bench next) |
 | macOS + Heltec V3 on USB (handshake, status, unplug and replug) | ✓ | |
 | macOS + Heltec V3 over Bluetooth (pairing and switching from `/admin`) | in progress | ✓ (simulated RNode, firmware behaviour read from its source) |
 | Windows / Linux + Heltec V3 | | ✓ |

@@ -213,6 +213,22 @@ def credit_cost(filename):
 sd_ok = False
 
 
+def sd_pins(machine=None):
+    """The SD slot's wiring, by chip. The ESP32-S3-CAM routes SDMMC
+    through the GPIO matrix (CLK 39, CMD 38, D0 40, from Freenove's
+    tutorial). The original ESP32 (Freenove ESP32-WROVER v3.0) has fixed
+    SDMMC pins for slot 1 (CLK 14, CMD 15, D0 2): no pins given, and
+    giving some is an error on that chip. Checked on a real board
+    2026-11-05."""
+    try:
+        m = (machine if machine is not None else os.uname().machine).replace("-", "").upper()
+    except Exception:
+        m = ""
+    if "ESP32S3" in m:
+        return {"slot": 1, "width": 1, "sck": 39, "cmd": 38, "data": (40,)}
+    return {"slot": 1, "width": 1}
+
+
 def mount_sd():
     global sd_ok
     try:
@@ -221,7 +237,7 @@ def mount_sd():
         # across v1.21-1.27): SD/MMC mode uses sck (for CLK), cmd, and a
         # data TUPLE -- not the SPI-style mosi/miso names originally
         # guessed here, and plain pin numbers, not Pin() objects.
-        sd = SDCard(slot=1, width=1, sck=39, cmd=38, data=(40,))
+        sd = SDCard(**sd_pins())
         os.mount(sd, SD_MOUNT)
         for d in (SHARED_DIR, TOOLS_DIR, FW_DIR, ABOUT_DIR, HOME_DIR):
             try:

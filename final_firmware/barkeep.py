@@ -1921,7 +1921,7 @@ def _render_about_page(lang):
         "<h2>" + i18n.t("about_setups_h2", lang) + "</h2>"
         "<p>" + i18n.t("about_setups_intro", lang) + "</p>"
         "<div class='info-tiles'>"
-        "<div class='info-tile'><span>ESP32-S3-CAM + Heltec V3</span>"
+        "<div class='info-tile'><span>" + _board_name() + " + Heltec V3</span>"
         "<small>" + i18n.t("about_setup1_desc", lang) + "</small></div>"
         "<div class='info-tile'><span>macOS / Windows / Linux + Heltec V3</span>"
         "<small>" + i18n.t("about_setup2_desc", lang) + "</small></div>"
@@ -2681,6 +2681,19 @@ async def _r_get_rrc_voice(reader, writer, method, path, headers, ip, identifier
 
 
 
+def _board_name(m=None):
+    """The board this Stump runs on, for the About page."""
+    try:
+        m = m if m is not None else os.uname().machine
+    except Exception:
+        return "ESP32"
+    if "ESP32S3" in m.replace("-", "").upper():
+        return "ESP32-S3-CAM"
+    if "SPIRAM" in m.upper():
+        return "ESP32-WROVER"
+    return "ESP32"
+
+
 async def _r_get_codecs(reader, writer, method, path, headers, ip, identifier, secure):
     # The voice codecs for the browser -- Codec 2 (LGPL-2.1) and Opus
     # (BSD) -- served from the board so voice notes work offline.
@@ -2688,11 +2701,16 @@ async def _r_get_codecs(reader, writer, method, path, headers, ip, identifier, s
     # Streamed in chunks: opus.wasm is 333 KB, and reading it whole
     # needed one contiguous 333 KB allocation -- a MemoryError on a
     # fragmented heap, right when someone taps play.
-    try:
-        size = os.stat("web/" + name)[6]
-        await _send_file(writer, "web/" + name, size, name, inline=True)
-    except OSError:
-        await _send(writer, "404 Not Found", "missing " + name, "text/plain")
+    # In flash on a CAM; on the SD card where flash is short (a 4 MB
+    # WROVER board keeps them in <card>/web: 1.0.0-beta.56).
+    for where in ("web/" + name, fserv.SD_MOUNT + "/web/" + name):
+        try:
+            size = os.stat(where)[6]
+        except OSError:
+            continue
+        await _send_file(writer, where, size, name, inline=True)
+        return
+    await _send(writer, "404 Not Found", "missing " + name, "text/plain")
 
 
 

@@ -72,6 +72,7 @@ TESTS = [
     ("cap_flood", "assert", []),
     ("lxmf_stamps", "assert", []),
     ("nomadnet_pack", "assert", NOMADNET),
+    ("wrover_board", "assert", []),
     ("simple_pack", "assert", SIMPLE),
 ]
 
