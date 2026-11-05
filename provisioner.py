@@ -242,8 +242,8 @@ def release_lines(st=None):
 
 
 def board_release(port):
-    """STUMP_RELEASE of the firmware on a CAM, read from its
-    example_node.py over USB. None if it couldn't be read."""
+    """STUMP_RELEASE of the firmware on a Stump board, read from its
+    example_node.py (or .mpy) over USB. None if it couldn't be read."""
     code = ("r='?'\n"
             "for p in ('example_node.py','/lib/example_node.py'):\n"
             "    try:\n"
@@ -254,6 +254,30 @@ def board_release(port):
             "        break\n"
             "    except OSError:\n"
             "        pass\n"
+            # Compiled (.mpy, beta.56 on): no source line to read, but the
+            # release is the first a.b.c[-x.n] string after its name (not
+            # an IP: no dot on either side).
+            "if r=='?':\n"
+            "    import re\n"
+            "    for p in ('example_node.mpy','/lib/example_node.mpy'):\n"
+            "        try:\n"
+            "            with open(p,'rb') as f:\n"
+            "                b=f.read()\n"
+            "        except OSError:\n"
+            "            continue\n"
+            "        i=max(0,b.find(b'STUMP_RELEASE'))\n"
+            "        x=re.compile(b'[0-9]+[.][0-9]+[.][0-9]+(-[a-z]+[.][0-9]+)?')\n"
+            "        while i<len(b):\n"
+            "            m=x.search(b[i:])\n"
+            "            if not m:\n"
+            "                break\n"
+            "            v=m.group(0)\n"
+            "            j=i+b[i:].find(v)\n"
+            "            if b[j-1:j]!=b'.' and b[j+len(v):j+len(v)+1] not in (b'.',b'0',b'1',b'2',b'3',b'4',b'5',b'6',b'7',b'8',b'9'):\n"
+            "                r=v.decode()\n"
+            "                break\n"
+            "            i=j+len(v)\n"
+            "        break\n"
             "print('STUMP_RELEASE:'+r)\n")
     res = run(["mpremote", "connect", port, "exec", code], timeout=20)
     out = res[1] if res else ""
@@ -270,7 +294,7 @@ def release_check(port, folder=None):
     want = _folder_release(folder)
     have = board_release(port)
     if have is None:
-        return False, "couldn't read the board's release (is this a Stump CAM?)", None
+        return False, "couldn't read the board's release (is this a Stump board?)", None
     if want and have != want:
         return (False, "the board runs %s, this folder has %s: re-upload the Stump files" % (have, want),
                 have)
@@ -2574,7 +2598,17 @@ def resolve_path(default_path, description, remember_key=None, is_dir=True,
         if download_fn:
             extra.append("'d' to download automatically")
         suffix = (", or " + ", or ".join(extra)) if extra else ""
-        raw = ask(f"  Enter the correct path{suffix} (blank to skip)")
+        if len(hints) == 1:
+            # One match: Enter takes it ("blank to skip" here was a trap:
+            # the file was right there and Enter skipped it).
+            more = ", or 'd' to download automatically" if download_fn else ""
+            raw = ask(f"  Enter to use 1, or type another path{more}, or 's' to skip")
+            if not raw:
+                raw = "1"
+            elif raw.strip().lower() in ("s", "skip"):
+                return None
+        else:
+            raw = ask(f"  Enter the correct path{suffix} (blank to skip)")
         if not raw:
             return None
         if download_fn and raw.strip().lower() in ("d", "download"):
@@ -2928,9 +2962,10 @@ def _bootloader_recovery(port):
     return ask_choice("Which port is the board on now?", [p["device"] for p in ports])
 
 
-def flash_cam_micropython(port, firmware_path=None):
-    banner(f"FLASHING MICROPYTHON — {port}")
-
+def pick_board_firmware(port, firmware_path=None):
+    """(chip, the MicroPython image for it) -- or (chip, None). Asked in
+    section 3 with the other questions, so the unattended part has
+    nothing left to ask (beta.56: it stopped there and waited)."""
     # Which chip: the S3-CAM or a WROVER board (they take different images).
     chip = detect_chip(port)
     if chip is None:
@@ -2950,13 +2985,18 @@ def flash_cam_micropython(port, firmware_path=None):
         download_label="fetches the %s from micropython.org" % fwv["label"],
     )
     if resolved is None:
-        print("FAILED — no valid firmware file given. This board needs the")
-        print("Octal-SPIRAM build specifically (Freenove's ESP32-S3-CAM uses Octal")
-        print("SPI PSRAM) -- the plain/standard build will boot but likely crash.")
-        print(f"Direct download: {CAM_FIRMWARE_LATEST_URL}")
-        print("(or browse micropython.org/download/ESP32_GENERIC_S3/ and pick the")
-        print(" file under \"Firmware (Support for Octal-SPIRAM)\", not the plain one)")
-        return (False, None)
+        print("FAILED — no valid firmware file given.")
+        if chip == "esp32":
+            print("A WROVER board needs MicroPython's ESP32 SPIRAM build (it sees the PSRAM).")
+            print(f"Direct download: {WROVER_FIRMWARE_LATEST_URL}")
+            print("(or micropython.org/download/ESP32_GENERIC/, the \"Support for SPIRAM / WROVER\" file)")
+        else:
+            print("This board needs the Octal-SPIRAM build specifically (Freenove's")
+            print("ESP32-S3-CAM uses Octal SPI PSRAM) -- the plain build will boot but likely crash.")
+            print(f"Direct download: {CAM_FIRMWARE_LATEST_URL}")
+            print("(or browse micropython.org/download/ESP32_GENERIC_S3/ and pick the")
+            print(" file under \"Firmware (Support for Octal-SPIRAM)\", not the plain one)")
+        return chip, None
 
     fname_lower = resolved.name.lower()
     if chip == "esp32" and not all(m in fname_lower for m in WROVER_FIRMWARE_NAME_MARKERS):
@@ -2969,8 +3009,18 @@ def flash_cam_micropython(port, firmware_path=None):
         print("  of failing cleanly. Continuing anyway since you pointed at it")
         print(f"  directly, but if the board misbehaves after flashing, get:")
         print(f"  {CAM_FIRMWARE_LATEST_URL}")
+    return chip, resolved
 
-    firmware_path = str(resolved)
+
+def flash_cam_micropython(port, firmware_path=None, chip=None):
+    banner(f"FLASHING MICROPYTHON — {port}")
+    if chip is None or firmware_path is None:
+        chip, firmware_path = pick_board_firmware(port, firmware_path)
+        if firmware_path is None:
+            return (False, None)
+    fwv = FIRMWARE_FOR_CHIP[chip]
+    print("  Image: %s at %s" % (Path(firmware_path).name, fwv["offset"]))
+    firmware_path = str(firmware_path)
 
     print("Erasing flash...")
     # esptool v5 renamed every underscore-style command/option to hyphens
@@ -4415,6 +4465,50 @@ def config_wizard(board_type):
     return profile, out_path
 
 
+def _saved_profiles(board_type):
+    """[(node name, path)] of the settings saved by earlier runs for this
+    kind of board, newest first."""
+    out = []
+    try:
+        files = sorted(CONFIG_OUT_DIR.glob("*.json"), key=lambda f: f.stat().st_mtime, reverse=True)
+    except OSError:
+        return out
+    for f in files:
+        try:
+            d = json.loads(f.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if isinstance(d, dict) and d.get("board_type") == board_type and d.get("node_name"):
+            out.append((d["node_name"], f))
+    return out[:8]
+
+
+def _ask_profile(board_type, erased):
+    """The settings to install: an earlier run's, saved in
+    ~/.provisioner/profiles (beta.56: a re-run after a failed flash asked
+    everything again, or kept nothing), new answers, or -- only on a
+    board that isn't being erased -- none, keeping its own."""
+    saved = _saved_profiles(board_type)
+    new = "Answer the setup questions"
+    keep = "Keep the board's own settings"
+    opts = ["Use the settings saved for '%s' (%s)" % (n, f.name) for n, f in saved] + [new]
+    if not erased:
+        opts.append(keep)
+    if len(opts) == 1:
+        return config_wizard(board_type)[0]
+    if erased:
+        print("  Flashing erases the board's settings: it needs settings again.")
+    pick = ask_choice("Settings for this Stump:", opts)
+    if pick == keep:
+        return None
+    if pick == new:
+        return config_wizard(board_type)[0]
+    name, f = saved[opts.index(pick)]
+    profile = json.loads(f.read_text(encoding="utf-8"))
+    print("  Using %s's settings, saved in %s." % (name, f))
+    return profile
+
+
 def push_config_to_board(port, board_type, profile):
     """
     Write the appropriate config file. A Firefly's Heltec V3 runs RNode
@@ -5120,6 +5214,12 @@ def _cam_after_board(r, port, app_dir):
     print("Everything is asked now, so the rest can run while you're away.")
     flash = ask_yes_no(f"Flash MicroPython onto {port}? (erases the board: yes for a new or "
                        "broken board, no to keep it and only update)", True)
+    chip = image = None
+    if flash:
+        chip, image = pick_board_firmware(port)
+        if image is None:
+            print(yellow("  No MicroPython image: the board won't be flashed, and nothing is"
+                         " installed on it (sections 4-7 are skipped). Run this again with the image."))
     upload = bool(app_dir) and (flash or ask_yes_no(
         "Upload the Stump files? (keeps the board's settings)", True))
     global SKIP_TOOLS
@@ -5127,9 +5227,7 @@ def _cam_after_board(r, port, app_dir):
         "Copy the Tools page's files to its SD card too? They're the slow part: ~20-25 min "
         "the first time and after each update (the firmware bundle and the Provisioner change). "
         "No: the node works the same; only its /tools downloads stay as they were", True)
-    profile = None
-    if ask_yes_no("Answer the setup questions? (no: the board keeps its settings)", True):
-        profile, _ = config_wizard("cam")
+    profile = _ask_profile("cam", erased=flash)
     verify = ask_yes_no("Run the diagnostic suite at the end?", True)
     r.end()
     left = sum((r.expected(n)[0] or 0) for n, _ in r.steps[r.index + 1:])
@@ -5143,8 +5241,10 @@ def _cam_after_board(r, port, app_dir):
     # ── Flash
     r.start("Flash")
     flashed = False
-    if flash:
-        flashed, flashed_port = flash_cam_micropython(port)
+    if flash and image is None:
+        r.end("fail", "no MicroPython image (section 3)")
+    elif flash:
+        flashed, flashed_port = flash_cam_micropython(port, image, chip)
         if flashed and flashed_port and flashed_port != port:
             # Bootloader recovery can land the board on another port.
             print(f"\nThe board moved to {flashed_port} during flashing: using that from here.")
@@ -5174,7 +5274,11 @@ def _cam_after_board(r, port, app_dir):
 
     # ── Install
     r.start("Install")
-    if profile is None:
+    if flash and not flashed:
+        # The board has no Stump on it (or one half erased): settings and
+        # packs on bare MicroPython only fail (beta.56: rnfs's SD files).
+        r.end("skip", "the flash didn't work")
+    elif profile is None:
         r.end("skip", "nothing new to install")
     else:
         ok = push_config_to_board(port, "cam", profile)
@@ -5210,6 +5314,11 @@ def _cam_after_board(r, port, app_dir):
 
     # ── Verify
     r.start("Verify")
+    if flash and not flashed:
+        r.end("skip", "the flash didn't work")
+        r.summary("Re-check any time: python3 provisioner.py --diag %s" % port)
+        print("Fix the flash (section 4), then run this again.")
+        return
     rel_ok, rel_text, rel = release_check(port, app_dir)
     print(("" if rel_ok else red(_glyphs()["fail"] + " ")) + "Release: " + rel_text)
     r.note("Release", (rel + " " + _glyphs()["done"]) if rel_ok else red(rel_text))

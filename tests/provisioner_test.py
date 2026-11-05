@@ -1,3 +1,4 @@
+import os
 import sys, json, re, hashlib, shutil, zipfile, builtins
 from pathlib import Path
 import tempfile
@@ -267,14 +268,18 @@ def fake_input(prompt=""):
 builtins.input = fake_input
 saved = {n: getattr(P, n) for n in ("check_tools", "resolve_path", "choose_board", "config_wizard",
                                     "flash_cam_micropython", "upload_stump_app", "push_config_to_board",
-                                    "install_packs", "run", "get_stump_ip", "diagnostics", "keep_awake")}
+                                    "install_packs", "run", "get_stump_ip", "diagnostics", "keep_awake",
+                                    "pick_board_firmware")}
+P.pick_board_firmware = lambda port, path=None: calls.append("image") or ("esp32", fw / "main.py")
+_cfg_dir = P.CONFIG_OUT_DIR
+P.CONFIG_OUT_DIR = Path(tempfile.mkdtemp()) / "profiles"        # no saved settings
 P.check_tools = lambda: True
 P.resolve_path = lambda *a, **k: fw
 P.choose_board = lambda role=None: "/dev/fake-cam"
 def fake_wizard(role):
     calls.append("wizard"); return {"node_name": "t", "wifi_ssid": "", "packs": []}, None
 P.config_wizard = fake_wizard
-def flash(port): phase[0] = "auto"; calls.append("flash"); return True, port
+def flash(port, image=None, chip=None): phase[0] = "auto"; calls.append("flash"); return True, port
 P.flash_cam_micropython = flash
 P.upload_stump_app = lambda port, app_dir=None: calls.append("upload") or True
 P.push_config_to_board = lambda port, role, prof: calls.append("push") or True
@@ -288,12 +293,22 @@ P.time.sleep = lambda s: None
 buf = io.StringIO()
 with contextlib.redirect_stdout(buf):
     P.interactive_wizard()
+out = buf.getvalue()
+calls_first = list(calls)
+# No MicroPython image found in section 3: nothing is put on a board left bare
+calls.clear(); phase[0] = ""
+P.pick_board_firmware = lambda port, path=None: calls.append("image") or ("esp32", None)
+with contextlib.redirect_stdout(io.StringIO()) as said2:
+    P.interactive_wizard()
+P.CONFIG_OUT_DIR = _cfg_dir
+check('CAM route: no image, nothing flashed, nothing installed on the bare board',
+      calls == ["image", "wizard"] and "the flash didn't work" in said2.getvalue(), (calls, said2.getvalue()[-800:]))
 P.time.sleep = real_sleep
 for n, f in saved.items():
     setattr(P, n, f)
 sys.stdout = sys.__stdout__
-out = buf.getvalue()
-check('CAM route: the questions come before anything touches the board', calls == ["wizard", "flash", "upload", "push", "diag"], calls)
+check('CAM route: the questions (the image too) come before anything touches the board',
+      calls_first == ["image", "wizard", "flash", "upload", "push", "diag"], calls_first)
 check('CAM route: nothing is asked after section 3', asked_after == [], asked_after)
 check('CAM route: it says the rest runs by itself', "run by themselves now" in out and "step away" in out, out[-1500:])
 check('CAM route: the card says who does what, and why it is slow', "Why so long" in out and "auto = it runs by itself" in out)
@@ -651,4 +666,56 @@ check('... only the S3 behind a bridge asks before going on', len(asked) == 1, a
 check('a CH340 is a WROVER or a Heltec', "WROVER" in P.KNOWN_BOARDS[("1a86", "7523")]
       and "Heltec" in P.KNOWN_BOARDS[("1a86", "7523")])
 P.scan_boards, P.detect_chip, P.ask_yes_no = _sv
+# One image found nearby: Enter takes it (beta.56: Enter skipped it)
+_rd = Path(tempfile.mkdtemp())
+(_rd / "ESP32_GENERIC-SPIRAM-20260406-v1.28.0.bin").write_bytes(b"x" * 64)
+_sv2 = (P._remembered_path, P.ask_yes_no)
+P._remembered_path = lambda k: None
+P.ask_yes_no = lambda *a, **k: False
+_find = lambda roots: P._find_cam_firmware_candidates(roots, markers=("esp32_generic-spiram",))
+answers("")
+with contextlib.redirect_stdout(io.StringIO()):
+    got = P.resolve_path(None, "image", remember_key="x", is_dir=False, search_roots=[_rd], hint_finder=_find)
+check('firmware: the one image found is used on Enter', got is not None and got.name.startswith("ESP32_GENERIC-SPIRAM"), got)
+answers("s")
+with contextlib.redirect_stdout(io.StringIO()):
+    got = P.resolve_path(None, "image", remember_key="x", is_dir=False, search_roots=[_rd], hint_finder=_find)
+check("firmware: 's' still skips", got is None, got)
+P._remembered_path, P.ask_yes_no = _sv2
+# A re-run after a flash: the settings saved last time, not asked again,
+# and never "keep the board's own" on a board being erased
+_cd = P.CONFIG_OUT_DIR
+P.CONFIG_OUT_DIR = Path(tempfile.mkdtemp())
+(P.CONFIG_OUT_DIR / "Wrover.json").write_text(json.dumps({"node_name": "Wrover", "board_type": "cam", "packs": ["simple"]}))
+(P.CONFIG_OUT_DIR / "Other.json").write_text(json.dumps({"node_name": "Radio", "board_type": "heltec"}))
+_cw = P.config_wizard
+P.config_wizard = lambda bt: ({"node_name": "asked"}, None)
+seen = []
+_ac = P.ask_choice
+P.ask_choice = lambda q, opts: seen.append(opts) or opts[0]
+with contextlib.redirect_stdout(io.StringIO()):
+    prof = P._ask_profile("cam", erased=True)
+check('settings: the saved ones for this kind of board are offered, and used', prof and prof["node_name"] == "Wrover"
+      and len(seen[0]) == 2 and not any("Keep" in o for o in seen[0]) and not any("Radio" in o for o in seen[0]), seen)
+seen.clear()
+with contextlib.redirect_stdout(io.StringIO()):
+    P._ask_profile("cam", erased=False)
+check("settings: an update can keep the board's own", any("Keep" in o for o in seen[0]), seen)
+P.ask_choice, P.config_wizard, P.CONFIG_OUT_DIR = _ac, _cw, _cd
+# The release on a board whose modules went compiled (no example_node.py:
+# beta.56's first WROVER said "couldn't read the board's release")
+_br = []
+_rn = P.run
+P.run = lambda cmd, **k: _br.append(cmd[-1]) or (True, "")
+P.board_release("/dev/fake")
+P.run = _rn
+_bd = Path(tempfile.mkdtemp())
+(_bd / "example_node.mpy").write_bytes(b"M\x06\x00\x1f192.168.4.1\x00STUMP_RELEASE\x00\x0d1.0.0-beta.56\x00ap 10.0.0.1")
+_o = io.StringIO()
+_cwd = os.getcwd()
+os.chdir(_bd)
+with contextlib.redirect_stdout(_o):
+    exec(_br[0], {})
+os.chdir(_cwd)
+check('release: read from a compiled example_node (.mpy), not an IP', _o.getvalue().strip() == "STUMP_RELEASE:1.0.0-beta.56", _o.getvalue())
 print('FAILURES', FAIL)
