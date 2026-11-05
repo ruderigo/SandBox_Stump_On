@@ -1350,7 +1350,7 @@ def _wrap(text, width):
     return out
 
 
-def preview_ssid(node_name, ap_ip=DEFAULT_AP_IP):
+def preview_ssid(ssid_name, ap_ip=DEFAULT_AP_IP, include_ip=True):
     """Mirrors captive_portal.setup_ap()'s SSID logic so the wizard can
     show what will actually be broadcast.
 
@@ -1362,10 +1362,16 @@ def preview_ssid(node_name, ap_ip=DEFAULT_AP_IP):
 
     Returns (ssid, was_clipped).
     """
-    ap_part = "-" + ap_ip
+    # Exactly as the firmware does it (beta.56: this showed
+    # "<node name>-192.168.4.1" while the board broadcast the default
+    # hosted-page name).
+    base = (ssid_name or "LaBuche-Stump.web.app").rstrip()
+    if not include_ip:
+        return base[:32].rstrip(), len(base) > 32
+    ap_part = " " + ap_ip
     keep = 32 - len(ap_part)
-    clipped = len(node_name) > keep
-    name = node_name[:keep].rstrip("-") if keep > 0 else ""
+    clipped = len(base) > keep
+    name = base[:keep].rstrip() if keep > 0 else ""
     return (name + ap_part)[:32], clipped
 
 
@@ -4117,8 +4123,10 @@ def config_wizard(board_type):
         print("\nThe walk-up hotspot can broadcast as the public page")
         print("(\"%s\"), so anyone can look up what this" % cp_default_ssid)
         print("network is before ever joining -- or a custom name instead.")
+        print("Every Stump left on that name broadcasts the same one: with several")
+        print("Stumps (or a Heltec that joins this one's hotspot), give it its own.")
         use_default_ssid = ask_yes_no(
-            "Use the default hosted-page name?", True)
+            "Use the default hosted-page name? (n: name this Stump's hotspot yourself)", True)
         if use_default_ssid:
             profile["ssid_name"] = None
             # Forced off, not asked: the domain-plus-IP combination
@@ -4287,12 +4295,23 @@ def config_wizard(board_type):
                  "This CAM's own hotspot (standalone pair, no router)"],
             )
             standalone_pair = pairing.startswith("This CAM's")
-            default_bridge_ip = "192.168.4.2" if standalone_pair else "192.168.0.222"
+            default_bridge_ip = (_ap_ip(profile).rsplit(".", 1)[0] + ".2") if standalone_pair else "192.168.0.222"
+            if standalone_pair and not profile.get("ssid_name"):
+                # The Heltec joins the hotspot by its name, and every Stump
+                # left on the default name has the same one: with two
+                # Stumps near, it joins whichever it finds first (beta.56,
+                # three WROVERs and a CAM).
+                print(yellow("\n  The Heltec finds this Stump's hotspot by its name, and every Stump on the"))
+                print(yellow("  default name (LaBuche-Stump.web.app) has the same one: it could join another."))
+                print("  This Stump's hotspot gets a name of its own:")
+                profile["ssid_name"] = ask("  Hotspot name", node_name)[:20] or node_name[:20]
+                profile["ssid_include_ip"] = True
             if standalone_pair:
-                print("\nWhen you provision the Heltec, join it to THIS CAM's own hotspot name")
-                print("(its Node name / custom SSID -- open network, no password), with a")
-                print(f"static IP in the 192.168.4.x range. This CAM is always 192.168.4.1,")
-                print(f"so the Heltec needs a different address here -- suggested: {default_bridge_ip}")
+                ssid_now = preview_ssid(profile.get("ssid_name"), _ap_ip(profile), profile.get("ssid_include_ip", False))[0]
+                print("\nWhen you provision the Heltec, join it to this Stump's hotspot:")
+                print("  %s   (open network, no password)" % bold(ssid_now))
+                print("with a fixed address next to this Stump's (%s) -- suggested: %s"
+                      % (_ap_ip(profile), default_bridge_ip))
 
             heltec_host = ask(
                 "Heltec Bridge IP (the static IP set on the Heltec via\n"
@@ -4331,7 +4350,8 @@ def config_wizard(board_type):
         profile["bot_name"] = ask("  Bot's name", persona.get("bot_name") or "BarKeep")
 
         # ---- What the Wi-Fi list will actually show ----
-        preview, clipped = preview_ssid(profile["node_name"])
+        preview, clipped = preview_ssid(profile.get("ssid_name"), _ap_ip(profile),
+                                        profile.get("ssid_include_ip", False))
         print("\n  The node's own Wi-Fi network will appear as:")
         print("    %s   (%d/32 characters)" % (preview, len(preview)))
         if clipped:
@@ -4465,6 +4485,46 @@ def config_wizard(board_type):
     return profile, out_path
 
 
+def _ap_ip(profile):
+    """This Stump's own hotspot address: 192.168.<its chain number>.1."""
+    chain = profile.get("chain") or {}
+    return "192.168.%d.1" % int(chain.get("subnet", 4)) if chain.get("enabled") else DEFAULT_AP_IP
+
+
+def _per_board(profile):
+    """Settings saved for one board, used for another: what must differ
+    from board to board is asked again (beta.56: three WROVERs on one
+    set of settings had one name, one hotspot name and one chain
+    number)."""
+    old = profile.get("node_name", "")
+    profile["node_name"] = ask("  This board's name (each Stump its own)", old) or old
+    if profile.get("ssid_name"):
+        default = profile["node_name"][:20] if profile["ssid_name"] == old[:20] else profile["ssid_name"]
+        profile["ssid_name"] = ask("  Its hotspot name (each Stump its own)", default) or default
+    chain = profile.get("chain") or {}
+    if chain.get("enabled") and chain.get("uplink_ssid"):
+        while True:
+            try:
+                n = int(ask("  Its number in the chain (5-254; each Stump its own)", str(chain.get("subnet", 5))))
+            except ValueError:
+                n = 0
+            if 5 <= n <= 254:
+                chain["subnet"] = n
+                break
+            print("    A number from 5 to 254.")
+    if profile.get("heltec_enabled") and str(profile.get("heltec_host", "")).startswith("192.168."):
+        h = profile["heltec_host"].split(".")
+        a = _ap_ip(profile).split(".")
+        if h[2] != a[2] and h[2] != "0":
+            # The Heltec on this Stump's own hotspot: in its range.
+            profile["heltec_host"] = ".".join(a[:3] + [h[3]])
+    ssid = preview_ssid(profile.get("ssid_name"), _ap_ip(profile), profile.get("ssid_include_ip", False))[0]
+    print("  Its hotspot: %s, at %s" % (bold(ssid), _ap_ip(profile)))
+    if profile.get("heltec_enabled"):
+        print("  Its Heltec joins that hotspot, at %s." % profile.get("heltec_host"))
+    return profile
+
+
 def _saved_profiles(board_type):
     """[(node name, path)] of the settings saved by earlier runs for this
     kind of board, newest first."""
@@ -4506,6 +4566,12 @@ def _ask_profile(board_type, erased):
     name, f = saved[opts.index(pick)]
     profile = json.loads(f.read_text(encoding="utf-8"))
     print("  Using %s's settings, saved in %s." % (name, f))
+    profile = _per_board(profile)
+    CONFIG_OUT_DIR.mkdir(parents=True, exist_ok=True)
+    out = CONFIG_OUT_DIR / ("%s.json" % profile["node_name"].replace(" ", "_"))
+    out.write_text(json.dumps(profile, indent=2), encoding="utf-8")
+    if out != f:
+        print("  Saved as %s." % out.name)
     return profile
 
 

@@ -693,11 +693,13 @@ P.config_wizard = lambda bt: ({"node_name": "asked"}, None)
 seen = []
 _ac = P.ask_choice
 P.ask_choice = lambda q, opts: seen.append(opts) or opts[0]
+answers("")                                   # its name: kept
 with contextlib.redirect_stdout(io.StringIO()):
     prof = P._ask_profile("cam", erased=True)
 check('settings: the saved ones for this kind of board are offered, and used', prof and prof["node_name"] == "Wrover"
       and len(seen[0]) == 2 and not any("Keep" in o for o in seen[0]) and not any("Radio" in o for o in seen[0]), seen)
 seen.clear()
+answers("")
 with contextlib.redirect_stdout(io.StringIO()):
     P._ask_profile("cam", erased=False)
 check("settings: an update can keep the board's own", any("Keep" in o for o in seen[0]), seen)
@@ -718,4 +720,19 @@ with contextlib.redirect_stdout(_o):
     exec(_br[0], {})
 os.chdir(_cwd)
 check('release: read from a compiled example_node (.mpy), not an IP', _o.getvalue().strip() == "STUMP_RELEASE:1.0.0-beta.56", _o.getvalue())
+# The hotspot name shown is the one broadcast (the firmware's own rule)
+check('hotspot preview: the default name, no address', P.preview_ssid(None, "192.168.4.1", False)[0] == "LaBuche-Stump.web.app")
+check('hotspot preview: a name of its own and the address, as the board writes it',
+      P.preview_ssid("Wrover", "192.168.5.1", True)[0] == "Wrover 192.168.5.1")
+# One set of saved settings on a second WROVER: its name, hotspot and chain
+# number asked again, the Heltec moved into its range
+prof = {"node_name": "Wrover", "board_type": "cam", "ssid_name": "Wrover", "ssid_include_ip": True,
+        "chain": {"enabled": True, "uplink_ssid": "Souche 192.168.4.1", "subnet": 5},
+        "heltec_enabled": True, "heltec_host": "192.168.5.2"}
+answers("Wrover2", "", "6")
+with contextlib.redirect_stdout(io.StringIO()) as said:
+    prof = P._per_board(prof)
+check('settings for another board: its own name, hotspot, chain number; the Heltec follows',
+      prof["node_name"] == "Wrover2" and prof["ssid_name"] == "Wrover2" and prof["chain"]["subnet"] == 6
+      and prof["heltec_host"] == "192.168.6.2" and "Wrover2 192.168.6.1" in said.getvalue(), (prof, said.getvalue()))
 print('FAILURES', FAIL)
