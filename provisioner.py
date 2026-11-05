@@ -324,7 +324,7 @@ EXPECTED_FILE_HASHES = {
     "_sd_web/billboard.txt": "e3b0c44298fc1c14",
     "admin_web.py": "693b5c87fbf02cd0",
     "announcer.py": "555c52b729947a67",
-    "barkeep.py": "d3dd64a2cdf565e2",
+    "barkeep.py": "ccb4660428ec3824",
     "billboard.py": "73e95795f9430ea5",
     "boot_common.py": "dc95827c3989d1ca",
     "captive_portal.py": "35cb3a279ecc42db",
@@ -344,9 +344,9 @@ EXPECTED_FILE_HASHES = {
     "docs/PACKS.md": "acb8642931a96b42",
     "docs/PC.md": "e90244ab4b47d68e",
     "docs/PLUGINS.md": "73eb6ecaacd0d576",
-    "example_node.py": "a5c1f7aea388018d",
+    "example_node.py": "b4fc3a6450974c95",
     "features.py": "81e8af361c64a911",
-    "fserv.py": "14d07285fb7518d6",
+    "fserv.py": "06b87b1d6fb95eb4",
     "fservbot/plugin.json": "12b3c544160411e3",
     "guard.py": "526fac7536abfe7f",
     "i18n.py": "5d4a45df67bd147f",
@@ -622,6 +622,52 @@ CAM_FIRMWARE_LATEST_URL = (
 CAM_FIRMWARE_NAME_MARKERS = ("esp32_generic_s3", "spiram_oct")
 
 FIRMWARE_CACHE_DIR = Path.home() / ".provisioner" / "firmware"
+
+# A Stump board is one of two chips (1.0.0-beta.56). The original ESP32
+# (the Freenove ESP32-WROVER v3.0: WROVER-E module, 8 MB PSRAM of which
+# 4 MB is usable, 4 MB flash, microSD on the fixed SDMMC pins 14/15/2)
+# takes the generic SPIRAM build, written at 0x1000, not 0x0. Picked from
+# the chip esptool reads; the S3-CAM's image stays as it was.
+WROVER_FIRMWARE_LATEST_URL = (
+    "https://micropython.org/resources/firmware/"
+    "ESP32_GENERIC-SPIRAM-20260406-v1.28.0.bin"
+)
+WROVER_FIRMWARE_NAME_MARKERS = ("esp32_generic-spiram",)
+FIRMWARE_FOR_CHIP = {
+    "esp32s3": {"url": CAM_FIRMWARE_LATEST_URL, "markers": CAM_FIRMWARE_NAME_MARKERS, "offset": "0x0",
+                "label": "ESP32-S3-CAM (Octal-SPIRAM build)", "remember": "cam_firmware_bin"},
+    "esp32": {"url": WROVER_FIRMWARE_LATEST_URL, "markers": WROVER_FIRMWARE_NAME_MARKERS, "offset": "0x1000",
+              "label": "ESP32-WROVER (SPIRAM build)", "remember": "wrover_firmware_bin"},
+}
+
+
+def chip_from_esptool(text):
+    """"esp32s3", "esp32" or None, from what esptool printed."""
+    t = (text or "").upper()
+    if "ESP32-S3" in t:
+        return "esp32s3"
+    if re.search(r"ESP32(-D0WD|-D2WD|-U4WDH|-PICO)|CHIP TYPE:\s*ESP32\b|CHIP IS ESP32\b|DETECTING CHIP TYPE\.\.\. ESP32\b", t):
+        return "esp32"
+    return None
+
+
+def detect_chip(port):
+    """The chip on that port, read by esptool (download mode), or None."""
+    ok, out = run(["esptool", "--port", port, "chip-id"], timeout=60)
+    return chip_from_esptool(out)
+
+
+def board_is_wrover(port):
+    """True when the board on that port runs MicroPython on the original
+    ESP32 (not the S3): its flash is 4 MB, so the voice engines go on
+    its SD card."""
+    ok, out = run(["mpremote", "connect", port, "exec",
+                   "import os\nprint('MACHINE:' + os.uname().machine)\n"], timeout=20)
+    m = re.search(r"MACHINE:(.*)", out or "") if ok else None
+    if not m:
+        return False
+    machine = m.group(1).upper().replace("-", "")
+    return "ESP32S3" not in machine and "ESP32" in machine
 
 
 def discover_plugins(fw_dir):
@@ -2304,7 +2350,7 @@ def _dedupe_paths(paths):
     return unique
 
 
-def _find_cam_firmware_candidates(roots, max_depth=2, cap=500):
+def _find_cam_firmware_candidates(roots, max_depth=2, cap=500, markers=None):
     """
     Looks for the *correct* MicroPython build for this board specifically
     -- filenames vary by version/date (e.g.
@@ -2329,7 +2375,7 @@ def _find_cam_firmware_candidates(roots, max_depth=2, cap=500):
                 depth = len(Path(dirpath).parts) - root_depth
                 for fn in filenames:
                     lower = fn.lower()
-                    if lower.endswith(".bin") and all(m in lower for m in CAM_FIRMWARE_NAME_MARKERS):
+                    if lower.endswith(".bin") and all(m in lower for m in (markers or CAM_FIRMWARE_NAME_MARKERS)):
                         matches.append(Path(dirpath) / fn)
                 if depth >= max_depth:
                     dirnames[:] = []
@@ -2869,15 +2915,23 @@ def _bootloader_recovery(port):
 def flash_cam_micropython(port, firmware_path=None):
     banner(f"FLASHING MICROPYTHON — {port}")
 
+    # Which chip: the S3-CAM or a WROVER board (they take different images).
+    chip = detect_chip(port)
+    if chip is None:
+        pick = ask_choice("Couldn't read the chip on %s. Which board is it?" % port,
+                          ["Freenove ESP32-S3-CAM", "Freenove ESP32-WROVER (or another original ESP32 with PSRAM)"])
+        chip = "esp32" if pick and "WROVER" in pick else "esp32s3"
+    fwv = FIRMWARE_FOR_CHIP[chip]
+    print("  Board: %s" % ("ESP32-S3 (a CAM)" if chip == "esp32s3" else "original ESP32 (a WROVER board)"))
     resolved = resolve_path(
         firmware_path,
-        "MicroPython .bin firmware for ESP32-S3-CAM (Octal-SPIRAM build)",
-        remember_key="cam_firmware_bin",
+        "MicroPython .bin firmware for " + fwv["label"],
+        remember_key=fwv["remember"],
         is_dir=False,
         search_roots=[Path.cwd(), Path.home() / "Downloads", Path.home() / "Desktop"],
-        hint_finder=_find_cam_firmware_candidates,
-        download_fn=_download_cam_firmware,
-        download_label="fetches the Octal-SPIRAM build from micropython.org",
+        hint_finder=lambda roots: _find_cam_firmware_candidates(roots, markers=fwv["markers"]),
+        download_fn=lambda: _download_cam_firmware(fwv["url"]),
+        download_label="fetches the %s from micropython.org" % fwv["label"],
     )
     if resolved is None:
         print("FAILED — no valid firmware file given. This board needs the")
@@ -2889,7 +2943,10 @@ def flash_cam_micropython(port, firmware_path=None):
         return (False, None)
 
     fname_lower = resolved.name.lower()
-    if not all(m in fname_lower for m in CAM_FIRMWARE_NAME_MARKERS):
+    if chip == "esp32" and not all(m in fname_lower for m in WROVER_FIRMWARE_NAME_MARKERS):
+        print(f"  Note: '{resolved.name}' doesn't look like the ESP32 SPIRAM build. A WROVER")
+        print(f"  board needs it to see its PSRAM: {WROVER_FIRMWARE_LATEST_URL}")
+    elif chip == "esp32s3" and not all(m in fname_lower for m in CAM_FIRMWARE_NAME_MARKERS):
         print(f"  Note: '{resolved.name}' doesn't look like the Octal-SPIRAM build")
         print("  (no 'spiram_oct' in the filename). This board needs that variant --")
         print("  the plain build tends to boot into a broken/crashing REPL instead")
@@ -2933,7 +2990,7 @@ def flash_cam_micropython(port, firmware_path=None):
 
     print("Writing MicroPython image...")
     ok, out = run(
-        ["esptool", "--port", port, "--baud", "460800", "write-flash", "-z", "0x0", firmware_path],
+        ["esptool", "--port", port, "--baud", "460800", "write-flash", "-z", fwv["offset"], firmware_path],
         timeout=180,
     )
     print(out.strip())
@@ -3029,6 +3086,45 @@ MPY_SOURCE_ONLY = ("boot.py", "main.py", "config.py")     # run or read as sourc
 _MPY = {}
 
 
+MPY_CROSS_PIN = "mpy-cross==1.28.0.post2"      # matches the boards' MicroPython 1.28 (.mpy 6.3)
+MPY_TOOLS_VENV = Path.home() / ".provisioner" / "tools" / "mpy-cross"
+
+
+def _venv_python(venv):
+    return venv / ("Scripts/python.exe" if sys.platform.startswith("win") else "bin/python")
+
+
+def ensure_mpy_cross():
+    """An mpy-cross the Provisioner can use, installed by itself when
+    missing (1.0.0-beta.56): once, into its own small environment under
+    ~/.provisioner/tools, so the system's Python (Homebrew's refuses
+    `pip install` outright) is left alone. Needs the internet that once;
+    without it the modules go as source, as before. Returns the command
+    or None."""
+    cmd, _ = _mpy_cross_cmd()
+    if cmd:
+        return cmd
+    print("  mpy-cross isn't here: installing it for the Provisioner (once, about 1 MB) ...")
+    py = _venv_python(MPY_TOOLS_VENV)
+    try:
+        if not py.exists():
+            MPY_TOOLS_VENV.parent.mkdir(parents=True, exist_ok=True)
+            subprocess.run([sys.executable, "-m", "venv", str(MPY_TOOLS_VENV)],
+                           check=True, capture_output=True, timeout=180)
+        r = subprocess.run([str(py), "-m", "pip", "install", "--quiet", "--disable-pip-version-check", MPY_CROSS_PIN],
+                           capture_output=True, text=True, timeout=300)
+        if r.returncode != 0:
+            raise RuntimeError((r.stderr or r.stdout).strip()[-300:])
+    except Exception as e:
+        print(yellow("  Couldn't install it (%s). Modules go as source; to add it yourself: pip3 install %s"
+                     % (str(e)[:160] or "no internet?", MPY_CROSS_PIN)))
+        return None
+    _MPY.pop("cmd", None)
+    cmd, ver = _mpy_cross_cmd()
+    print("  mpy-cross ready (.mpy %s)." % ver if cmd else "  mpy-cross installed but doesn't run: modules go as source.")
+    return cmd
+
+
 def _mpy_cross_cmd():
     """(command, mpy version "6.3") for an mpy-cross here, or (None, None)."""
     if "cmd" not in _MPY:
@@ -3041,6 +3137,8 @@ def _mpy_cross_cmd():
             pass
         if shutil.which("mpy-cross"):
             cands.append([shutil.which("mpy-cross")])
+        if _venv_python(MPY_TOOLS_VENV).exists():
+            cands.append([str(_venv_python(MPY_TOOLS_VENV)), "-m", "mpy_cross"])     # the one the Provisioner installed
         for c in cands:
             try:
                 out = subprocess.run(c + ["--version"], capture_output=True, text=True, timeout=30).stdout
@@ -3067,6 +3165,10 @@ def compile_for_board(port, root, rels):
     module compiled to .mpy when the board and an mpy-cross here agree on
     the version, as it is otherwise. Says once which it is."""
     cmd, ver = _mpy_cross_cmd()
+    if not cmd and "tried" not in _MPY:
+        _MPY["tried"] = True
+        if ensure_mpy_cross():
+            cmd, ver = _mpy_cross_cmd()
     board = _board_mpy_version(port) if cmd else None
     use = bool(cmd) and board == ver
     if "said" not in _MPY:
@@ -3208,6 +3310,18 @@ def upload_stump_app(port, app_dir=None):
     if missing:
         print(f"  Note: {len(missing)} expected file(s) not found here, skipping: {', '.join(missing)}")
 
+    # A WROVER board has 2 MB for files, the Stump ~2.2 MB: its voice
+    # engines (the two .wasm, 540 KB) go on its SD card instead, where
+    # the Stump serves them from (1.0.0-beta.56); and compiled modules
+    # (.mpy) leave room for settings, identity and packs.
+    to_sd = []
+    if board_is_wrover(port):
+        to_sd = [f for f in present if f.startswith("web/") and f.endswith(".wasm")]
+        present = [f for f in present if f not in to_sd]
+        print("  A WROVER board (4 MB flash): the voice engines go on its SD card.")
+        if not ensure_mpy_cross():
+            print(yellow("  Its flash is tight without compiled modules: it may not all fit."))
+
     # Content-hash check: catches ANY stale file by comparing against
     # known-good hashes, not the local folder's own say-so, and does it
     # before wasting a flash+upload cycle.
@@ -3293,6 +3407,15 @@ def upload_stump_app(port, app_dir=None):
             install_tools_on_node(port)
     if all_ok:
         remove_shadowed(port, pairs)
+    for f in to_sd:
+        print(f"  {f} onto the SD card (may take 1-2 minutes) ...")
+        run(["mpremote", "connect", port, "exec",
+             "import fserv, os\nfserv.mount_sd()\ntry:\n os.mkdir('/sd/web')\nexcept OSError:\n pass\n"], timeout=30)
+        ok, out = _sd_push(port, resolved / f, ":/sd/" + f)
+        print("    " + ("ok" if ok else "FAILED: " + out.strip()[-200:]))
+        if not ok:
+            print("    (voice notes won't play until it's there: insert an SD card and run the upload again)")
+            all_ok = False
 
     return all_ok
 
@@ -4701,13 +4824,13 @@ def erase_flash(port, board=None):
     True if erased."""
     banner("ERASE A BOARD'S FLASH — %s" % port)
     if board is None:
-        board = ask_choice("Which board is on %s?" % port, ["A Stump CAM", "A Heltec"])
+        board = ask_choice("Which board is on %s?" % port, ["A Stump board (CAM or WROVER)", "A Heltec"])
         board = "cam" if board and board.startswith("A Stump") else "heltec"
     if board == "cam":
         print("  Everything on the CAM's flash goes: MicroPython, the Stump, its identity")
         print("  (a new one is made: it's a new node to the mesh), its settings, the chat")
         print("  and billboard kept on flash. Its SD card -- files, tools -- isn't touched.")
-        print("  Afterwards: run the Provisioner, \"A Stump CAM\", to set it up again.")
+        print("  Afterwards: run the Provisioner, \"A Stump board\", to set it up again.")
     else:
         print("  Everything on the Heltec's flash goes: the RNode firmware, its radio")
         print("  settings, and its Bluetooth pairing (forget it on the computer/phone too).")
@@ -5089,7 +5212,7 @@ def _cam_after_board(r, port, app_dir):
 
 # What the Provisioner sets up, and the route each one takes.
 ROLES = [
-    ("cam", "A Stump CAM", "the ESP32-S3-CAM: pages, chat, files, mesh"),
+    ("cam", "A Stump board", "an ESP32-S3-CAM or ESP32-WROVER: pages, chat, files, mesh"),
     ("heltec", "A Heltec for a CAM", "the RNode radio a CAM reaches over Wi-Fi"),
     ("heltec_transport", "A Heltec relay", "a standalone LoRa repeater, no CAM"),
     ("pc", "A Stump on this computer", "Windows, macOS or Linux, with a Heltec"),
@@ -5099,7 +5222,7 @@ ROLES = [
 
 def route_for(role):
     if role == "cam":
-        return Route("Setting up a Stump CAM", key="cam", steps=[
+        return Route("Setting up a Stump board", key="cam", steps=[
             ("Check", "you", "the tools on this computer, and the Stump firmware folder"),
             ("Board", "you", "pick the CAM's USB port"),
             ("Questions", "you", "all of them now: flash or not, name, Wi-Fi, chain, the Heltec, "

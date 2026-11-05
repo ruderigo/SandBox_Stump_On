@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.0-beta.56
+- **A Stump on an ESP32-WROVER board** (the Freenove ESP32-WROVER v3.0, WROVER-E module). Checked on a real board first: MicroPython 1.28 sees its PSRAM (4.18 MB free, as on the CAM), its 4 MB flash leaves 2 MB for files, and its microSD slot mounts on the original ESP32's fixed pins (CLK 14, CMD 15, D0 2) with no wiring.
+  - The Provisioner's *A Stump board* (was *A Stump CAM*) reads the chip with esptool and flashes the right MicroPython: the S3-CAM's octal-PSRAM build at 0x0 as before, or the generic SPIRAM build at 0x1000 on an original ESP32. If it can't read the chip, it asks.
+  - The Stump is ~2.2 MB and a WROVER has 2 MB for files: on a WROVER the voice engines (opus.wasm, codec2.wasm, 540 KB) go on its SD card, and the Stump serves them from there when they aren't in flash. Modules go compiled (.mpy), which a WROVER needs for room.
+  - **mpy-cross installs itself.** When it isn't there, the Provisioner installs it (`mpy-cross==1.28.0.post2`, matching the boards' MicroPython) once, into its own small environment under `~/.provisioner/tools`, leaving the system's Python alone (Homebrew's refuses `pip install`). Nothing to remember; without internet that once, modules go as source as before. For the CAM too.
+  - The firmware mounts the SD slot on the pins of the chip it runs on (`fserv.sd_pins`); the About page lists both boards.
+  - Not yet: Arborist (the browser tool) flashes the CAM's image only, so a WROVER is set up with the Provisioner. On the bench next: speed, memory under load, HTTPS on the original ESP32.
+- Tests: `wrover_board` (SD pins per chip, the voice engines from the card, the board's name), `provisioner_test` (chip detection, the image and offset per chip, the voice engines to the card on a WROVER, in flash on a CAM).
+
 ## 1.0.0-beta.55
 - **Found on the local network with no setup (computer Stumps).** A computer Stump now speaks Reticulum's AutoInterface, the local discovery NomadNet, Sideband and MeshChat use by default: on the same Wi-Fi or network they find the Stump, and it finds them, with nothing configured (`urns/interfaces/auto.py`: IPv6 link-local multicast discovery, unicast data, wire-compatible with reference RNS). On by default; `/admin` → This computer to switch it off (at the next start); `/admin` says how many apps it has found. A board can't: the ESP32's MicroPython sockets are IPv4-only (no IPv6 receive, no multicast join), checked in its source; a CAM keeps the manual UDP setup. Checked in CI with the official Reticulum library and its default config on a second machine (two network namespaces): found, a message to the Stump, its answer back.
 - **Joining NomadNet from the Stump** (NomadNet pack 1.1):

@@ -163,6 +163,21 @@ wrong (the replies are chat-room lines: `<nick> text`, `[DM] ...`).
 - [ ] **People heard**: the NomadNet page lists the laptop's NomadNet
       user; `/msg` them from the chat: it arrives in NomadNet.
 
+## 3d. A Stump on an ESP32-WROVER (beta.56)
+
+- [ ] **Set up**: `python3 provisioner.py` → *A Stump board* on the
+      WROVER (it installs mpy-cross itself the first time). Expected:
+      "original ESP32 (a WROVER board)", the generic SPIRAM image, the
+      modules compiled, the voice engines onto the SD card, the Stump
+      boots (its Wi-Fi appears).
+- [ ] **Space**: `/admin` → System: free flash after setup (note it).
+- [ ] **Pages and chat** from a phone on its Wi-Fi; `/admin` over HTTPS
+      (the original ESP32 is slower at TLS: note how long it takes).
+- [ ] **A voice note**: record, send, play (the engines come from the card).
+- [ ] **With the Heltec** (*A Heltec for a CAM*): `#lora-mesh` both ways.
+- [ ] **An hour with three phones**: free memory in `/admin` at the start
+      and the end, any restart in `stump.log`.
+
 ## 4. Measurements (they inform a decision, not pass or fail)
 
 - [ ] **4b. Three phones on HTTPS `/admin` at once** (pentest prep):

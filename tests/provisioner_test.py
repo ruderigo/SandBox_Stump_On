@@ -63,9 +63,11 @@ P.describe_pack(t, 1)
 # fake mpremote for install + upload
 calls = []
 BOARD_CONFIG = ['CONFIG:1 TRACES:1']
+MACHINE = ['ESP32S3 module with Octal-SPIRAM with ESP32S3']
 def fake_run(cmd, timeout=None, **kw):
     calls.append(cmd)
     if 'exec' in cmd and any('SHA:' in str(c) for c in cmd): return True, 'SHA:none'
+    if 'exec' in cmd and any("'MACHINE:'" in str(c) for c in cmd): return True, 'MACHINE:' + MACHINE[0]
     if 'exec' in cmd and any('TRACES' in str(c) for c in cmd): return True, BOARD_CONFIG[0]
     if 'exec' in cmd and any("'DIRS:'" in str(c) for c in cmd): return True, 'DIRS:flasher,rnfs,notes.txt'
     if cmd[-2:] == ['cat', ':themes.json']: return True, '{"old": {"label": "Old", "colors": {"--bg": "#000"}}}'
@@ -77,6 +79,10 @@ def fake_run(cmd, timeout=None, **kw):
         return True, repr(sizes)
     return True, ''
 P.run = fake_run
+# No downloads in tests: the Provisioner's own mpy-cross install is
+# stood in for (asked for once, here: no mpy-cross on the test machine).
+ENSURED = []
+P.ensure_mpy_cross = lambda: ENSURED.append(1) or None
 pushed_theme = {}
 orig = P._merge_board_themes
 def spy(port, themes):
@@ -121,6 +127,25 @@ calls.clear(); BOARD_CONFIG[0] = 'CONFIG:1 TRACES:1'; sys.argv.append('--replace
 P.upload_stump_app('/dev/fake')
 check('--replace-config replaces it', ':config.py' in [c[-1] for c in calls if 'cp' in c])
 sys.argv.remove('--replace-config')
+# A WROVER board (1.0.0-beta.56): the voice engines go on its SD card,
+# not in its 2 MB of flash; a CAM keeps them in flash.
+cam_dests = [c[-1] for c in calls if 'cp' in c]
+check('a CAM: voice engines in flash', ':web/opus.wasm' in cam_dests and ':/sd/web/opus.wasm' not in cam_dests, cam_dests[-6:])
+calls.clear(); MACHINE[0] = 'Generic ESP32 module with SPIRAM with ESP32'
+P.upload_stump_app('/dev/fake')
+w_dests = [c[-1] for c in calls if 'cp' in c]
+check('a WROVER: voice engines on its SD card, not in flash',
+      ':/sd/web/opus.wasm' in w_dests and ':/sd/web/codec2.wasm' in w_dests
+      and ':web/opus.wasm' not in w_dests and ':web/opus.js' in w_dests, [d for d in w_dests if 'web' in d])
+MACHINE[0] = 'ESP32S3 module with Octal-SPIRAM with ESP32S3'
+check('no mpy-cross here: the Provisioner goes to install its own (not left to memory)', ENSURED, ENSURED)
+check('chip from esptool: an S3, an original ESP32',
+      P.chip_from_esptool('Detecting chip type... ESP32-S3') == 'esp32s3'
+      and P.chip_from_esptool('Chip type:          ESP32-D0WD-V3 (revision v3.1)') == 'esp32'
+      and P.chip_from_esptool('Chip is ESP32-D0WDQ6 (revision v1.0)') == 'esp32' and P.chip_from_esptool('nothing') is None)
+check('each chip its image and offset (WROVER: generic SPIRAM build at 0x1000)',
+      P.FIRMWARE_FOR_CHIP['esp32']['offset'] == '0x1000' and 'ESP32_GENERIC-SPIRAM' in P.FIRMWARE_FOR_CHIP['esp32']['url']
+      and P.FIRMWARE_FOR_CHIP['esp32s3']['offset'] == '0x0' and 'SPIRAM_OCT' in P.FIRMWARE_FOR_CHIP['esp32s3']['url'])
 # --skip-tools still brings the sections' READMEs up to date (sections on the card only)
 calls.clear()
 P.refresh_tool_readmes('/dev/fake')
