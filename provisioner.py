@@ -372,7 +372,7 @@ EXPECTED_FILE_HASHES = {
     "settings.py": "930c871eec447998",
     "store.py": "625ba090410222cf",
     "stump_tls.py": "32a9394408ae392e",
-    "stumpid/plugin.json": "a419d598249430f1",
+    "stumpid/plugin.json": "c95fa250171ae9f4",
     "theme.py": "f4012514d7f00016",
     "third_party/codec2/COPYING": "9ebb6f82b7380a62",
     "third_party/codec2/build_codec2_wasm.sh": "11aafe7aca8e7a71",
