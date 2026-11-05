@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.0-beta.54
+- **Updating a computer Stump offers the new packs.** `python3 provisioner.py --pc` on a Stump set up before kept its installed packs up to date but never offered the others, so beta.53's NomadNet and Simple packs couldn't be added that way (found updating a laptop to beta.53). It now asks about each pack the Stump doesn't have, one question each. `--install-pack` also takes a computer Stump's folder instead of a port. A running Stump restarts by itself with the pack.
+- `BENCH.md` and `PACKS.md`: how to add a pack to a computer Stump (they said `--install-pack PORT`, which is for boards).
+
 ## 1.0.0-beta.53
 - **LXMF stamps, opt-in** (`/admin` → Stump settings → Announcing → *LXMF stamps*, off by default, applied at once). A Sideband user can require a "stamp" on every message they receive; without one, the Stump's replies were silently dropped. Ticked, the Stump:
   - reads the stamp cost in each LXMF announce;
