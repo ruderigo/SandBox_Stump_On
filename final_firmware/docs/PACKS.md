@@ -38,7 +38,9 @@ Put the pack, as a folder or a `.zip`, in **`packs/` next to
 - **`--upload-app PORT`** offers the packs it finds after the upload
   (their settings keep their defaults).
 - **`--install-pack PORT packs/tavern-pack`** adds one to a node that's
-  already set up.
+  already set up; on a computer Stump, give its folder instead of a port.
+- **On a computer** (`python3 provisioner.py --pc`), an update offers
+  every pack the Stump doesn't have yet.
 
 Then restart the node.
 

@@ -341,10 +341,10 @@ EXPECTED_FILE_HASHES = {
     "docs/HIDDEN_FEATURES.md": "568bc132ab83a91b",
     "docs/HOME_BRANDING.md": "e1a1a9cf854dcdce",
     "docs/HTTPS_SETUP.md": "12cbbf2de7c38810",
-    "docs/PACKS.md": "321a2cc3034cef03",
+    "docs/PACKS.md": "acb8642931a96b42",
     "docs/PC.md": "b924bffc27091f02",
     "docs/PLUGINS.md": "13e6c99ceaebcfc0",
-    "example_node.py": "4b66fc1a846f5f00",
+    "example_node.py": "3d09224d3a745f04",
     "features.py": "81e8af361c64a911",
     "fserv.py": "14d07285fb7518d6",
     "fservbot/plugin.json": "12b3c544160411e3",
@@ -6550,6 +6550,15 @@ def setup_pc(folder=None, reconfigure=False):
                                          for name in p["spec"].get("plugins", []))]
         if packs:
             print("Packs on this Stump, brought up to date: " + ", ".join(p["spec"]["name"] for p in packs))
+        # Packs this Stump doesn't have yet (new in this release, or never
+        # chosen): offered, one question each -- an update used to keep the
+        # installed ones only, so a new pack never reached a Stump that
+        # was set up before it existed.
+        have = set(p["spec"]["name"] for p in packs)
+        new = [p for p in found if p["spec"]["name"] not in have]
+        if new:
+            print("Packs this Stump doesn't have: " + ", ".join(p["spec"]["name"] for p in new))
+            packs += choose_packs(fw, new)
     if packs:
         _pc_install_packs(folder, packs)
     _pc_install_tools(fw, folder)
@@ -6730,7 +6739,7 @@ def main():
     elif "--install-pack" in args:
         idx = args.index("--install-pack")
         if len(args) < idx + 3:
-            print("Usage: provisioner.py --install-pack PORT PACK [PACK ...]   (a folder or .zip)")
+            print("Usage: provisioner.py --install-pack PORT|STUMP_FOLDER PACK [PACK ...]   (a folder or .zip)")
             sys.exit(1)
         port = args[idx + 1]
         fw = _remembered_path("stump_app_dir") or STUMP_APP_DIR
@@ -6739,6 +6748,12 @@ def main():
             print("No pack there (a pack is a folder or .zip with a pack.json).")
             sys.exit(1)
         chosen = choose_packs(fw, packs)
+        if chosen and (Path(port).expanduser() / "stump_pc.py").is_file():
+            # A computer Stump's folder rather than a board's port.
+            _pc_install_packs(Path(port).expanduser(), chosen)
+            _pc_mark_updated(Path(port).expanduser())
+            print("Done: a running Stump restarts by itself in a few seconds, with the pack.")
+            sys.exit(0)
         sys.exit(0 if (chosen and install_packs(port, chosen)) else 1)
     elif "--remove-plugin" in args:
         idx = args.index("--remove-plugin")

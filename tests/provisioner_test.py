@@ -579,5 +579,31 @@ check('computer Stump: Arborist on its Tools page, with its READMEs, the old one
       sorted(x.name for x in arb.iterdir()))
 check('the Tools page READMEs include Arborist\'s (kept up to date on a card)',
       any(sec == "arborist" for _, sec in P._tool_readmes(P.Path(P.__file__).resolve().parent)))
+# Updating a computer Stump offers the packs it doesn't have yet (an
+# update used to keep the installed ones only: a new pack never reached
+# a Stump set up before it existed). And --install-pack takes its folder.
+upd = P.Path(tempfile.mkdtemp(prefix="stump-upd-"))
+with contextlib.redirect_stdout(io.StringIO()):
+    P._pc_copy_firmware(P.STUMP_APP_DIR, upd)
+shutil.copy(P.Path(P.__file__).resolve().parent / "tests" / "config.py", upd / "config.py")
+saved = (P._pc_ensure_venv, P._pc_configure_existing, P._pc_install_tools, P.ask_yes_no)
+asked = []
+P._pc_ensure_venv = lambda f: sys.executable
+P._pc_configure_existing = lambda r, f: False
+P._pc_install_tools = lambda fw, f: None
+P.ask_yes_no = lambda q, d=False: (asked.append(q), "nomadnet" in q)[1]
+with contextlib.redirect_stdout(io.StringIO()) as out:
+    P.setup_pc(folder=str(upd))
+check('a --pc update offers each pack the Stump lacks; installs the ones said yes to',
+      any("Install nomadnet?" in q for q in asked) and any("Install simple?" in q for q in asked)
+      and (upd / "nomadnet" / "install.py").is_file() and not (upd / "simple").exists(),
+      asked)
+asked.clear()
+with contextlib.redirect_stdout(io.StringIO()):
+    P.setup_pc(folder=str(upd))
+check('... and next time, nomadnet is kept up to date, not offered again',
+      not any("Install nomadnet?" in q for q in asked) and any("Install simple?" in q for q in asked), asked)
+P._pc_ensure_venv, P._pc_configure_existing, P._pc_install_tools, P.ask_yes_no = saved
+shutil.rmtree(upd, ignore_errors=True)
 shutil.rmtree(tmp, ignore_errors=True)
 print('FAILURES', FAIL)

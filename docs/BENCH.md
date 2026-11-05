@@ -126,7 +126,8 @@ wrong (the replies are chat-room lines: `<nick> text`, `[DM] ...`).
       here*. Then in Sideband mark the Stump as trusted and send once:
       `stump.log` says `ticket from ...`, and replies arrive from then on
       (and after the CAM restarts).
-- [ ] **NomadNet pack** on the laptop Stump (`--install-pack`, restart):
+- [ ] **NomadNet pack** on the laptop Stump (`python3 provisioner.py --pc`:
+      the update offers the packs it doesn't have; say yes to nomadnet):
       NomadNet on another computer, Network → the Stump's name appears
       within a minute; open it. Expected: the home page, Rooms, a room's
       lines, Billboard, Files. *Identify* (the page menu), say something
