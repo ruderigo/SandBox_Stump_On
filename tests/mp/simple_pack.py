@@ -23,10 +23,33 @@ for h in (H, F):
     i18n.set_lang(h, 'en')
 
 LINES = "→ #lora-mesh\n<rod> anyone near the market?\n✓ ~maria\n[DM] <maria>: I am, 5 min away"
-t, title = plugins.mesh_out(F, LINES, "#lora-mesh")
-check("first message to anyone: unchanged, plus a one-time tip", t.startswith(LINES) and "simple" in t.split("\n")[-1], t)
-t, title = plugins.mesh_out(F, LINES, "#lora-mesh")
+P = '9a' * 16           # someone on a plain app, never seen proving anything
+t, title = plugins.mesh_out(P, LINES, "#lora-mesh")
+check("first message to someone on a plain app: unchanged, plus a one-time tip", t.startswith(LINES) and "simple" in t.split("\n")[-1], t)
+t, title = plugins.mesh_out(P, LINES, "#lora-mesh")
 check("... only once", t == LINES, t)
+
+# A Stump app is never told: it proved itself (/auth, /hello do), or its
+# announce carries the "stump" tag.
+import stumpid.core as sc
+from urns.identity import Identity
+ff = Identity()
+F = rrc_mesh.lxmf_address(ff.hexhash)
+i18n.set_lang(F, 'en')
+sc.mark_verified('192.168.4.77', ff.hexhash)          # FireFly's /hello over Wi-Fi
+check("an identity that did /auth or /hello: a Stump app", rrc.is_app(F))
+t, title = plugins.mesh_out(F, LINES, "#lora-mesh")
+check("... gets the lines as they are, no tip (later over LoRa too)", t == LINES, t)
+from urns import umsgpack
+T = '7b' * 16
+check("an announce tagged \"stump:...\": a Stump app", rrc.app_tag_in(umsgpack.packb([b"Rod", None, [], "stump:firefly/0.6"])))
+check("... a plain LXMF announce isn't", not rrc.app_tag_in(umsgpack.packb([b"Rod", None, []]))
+      and not rrc.app_tag_in(umsgpack.packb([b"Rod", 8, [], "other"])) and not rrc.app_tag_in(b"Rod"))
+rrc.mark_app(T)
+t, title = plugins.mesh_out(T, LINES, "")
+check("... no tip either", t == LINES, t)
+import store
+check("Stump apps remembered across restarts", T in store.load_json(rrc.APPS_FILE, {}))
 
 rrc.touch_user(H, nick='sid', room='lora-mesh')
 rrc_mesh._peers[H] = {"nick": "sid", "room": "lora-mesh", "stump": False}

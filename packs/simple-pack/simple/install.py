@@ -106,11 +106,20 @@ def _out(dest_hex, text, title):
         return None
     if dest_hex in _on:
         return _reword(dest_hex, text), title
-    if dest_hex not in _told:
-        # Once per person: how to get sentences instead.
+    if dest_hex not in _told and not _stump_app(dest_hex):
+        # Once per person on a plain app: how to get sentences instead.
+        # A Stump app (FireFly) reads the lines as they are: never told.
         _mark(_told, dest_hex)
         return text + "\n" + _t("tip", dest_hex), title
     return None
+
+
+def _stump_app(h):
+    try:
+        import rrc
+        return rrc.is_app(h)
+    except Exception:
+        return False
 
 
 def _nick(s):

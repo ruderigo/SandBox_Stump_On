@@ -28,7 +28,7 @@
   ],
   "hashes": {
     "simple/__init__.py": "30695536085cce8e",
-    "simple/install.py": "0388b1d8d1ee5882",
+    "simple/install.py": "543ad668e3f93b7c",
     "simple/strings.py": "54aad6c24edeb491"
   }
 }

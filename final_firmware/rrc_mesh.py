@@ -765,6 +765,8 @@ def on_announce(router, dest, app_data, packet):
         name = router._parse_display_name(app_data) if app_data else None
     except Exception:
         pass
+    if app_data and rrc.app_tag_in(app_data):
+        rrc.mark_app(h)                 # a Stump app says so in its announce
     r = _reach.get(h)
     if r is None:
         # Same nick a full peer would get, so someone who later messages
