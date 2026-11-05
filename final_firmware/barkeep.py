@@ -1921,7 +1921,7 @@ def _render_about_page(lang):
         "<h2>" + i18n.t("about_setups_h2", lang) + "</h2>"
         "<p>" + i18n.t("about_setups_intro", lang) + "</p>"
         "<div class='info-tiles'>"
-        "<div class='info-tile'><span>" + _board_name() + " + Heltec V3</span>"
+        "<div class='info-tile'><span>ESP32-S3-CAM / ESP32-WROVER + Heltec V3</span>"
         "<small>" + i18n.t("about_setup1_desc", lang) + "</small></div>"
         "<div class='info-tile'><span>macOS / Windows / Linux + Heltec V3</span>"
         "<small>" + i18n.t("about_setup2_desc", lang) + "</small></div>"
@@ -2679,19 +2679,6 @@ async def _r_get_rrc_voice(reader, writer, method, path, headers, ip, identifier
         await _send(writer, "200 OK", m["audio"][1],
                     "audio/ogg" if m["audio"][0] == rrc.OPUS_OGG else "application/octet-stream")
 
-
-
-def _board_name(m=None):
-    """The board this Stump runs on, for the About page."""
-    try:
-        m = m if m is not None else os.uname().machine
-    except Exception:
-        return "ESP32"
-    if "ESP32S3" in m.replace("-", "").upper():
-        return "ESP32-S3-CAM"
-    if "SPIRAM" in m.upper():
-        return "ESP32-WROVER"
-    return "ESP32"
 
 
 async def _r_get_codecs(reader, writer, method, path, headers, ip, identifier, secure):

@@ -1,6 +1,6 @@
 # A Stump on an ESP32-WROVER board (Freenove ESP32-WROVER v3.0,
 # 1.0.0-beta.56): its SD slot's pins, the voice engines served from the
-# card when they aren't in flash, its name on the About page.
+# card when they aren't in flash.
 import sys
 exec(open(sys.argv[1] + '/harness.py').read())
 import fserv, barkeep, os
@@ -18,7 +18,6 @@ WROVER = "Generic ESP32 module with SPIRAM with ESP32"      # what the real boar
 check("SD pins on the S3-CAM: unchanged (CLK 39, CMD 38, D0 40)",
       fserv.sd_pins(S3) == {"slot": 1, "width": 1, "sck": 39, "cmd": 38, "data": (40,)})
 check("SD pins on a WROVER: slot 1's fixed pins, none given", fserv.sd_pins(WROVER) == {"slot": 1, "width": 1})
-check("About page: the board's name", barkeep._board_name(S3) == "ESP32-S3-CAM" and barkeep._board_name(WROVER) == "ESP32-WROVER")
 
 # The voice engines: from flash on a CAM; from <card>/web where the
 # Provisioner put them on a WROVER.
