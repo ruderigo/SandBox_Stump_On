@@ -29,7 +29,7 @@ try:
 except ImportError:
     import json
 
-API_VERSION = 2
+API_VERSION = 3
 
 # In-house plugins: the only ones loaded in safe mode, and the only ones
 # allowed a gate priority below 20 (the access-control band).
@@ -80,6 +80,8 @@ _services = {}    # name -> (plugin, obj)
 _mesh_out = []    # [priority, seq, plugin, fn], sorted: what the Stump sends apps over LXMF
 _doors = {}       # (app, aspects) -> Door: a plugin's Reticulum destination
 _net = [None]     # the Stump's identity, once Reticulum is up (network_ready)
+_ann = []         # [plugin, app, aspects, fn]: announces a plugin listens for (API 3)
+_ann_hooked = [False]
 DOOR_APPS_RESERVED = ("lxmf", "stump", "rnstransport")
 DOOR_REQUEST_MAX = 4096        # bytes a request to a plugin's destination may carry
 _seq = [0]
@@ -247,6 +249,21 @@ class Api:
             if _net[0] is not None:
                 d._bind(_net[0])
         return d
+
+    def on_announce(self, app_name, aspects, fn):
+        """fn(dest_hex, app_data) for each announce of that kind heard
+        (e.g. "nomadnetwork", ("node",)). Plugin API 3 (1.0.0-beta.55)."""
+        _ann.append([self.name, app_name, tuple(aspects), fn])
+        if _net[0] is not None:
+            _hook_announces()
+
+    def connect(self, dest_hex, app_name, aspects, identify=False):
+        """A link to a remote Reticulum destination (another node's), made
+        when first used: remote.request(path, data, fn) -> fn(response or
+        None); remote.send(bytes), remote.on_packet(fn), remote.on_close(fn),
+        remote.is_open(), remote.close(). identify: prove the Stump's
+        identity on it. Plugin API 3 (1.0.0-beta.55)."""
+        return Remote(self.name, dest_hex, app_name, tuple(aspects), identify)
 
     def provide(self, service, obj):
         _services[service] = (self.name, obj)
@@ -968,9 +985,150 @@ class Session:
             pass
 
 
+def _hook_announces():
+    if _ann_hooked[0]:
+        return
+    _ann_hooked[0] = True
+    from urns.transport import Transport
+    from urns.identity import Identity
+    from urns.destination import Destination
+
+    def heard(dest_hash, app_data, packet):
+        if not _ann:
+            return
+        ident = Identity.recall(dest_hash)
+        if ident is None:
+            return
+        for plugin, app, aspects, fn in list(_ann):
+            if _active(plugin):
+                try:
+                    match = Destination.hash(ident, app, *aspects) == dest_hash
+                except Exception:
+                    match = False
+                if match:
+                    _call(plugin, "announce", fn, dest_hash.hex(), app_data)
+
+    Transport.register_announce_handler(heard)
+
+
+class Remote:
+    """A plugin's link to another node's destination (Api.connect)."""
+    TIMEOUT = 30
+
+    def __init__(self, plugin, dest_hex, app, aspects, identify):
+        self.plugin = plugin
+        self.hex = dest_hex
+        self.app = app
+        self.aspects = aspects
+        self.identify = identify
+        self.link = None
+        self._queue = []           # what waits for the link: ("req", path, data, fn) or ("send", data)
+        self._on_packet = None
+        self._on_close = None
+        self.failed = False
+
+    def is_open(self):
+        try:
+            from urns.link import OutgoingLink
+            return self.link is not None and self.link.status == OutgoingLink.ACTIVE
+        except Exception:
+            return False
+
+    def _open(self):
+        if self.link is not None or _net[0] is None:
+            return
+        from urns.transport import Transport
+        from urns.identity import Identity
+        from urns.destination import Destination
+        from urns.link import OutgoingLink
+        h = bytes.fromhex(self.hex)
+        r = self
+
+        def fail():
+            r.failed = True
+            for item in r._queue:
+                if item[0] == "req":
+                    _call(r.plugin, "request failed", item[3], None)
+            r._queue = []
+            if r._on_close:
+                _call(r.plugin, "link closed", r._on_close)
+
+        def go():
+            ident = Identity.recall(h)
+            if ident is None:
+                fail()
+                return
+            dest = Destination(ident, Destination.OUT, Destination.SINGLE, r.app, *r.aspects)
+
+            def up(link):
+                if r.identify:
+                    link.identify(_net[0])
+                if r._on_packet:
+                    link.packet_callback = lambda data, pkt: _call(r.plugin, "packet", r._on_packet, bytes(data))
+                q, r._queue = r._queue, []
+                for item in q:
+                    r._do(item)
+
+            def down(link):
+                r.link = None
+                fail()
+
+            r.link = OutgoingLink(dest, established_callback=up, closed_callback=down)
+
+        Transport.ensure_path(h, go, on_timeout=fail)
+
+    def _do(self, item):
+        if item[0] == "req":
+            _, path, data, fn = item
+            plugin = self.plugin
+            rid = self.link.request(path, data,
+                                    response_callback=lambda rid, resp: _call(plugin, "response", fn, resp),
+                                    failed_callback=lambda rid: _call(plugin, "request failed", fn, None),
+                                    timeout=self.TIMEOUT, max_response_size=64 * 1024)
+            if rid is None:
+                _call(plugin, "request failed", fn, None)
+        else:
+            self.link.send(item[1])
+
+    def request(self, path, data, fn):
+        item = ("req", path, data, fn)
+        if self.is_open():
+            self._do(item)
+        else:
+            self._queue.append(item)
+            self._open()
+
+    def send(self, data):
+        item = ("send", bytes(data))
+        if self.is_open():
+            self._do(item)
+        else:
+            self._queue.append(item)
+            self._open()
+
+    def on_packet(self, fn):
+        self._on_packet = fn
+        if self.link is not None:
+            plugin = self.plugin
+            self.link.packet_callback = lambda data, pkt: _call(plugin, "packet", fn, bytes(data))
+
+    def on_close(self, fn):
+        self._on_close = fn
+
+    def close(self):
+        if self.link is not None:
+            try:
+                self.link.teardown()
+            except Exception:
+                pass
+        self.link = None
+
+
 def network_ready(identity):
     """Reticulum is up (example_node): plugins' destinations made now."""
     _net[0] = identity
+    if _ann:
+        _hook_announces()
     for d in list(_doors.values()):
         if d.dest is None:
             try:
@@ -994,6 +1152,7 @@ def mesh_out(dest_hex, text, title):
 def _unregister(name):
     for lst in (_gates, _listeners, _results, _mesh_out):
         lst[:] = [e for e in lst if e[2] != name]
+    _ann[:] = [e for e in _ann if e[0] != name]
     for w in [w for w, e in _commands.items() if e["plugin"] == name]:
         del _commands[w]
     _pages.pop(name, None)

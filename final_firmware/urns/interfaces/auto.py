@@ -114,6 +114,11 @@ def link_local_addresses():
 
 class AutoInterface(Interface):
     RX_BATCH = 32
+    # Every device on the link hears every other one directly (multicast
+    # discovery, then unicast to each): an announce heard here is never
+    # echoed back here (Transport's split horizon). Relaying it onto LoRa
+    # stays under that interface's airtime cap.
+    POINT_TO_POINT = True
 
     def __init__(self, config):
         super().__init__(config.get("name", "Local network"))
@@ -248,8 +253,10 @@ class AutoInterface(Interface):
         return got
 
     def process_outgoing(self, data):
-        if not self.online or not self.peers:
+        if not self.online:
             return False
+        if not self.peers:
+            return True                 # nobody on the network yet: nothing to send, not a failure
         data = self.ifac_sign(data)
         sent = False
         for paddr, p in list(self.peers.items()):

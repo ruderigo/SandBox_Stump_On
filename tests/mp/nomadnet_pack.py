@@ -194,6 +194,53 @@ s_, ct, b = req('/p/nomadnet/')
 check("its page: the node's and the hub's addresses, the rooms' rrc:// links",
       s_.startswith("200") and door.hexhash in b and hubdoor.hexhash in b and "rrc://" + hubdoor.hexhash + "/main" in b, b[-800:])
 
+# ── Browsing NomadNet from the Stump (API 3) ─────────────────────────
+from nomadnet import browse
+OTHER = "c0ffee" + "00" * 13
+browse._heard(OTHER, b"Aleph")
+s_, ct, b = req('/p/nomadnet/nodes')
+check("browse: the nodes heard, by name, linked", "Aleph" in b and "/p/nomadnet/view?n=" + OTHER in b, b[-600:])
+PAGE = """#!c=0
+>Aleph
+Hello `!there`!, `Ff00red`f and \\`literal\\`.
+-
+>>Links
+`[Next page`:/page/next.mu]  `[Elsewhere`abababababababababababababababab:/page/index.mu]
+`[Join chat`rrc://abababababababababababababababab/main]
+Name: `<16|name`Zoe>  `<?|ok|yes`Agree>
+`[Send`:/page/form.mu`name|ok|mode=fast]
+"""
+asked = []
+
+
+class FakeRemote:
+    failed = False
+    def request(self, path, data, fn):
+        asked.append((path, data))
+        fn(PAGE.encode() if path != "/page/form.mu" else ("got " + repr(sorted((data or {}).items()))).encode())
+
+
+browse._api[0].connect = lambda *a, **k: FakeRemote()
+s_, ct, b = req('/p/nomadnet/view?n=' + OTHER + '&p=/page/index.mu')
+check("a node's page: fetched over its link, shown as HTML", asked and asked[0] == ("/page/index.mu", None)
+      and "class='mu h1'>Aleph</div>" in b, (asked, b[-1500:]))
+check("... formatting: bold, colour, escapes", "font-weight:bold'>there</span>" in b and "color:#f00'>red</span>" in b
+      and "`literal`" in b, b[-1500:])
+check("... links: same node, another node, an RRC room", "href='/p/nomadnet/view?n=" + OTHER + "&amp;p=/page/next.mu'" in b
+      and "n=abababababababababababababababab&amp;p=/page/index.mu" in b and "/p/nomadnet/hubs?add=abababababababababababababababab/main" in b, b[-1500:])
+check("... fields and a submit link carrying its fields and variables",
+      "name='mu_name'" in b and "value='Zoe'" in b and "type='checkbox' name='mu_ok' value='yes'" in b
+      and "formaction='/p/nomadnet/view?n=" + OTHER + "&amp;p=/page/form.mu&amp;v=mode=fast&amp;f=name|ok'" in b, b[-1500:])
+check("... no script, user text escaped", "<script" not in b.split("mu-page")[1])
+s_, ct, b = req('/p/nomadnet/view?n=' + OTHER + '&p=/page/form.mu&v=mode=fast&f=name|ok', b'mu_name=Zoe+B&mu_ok=yes&mu_other=x')
+check("a form sent as NomadNet sends it: field_ and var_ entries, only the listed fields",
+      asked[-1] == ("/page/form.mu", {"field_name": "Zoe B", "field_ok": "yes", "var_mode": "fast"}), asked[-1])
+check("... and the node's answer shown", "got " in b, b[-600:])
+s_, ct, b = req('/p/nomadnet/view?n=nothex&p=/page/index.mu')
+check("a bad address: refused, nothing asked", "Not a valid" in b)
+html = browse.render("<script>alert(1)</script>\n>`<x`<b>bad>\n`[x`javascript:alert(1)]", OTHER)
+check("render: markup in a page can't inject HTML or script links", "<script>" not in html and "javascript:" not in html.replace("&", ""), html)
+
 try:
     plugins.Api('evil').node('lxmf', 'delivery')
     check("a plugin can't take the core's names", False)

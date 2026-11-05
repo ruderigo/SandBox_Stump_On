@@ -20,7 +20,9 @@ def sh(*cmd, check=True):
 
 def get(path):
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
-    with opener.open("http://%s:%d%s" % (IP_B, PORT, path), timeout=10) as r:
+    # As a browser (the Stump's cookie): an app without one must greet first.
+    req = urllib.request.Request("http://%s:%d%s" % (IP_B, PORT, path), headers={"Cookie": "stump_v=v" + "5" * 20})
+    with opener.open(req, timeout=10) as r:
         return r.read().decode("utf-8", "replace")
 
 
@@ -92,7 +94,7 @@ def role_ref(work):
     while time.time() - t0 < 60 and not seen:
         time.sleep(2)
         try:
-            seen = "hello over the local network" in get("/rrc/poll?room=lora-mesh&since=0")
+            seen = any("hello over the local network" in get("/rrc/poll?room=%s&since=0" % r) for r in ("lora-mesh", "main"))
         except Exception:
             pass
     check("a message from the app reaches the Stump's chat", seen)

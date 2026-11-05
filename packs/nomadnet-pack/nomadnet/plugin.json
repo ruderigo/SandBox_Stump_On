@@ -2,7 +2,7 @@
   "plugin": "nomadnet",
   "title": "NomadNet (the Stump as a Nomad Network node and RRC hub)",
   "version": "1.0",
-  "plugin_api": 2,
+  "plugin_api": 3,
   "summary": "NomadNet and MeshChat browse the Stump like any Nomad Network node, over Wi-Fi or LoRa: its home page, its rooms (read, and say something), the billboard (read, and post) and the list of shared files. And NomadNet's own chat (Channels) joins the Stump's rooms live: the Stump is an RRC hub, its rooms the hub's rooms, both ways with the web, FireFly and LXMF. Writing takes an identity the app proves. A card on the Stump's home page gives both addresses.",
   "modifies_core_files": false,
   "binds_ports": false,
@@ -37,6 +37,7 @@
     "nomadnet/strings.py",
     "nomadnet/hub.py",
     "nomadnet/cbor.py",
+    "nomadnet/browse.py",
     "nomadnet/plugin.json"
   ],
   "hashes": {
