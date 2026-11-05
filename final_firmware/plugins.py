@@ -81,6 +81,7 @@ _mesh_out = []    # [priority, seq, plugin, fn], sorted: what the Stump sends ap
 _doors = {}       # (app, aspects) -> Door: a plugin's Reticulum destination
 _net = [None]     # the Stump's identity, once Reticulum is up (network_ready)
 _ann = []         # [plugin, app, aspects, fn]: announces a plugin listens for (API 3)
+_panels = {}      # plugin -> (title, render, handle): its section in /admin (API 3)
 _ann_hooked = [False]
 DOOR_APPS_RESERVED = ("lxmf", "stump", "rnstransport")
 DOOR_REQUEST_MAX = 4096        # bytes a request to a plugin's destination may carry
@@ -256,6 +257,15 @@ class Api:
         _ann.append([self.name, app_name, tuple(aspects), fn])
         if _net[0] is not None:
             _hook_announces()
+
+    def admin_panel(self, title, render, handle):
+        """A section of this plugin's own in /admin, behind its login.
+        render(lang, hidden) -> HTML; each of its forms posts to
+        /admin/panel and includes `hidden` (the admin session and this
+        plugin's name). handle(fields, lang) -> a message for the admin,
+        called only for a logged-in admin. title: a string, {lang:
+        string} or fn(lang). Plugin API 3 (1.0.0-beta.55)."""
+        _panels[self.name] = (title, render, handle)
 
     def connect(self, dest_hex, app_name, aspects, identify=False):
         """A link to a remote Reticulum destination (another node's), made
@@ -1153,6 +1163,7 @@ def _unregister(name):
     for lst in (_gates, _listeners, _results, _mesh_out):
         lst[:] = [e for e in lst if e[2] != name]
     _ann[:] = [e for e in _ann if e[0] != name]
+    _panels.pop(name, None)
     for w in [w for w, e in _commands.items() if e["plugin"] == name]:
         del _commands[w]
     _pages.pop(name, None)
@@ -1304,3 +1315,28 @@ def admin_chat(rest, lang=None):
     key = ("plugin_on_now" if now else "plugin_on_failed") if action == "on" else \
           ("plugin_off_now" if now else "plugin_off_restart")
     return [i18n.t(key, lang, name=name)]
+
+
+def admin_panels(lang, pw):
+    """[(plugin, title, html)] for /admin: active plugins' own sections."""
+    out = []
+    for name in sorted(_panels):
+        if not _active(name):
+            continue
+        title, render, _ = _panels[name]
+        import billboard
+        hidden = ("<input type='hidden' name='admin_pass' value='" + billboard._esc(pw) + "'>"
+                  "<input type='hidden' name='plugin' value='" + billboard._esc(name) + "'>")
+        ok, html = _call(name, "admin panel", render, lang, hidden)
+        if ok and html:
+            out.append((name, _text(title, lang), html))
+    return out
+
+
+def admin_panel_post(name, fields, lang):
+    """A logged-in admin's form from a plugin's /admin section."""
+    p = _panels.get(name)
+    if p is None or not _active(name):
+        return None
+    ok, msg = _call(name, "admin panel post", p[2], fields, lang)
+    return msg if ok else None

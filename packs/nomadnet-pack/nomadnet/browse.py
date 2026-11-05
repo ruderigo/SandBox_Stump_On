@@ -117,6 +117,18 @@ def _nodes_page(req):
             out.append("<li><a href='/p/nomadnet/view?n=" + h + "&amp;p=/page/index.mu'><b>" + _esc(n["name"])
                        + "</b></a> <small>&lt;" + h[:8] + "&gt; · " + _esc(_ago(req, n["seen"])) + "</small></li>")
         out.append("</ul></div>")
+    try:
+        import rrc
+        people = rrc.reachable_nicks()
+    except Exception:
+        people = []
+    out.append("<h2>" + _esc(_t(req, "people_title")) + "</h2>")
+    if people:
+        out.append("<p class='sub'>" + _esc(_t(req, "people_intro")) + "</p><div class='panel'><ul class='files'>"
+                   + "".join("<li><b>" + _esc(n) + "</b> <small><code>/msg " + _esc(n) + " …</code></small></li>"
+                             for n in people[:40]) + "</ul></div>")
+    else:
+        out.append("<p class='sub'>" + _esc(_t(req, "people_none")) + "</p>")
     out.append("<form method='GET' action='/p/nomadnet/view' class='post-form'><label>"
                + _esc(_t(req, "browse_by_address")) + "<br><input name='n' maxlength='32' size='34' "
                "pattern='[0-9a-fA-F]{32}' required></label><input type='hidden' name='p' value='/page/index.mu'> "

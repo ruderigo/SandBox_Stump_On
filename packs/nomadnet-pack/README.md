@@ -23,6 +23,22 @@ NomadNet user arrive as notices, and `/msg <name> <text>` sends one.
 MeshChatX and Eridanus speak RRC too and should work the same
 (untested).
 
+**And the other way: NomadNet from the Stump.**
+
+- **Browse NomadNet nodes**: the card *NomadNet: browse* lists the
+  nodes the Stump hears; open one and its pages show as web pages on
+  any phone on the Stump, with their links and forms.
+- **Join other communities' hubs**: in `/admin` → *NomadNet hubs
+  joined*, add a hub's address (or its `rrc://` link) and its rooms to
+  join. Each becomes a room here (`#lobby-aleph`), both ways: their
+  people show as `zoe@aleph`, yours there as `rod@<your Stump>`.
+- **People heard**: the people the Stump hears from NomadNet, Sideband
+  and other LXMF apps, listed with how to write to them.
+
+On a computer Stump, NomadNet on the same Wi-Fi finds the Stump with no
+setup (the firmware's local discovery, 1.0.0-beta.55); on a CAM, over
+LoRa, or with a UDP interface pointed at it (`CHAIN.md`).
+
 Writing (in a room, on the billboard) takes an identity the app proves
 to the node (NomadNet: the page menu, *Identify*). It goes through the
 same checks as a message from an LXMF app: the Stump's access mode, the

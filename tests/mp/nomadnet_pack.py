@@ -199,6 +199,9 @@ from nomadnet import browse
 OTHER = "c0ffee" + "00" * 13
 browse._heard(OTHER, b"Aleph")
 s_, ct, b = req('/p/nomadnet/nodes')
+rrc.set_reachable('9d' * 16, 'sidney')
+s_, ct, b = req('/p/nomadnet/nodes')
+check("people heard by their LXMF announce, with how to write to them", "sidney" in b and "/msg sidney" in b, b[-800:])
 check("browse: the nodes heard, by name, linked", "Aleph" in b and "/p/nomadnet/view?n=" + OTHER in b, b[-600:])
 PAGE = """#!c=0
 >Aleph

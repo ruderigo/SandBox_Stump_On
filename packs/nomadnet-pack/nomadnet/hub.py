@@ -264,11 +264,11 @@ def tick():
             for m in rrc.since(room, last):
                 hs.rooms[room] = m["id"]
                 kind, nick, body = m.get("kind"), m.get("nick") or "", m.get("body") or ""
-                if nick == hs.nick and kind in ("msg", "me"):
+                if nick == hs.nick and kind in ("msg", "me", "action"):
                     continue                     # its own line: NomadNet shows it already
                 if kind == "msg":
                     hs.send(T_MSG, room=room, body=_cut(body), nick=nick, src=_pseudo(nick))
-                elif kind == "me":
+                elif kind in ("me", "action"):
                     hs.send(T_ACTION, room=room, body=_cut(body), nick=nick, src=_pseudo(nick))
                 elif kind == "system":
                     hs.send(T_NOTICE, room=room, body=_cut(body), src=hs.hub_src)

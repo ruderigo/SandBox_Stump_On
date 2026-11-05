@@ -39,7 +39,7 @@ work = tempfile.mkdtemp(prefix="stump-nn-")
 rcfg = os.path.join(work, "rns")
 os.makedirs(rcfg)
 open(os.path.join(rcfg, "config"), "w").write("""[reticulum]
-  enable_transport = False
+  enable_transport = True
   share_instance = No
   panic_on_interface_error = No
 [logging]
@@ -54,6 +54,54 @@ open(os.path.join(rcfg, "config"), "w").write("""[reticulum]
 RNS.Reticulum(configdir=rcfg)
 me = RNS.Identity()
 
+# A NomadNet node of our own, for the Stump to browse: a page with a form.
+nn_dest = RNS.Destination(me, RNS.Destination.IN, RNS.Destination.SINGLE, "nomadnetwork", "node")
+got_forms = []
+
+
+def _page(path, data, request_id, link_id, remote_identity, requested_at):
+    if path == "/page/form.mu":
+        got_forms.append(data)
+        return ("Thanks, " + str((data or {}).get("field_who"))).encode()
+    return (">Aleph node\nWelcome to `!Aleph`!.\n`[Next`:/page/next.mu]\n"
+            "Who: `<16|who`>\n`[Send`:/page/form.mu`who|mode=x]\n").encode()
+
+
+for _p in ("/page/index.mu", "/page/form.mu"):
+    nn_dest.register_request_handler(_p, response_generator=_page, allow=RNS.Destination.ALLOW_ALL)
+
+# A real rrcd hub (github.com/kc1awv/rrcd), over its own Reticulum
+# instance linked to ours: the Stump joins its room "lobby".
+rrcd_proc = None
+hub_hash = None
+try:
+    import rrcd  # noqa: F401
+    rh = os.path.join(work, "rrcd")
+    os.makedirs(os.path.join(rh, "rns"))
+    open(os.path.join(rh, "rns", "config"), "w").write("""[reticulum]
+  enable_transport = False
+  share_instance = No
+[logging]
+  loglevel = 2
+[interfaces]
+  [[to ref]]
+    type = TCPClientInterface
+    enabled = yes
+    target_host = 127.0.0.1
+    target_port = %d
+""" % RNS_PORT)
+    args = [sys.executable, "-m", "rrcd", "--config", os.path.join(rh, "rrcd.toml"),
+            "--identity", os.path.join(rh, "hub_identity"), "--room-registry", os.path.join(rh, "rooms.toml")]
+    subprocess.run(args, capture_output=True, timeout=60)          # first run: writes its files, exits
+    toml = open(os.path.join(rh, "rrcd.toml")).read().replace('configdir = ""', 'configdir = %r' % os.path.join(rh, "rns"))
+    open(os.path.join(rh, "rrcd.toml"), "w").write(toml)
+    hub_id = RNS.Identity.from_file(os.path.join(rh, "hub_identity"))
+    hub_hash = RNS.Destination.hash(hub_id, "rrc", "hub")
+    rrcd_proc = subprocess.Popen(args + ["--hub-name", "Aleph"], stdout=open(os.path.join(rh, "out"), "w"),
+                                 stderr=subprocess.STDOUT)
+except ImportError:
+    print("(rrcd not installed: the hub-joining part is skipped)")
+
 # The Stump: a computer Stump folder, the pack's plugin in it, a TCP
 # client to the reference instance.
 folder = os.path.join(work, "Stump")
@@ -67,6 +115,10 @@ cfg += ("\nPC_HTTP_PORT = %d\nPC_HOTSPOT_IP = %r\nAUTH_ADMIN_PASSWORD = 'pw'\nNO
         "CONFIG['interfaces'].append({'type': 'TCPClientInterface', 'name': 'ref', 'enabled': True,"
         " 'target_host': '127.0.0.1', 'target_port': %d})\n") % (PORT, IP, RNS_PORT)
 open(os.path.join(folder, "config.py"), "w", encoding="utf-8").write(cfg)
+if hub_hash:
+    os.makedirs(os.path.join(folder, "sd", "plugins", "nomadnet"), exist_ok=True)
+    json.dump([{"hub": hub_hash.hex(), "name": "aleph", "rooms": ["lobby"]}],
+              open(os.path.join(folder, "sd", "plugins", "nomadnet", "hubs.json"), "w"))
 log = open(os.path.join(work, "stump.out"), "w")
 stump = subprocess.Popen([sys.executable, "-u", "stump_pc.py"], cwd=folder, stdout=log, stderr=subprocess.STDOUT)
 
@@ -234,7 +286,90 @@ try:
     got = [(m.nick, m.text) for m in hub.get_messages("main")]
     check("a browser's line shows in NomadNet, with its nick", any(t == "hi Zoe from a browser" and n for n, t in got), got[-5:])
     hub.disconnect()
+    # ── Browsing NomadNet from the Stump ───────────────────────────
+    nn_dest.announce(app_data=b"Aleph node")
+    t0 = time.time()
+    s, nodes = get("/p/nomadnet/nodes")
+    while "Aleph node" not in nodes and time.time() - t0 < 30:
+        time.sleep(1)
+        s, nodes = get("/p/nomadnet/nodes")
+    check("browse: the Stump lists the NomadNet node it heard", "Aleph node" in nodes, nodes[-500:])
+    url = "/p/nomadnet/view?n=" + nn_dest.hash.hex() + "&p=/page/index.mu"
+    t0 = time.time()
+    s, view = get(url)
+    while "refresh" in view and time.time() - t0 < 40:
+        time.sleep(2)
+        s, view = get(url)
+    check("... and shows its page, fetched over Reticulum", "Aleph node</div>" in view and "font-weight:bold'>Aleph</span>" in view, view[-800:])
+    import http.client
+    c = http.client.HTTPConnection(IP, PORT, timeout=15)
+    c.request("POST", "/p/nomadnet/view?n=" + nn_dest.hash.hex() + "&p=/page/form.mu&v=mode=x&f=who",
+              body=b"mu_who=Rod", headers={"Content-Type": "application/x-www-form-urlencoded"})
+    c.getresponse().read()
+    t0 = time.time()
+    while not got_forms and time.time() - t0 < 40:
+        time.sleep(1)
+    check("... a form sent from the Stump reaches the node as NomadNet sends it",
+          got_forms and got_forms[0].get("field_who") == "Rod" and got_forms[0].get("var_mode") == "x", got_forms)
+
+    # ── Joining another community's hub (rrcd) ─────────────────────
+    if hub_hash:
+        import cbor2
+        RNS.Transport.request_path(hub_hash)
+        t0 = time.time()
+        while not RNS.Transport.has_path(hub_hash) and time.time() - t0 < 60:
+            time.sleep(1)
+        zoe = RNS.Identity()
+        zl = RNS.Link(RNS.Destination(RNS.Identity.recall(hub_hash), RNS.Destination.OUT, RNS.Destination.SINGLE, "rrc", "hub"))
+        t0 = time.time()
+        while zl.status != RNS.Link.ACTIVE and time.time() - t0 < 30:
+            time.sleep(0.3)
+        zgot = []
+        zl.set_packet_callback(lambda d, p: zgot.append(cbor2.loads(d)))
+        zl.identify(zoe)
+        time.sleep(1)
+
+        def zenv(t, room=None, body=None, nick=None):
+            e = {0: 1, 1: t, 2: os.urandom(8), 3: int(time.time() * 1000), 4: zoe.hash}
+            if room is not None: e[5] = room
+            if body is not None: e[6] = body
+            if nick: e[7] = nick
+            RNS.Packet(zl, cbor2.dumps(e)).send()
+
+        zenv(1, body={0: "test", 1: "0.1"}, nick="Zoe")
+        time.sleep(2)
+        zenv(10, room="lobby", nick="Zoe")
+        time.sleep(2)
+        VISITOR = {"Cookie": "stump_v=v" + "6" * 20}
+
+        def web(path, body=None):
+            c = http.client.HTTPConnection(IP, PORT, timeout=10)
+            c.request("POST" if body is not None else "GET", path, body=body, headers=VISITOR)
+            return c.getresponse().read().decode("utf-8", "replace")
+
+        t0 = time.time()
+        bridged = False
+        while time.time() - t0 < 120 and not bridged:
+            zenv(20, room="lobby", body="hi from rrcd", nick="Zoe")
+            time.sleep(5)
+            try:
+                web("/rrc/send", "/join #lobby-aleph".encode())       # as a visitor would
+                bridged = "hi from rrcd" in web("/rrc/poll?room=lobby-aleph&since=0")
+            except Exception:
+                pass
+        check("hub joined: a line said on a real rrcd hub reaches the Stump's room lobby-aleph", bridged)
+        web("/rrc/send?room=lobby-aleph", "hello Aleph from the Stump".encode())
+        t0 = time.time()
+        m = None
+        while time.time() - t0 < 30 and m is None:
+            m = next((e for e in zgot if e.get(1) == 20 and e.get(6) == "hello Aleph from the Stump"), None)
+            time.sleep(0.5)
+        check("... and a line said on the Stump reaches the hub, signed with its speaker",
+              m is not None and str(m.get(7, "")).endswith("@Souche"), zgot[-5:])
+        zl.teardown()
 finally:
+    if rrcd_proc:
+        rrcd_proc.terminate()
     stump.terminate()
     try:
         stump.wait(10)

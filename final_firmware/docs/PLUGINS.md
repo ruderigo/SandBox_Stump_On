@@ -45,6 +45,9 @@ only install plugins you trust.
 | `stump.every(60, fn)` | `fn()` every 60 seconds (1 s at the shortest) |
 | `stump.provide("name", obj)` / `stump.service("name")` | Share an object with other plugins |
 | `stump.mesh_out(fn, priority=50)` | **API 2.** `fn(dest_hex, text, title)` for each LXMF message the Stump sends to a person's app (never to another Stump); return `None`, or a new `(text, title)` |
+| `stump.on_announce("nomadnetwork", ("node",), fn)` | **API 3.** `fn(dest_hex, app_data)` for each announce of that kind heard |
+| `r = stump.connect(dest_hex, "rrc", ("hub",), identify=False)` | **API 3.** A link to another node's destination, made when first used: `r.request(path, data, fn)` (`fn(response or None)`), `r.send(bytes)`, `r.on_packet(fn)`, `r.on_close(fn)`, `r.is_open()`, `r.close()`. `identify`: prove the Stump's identity on it |
+| `stump.admin_panel(title, render, handle)` | **API 3.** A section of the plugin's own in `/admin`, behind its login: `render(lang, hidden)` returns HTML whose forms post to `/admin/panel` and include `hidden`; `handle(fields, lang)` returns a message for the admin |
 | `door = stump.node("nomadnetwork", "node")` | **API 2.** A Reticulum destination of the Stump's own identity. `door.handle("/page/index.mu", fn)`: `fn(path, data, remote_hex)` answers a link request (bytes or str; `None`: no answer; `remote_hex` is the identity the visitor proved, or `None`). `door.announce(app_data)`. The core's names (`lxmf`, `stump`, `rrc`, ...) are refused; requests over 4 KB too. It answers only while the plugin is on |
 | `stump.setting("SIDES", 6)` | Reads `TAVERN_SIDES` from `config.py` |
 | `stump.storage()` | Your own folder, `/sd/plugins/<plugin>/`; `None` without an SD card |
@@ -215,6 +218,10 @@ file; it also warns about calls that would hold the node
 ## Plugin API versions
 
 - **1**: everything above but `mesh_out` and `node`.
-- **2** (1.0.0-beta.53): `stump.mesh_out()` and `stump.node()`. A plugin
-  that uses them says `STUMP_API = 2` (and `"stump_api": 2` in its
-  pack); older firmware refuses it instead of failing at start.
+- **2** (1.0.0-beta.53): `stump.mesh_out()` and `stump.node()` (with
+  `door.on_link()` for incoming links).
+- **3** (1.0.0-beta.55): `stump.on_announce()`, `stump.connect()`,
+  `stump.admin_panel()`.
+
+A plugin that uses them says `STUMP_API = 2` or `3` (and `"stump_api"`
+in its pack); older firmware refuses it instead of failing at start.

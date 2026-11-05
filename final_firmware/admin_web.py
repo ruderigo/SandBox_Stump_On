@@ -116,6 +116,8 @@ def _render_admin_file_list_page(lang, names, pw):
         + _card("people", "\U0001f465", _render_admin_profiles_section(lang, pw),
                 T("admin_profiles_peek", n=len(profiles.all_profiles())))
         + _card("plugins", "\U0001f9e9", _render_admin_plugins_section(lang, pw), _plugins_peek(lang))
+        + "".join(_card("pp-" + name, "\U0001f9e9", "<h2 class='sub'>" + billboard._esc(title) + "</h2>" + html, "")
+                  for name, title, html in plugins.admin_panels(lang, pw))
         + _card("https", "\U0001f512", _render_admin_tls_line(lang), "")
         + _card("power", "\u23fb", _render_admin_power_section(lang, pw), ""))
     return (
@@ -1424,6 +1426,26 @@ async def _r_post_admin_plugins(reader, writer, method, path, headers, ip, ident
         await B._send(writer, "200 OK", B._page(notice + _render_admin_file_list_page(lang, names, pw)))
 
 
+async def _r_post_admin_panel(reader, writer, method, path, headers, ip, identifier, secure):
+    """A form from a plugin's own /admin section (plugins.admin_panel)."""
+    length = int(headers.get("content-length", "0"))
+    body = await B._read_small_body(reader, length)
+    fields = {}
+    for kv in webtext.text(body).split("&"):
+        parts = kv.split("=", 1)
+        if len(parts) == 2:
+            fields[billboard._url_decode(parts[0])] = billboard._url_decode(parts[1])
+    pw = fields.get("admin_pass", "")
+    if not B._admin_ok(pw, identifier):
+        await B._send(writer, "403 Forbidden", "Invalid admin password", "text/plain")
+        return
+    lang = i18n.get_lang(identifier)
+    msg = plugins.admin_panel_post(fields.get("plugin", ""), fields, lang)
+    names = fserv._list_files() if fserv.sd_ok else []
+    notice = "<p class='sub'>" + billboard._esc(msg) + "</p>" if msg else ""
+    await B._send(writer, "200 OK", B._page(notice + _render_admin_file_list_page(lang, names, pw)))
+
+
 async def _r_post_admin_logout(reader, writer, method, path, headers, ip, identifier, secure):
     length = int(headers.get("content-length", "0"))
     body = await B._read_small_body(reader, length)
@@ -1583,6 +1605,8 @@ async def route(reader, writer, method, path, headers, ip, identifier, secure):
         await _r_post_admin_layout(reader, writer, method, path, headers, ip, identifier, secure)
     elif method == "POST" and (path.startswith("/admin/theme") or path.startswith("/admin/tools")):
         await _r_post_admin_theme(reader, writer, method, path, headers, ip, identifier, secure)
+    elif method == "POST" and path.startswith("/admin/panel"):
+        await _r_post_admin_panel(reader, writer, method, path, headers, ip, identifier, secure)
     elif method == "POST" and path.startswith("/admin/plugins"):
         await _r_post_admin_plugins(reader, writer, method, path, headers, ip, identifier, secure)
     elif method == "POST" and path.startswith("/admin/logout"):
