@@ -270,7 +270,7 @@ def release_check(port, folder=None):
     want = _folder_release(folder)
     have = board_release(port)
     if have is None:
-        return False, "couldn't read the board's release (is this a Stump CAM?)", None
+        return False, "couldn't read the board's release (is this a Stump board?)", None
     if want and have != want:
         return (False, "the board runs %s, this folder has %s: re-upload the Stump files" % (have, want),
                 have)
@@ -2574,7 +2574,17 @@ def resolve_path(default_path, description, remember_key=None, is_dir=True,
         if download_fn:
             extra.append("'d' to download automatically")
         suffix = (", or " + ", or ".join(extra)) if extra else ""
-        raw = ask(f"  Enter the correct path{suffix} (blank to skip)")
+        if len(hints) == 1:
+            # One match: Enter takes it ("blank to skip" here was a trap:
+            # the file was right there and Enter skipped it).
+            more = ", or 'd' to download automatically" if download_fn else ""
+            raw = ask(f"  Enter to use 1, or type another path{more}, or 's' to skip")
+            if not raw:
+                raw = "1"
+            elif raw.strip().lower() in ("s", "skip"):
+                return None
+        else:
+            raw = ask(f"  Enter the correct path{suffix} (blank to skip)")
         if not raw:
             return None
         if download_fn and raw.strip().lower() in ("d", "download"):
@@ -2928,9 +2938,10 @@ def _bootloader_recovery(port):
     return ask_choice("Which port is the board on now?", [p["device"] for p in ports])
 
 
-def flash_cam_micropython(port, firmware_path=None):
-    banner(f"FLASHING MICROPYTHON — {port}")
-
+def pick_board_firmware(port, firmware_path=None):
+    """(chip, the MicroPython image for it) -- or (chip, None). Asked in
+    section 3 with the other questions, so the unattended part has
+    nothing left to ask (beta.56: it stopped there and waited)."""
     # Which chip: the S3-CAM or a WROVER board (they take different images).
     chip = detect_chip(port)
     if chip is None:
@@ -2950,13 +2961,18 @@ def flash_cam_micropython(port, firmware_path=None):
         download_label="fetches the %s from micropython.org" % fwv["label"],
     )
     if resolved is None:
-        print("FAILED — no valid firmware file given. This board needs the")
-        print("Octal-SPIRAM build specifically (Freenove's ESP32-S3-CAM uses Octal")
-        print("SPI PSRAM) -- the plain/standard build will boot but likely crash.")
-        print(f"Direct download: {CAM_FIRMWARE_LATEST_URL}")
-        print("(or browse micropython.org/download/ESP32_GENERIC_S3/ and pick the")
-        print(" file under \"Firmware (Support for Octal-SPIRAM)\", not the plain one)")
-        return (False, None)
+        print("FAILED — no valid firmware file given.")
+        if chip == "esp32":
+            print("A WROVER board needs MicroPython's ESP32 SPIRAM build (it sees the PSRAM).")
+            print(f"Direct download: {WROVER_FIRMWARE_LATEST_URL}")
+            print("(or micropython.org/download/ESP32_GENERIC/, the \"Support for SPIRAM / WROVER\" file)")
+        else:
+            print("This board needs the Octal-SPIRAM build specifically (Freenove's")
+            print("ESP32-S3-CAM uses Octal SPI PSRAM) -- the plain build will boot but likely crash.")
+            print(f"Direct download: {CAM_FIRMWARE_LATEST_URL}")
+            print("(or browse micropython.org/download/ESP32_GENERIC_S3/ and pick the")
+            print(" file under \"Firmware (Support for Octal-SPIRAM)\", not the plain one)")
+        return chip, None
 
     fname_lower = resolved.name.lower()
     if chip == "esp32" and not all(m in fname_lower for m in WROVER_FIRMWARE_NAME_MARKERS):
@@ -2969,8 +2985,18 @@ def flash_cam_micropython(port, firmware_path=None):
         print("  of failing cleanly. Continuing anyway since you pointed at it")
         print(f"  directly, but if the board misbehaves after flashing, get:")
         print(f"  {CAM_FIRMWARE_LATEST_URL}")
+    return chip, resolved
 
-    firmware_path = str(resolved)
+
+def flash_cam_micropython(port, firmware_path=None, chip=None):
+    banner(f"FLASHING MICROPYTHON — {port}")
+    if chip is None or firmware_path is None:
+        chip, firmware_path = pick_board_firmware(port, firmware_path)
+        if firmware_path is None:
+            return (False, None)
+    fwv = FIRMWARE_FOR_CHIP[chip]
+    print("  Image: %s at %s" % (Path(firmware_path).name, fwv["offset"]))
+    firmware_path = str(firmware_path)
 
     print("Erasing flash...")
     # esptool v5 renamed every underscore-style command/option to hyphens
@@ -5120,6 +5146,12 @@ def _cam_after_board(r, port, app_dir):
     print("Everything is asked now, so the rest can run while you're away.")
     flash = ask_yes_no(f"Flash MicroPython onto {port}? (erases the board: yes for a new or "
                        "broken board, no to keep it and only update)", True)
+    chip = image = None
+    if flash:
+        chip, image = pick_board_firmware(port)
+        if image is None:
+            print(yellow("  No MicroPython image: the board won't be flashed, and nothing is"
+                         " installed on it (sections 4-7 are skipped). Run this again with the image."))
     upload = bool(app_dir) and (flash or ask_yes_no(
         "Upload the Stump files? (keeps the board's settings)", True))
     global SKIP_TOOLS
@@ -5143,8 +5175,10 @@ def _cam_after_board(r, port, app_dir):
     # ── Flash
     r.start("Flash")
     flashed = False
-    if flash:
-        flashed, flashed_port = flash_cam_micropython(port)
+    if flash and image is None:
+        r.end("fail", "no MicroPython image (section 3)")
+    elif flash:
+        flashed, flashed_port = flash_cam_micropython(port, image, chip)
         if flashed and flashed_port and flashed_port != port:
             # Bootloader recovery can land the board on another port.
             print(f"\nThe board moved to {flashed_port} during flashing: using that from here.")
@@ -5174,7 +5208,11 @@ def _cam_after_board(r, port, app_dir):
 
     # ── Install
     r.start("Install")
-    if profile is None:
+    if flash and not flashed:
+        # The board has no Stump on it (or one half erased): settings and
+        # packs on bare MicroPython only fail (beta.56: rnfs's SD files).
+        r.end("skip", "the flash didn't work")
+    elif profile is None:
         r.end("skip", "nothing new to install")
     else:
         ok = push_config_to_board(port, "cam", profile)
@@ -5210,6 +5248,11 @@ def _cam_after_board(r, port, app_dir):
 
     # ── Verify
     r.start("Verify")
+    if flash and not flashed:
+        r.end("skip", "the flash didn't work")
+        r.summary("Re-check any time: python3 provisioner.py --diag %s" % port)
+        print("Fix the flash (section 4), then run this again.")
+        return
     rel_ok, rel_text, rel = release_check(port, app_dir)
     print(("" if rel_ok else red(_glyphs()["fail"] + " ")) + "Release: " + rel_text)
     r.note("Release", (rel + " " + _glyphs()["done"]) if rel_ok else red(rel_text))
