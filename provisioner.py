@@ -242,8 +242,8 @@ def release_lines(st=None):
 
 
 def board_release(port):
-    """STUMP_RELEASE of the firmware on a CAM, read from its
-    example_node.py over USB. None if it couldn't be read."""
+    """STUMP_RELEASE of the firmware on a Stump board, read from its
+    example_node.py (or .mpy) over USB. None if it couldn't be read."""
     code = ("r='?'\n"
             "for p in ('example_node.py','/lib/example_node.py'):\n"
             "    try:\n"
@@ -254,6 +254,30 @@ def board_release(port):
             "        break\n"
             "    except OSError:\n"
             "        pass\n"
+            # Compiled (.mpy, beta.56 on): no source line to read, but the
+            # release is the first a.b.c[-x.n] string after its name (not
+            # an IP: no dot on either side).
+            "if r=='?':\n"
+            "    import re\n"
+            "    for p in ('example_node.mpy','/lib/example_node.mpy'):\n"
+            "        try:\n"
+            "            with open(p,'rb') as f:\n"
+            "                b=f.read()\n"
+            "        except OSError:\n"
+            "            continue\n"
+            "        i=max(0,b.find(b'STUMP_RELEASE'))\n"
+            "        x=re.compile(b'[0-9]+[.][0-9]+[.][0-9]+(-[a-z]+[.][0-9]+)?')\n"
+            "        while i<len(b):\n"
+            "            m=x.search(b[i:])\n"
+            "            if not m:\n"
+            "                break\n"
+            "            v=m.group(0)\n"
+            "            j=i+b[i:].find(v)\n"
+            "            if b[j-1:j]!=b'.' and b[j+len(v):j+len(v)+1] not in (b'.',b'0',b'1',b'2',b'3',b'4',b'5',b'6',b'7',b'8',b'9'):\n"
+            "                r=v.decode()\n"
+            "                break\n"
+            "            i=j+len(v)\n"
+            "        break\n"
             "print('STUMP_RELEASE:'+r)\n")
     res = run(["mpremote", "connect", port, "exec", code], timeout=20)
     out = res[1] if res else ""
@@ -4441,6 +4465,50 @@ def config_wizard(board_type):
     return profile, out_path
 
 
+def _saved_profiles(board_type):
+    """[(node name, path)] of the settings saved by earlier runs for this
+    kind of board, newest first."""
+    out = []
+    try:
+        files = sorted(CONFIG_OUT_DIR.glob("*.json"), key=lambda f: f.stat().st_mtime, reverse=True)
+    except OSError:
+        return out
+    for f in files:
+        try:
+            d = json.loads(f.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if isinstance(d, dict) and d.get("board_type") == board_type and d.get("node_name"):
+            out.append((d["node_name"], f))
+    return out[:8]
+
+
+def _ask_profile(board_type, erased):
+    """The settings to install: an earlier run's, saved in
+    ~/.provisioner/profiles (beta.56: a re-run after a failed flash asked
+    everything again, or kept nothing), new answers, or -- only on a
+    board that isn't being erased -- none, keeping its own."""
+    saved = _saved_profiles(board_type)
+    new = "Answer the setup questions"
+    keep = "Keep the board's own settings"
+    opts = ["Use the settings saved for '%s' (%s)" % (n, f.name) for n, f in saved] + [new]
+    if not erased:
+        opts.append(keep)
+    if len(opts) == 1:
+        return config_wizard(board_type)[0]
+    if erased:
+        print("  Flashing erases the board's settings: it needs settings again.")
+    pick = ask_choice("Settings for this Stump:", opts)
+    if pick == keep:
+        return None
+    if pick == new:
+        return config_wizard(board_type)[0]
+    name, f = saved[opts.index(pick)]
+    profile = json.loads(f.read_text(encoding="utf-8"))
+    print("  Using %s's settings, saved in %s." % (name, f))
+    return profile
+
+
 def push_config_to_board(port, board_type, profile):
     """
     Write the appropriate config file. A Firefly's Heltec V3 runs RNode
@@ -5159,9 +5227,7 @@ def _cam_after_board(r, port, app_dir):
         "Copy the Tools page's files to its SD card too? They're the slow part: ~20-25 min "
         "the first time and after each update (the firmware bundle and the Provisioner change). "
         "No: the node works the same; only its /tools downloads stay as they were", True)
-    profile = None
-    if ask_yes_no("Answer the setup questions? (no: the board keeps its settings)", True):
-        profile, _ = config_wizard("cam")
+    profile = _ask_profile("cam", erased=flash)
     verify = ask_yes_no("Run the diagnostic suite at the end?", True)
     r.end()
     left = sum((r.expected(n)[0] or 0) for n, _ in r.steps[r.index + 1:])
