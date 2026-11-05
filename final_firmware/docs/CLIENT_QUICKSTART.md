@@ -473,6 +473,28 @@ a 404 there as "this node doesn't do that", not as an error. With chat
 off, the node also stops bridging chat over the mesh — LXMF messages to
 it aren't answered — though its `stump.node` beacon still announces.
 
+## Saying you're a Stump app (since 1.0.0-beta.53)
+
+A Stump rewords nothing by default. A pack can reword what it sends to
+people on plain LXMF apps (Sideband, Columba...), the *simple* pack for
+one, so it needs to know who reads the Stump's own lines. It knows an
+app is a Stump app when:
+
+- its user's identity has done `/auth` (or `/hello`, built on it), once,
+  on any Stump: remembered from then on (`stump_apps.json`), over Wi-Fi
+  and LoRa alike;
+- or its LXMF announce says so, from the very first message: a **fourth
+  item** in the announce's app data, a string starting with `stump`:
+
+```
+[display_name, stamp_cost, supported_functionality, "stump:firefly/0.6"]
+```
+
+Upstream LXMF reads only the first three items (the name, the stamp
+cost, compression), so other apps ignore the fourth. Send it on every
+announce. A Stump app is never reworded or given a plain-app tip, and
+packs never touch what goes from one Stump to another.
+
 ## Stamps (since 1.0.0-beta.53, opt-in)
 
 LXMF lets a recipient require a *stamp* on every message sent to it

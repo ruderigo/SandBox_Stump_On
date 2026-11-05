@@ -1,0 +1,49 @@
+{
+  "plugin": "nomadnet",
+  "title": "NomadNet (the Stump as a Nomad Network node and RRC hub)",
+  "version": "1.0",
+  "plugin_api": 2,
+  "summary": "NomadNet and MeshChat browse the Stump like any Nomad Network node, over Wi-Fi or LoRa: its home page, its rooms (read, and say something), the billboard (read, and post) and the list of shared files. And NomadNet's own chat (Channels) joins the Stump's rooms live: the Stump is an RRC hub, its rooms the hub's rooms, both ways with the web, FireFly and LXMF. Writing takes an identity the app proves. A card on the Stump's home page gives both addresses.",
+  "modifies_core_files": false,
+  "binds_ports": false,
+  "starts_tasks": false,
+  "hooks": [
+    "node nomadnetwork.node: /page/index.mu rooms.mu room.mu say.mu board.mu notice.mu files.mu",
+    "node rrc.hub: RRC sessions (HELLO, JOIN, MSG, ACTION, PART, PING; /list, /who)",
+    "every 1 s: the rooms' new lines and DMs out to each RRC session",
+    "every NOMADNET_ANNOUNCE_MIN minutes (30): announces the node and the hub, with the Stump's name",
+    "page /p/nomadnet/ (home card): both addresses"
+  ],
+  "runtime_storage": {
+    "path": "",
+    "note": "Nothing stored: the pages show the Stump's own rooms, billboard and files."
+  },
+  "wizard": {
+    "note": "Everything has a working default.",
+    "prompts": [
+      {
+        "key": "NOMADNET_ANNOUNCE_MIN",
+        "prompt": "Minutes between NomadNet announces (5 or more)",
+        "type": "int",
+        "default": 30,
+        "advanced": true,
+        "writes_to": "config.py"
+      }
+    ]
+  },
+  "files": [
+    "nomadnet/__init__.py",
+    "nomadnet/install.py",
+    "nomadnet/strings.py",
+    "nomadnet/hub.py",
+    "nomadnet/cbor.py",
+    "nomadnet/plugin.json"
+  ],
+  "hashes": {
+    "nomadnet/__init__.py": "2d75e659e253ac99",
+    "nomadnet/install.py": "7f642303cf04ec1e",
+    "nomadnet/strings.py": "24394fe81c6b69d7",
+    "nomadnet/hub.py": "49eda5f1ba928c14",
+    "nomadnet/cbor.py": "e1ebc15689dfb4cc"
+  }
+}

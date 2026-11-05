@@ -280,6 +280,13 @@ _verified_this_session = {}
 
 def mark_verified(client_id, hexhash):
     _verified_this_session[client_id] = hexhash
+    # /auth (and /hello, built on it) is what Stump apps do: this person
+    # uses one (rrc.is_app), whichever way they reach the Stump later.
+    try:
+        import rrc, rrc_mesh
+        rrc.mark_app(rrc_mesh.lxmf_address(hexhash))
+    except Exception:
+        pass
 
 
 def verified_identity_for(client_id):

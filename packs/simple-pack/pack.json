@@ -1,0 +1,16 @@
+{
+  "name": "simple",
+  "version": "1.0",
+  "author": "Project Stump",
+  "license": "MIT",
+  "stump_api": 2,
+  "description": "Plain sentences for people on LXMF apps that don't know Stumps (Sideband, Columba, MeshChat...): they write \"simple\" and the Stump's compact chat lines become sentences.",
+  "ram_kb": 10,
+  "plugins": [
+    "simple"
+  ],
+  "hashes": {},
+  "plugin_hashes": {
+    "simple": "603ce3ece1d34b17"
+  }
+}

@@ -765,6 +765,8 @@ def on_announce(router, dest, app_data, packet):
         name = router._parse_display_name(app_data) if app_data else None
     except Exception:
         pass
+    if app_data and rrc.app_tag_in(app_data):
+        rrc.mark_app(h)                 # a Stump app says so in its announce
     r = _reach.get(h)
     if r is None:
         # Same nick a full peer would get, so someone who later messages
@@ -1616,6 +1618,21 @@ def _send_item(item):
         prime_all_bridges()
     except Exception:
         pass
+    if via is None:
+        # Plugins may reword what goes to a person's app (API 2: mesh_out),
+        # never what goes to another Stump.
+        try:
+            h = dest_hash_bytes.hex()
+            p = _peers.get(h)
+            # Every way this Stump knows another Stump: its peer record
+            # (chain or LoRa), its beacon. Stumps always get the original
+            # lines, whatever packs are on.
+            if not ((p and p.get("stump")) or rrc.is_stump(h)):
+                import plugins
+                if plugins._mesh_out:
+                    text, title = plugins.mesh_out(h, text, title)
+        except Exception as e:
+            print("[rrc_mesh] mesh_out:", e)
     try:
         if via is not None:
             rtr.send_message(dest_hash_bytes, text, title=title, via=via)

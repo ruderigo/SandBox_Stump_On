@@ -254,3 +254,13 @@ def test_what_the_router_does_per_recipient():
         assert r._stamp_first(m3, h, dst, None) is False and m3.outbound_ticket == r.tickets[h][1]
     finally:
         ulxmf.STAMPS[0] = False
+
+
+def test_a_stump_app_tag_in_an_announce_is_ignored_by_reference_lxmf():
+    """The fourth item FireFly is asked to add ("stump:firefly/0.6"):
+    upstream LXMF still reads the name, the stamp cost and compression."""
+    app_data = RNS.vendor.umsgpack.packb([b"Rod", 8, [], "stump:firefly/0.6"])
+    assert LXMF.display_name_from_app_data(app_data) == "Rod"
+    assert LXMF.stamp_cost_from_app_data(app_data) == 8
+    import rrc
+    assert rrc.app_tag_in(app_data)

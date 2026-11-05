@@ -334,17 +334,17 @@ EXPECTED_FILE_HASHES = {
     "discovery.py": "c1808c59c1452dda",
     "docs/ARBORIST.md": "a783f30ef8fac45f",
     "docs/CHAIN.md": "775bf418753c82ba",
-    "docs/CLIENT_QUICKSTART.md": "adc467e970d59cd1",
+    "docs/CLIENT_QUICKSTART.md": "396a5a48c947d77b",
     "docs/COMMANDS.md": "c17a3263eeeae767",
     "docs/ENGINEERING_NOTES.md": "72f7d19d7c5f03a4",
     "docs/FIELD_TEST.md": "e7f7b3878fda4de3",
     "docs/HIDDEN_FEATURES.md": "568bc132ab83a91b",
     "docs/HOME_BRANDING.md": "e1a1a9cf854dcdce",
     "docs/HTTPS_SETUP.md": "12cbbf2de7c38810",
-    "docs/PACKS.md": "cb2356d4abf983eb",
+    "docs/PACKS.md": "321a2cc3034cef03",
     "docs/PC.md": "b924bffc27091f02",
-    "docs/PLUGINS.md": "3f5b4a5ee6844305",
-    "example_node.py": "2e933ec7d7d3888f",
+    "docs/PLUGINS.md": "13e6c99ceaebcfc0",
+    "example_node.py": "4b66fc1a846f5f00",
     "features.py": "81e8af361c64a911",
     "fserv.py": "14d07285fb7518d6",
     "fservbot/plugin.json": "12b3c544160411e3",
@@ -361,18 +361,18 @@ EXPECTED_FILE_HASHES = {
     "node_common.py": "e1e748a3283da2f4",
     "peripherals/__init__.py": "d2bdac4de6de79de",
     "peripherals/adc_reader.py": "50a393bfa61641d4",
-    "plugins.py": "829c99f60571ba4d",
+    "plugins.py": "7a998e0e53b39e0c",
     "profiles.py": "af13b5e91b83d004",
     "propagation.py": "99b4bcebeeeff8a7",
     "qr.py": "7f8550209d5f6abd",
     "radio.py": "56e01b273ceaab68",
-    "rrc.py": "758dccb2900835db",
-    "rrc_mesh.py": "2eddd34cb4784156",
+    "rrc.py": "0d9c0cf5abdb5d69",
+    "rrc_mesh.py": "728f3d9d1edd72c7",
     "rrc_ui.py": "7146777ddd5f6d6a",
     "settings.py": "930c871eec447998",
     "store.py": "625ba090410222cf",
     "stump_tls.py": "32a9394408ae392e",
-    "stumpid/plugin.json": "a419d598249430f1",
+    "stumpid/plugin.json": "c95fa250171ae9f4",
     "theme.py": "f4012514d7f00016",
     "third_party/codec2/COPYING": "9ebb6f82b7380a62",
     "third_party/codec2/build_codec2_wasm.sh": "11aafe7aca8e7a71",
@@ -906,7 +906,12 @@ def lint_plugin(plugin_dir):
         for n, line in enumerate(lines, 1):
             code = line.split("#", 1)[0]
             for pat, why in _LINT_PATTERNS:
-                if pat in code:
+                # The call itself, not a longer name ending the same way
+                # (handle_input( isn't input(, my_time.sleep( is).
+                i = code.find(pat)
+                while i > 0 and (code[i - 1].isalnum() or code[i - 1] == "_"):
+                    i = code.find(pat, i + 1)
+                if i >= 0:
                     out.append((f.relative_to(Path(plugin_dir).parent).as_posix(), n, why))
     return out
 

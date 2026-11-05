@@ -15,10 +15,16 @@ tavern-pack/
   home/            optional: a home-page section (SD card, HOME_BRANDING.md)
 ```
 
-Two reference packs ship in `packs/`: **tavern** (`!roll`, `!8ball`,
-`!slap`, `!seen`, `!quote`, `!vote`, a flood guard, a theme and a
-persona) and **rnfs** (the Reticulum file system on the Tools page, a
-link spotter and `!shelf`).
+Four packs ship in `packs/`:
+
+- **tavern**: `!roll`, `!8ball`, `!slap`, `!seen`, `!quote`, `!vote`, a
+  flood guard, a theme and a persona.
+- **rnfs**: the Reticulum file system on the Tools page, a link spotter
+  and `!shelf`.
+- **nomadnet** (1.0.0-beta.53): the Stump as a Nomad Network node, so
+  NomadNet and MeshChat users browse its rooms, billboard and files.
+- **simple** (1.0.0-beta.53): plain sentences, on request, for people
+  on LXMF apps that don't know Stumps (Sideband, Columba...).
 
 ## Installing a pack (technicians)
 

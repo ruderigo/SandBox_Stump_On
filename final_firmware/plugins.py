@@ -29,7 +29,7 @@ try:
 except ImportError:
     import json
 
-API_VERSION = 1
+API_VERSION = 2
 
 # In-house plugins: the only ones loaded in safe mode, and the only ones
 # allowed a gate priority below 20 (the access-control band).
@@ -77,6 +77,11 @@ _pages = {}       # plugin -> {sub: {"fn", "raw"}}
 _cards = []       # [{"plugin", "href", "label", "sub"}]
 _timers = []      # [{"plugin", "fn", "every", "next", "fails"}]
 _services = {}    # name -> (plugin, obj)
+_mesh_out = []    # [priority, seq, plugin, fn], sorted: what the Stump sends apps over LXMF
+_doors = {}       # (app, aspects) -> Door: a plugin's Reticulum destination
+_net = [None]     # the Stump's identity, once Reticulum is up (network_ready)
+DOOR_APPS_RESERVED = ("lxmf", "stump", "rnstransport")
+DOOR_REQUEST_MAX = 4096        # bytes a request to a plugin's destination may carry
 _seq = [0]
 _cmd_use = {}     # client_id -> [last_ms, window_start_ms, count]
 _post_use = {}    # plugin -> [window_start_ms, count]
@@ -218,6 +223,30 @@ class Api:
         seconds = max(TIMER_MIN_S, int(seconds))
         _timers.append({"plugin": self.name, "fn": fn, "every": seconds,
                         "next": time.ticks_add(_now_ms(), seconds * 1000), "fails": 0})
+
+    def mesh_out(self, fn, priority=DEFAULT_PRIORITY):
+        """fn(dest_hex, text, title) for each LXMF message the Stump sends
+        to a person's app (not to other Stumps): return None to leave it,
+        or (text, title). Plugin API 2 (1.0.0-beta.53)."""
+        _insert(_mesh_out, int(priority), self.name, fn)
+
+    def node(self, app_name, *aspects):
+        """A Reticulum destination of the Stump's own identity, e.g.
+        node("nomadnetwork", "node"): door.handle(path, fn) answers link
+        requests with fn(path, data, remote_hex) -> bytes or str (None:
+        no answer); door.announce(app_data). The core's own names (lxmf,
+        stump, ...) are refused. Plugin API 2 (1.0.0-beta.53)."""
+        if not app_name or app_name in DOOR_APPS_RESERVED or "." in app_name:
+            raise ValueError("a plugin can't use the destination name " + repr(app_name))
+        key = (app_name, tuple(aspects))
+        d = _doors.get(key)
+        if d is not None and d.plugin != self.name:
+            raise ValueError("%s is already %s's" % (".".join((app_name,) + tuple(aspects)), d.plugin))
+        if d is None:
+            d = _doors[key] = Door(self.name, app_name, tuple(aspects))
+            if _net[0] is not None:
+                d._bind(_net[0])
+        return d
 
     def provide(self, service, obj):
         _services[service] = (self.name, obj)
@@ -808,8 +837,162 @@ def load_one(name):
         return False
 
 
+class Door:
+    """A plugin's Reticulum destination (Api.node). Made once Reticulum is
+    up (network_ready); answers only while its plugin is on."""
+
+    def __init__(self, plugin, app_name, aspects):
+        self.plugin = plugin
+        self.app = app_name
+        self.aspects = aspects
+        self.dest = None
+        self._handlers = {}
+
+    @property
+    def hexhash(self):
+        return self.dest.hexhash if self.dest is not None else None
+
+    def handle(self, path, fn):
+        self._handlers[path] = fn
+        if self.dest is not None:
+            self._register(path)
+
+    def on_link(self, fn):
+        """fn(session) for each link opened to this destination (a
+        Session: send(), on_packet(), remote_hex(), is_open(), close()).
+        Links arriving while the plugin is off are closed."""
+        self._on_link = fn
+        if self.dest is not None:
+            self._register_links()
+
+    def _register_links(self):
+        door = self
+
+        def established(link):
+            fn = getattr(door, "_on_link", None)
+            if fn is None or not _active(door.plugin):
+                try:
+                    link.teardown()
+                except Exception:
+                    pass
+                return
+            _call(door.plugin, "link", fn, Session(link, door.plugin))
+
+        self.dest.set_link_established_callback(established)
+
+    def announce(self, app_data=None):
+        if self.dest is None or not _active(self.plugin):
+            return False
+        if isinstance(app_data, str):
+            app_data = app_data.encode("utf-8")
+        ok, _ = _call(self.plugin, "announce", self.dest.announce, app_data)
+        return ok
+
+    def _bind(self, identity):
+        from urns.destination import Destination
+        self.dest = Destination(identity, Destination.IN, Destination.SINGLE, self.app, *self.aspects)
+        try:
+            self.dest.set_max_request_size(DOOR_REQUEST_MAX)
+        except Exception:
+            pass
+        for p in self._handlers:
+            self._register(p)
+        if getattr(self, "_on_link", None) is not None:
+            self._register_links()
+
+    def _register(self, path):
+        from urns.destination import Destination
+        door = self
+
+        def gen(path=None, data=None, request_id=None, link_id=None, remote_identity=None, requested_at=None):
+            fn = door._handlers.get(path)
+            if fn is None or not _active(door.plugin):
+                return None
+            who = None
+            try:
+                if remote_identity is not None:
+                    who = remote_identity.hash.hex()
+            except Exception:
+                pass
+            ok, res = _call(door.plugin, "request " + str(path), fn, path, data, who)
+            if not ok or res is None:
+                return None
+            return res.encode("utf-8") if isinstance(res, str) else bytes(res)
+
+        self.dest.register_request_handler(path, response_generator=gen, allow=Destination.ALLOW_ALL)
+
+
+class Session:
+    """One link to a plugin's destination, as the plugin sees it."""
+
+    def __init__(self, link, plugin):
+        self._link = link
+        self._plugin = plugin
+
+    def remote_hex(self):
+        """The identity the other side proved (Identify), hex; or None."""
+        try:
+            r = self._link.remote_identity
+            return r.hash.hex() if r is not None else None
+        except Exception:
+            return None
+
+    def is_open(self):
+        try:
+            from urns.link import Link
+            return self._link.status == Link.ACTIVE and _active(self._plugin)
+        except Exception:
+            return False
+
+    def send(self, data):
+        """One packet on the link (keep it under ~380 bytes)."""
+        if not self.is_open():
+            return False
+        self._link.send(bytes(data))
+        return True
+
+    def on_packet(self, fn):
+        """fn(data) for each packet the other side sends."""
+        plugin = self._plugin
+
+        def cb(plaintext, packet):
+            if _active(plugin):
+                _call(plugin, "packet", fn, bytes(plaintext))
+
+        self._link.set_packet_callback(cb)
+
+    def close(self):
+        try:
+            self._link.teardown()
+        except Exception:
+            pass
+
+
+def network_ready(identity):
+    """Reticulum is up (example_node): plugins' destinations made now."""
+    _net[0] = identity
+    for d in list(_doors.values()):
+        if d.dest is None:
+            try:
+                d._bind(identity)
+            except Exception as e:
+                _log(d.plugin, "destination not made: %s" % e)
+
+
+def mesh_out(dest_hex, text, title):
+    """mesh_out hooks, in priority order, each seeing the last one's
+    output: the (text, title) to send."""
+    for _, _, plugin, fn in _mesh_out:
+        if not _active(plugin):
+            continue
+        ok, res = _call(plugin, "mesh_out", fn, dest_hex, text, title)
+        if ok and res is not None:
+            text, title = res[0], res[1]
+    return text, title
+
+
 def _unregister(name):
-    for lst in (_gates, _listeners, _results):
+    for lst in (_gates, _listeners, _results, _mesh_out):
         lst[:] = [e for e in lst if e[2] != name]
     for w in [w for w, e in _commands.items() if e["plugin"] == name]:
         del _commands[w]

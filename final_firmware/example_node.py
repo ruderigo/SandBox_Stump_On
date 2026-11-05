@@ -429,6 +429,11 @@ def main():
         rrc.NODE_INFO = {"version": STUMP_VERSION, "release": STUMP_RELEASE}
     except Exception:
         pass
+    try:
+        import plugins
+        plugins.network_ready(rns.identity)      # plugins' own destinations (API 2)
+    except Exception as e:
+        print("[plugin] network not ready for plugins:", e)
     gc.collect()
 
     # Radio settings saved from /admin override config.py's bridge entry,

@@ -126,6 +126,23 @@ wrong (the replies are chat-room lines: `<nick> text`, `[DM] ...`).
       here*. Then in Sideband mark the Stump as trusted and send once:
       `stump.log` says `ticket from ...`, and replies arrive from then on
       (and after the CAM restarts).
+- [ ] **NomadNet pack** on the laptop Stump (`--install-pack`, restart):
+      NomadNet on another computer, Network → the Stump's name appears
+      within a minute; open it. Expected: the home page, Rooms, a room's
+      lines, Billboard, Files. *Identify* (the page menu), say something
+      in a room: it shows in the Stump's chat as `nomad-xxxx` or your
+      name. Then MeshChat (its NomadNet browser). Then over LoRa.
+      Switch it off in `/admin` → Plugins: the pages stop answering.
+- [ ] **NomadNet's chat in the Stump's rooms** (same pack): in NomadNet,
+      a room's *Chat in NomadNet* link (or Channels → New hub, the
+      address from the Stump's *NomadNet* card). Expected: the hub
+      named after the Stump, #main with its last lines; say something:
+      it shows on the web and in FireFly; answer from FireFly: it shows
+      in NomadNet. Then over LoRa. If you have MeshChatX: the same.
+- [ ] **Simple pack**: from Sideband, write to the Stump. Expected: the
+      first answer ends with the tip; write `simple`: answers become
+      sentences ("rod: hi", "maria joined."); `simple off` goes back.
+      FireFly: unchanged unless it writes `simple`.
 - [ ] **Cost 16 on the laptop Stump**: how long a reply takes (minutes
       expected), and that the chat stays usable meanwhile.
 

@@ -512,6 +512,72 @@ _stumps = set()
 MAX_STUMPS = 64
 
 
+# People whose app is a Stump app (FireFly...): it reads the Stump's own
+# lines, so packs that reword them for plain apps leave it alone. Known
+# when the identity proves itself the Stump-app way (/auth, /hello) or
+# its LXMF announce carries a "stump" tag (APP_TAG). LXMF address -> 1,
+# kept across restarts.
+APPS_FILE = "stump_apps.json"
+APPS_MAX = 500
+_apps = {}
+_apps_loaded = [False]
+APP_TAG = "stump"
+
+
+def _load_apps():
+    if not _apps_loaded[0]:
+        _apps_loaded[0] = True
+        try:
+            import store
+            d = store.load_json(APPS_FILE, {})
+            if isinstance(d, dict):
+                _apps.update(d)
+        except Exception:
+            pass
+
+
+def mark_app(lxmf_hex):
+    """This LXMF address uses a Stump app."""
+    if not lxmf_hex:
+        return
+    _load_apps()
+    if lxmf_hex in _apps:
+        return
+    while len(_apps) >= APPS_MAX:
+        _apps.pop(next(iter(_apps)))
+    _apps[lxmf_hex] = 1
+    try:
+        import store
+        store.save_json(APPS_FILE, _apps, "rrc")
+    except Exception:
+        pass
+
+
+def is_app(lxmf_hex):
+    _load_apps()
+    return lxmf_hex in _apps
+
+
+def app_tag_in(app_data):
+    """An LXMF announce from a Stump app: [name, cost, features, tag, ...]
+    with a tag starting "stump" (e.g. "stump:firefly/0.6"). Other apps'
+    announces stop at three items, or carry something else there."""
+    try:
+        b0 = app_data[0]
+        if not ((0x90 <= b0 <= 0x9f) or b0 == 0xdc):
+            return False
+        from urns import umsgpack
+        d = umsgpack.unpackb(app_data)
+        if isinstance(d, list) and len(d) > 3:
+            t = d[3]
+            if isinstance(t, bytes):
+                t = t.decode("utf-8", "ignore")
+            return isinstance(t, str) and t.startswith(APP_TAG)
+    except Exception:
+        pass
+    return False
+
+
 def is_stump(client_id):
     return client_id in _stumps
 
