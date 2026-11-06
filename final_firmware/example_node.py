@@ -51,6 +51,13 @@ except ImportError:
 
 import gc
 _gc_collect()
+try:
+    from urns import mem as _mem
+    _mem.report("at boot")
+    if _mem.headroom(2):
+        _mem.report("with room to work in")
+except Exception as _e:
+    print("[mem] no headroom added:", _e)
 
 # ---- Peripherals ----
 import peripherals.adc_reader as adc_reader
@@ -318,15 +325,17 @@ def main():
         # like a Stump on its own (its home address, the clock, internet)
         # and links to the first Stump there, as a computer Stump does.
         try:
+            import network
+            network.WLAN(network.STA_IF).active(True)
+            network.WLAN(network.STA_IF).config(reconnects=-1)   # the chip keeps trying by itself
+        except Exception:
+            pass
+        try:
             ip = connect_wifi(WIFI_SSID, WIFI_PASS)
-            try:
-                import network
-                network.WLAN(network.STA_IF).config(reconnects=-1)
-            except Exception:
-                pass
             chain_sta_ip, chain_parent_ip = chain.note_lan_uplink(CHAIN, ip)
         except Exception as e:
-            print("[chain] the home Wi-Fi isn't joined (" + str(e) + "); will keep trying")
+            print("[chain] the router (%s) isn't joined yet (%s): it keeps trying; nothing else is joined"
+                  % (WIFI_SSID, e))
     elif CHAIN and CHAIN["uplink_ssid"]:
         try:
             chain_sta_ip, chain_parent_ip = chain.connect_uplink(CHAIN)

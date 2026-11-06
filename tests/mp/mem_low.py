@@ -30,4 +30,15 @@ import urns.interfaces as ifs, urns.transport as tr
 _fw = sys.argv[1] + "/../../final_firmware/"
 src = open(_fw + "urns/interfaces/__init__.py").read() + open(_fw + "urns/transport.py").read()
 check("the chain secret's sign and check no longer force one", "gc.collect()" not in src.replace("# ", ""), "")
+# Room to work in: asked for, the heap doesn't lose anything, and a board
+# that can't give it says 0 (no crash)
+got = mem.headroom(1)
+check("headroom: asked for without harm (unix: one heap, so 0 or more)", isinstance(got, int) and got >= 0, got)
+_o = []
+import builtins
+_p = builtins.print
+builtins.print = lambda *a, **k: _o.append(" ".join(str(x) for x in a))
+mem.report("test")
+builtins.print = _p
+check("report: one line with the heap's size", len(_o) == 1 and "KB in use" in _o[0], _o)
 print('FAILURES:', FAIL)
