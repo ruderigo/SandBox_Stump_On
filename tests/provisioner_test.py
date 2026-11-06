@@ -735,4 +735,26 @@ with contextlib.redirect_stdout(io.StringIO()) as said:
 check('settings for another board: its own name, hotspot, chain number; the Heltec follows',
       prof["node_name"] == "Wrover2" and prof["ssid_name"] == "Wrover2" and prof["chain"]["subnet"] == 6
       and prof["heltec_host"] == "192.168.6.2" and "Wrover2 192.168.6.1" in said.getvalue(), (prof, said.getvalue()))
+# The port held by another program (a `screen` left running): said, with who
+_rs = P.subprocess.run
+class _R:
+    stdout = "p812\ncscreen\n"
+P.subprocess.run = lambda *a, **k: _R()
+check('port busy: who holds it', P.port_holder("/dev/cu.usbserial-120") == "screen (pid 812)")
+with contextlib.redirect_stdout(io.StringIO()) as said:
+    P.explain_port_busy("/dev/cu.usbserial-120")
+check('... said, not a cable fault', "screen (pid 812)" in said.getvalue() and "Not a cable fault" in said.getvalue(), said.getvalue())
+check('... esptool\'s "Resource busy" is known', P._port_busy("[Errno 16] Resource busy: '/dev/cu.usbserial-120'"))
+P.subprocess.run = _rs
+# A chain number never the one of the Stump it joins
+check('chain: the number in a Stump hotspot\'s name', P._uplink_number("LaBuche1 192.168.5.1") == 5
+      and P._uplink_number("LaBuche-Stump.web.app") is None and P._uplink_number("Souche 192.168.4.1") is None)
+prof = {"node_name": "LaBucheB", "board_type": "cam", "ssid_name": "LaBucheB", "ssid_include_ip": True,
+        "chain": {"enabled": True, "uplink_ssid": "LaBuche1 192.168.5.1", "subnet": 5}}
+answers("", "", "5", "")                   # name, hotspot kept; 5 refused; then the default
+with contextlib.redirect_stdout(io.StringIO()) as said:
+    prof = P._per_board(prof)
+check('... 5 refused when joining number 5; the default is 6', prof["chain"]["subnet"] == 6
+      and "number of the Stump it joins" in said.getvalue(), (prof, said.getvalue()[-300:]))
+check('... mpremote\'s "failed to access" is a busy port', P._port_busy("mpremote: failed to access /dev/cu.x (it may be in use by another program)"))
 print('FAILURES', FAIL)

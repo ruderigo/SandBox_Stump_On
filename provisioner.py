@@ -3053,6 +3053,10 @@ def flash_cam_micropython(port, firmware_path=None, chip=None):
                 print(f"\nRetrying erase on {port} ...")
                 ok, out = run(["esptool", "--port", port, "erase-flash"], timeout=120)
                 print(out.strip())
+        if not ok and _port_busy(out):
+            print("FAILED at erase step.")
+            explain_port_busy(port)
+            return (False, None)
         if not ok:
             print("FAILED at erase step.")
             print("If it still won't connect: try a different USB cable (data, not")
@@ -3067,11 +3071,57 @@ def flash_cam_micropython(port, firmware_path=None, chip=None):
     )
     print(out.strip())
     print("OK — MicroPython flashed." if ok else "FAILED — see output above.")
+    if not ok and _port_busy(out):
+        explain_port_busy(port)
     # Return the port that actually worked, not just a bool. Bootloader
     # recovery can change it, and everything after this (upload, config
     # push, diagnostics) has to target the port the board really is on.
     return (ok, port if ok else None)
 
+
+
+def port_holder(port):
+    """Who has the board's port open ("screen (pid 812)"), or None. macOS
+    and Linux (lsof); None where it can't be told."""
+    try:
+        r = subprocess.run(["lsof", "-F", "pc", port], capture_output=True, text=True, timeout=5)
+    except Exception:
+        return None
+    pid = cmd = None
+    for line in r.stdout.splitlines():
+        if line.startswith("p"):
+            pid = line[1:]
+        elif line.startswith("c"):
+            cmd = line[1:]
+    return "%s (pid %s)" % (cmd, pid) if pid and cmd else None
+
+
+def _port_busy(out):
+    return any(k in (out or "") for k in ("Resource busy", "Errno 16", "port is busy",
+                                          "in use by another program", "failed to access"))
+
+
+def _free_the_port(port):
+    """Before anything touches the board: if another program holds the
+    port, say which and wait for it to go (the unattended part would
+    otherwise fail on every step)."""
+    for _ in range(3):
+        who = port_holder(port)
+        if not who:
+            return True
+        explain_port_busy(port)
+        ask("  Press Enter once it's closed")
+    return not port_holder(port)
+
+
+def explain_port_busy(port):
+    """The port is open in another program: say which, and how to let go
+    (beta.56: a `screen` left running read as a cable fault)."""
+    who = port_holder(port)
+    print(yellow("  Another program has %s open%s, so nothing else can use it." % (port, ": " + who if who else "")))
+    print("  Close it first -- a `screen` (Ctrl-A then K; or `pkill -f \"screen %s\"`)," % port)
+    print("  an `mpremote` or serial monitor in another window, the Arduino IDE.")
+    print("  Not a cable fault: the board is there.")
 
 
 HASH_CHECK_EXEMPT = {"config.py"}
@@ -3442,6 +3492,11 @@ def upload_stump_app(port, app_dir=None):
         if not ok:
             print(f"    FAILED: {out.strip()}")
             all_ok = False
+            if _port_busy(out):
+                # Every file after this one would fail the same way
+                # (beta.56: 100 lines of it, then the settings and packs).
+                explain_port_busy(port)
+                return False
         else:
             print("    ok")
 
@@ -4222,9 +4277,13 @@ def config_wizard(board_type):
                     (ask("  Its Wi-Fi password (blank if open)", "") or "")
                 print("  Each Stump's own Wi-Fi uses its own address range, 192.168.<n>.1:")
                 print("  the first Stump is 4; give every other one a different number.")
+                up = _uplink_number(chain_cfg["uplink_ssid"])
                 while True:
                     try:
-                        chain_cfg["subnet"] = int(ask("  This Stump's number (5-254)", "5"))
+                        chain_cfg["subnet"] = int(ask("  This Stump's number (5-254)", str(up + 1 if up and up < 254 else 5)))
+                        if chain_cfg["subnet"] == up:
+                            print("    %d is the number of the Stump it joins: another one." % up)
+                            continue
                         if 5 <= chain_cfg["subnet"] <= 254:
                             break
                     except ValueError:
@@ -4491,6 +4550,14 @@ def _ap_ip(profile):
     return "192.168.%d.1" % int(chain.get("subnet", 4)) if chain.get("enabled") else DEFAULT_AP_IP
 
 
+def _uplink_number(ssid):
+    """The chain number in a Stump hotspot's name ("LaBuche1 192.168.5.1"
+    -> 5), or None (the first Stump's 192.168.4.1, or a plain Wi-Fi)."""
+    import re
+    m = re.search(r"192\.168\.(\d+)\.1$", (ssid or "").strip())
+    return int(m.group(1)) if m and int(m.group(1)) >= 5 else None
+
+
 def _per_board(profile):
     """Settings saved for one board, used for another: what must differ
     from board to board is asked again (beta.56: three WROVERs on one
@@ -4503,15 +4570,24 @@ def _per_board(profile):
         profile["ssid_name"] = ask("  Its hotspot name (each Stump its own)", default) or default
     chain = profile.get("chain") or {}
     if chain.get("enabled") and chain.get("uplink_ssid"):
+        up = _uplink_number(chain["uplink_ssid"])
+        default = chain.get("subnet", 5)
+        if up is not None and default == up:
+            default = up + 1 if up < 254 else 5
         while True:
             try:
-                n = int(ask("  Its number in the chain (5-254; each Stump its own)", str(chain.get("subnet", 5))))
+                n = int(ask("  Its number in the chain (5-254; each Stump its own)", str(default)))
             except ValueError:
                 n = 0
-            if 5 <= n <= 254:
+            if n == up:
+                # Its hotspot would be the one it joins (beta.56: LaBucheB
+                # given 5 while joining "LaBuche1 192.168.5.1").
+                print("    %d is the number of the Stump it joins (%s): another one." % (n, chain["uplink_ssid"]))
+            elif 5 <= n <= 254:
                 chain["subnet"] = n
                 break
-            print("    A number from 5 to 254.")
+            else:
+                print("    A number from 5 to 254.")
     if profile.get("heltec_enabled") and str(profile.get("heltec_host", "")).startswith("192.168."):
         h = profile["heltec_host"].split(".")
         a = _ap_ip(profile).split(".")
@@ -5306,6 +5382,7 @@ def _cam_after_board(r, port, app_dir):
         "You can step away: the summary at the end says how it went."])
 
     # ── Flash
+    _free_the_port(port)
     r.start("Flash")
     flashed = False
     if flash and image is None:
@@ -5633,6 +5710,7 @@ def interactive_wizard():
         return
 
     # ── Flash
+    _free_the_port(port)
     r.start("Flash")
     flashed = False
     if role == "heltec_transport":
