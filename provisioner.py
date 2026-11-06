@@ -4276,10 +4276,17 @@ def config_wizard(board_type):
                 chain_cfg["secret"] = ask("  Chain secret", suggested) or ""
             else:
                 home = profile.get("wifi_ssid") or ""
-                lan = bool(home) and ask_choice("  How does it reach the chain?", [
-                    "Over the Wi-Fi it joins (%s): like a computer Stump, it keeps its home address" % home,
-                    "By joining the hotspot of the Stump before it",
-                ]).startswith("Over the Wi-Fi")
+                lan = ask_choice("  How does it reach the chain?", [
+                    "Over the router%s (recommended): like your other Stumps, it keeps its "
+                    "home address" % (" (%s)" % home if home else ""),
+                    "By joining the hotspot of the Stump before it (no home address)",
+                ]).startswith("Over the router")
+                if lan and not home:
+                    # Over the router needs the router's Wi-Fi: asked here,
+                    # never silently turned into the hotspot way (beta.56).
+                    home = ask_wifi("  The router's Wi-Fi it joins", "")
+                    profile["wifi_ssid"] = home
+                    profile["wifi_pass"] = "" if wifi_is_open(home) else ask("  Its password", "")
                 if lan:
                     # The first Stump takes chain links on the home Wi-Fi when
                     # it has a chain secret (CHAIN_LAN); this board stays on
@@ -4358,7 +4365,7 @@ def config_wizard(board_type):
                 profile["pc_radio"] = radio
         elif chain_cfg:
             has_heltec = ask_yes_no("Does this Stump have its own Heltec (LoRa radio)?",
-                                    not chain_cfg["uplink_ssid"])
+                                    not chain_cfg["uplink_ssid"] or bool(chain_cfg.get("lan_parent_ip")))
         profile["heltec_enabled"] = has_heltec
         if board_type == "pc" and profile["pc_heltec"] != "wifi":
             # USB or none: no Wi-Fi bridge entry to fill in.
@@ -4385,12 +4392,19 @@ def config_wizard(board_type):
             print("standalone pair, no router involved)?")
             pairing = ask_choice(
                 "Heltec Bridge network setup",
-                ["Existing WiFi network (a router)",
+                ["The router (%s, recommended): the Heltec joins it too, like your other Stumps"
+                 % (profile.get("wifi_ssid") or "the Wi-Fi this Stump joins"),
                  "This CAM's own hotspot (standalone pair, no router)"],
             )
             standalone_pair = pairing.startswith("This CAM's")
             profile["heltec_on_hotspot"] = standalone_pair
-            default_bridge_ip = (_ap_ip(profile).rsplit(".", 1)[0] + "." + str(HELTEC_ON_HOTSPOT)) if standalone_pair else "192.168.0.222"
+            default_bridge_ip = (_ap_ip(profile).rsplit(".", 1)[0] + "." + str(HELTEC_ON_HOTSPOT)) if standalone_pair \
+                else _router_heltec_ip()
+            if not standalone_pair:
+                print("\nThe Heltec joins the router too, with a fixed address. Pick one the router")
+                print("doesn't hand out itself (outside its DHCP range, often .10-.200, or set it")
+                print("as a DHCP reservation on the router): suggested %s. Give the Heltec the" % default_bridge_ip)
+                print("same address when you set it up (A Heltec for a CAM > the router).")
             if standalone_pair and not profile.get("ssid_name"):
                 # The Heltec joins the hotspot by its name, and every Stump
                 # left on the default name has the same one: with two
@@ -4601,102 +4615,87 @@ def _uplink_number(ssid):
     return int(m.group(1)) if m and int(m.group(1)) >= 5 else None
 
 
-def _per_board(profile):
-    """Settings saved for one board, used for another: what must differ
-    from board to board is asked again (beta.56: three WROVERs on one
-    set of settings had one name, one hotspot name and one chain
-    number)."""
-    old = profile.get("node_name", "")
-    profile["node_name"] = ask("  This board's name (each Stump its own)", old) or old
-    if profile.get("ssid_name"):
-        default = profile["node_name"][:20] if profile["ssid_name"] == old[:20] else profile["ssid_name"]
-        profile["ssid_name"] = ask("  Its hotspot name (each Stump its own)", default) or default
-    chain = profile.get("chain") or {}
-    if chain.get("enabled") and chain.get("uplink_ssid"):
-        up = _uplink_number(chain["uplink_ssid"])
-        default = chain.get("subnet", 5)
-        if up is not None and default == up:
-            default = up + 1 if up < 254 else 5
-        while True:
-            try:
-                n = int(ask("  Its number in the chain (5-254; each Stump its own)", str(default)))
-            except ValueError:
-                n = 0
-            if n == up:
-                # Its hotspot would be the one it joins (beta.56: LaBucheB
-                # given 5 while joining "LaBuche1 192.168.5.1").
-                print("    %d is the number of the Stump it joins (%s): another one." % (n, chain["uplink_ssid"]))
-            elif 5 <= n <= 254:
-                chain["subnet"] = n
-                break
-            else:
-                print("    A number from 5 to 254.")
-    if profile.get("heltec_enabled") and str(profile.get("heltec_host", "")).startswith("192.168."):
-        h = profile["heltec_host"].split(".")
-        a = _ap_ip(profile).split(".")
-        # Saved before beta.56 without the flag: the Heltec was on a Stump
-        # hotspot when its address was one (192.168.4.x up).
-        on_hotspot = profile.get("heltec_on_hotspot", h[2] == a[2] or int(h[2]) >= 4)
-        if on_hotspot:
-            # The Heltec on this Stump's own hotspot: in its range, and
-            # out of the addresses the hotspot hands out (.2 to .101).
-            last = h[3] if not (2 <= int(h[3]) <= 101) else str(HELTEC_ON_HOTSPOT)
-            profile["heltec_host"] = ".".join(a[:3] + [last])
-    ssid = preview_ssid(profile.get("ssid_name"), _ap_ip(profile), profile.get("ssid_include_ip", False))[0]
-    print("  Its hotspot: %s, at %s" % (bold(ssid), _ap_ip(profile)))
-    if profile.get("heltec_enabled"):
-        print("  Its Heltec joins that hotspot, at %s." % profile.get("heltec_host"))
-    return profile
-
-
-def _saved_profiles(board_type):
-    """[(node name, path)] of the settings saved by earlier runs for this
-    kind of board, newest first."""
-    out = []
-    try:
-        files = sorted(CONFIG_OUT_DIR.glob("*.json"), key=lambda f: f.stat().st_mtime, reverse=True)
-    except OSError:
-        return out
-    for f in files:
+def network_check(port, profile, addrs=None, get=None, wait_s=120, sleep=None, mine=None):
+    """After the setup: does this computer reach the board at its address
+    on the router, and is its Heltec connected? (ok, what was found, the
+    address to open). The board was just restarted: waits for it to come
+    up (wait_s). A board left on the hotspot way, or a computer on another
+    network, isn't a pass: it's said why."""
+    get = get or _get_json
+    sleep = sleep or time.sleep
+    banner("Reaching it from this computer")
+    if not addrs or not addrs.get("sta"):
+        print("  Asking the board for its addresses...")
+        addrs = get_stump_ip(port) or {}
+    sta = addrs.get("sta")
+    if not sta:
+        return False, "it isn't on the router (no address there): check the Wi-Fi name and password", None
+    if _in_chain_hotspot(sta):
+        return False, ("it joined another Stump's hotspot (%s at %s), not the router: answer the setup "
+                       "questions again and pick the router" % (addrs.get("ssid") or "?", sta)), None
+    mine = mine if mine is not None else (_route_ip(sta) or "")
+    if mine.rsplit(".", 1)[0] != sta.rsplit(".", 1)[0]:
+        return False, ("this computer (%s) isn't on the board's network (%s at %s): join it, then "
+                       "python3 provisioner.py --diag %s" % (mine or "?", addrs.get("ssid") or "the router", sta, port)), \
+            "http://%s/" % sta
+    url = "http://%s/" % sta
+    print("  Opening %snode.json (the board takes up to a minute to come up)..." % url)
+    node, t0, err = None, time.time(), ""
+    while time.time() - t0 < wait_s:
         try:
-            d = json.loads(f.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            continue
-        if isinstance(d, dict) and d.get("board_type") == board_type and d.get("node_name"):
-            out.append((d["node_name"], f))
-    return out[:8]
+            node = get(url + "node.json", timeout=4)
+            break
+        except Exception as e:
+            err = str(e)
+            sleep(5)
+    if not isinstance(node, dict):
+        return False, "its page doesn't answer at %s (%s)" % (url, err or "no answer"), url
+    want = (profile or {}).get("node_name")
+    if want and node.get("name") and node["name"] != want:
+        return False, "another Stump answers at %s (%s, not %s)" % (url, node["name"], want), url
+    if not (profile or {}).get("heltec_enabled", True if profile is None else False):
+        return True, "its page answers at %s" % url, url
+    hw, t0 = {}, time.time()
+    while time.time() - t0 < min(wait_s, 60):
+        try:
+            hw = get(url + "hw.json", timeout=4)
+        except Exception:
+            hw = {}
+        if hw.get("state") in ("online", "none"):
+            break
+        sleep(5)
+    st = hw.get("state")
+    if st == "online":
+        return True, "its page answers at %s, and its Heltec is connected" % url, url
+    if st == "none":
+        return True, "its page answers at %s (no Heltec of its own)" % url, url
+    errs = "; ".join(r.get("error") or r.get("state") or "" for r in hw.get("radios") or []) or "no answer"
+    return False, "its page answers at %s, but its Heltec isn't connected (%s)" % (url, errs), url
+
+
+def _router_heltec_ip():
+    """A Heltec's fixed address on the router: .222 on this computer's
+    network (when it's on one), past most routers' DHCP ranges."""
+    mine = _route_ip("192.0.2.1") or ""
+    if mine.count(".") == 3 and not mine.startswith("127."):
+        return mine.rsplit(".", 1)[0] + ".222"
+    return "192.168.0.222"
 
 
 def _ask_profile(board_type, erased):
-    """The settings to install: an earlier run's, saved in
-    ~/.provisioner/profiles (beta.56: a re-run after a failed flash asked
-    everything again, or kept nothing), new answers, or -- only on a
-    board that isn't being erased -- none, keeping its own."""
-    saved = _saved_profiles(board_type)
-    new = "Answer the setup questions"
-    keep = "Keep the board's own settings"
-    opts = ["Use the settings saved for '%s' (%s)" % (n, f.name) for n, f in saved] + [new]
-    if not erased:
-        opts.append(keep)
-    if len(opts) == 1:
-        return config_wizard(board_type)[0]
+    """The settings to install: fresh answers, or -- only on a board that
+    isn't being erased -- none, keeping its own. Settings saved by an
+    earlier run are never reused: they carried old choices into a new
+    board without saying so (beta.56: a WROVER kept joining a hotspot
+    after the home-Wi-Fi way was chosen)."""
     if erased:
-        print("  Flashing erases the board's settings: it needs settings again.")
-    pick = ask_choice("Settings for this Stump:", opts)
-    if pick == keep:
-        return None
-    if pick == new:
+        print("  Flashing erases the board's settings: it gets new ones now.")
         return config_wizard(board_type)[0]
-    name, f = saved[opts.index(pick)]
-    profile = json.loads(f.read_text(encoding="utf-8"))
-    print("  Using %s's settings, saved in %s." % (name, f))
-    profile = _per_board(profile)
-    CONFIG_OUT_DIR.mkdir(parents=True, exist_ok=True)
-    out = CONFIG_OUT_DIR / ("%s.json" % profile["node_name"].replace(" ", "_"))
-    out.write_text(json.dumps(profile, indent=2), encoding="utf-8")
-    if out != f:
-        print("  Saved as %s." % out.name)
-    return profile
+    new = "Answer the setup questions"
+    keep = "Keep the board's own settings (only an update)"
+    if ask_choice("Settings for this Stump:", [new, keep]) == keep:
+        return None
+    return config_wizard(board_type)[0]
 
 
 def push_config_to_board(port, board_type, profile):
@@ -5293,7 +5292,7 @@ def wipe_sd_card(port, skip_confirmation=False, board_type=None):
 # Diagnostics
 # ---------------------------------------------------------------------------
 
-def diagnostics(port, board_type=None, interactive=True):
+def diagnostics(port, board_type=None, interactive=True, final=True):
     banner(f"DIAGNOSTIC SUITE — {port}")
     results = {}
 
@@ -5426,7 +5425,9 @@ def diagnostics(port, board_type=None, interactive=True):
         print(f"  {k:<15} {label}")
     all_relevant_passed = all(v for v in results.values() if v is not None)
     if all_relevant_passed:
-        print("\n" + bold(green("CERTIFIED FOR FIELD DEPLOYMENT")))
+        # In a setup the network check comes after (network_check): the
+        # certificate waits for it.
+        print("\n" + bold(green("CERTIFIED FOR FIELD DEPLOYMENT" if final else "USB CHECKS PASSED")))
     else:
         print("\n" + bold(yellow("NOT CERTIFIED")) + " — resolve failures above before deploying.")
     if board_type not in ("heltec", "heltec_transport"):
@@ -5513,6 +5514,7 @@ def _cam_after_board(r, port, app_dir):
 
     # ── Install
     r.start("Install")
+    addrs = None
     if flash and not flashed:
         # The board has no Stump on it (or one half erased): settings and
         # packs on bare MicroPython only fail (beta.56: rnfs's SD files).
@@ -5564,9 +5566,19 @@ def _cam_after_board(r, port, app_dir):
     if not rel_ok and not verify:
         r.end("fail", rel_text)
     elif verify:
-        results = diagnostics(port, "cam")
+        results = diagnostics(port, "cam", final=False)
+        # Reached the way people will reach it, not only over USB: the
+        # board's page from this computer at its address on the router,
+        # and its Heltec connected (beta.56: "certified" while the address
+        # it gave worked from nowhere this computer was).
+        ok_net, why_net, url = network_check(port, profile, addrs)
+        results["reached"] = ok_net
+        if url:
+            r.note("Open it at", url)
+        print(("  " + green(_glyphs()["done"]) if ok_net else "  " + red(_glyphs()["fail"])) + " " + why_net)
         passed = all(v for v in results.values() if v is not None)
-        r.end("done" if passed else "fail", "certified" if passed else "NOT certified: see the summary above")
+        r.end("done" if passed else "fail", "certified" if passed else "NOT certified: " +
+              ("its page from this computer: " + why_net if not ok_net else "see the summary above"))
     else:
         r.end("skip")
     if not r.summary("Re-check any time: python3 provisioner.py --diag %s" % port):
