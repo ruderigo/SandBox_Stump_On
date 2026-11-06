@@ -5018,6 +5018,24 @@ def _generate_config_py(local_config_path, node_name, wifi_ssid, wifi_pass, helt
     return "".join(out)
 
 
+def _in_chain_hotspot(ip):
+    """An address on a Stump's hotspot (192.168.4+.x, not the Stump's
+    own .1): what a chain member gets on the Stump above's Wi-Fi."""
+    p = (ip or "").split(".")
+    return p[:2] == ["192", "168"] and p[2].isdigit() and int(p[2]) >= 4 and p[3] != "1"
+
+
+def _sta_note(addrs):
+    """The summary's line for the address on the Wi-Fi the board joined:
+    named for that Wi-Fi; in a chain, said to be the Stump above's
+    hotspot (beta.56: "On the Wi-Fi 192.168.4.3" read as a missing home
+    address)."""
+    ssid = addrs.get("ssid")
+    if _in_chain_hotspot(addrs["sta"]):
+        return ("Via the chain", "http://%s/ on %s" % (addrs["sta"], ssid or "the Stump above's Wi-Fi"))
+    return ("On the Wi-Fi", "http://%s/%s" % (addrs["sta"], "  (%s)" % ssid if ssid else ""))
+
+
 def _print_discovered_addrs(addrs, wifi_ssid=None):
     """Prints the board's discovered LAN/AP addresses -- shared by
     --get-ip and the wizard's own post-config address lookup, so both
@@ -5032,8 +5050,7 @@ def _print_discovered_addrs(addrs, wifi_ssid=None):
         ssid = addrs.get("ssid") or wifi_ssid
         label = f" (from '{ssid}')" if ssid else ""
         print(bold(f"LAN IP{label}: ") + bold(green(addrs["sta"])))
-        sta = addrs["sta"].split(".")
-        if sta[:2] == ["192", "168"] and sta[2].isdigit() and int(sta[2]) >= 4 and sta[3] != "1":
+        if _in_chain_hotspot(addrs["sta"]):
             # In a chain the Wi-Fi it joined is the Stump above's hotspot,
             # not the home network (beta.56: a laptop on the home Wi-Fi
             # couldn't open 192.168.4.3 and took it for a fault).
@@ -5514,7 +5531,7 @@ def _cam_after_board(r, port, app_dir):
             print()
             _print_discovered_addrs(addrs, wifi_ssid=profile.get("wifi_ssid"))
             if addrs.get("sta"):
-                r.note("On the Wi-Fi", "http://%s/" % addrs["sta"])
+                r.note(*_sta_note(addrs))
             if addrs.get("ap"):
                 r.note("Its own Wi-Fi", "http://%s/" % addrs["ap"])
         else:
@@ -5853,7 +5870,7 @@ def interactive_wizard():
                     print()
                     _print_discovered_addrs(addrs, wifi_ssid=profile.get("wifi_ssid"))
                     if addrs.get("sta"):
-                        r.note("On the Wi-Fi", "http://%s/" % addrs["sta"])
+                        r.note(*_sta_note(addrs))
                     if addrs.get("ap"):
                         r.note("Its own Wi-Fi", "http://%s/" % addrs["ap"])
                 else:

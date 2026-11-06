@@ -799,4 +799,7 @@ ns = {}
 exec(compile(txt, "config.py", "exec"), ns)
 check('chain over the home Wi-Fi: CHAIN_PARENT_IP written', ns.get("CHAIN_PARENT_IP") == "192.168.0.173"
       and ns.get("CHAIN_UPLINK_SSID") == "Bob's Glitch" and ns.get("CHAIN_SUBNET") == 6, {k: ns.get(k) for k in ("CHAIN_PARENT_IP", "CHAIN_UPLINK_SSID")})
+check('summary: a chain member\'s address named for the Stump above\'s Wi-Fi',
+      P._sta_note({"sta": "192.168.4.3", "ssid": "LaBuche-Stump.web.app"}) == ("Via the chain", "http://192.168.4.3/ on LaBuche-Stump.web.app")
+      and P._sta_note({"sta": "192.168.0.179", "ssid": "Bob's Glitch"})[0] == "On the Wi-Fi")
 print('FAILURES', FAIL)
