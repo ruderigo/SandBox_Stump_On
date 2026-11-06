@@ -42,5 +42,43 @@ def collect():
     return False
 
 
+def headroom(mb=2):
+    """Room to allocate in before the next automatic collection.
+
+    MicroPython's ESP32 port starts with a small heap and grows it only
+    when an allocation fails *after* a full collection (py/gc.c, the auto
+    split heap). So the heap stays just big enough for what's live, and
+    every few hundred KB of churn -- one or two web pages -- fills it and
+    costs a full collection: ~2 s on a WROVER's PSRAM, however few
+    collections the code asks for. One big allocation here, freed at
+    once, makes the port add that much heap now; the churn then has that
+    much room before the next collection (rarer; each one costs the same,
+    it's the live objects that are walked). A board without that much
+    memory just skips it."""
+    try:
+        total = gc.mem_free() + gc.mem_alloc()
+    except AttributeError:
+        return 0
+    try:
+        b = bytearray(mb * 1024 * 1024)
+        del b
+    except MemoryError:
+        return 0
+    gc.collect()
+    try:
+        return gc.mem_free() + gc.mem_alloc() - total
+    except AttributeError:
+        return 0
+
+
+def report(tag):
+    """One line: the heap's size, in use and free."""
+    try:
+        free, used = gc.mem_free(), gc.mem_alloc()
+        print("[mem] %s: heap %d KB, %d KB in use, %d KB free" % (tag, (free + used) // 1024, used // 1024, free // 1024))
+    except AttributeError:
+        pass
+
+
 def stats():
     return {"asked": _n[0], "collected": _n[1]}

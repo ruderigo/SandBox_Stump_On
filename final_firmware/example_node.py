@@ -51,6 +51,13 @@ except ImportError:
 
 import gc
 _gc_collect()
+try:
+    from urns import mem as _mem
+    _mem.report("at boot")
+    if _mem.headroom(2):
+        _mem.report("with room to work in")
+except Exception as _e:
+    print("[mem] no headroom added:", _e)
 
 # ---- Peripherals ----
 import peripherals.adc_reader as adc_reader
