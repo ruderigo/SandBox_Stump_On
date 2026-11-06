@@ -122,6 +122,16 @@ _ERRORS = {0x01: "the radio didn't start (bad settings for this board?)", 0x02: 
            0x04: "its queue is full", 0x05: "it's low on memory", 0x06: "the modem timed out"}
 
 
+def _errno(e):
+    return e.args[0] if e.args and isinstance(e.args[0], int) else getattr(e, "errno", None)
+
+
+# EINPROGRESS / EALREADY / EAGAIN (lwIP 119/120/11, Linux 115/114/11, macOS 36/37/35)
+_IN_PROGRESS = (119, 115, 36, 120, 114, 37, 11, 35)
+# EISCONN (lwIP 127, Linux 106, macOS 56)
+_CONNECTED = (127, 106, 56)
+
+
 def kiss_escape(data):
     """Real KISS substitution escaping. Order matters: FESC must be
     escaped before FEND, or a freshly-inserted FESC byte from escaping a
@@ -193,22 +203,71 @@ class WiFiSerialInterface(Interface):
         # it never shows in the public status (/hw.json).
         self.bt = {"pin": None, "at": 0, "asked": None, "heard": []}
 
+        self._pending = None          # (socket, address, started) while connecting
         try:
             self._connect()
         except Exception as e:
             self.hw["error"] = str(e)
             log("WiFi Serial initial connect failed: " + str(e), LOG_ERROR)
 
+    # The connect never holds the Stump: started here without blocking,
+    # finished by poll_loop when the socket says it's through. A blocking
+    # connect to a Heltec that isn't there (off, not yet set up) waited
+    # for TCP's own give-up, 4 to 20 s with the whole Stump frozen: no
+    # page, no captive portal (measured on a WROVER, beta.56). The ESP32's
+    # MicroPython doesn't apply settimeout() to connect().
+    CONNECT_WAIT_S = 3
+
     def _connect(self):
+        """Starts connecting; _connect_step() finishes it."""
         _doing("connecting to the Heltec at %s" % self.target_host)
         addr_info = socket.getaddrinfo(self.target_host, self.target_port)
         addr = addr_info[0][-1]
-
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.settimeout(self.CONNECT_TIMEOUT)
-        s.connect(addr)
-        s.settimeout(0)
+        s.setblocking(False)
+        try:
+            s.connect(addr)
+        except OSError as e:
+            if _errno(e) not in _IN_PROGRESS:
+                s.close()
+                raise
+        self._pending = (s, addr, time.ticks_ms() if hasattr(time, "ticks_ms") else int(time.time() * 1000))
 
+    def _connect_step(self):
+        """True once connected, False while still trying; raises when it
+        failed (refused, unreachable, CONNECT_WAIT_S gone by)."""
+        s, addr, t0 = self._pending
+        import select
+        p = select.poll()
+        p.register(s, select.POLLOUT | select.POLLERR | select.POLLHUP)
+        ev = p.poll(0)
+        if ev:
+            flags = ev[0][1]
+            try:
+                s.connect(addr)            # through, or why not
+            except OSError as e:
+                n = _errno(e)
+                if n not in _CONNECTED:
+                    if n in _IN_PROGRESS and not (flags & (select.POLLERR | select.POLLHUP)):
+                        ev = None
+                    else:
+                        self._pending = None
+                        s.close()
+                        raise
+            if ev:
+                self._pending = None
+                self._connected(s)
+                return True
+        now = time.ticks_ms() if hasattr(time, "ticks_ms") else int(time.time() * 1000)
+        waited = time.ticks_diff(now, t0) if hasattr(time, "ticks_diff") else now - t0
+        if waited > self.CONNECT_WAIT_S * 1000:
+            self._pending = None
+            s.close()
+            raise OSError(116, "ETIMEDOUT: no answer from %s:%s in %d s"
+                          % (self.target_host, self.target_port, self.CONNECT_WAIT_S))
+        return False
+
+    def _connected(self, s):
         try:
             s.setsockopt(socket.IPPROTO_TCP, 1, 1)  # TCP_NODELAY
         except:
@@ -276,6 +335,12 @@ class WiFiSerialInterface(Interface):
             self.online = False
 
     def _close_socket(self):
+        if getattr(self, "_pending", None) is not None:
+            try:
+                self._pending[0].close()
+            except Exception:
+                pass
+            self._pending = None
         if self._socket:
             try:
                 self._socket.close()
@@ -379,6 +444,13 @@ class WiFiSerialInterface(Interface):
             self._send_keepalive()
 
     def _reconnect(self):
+        if self._pending is not None:
+            try:
+                self._connect_step()
+            except Exception as e:
+                self.hw["error"] = str(e)
+                log("WiFi Serial connect failed: " + str(e), LOG_ERROR)
+            return
         now = time.time()
         # Backoff grows with consecutive failures, so a Heltec that
         # isn't there (wrong IP, powered off, never configured) costs a
@@ -544,7 +616,8 @@ class WiFiSerialInterface(Interface):
         while self.enabled:
             if not self.online:
                 self._reconnect()
-                await asyncio.sleep(1)
+                # Connecting: looked at often; otherwise once a second.
+                await asyncio.sleep(0.05 if self._pending is not None else 1)
                 continue
 
             try:
