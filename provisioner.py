@@ -5023,9 +5023,12 @@ def get_stump_ip(port, retries=3, retry_delay=2):
             sta_part = out.split("STA:", 1)[1].split(" AP:")[0].strip()
             ap_part = out.split("AP:", 1)[1].strip()
             if sta_part or ap_part:
+                # The query stopped the Stump (mpremote): start it again.
+                run(["mpremote", "connect", port, "reset"], timeout=15)
                 return {"sta": sta_part or None, "ap": ap_part or None}
         if attempt < retries - 1:
             time.sleep(retry_delay)
+    run(["mpremote", "connect", port, "reset"], timeout=15)
     return None
 
 
@@ -5342,6 +5345,14 @@ def diagnostics(port, board_type=None, interactive=True):
         print("\n" + bold(green("CERTIFIED FOR FIELD DEPLOYMENT")))
     else:
         print("\n" + bold(yellow("NOT CERTIFIED")) + " — resolve failures above before deploying.")
+    if board_type not in ("heltec", "heltec_transport"):
+        # mpremote stopped the Stump to ask its questions, and it stays
+        # stopped: started again here, or the board looks dead -- no page,
+        # no captive portal -- until someone presses EN (beta.56).
+        print("\n  Starting the Stump again (the checks stopped it)...")
+        ok, _ = run(["mpremote", "connect", port, "reset"], timeout=15)
+        print("  " + ("Restarted: give it about 40 s to come up." if ok else
+                      "Couldn't restart it over USB: press EN (or unplug and replug it)."))
     return results
 
 

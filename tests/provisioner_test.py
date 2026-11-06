@@ -757,4 +757,24 @@ with contextlib.redirect_stdout(io.StringIO()) as said:
 check('... 5 refused when joining number 5; the default is 6', prof["chain"]["subnet"] == 6
       and "number of the Stump it joins" in said.getvalue(), (prof, said.getvalue()[-300:]))
 check('... mpremote\'s "failed to access" is a busy port', P._port_busy("mpremote: failed to access /dev/cu.x (it may be in use by another program)"))
+# The checks stop the Stump (mpremote): it's started again after them
+_calls = []
+_rn = P.run
+P.run = lambda cmd, **k: _calls.append(cmd) or (True, "STA:192.168.4.3 AP:192.168.6.1")
+with contextlib.redirect_stdout(io.StringIO()):
+    got = P.get_stump_ip("/dev/fake")
+check('address lookup: the Stump started again after it', got == {"sta": "192.168.4.3", "ap": "192.168.6.1"}
+      and _calls[-1][-1] == "reset", _calls[-1:])
+_calls.clear()
+_sv3 = (P.sd_card_status, P.release_check)
+P.sd_card_status = lambda port: (True, "OK:mounted", False)
+P.release_check = lambda port, app_dir=None: (True, "same", "1.0.0-beta.56")
+with contextlib.redirect_stdout(io.StringIO()):
+    try:
+        P.diagnostics("/dev/fake", "cam", interactive=False)
+    except Exception as e:
+        _calls.append(["error", repr(e)])
+check('diagnostics: the Stump started again at the end', _calls and _calls[-1][-1] == "reset", _calls[-2:])
+P.run = _rn
+P.sd_card_status, P.release_check = _sv3
 print('FAILURES', FAIL)
