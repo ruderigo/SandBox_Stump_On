@@ -163,3 +163,39 @@ jobs:
         run: python tests/pc/conn_test.py
       - name: The watchdog and the rescue start (a frozen Stump, failed starts)
         run: python tests/pc/watchdog_test.py
+
+  # The same suite on a build with the Stump frozen in, the way a Stump
+  # image has it (image/README.md): the test tree holds only what such a
+  # board has on its filesystem (config.py, main.py, the plugin folders,
+  # web, lib); the Stump runs from the frozen modules.
+  frozen:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Packages
+        run: python3 -m pip install cryptography pyserial mpy-cross==1.28.0.post2
+
+      - name: MicroPython with the Stump frozen in
+        run: sh scripts/build_micropython_frozen.sh ~/micropython-frozen
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Playwright's Chromium (Arborist's test)
+        run: |
+          npm install --no-save --prefix "$HOME/pw" playwright@1.56.0
+          "$HOME/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$HOME/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Test suite, the Stump frozen
+        run: |
+          export MICROPYTHON=$HOME/micropython-frozen/micropython
+          export STUMP_FROZEN=1
+          python3 tests/run.py

@@ -132,6 +132,19 @@ _IN_PROGRESS = (119, 115, 36, 120, 114, 37, 11, 35)
 _CONNECTED = (127, 106, 56)
 
 
+def _sendall(sock, data):
+    """All of `data` out: sendall where the port has it (the ESP32's), a
+    loop of send() where it doesn't (the Unix port before late 2026, the
+    frozen test build)."""
+    f = getattr(sock, "sendall", None)
+    if f is not None:
+        return f(data)
+    mv = memoryview(data)
+    while mv:
+        n = sock.send(mv)
+        mv = mv[n:]
+
+
 def kiss_escape(data):
     """Real KISS substitution escaping. Order matters: FESC must be
     escaped before FEND, or a freshly-inserted FESC byte from escaping a
@@ -294,7 +307,7 @@ class WiFiSerialInterface(Interface):
         """One real KISS command frame: FEND + command + [escaped payload] + FEND."""
         frame = bytes([FEND, cmd_byte]) + kiss_escape(payload) + bytes([FEND])
         self._socket.settimeout(2)
-        self._socket.sendall(frame)
+        _sendall(self._socket, frame)
         self._socket.settimeout(0)
 
     def _init_radio(self):
@@ -367,7 +380,7 @@ class WiFiSerialInterface(Interface):
             # command-byte-aware parser before testing, not as a
             # symptom after.
             self._socket.settimeout(2)
-            self._socket.sendall(bytes([FEND, CMD_DATA, FEND]))
+            _sendall(self._socket, bytes([FEND, CMD_DATA, FEND]))
             self._socket.settimeout(0)
             self._last_activity = time.time()
         except Exception as e:
@@ -490,7 +503,7 @@ class WiFiSerialInterface(Interface):
             data = self.ifac_sign(data)
             frame = bytes([FEND, CMD_DATA]) + kiss_escape(data) + bytes([FEND])
             self._socket.settimeout(2)
-            self._socket.sendall(frame)
+            _sendall(self._socket, frame)
             self._socket.settimeout(0)
             self.txb += len(data)
             self.tx += 1

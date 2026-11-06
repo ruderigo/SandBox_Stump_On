@@ -269,7 +269,9 @@ builtins.input = fake_input
 saved = {n: getattr(P, n) for n in ("check_tools", "resolve_path", "choose_board", "config_wizard",
                                     "flash_cam_micropython", "upload_stump_app", "push_config_to_board",
                                     "install_packs", "run", "get_stump_ip", "diagnostics", "keep_awake",
-                                    "pick_board_firmware", "network_check")}
+                                    "pick_board_firmware", "network_check", "board_image")}
+P.board_image = lambda port: None                        # a board without the image
+P.run = lambda *a, **k: (True, "")
 P.network_check = lambda port, prof, addrs=None, **k: calls.append("reach") or (True, "its page answers", "http://192.168.0.161/")
 P.pick_board_firmware = lambda port, path=None: calls.append("image") or ("esp32", fw / "main.py")
 _cfg_dir = P.CONFIG_OUT_DIR
@@ -280,12 +282,12 @@ P.choose_board = lambda role=None: "/dev/fake-cam"
 def fake_wizard(role):
     calls.append("wizard"); return {"node_name": "t", "wifi_ssid": "", "packs": []}, None
 P.config_wizard = fake_wizard
-def flash(port, image=None, chip=None): phase[0] = "auto"; calls.append("flash"); return True, port
+def flash(port, image=None, chip=None, erase=True): phase[0] = "auto"; calls.append("flash"); return True, port
 P.flash_cam_micropython = flash
 P.upload_stump_app = lambda port, app_dir=None: calls.append("upload") or True
 P.push_config_to_board = lambda port, role, prof: calls.append("push") or True
 P.install_packs = lambda *a: True
-P.run = lambda *a, **k: None
+P.run = lambda *a, **k: (True, "")
 P.get_stump_ip = lambda port: {"sta": "192.168.0.161", "ap": "192.168.4.1"}
 P.diagnostics = lambda port, role=None, interactive=True, final=True: calls.append("diag") or {"serial": True}
 P.keep_awake = lambda: True
@@ -809,4 +811,53 @@ check("reach: page from here and the Heltec connected: a pass, with the address 
 check("reach: the Heltec not connected: not a pass, with its error", not r4[0] and "Heltec isn't connected" in r4[1] and "7633" in r4[1], r4)
 check("reach: another Stump at that address: not a pass", not r5[0] and "another Stump" in r5[1], r5)
 check("reach: no answer: not a pass", not r6[0] and "doesn't answer" in r6[1], r6)
+# A Stump image (image/README.md): the board says what it froze in, the
+# release comes from it, the upload skips those modules and clears stale
+# copies, and the partition tag the Provisioner carries is the table's
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "image"))
+import stage as _stage
+check('image: the Provisioner\'s partition tag is image/partitions-stump.csv\'s', P.STUMP_IMAGE_PARTITIONS == _stage.partitions_tag(),
+      (P.STUMP_IMAGE_PARTITIONS, _stage.partitions_tag()))
+_fz = _stage.frozen_modules()
+check('image: what\'s frozen is the Stump\'s modules, not config.py or main.py', "barkeep.py" in _fz and "urns/lxmf.py" in _fz
+      and "config.py" not in _fz and "main.py" not in _fz and not any(f.startswith(("fservbot/", "stumpid/")) for f in _fz), _fz[:5])
+_rn = P.run
+_sent = []
+P.run = lambda cmd, **k: _sent.append(cmd[-1]) or (True, 'IMAGE:{"release": "1.0.0-beta.56", "partitions": "%s", "frozen": ["barkeep.py", "urns/lxmf.py"]}' % P.STUMP_IMAGE_PARTITIONS)
+img = P.board_image("/dev/fake")
+check('image: the board\'s image read', img and img["release"] == "1.0.0-beta.56" and img["frozen"] == ["barkeep.py", "urns/lxmf.py"], img)
+P.run = lambda cmd, **k: (True, "IMAGE:none")
+check('image: a board without one', P.board_image("/dev/fake") is None)
+P.run = lambda cmd, **k: (True, "STUMP_RELEASE:1.0.0-beta.56") if "stump_image" in cmd[-1] else (True, "")
+check('image: the release read from it', P.board_release("/dev/fake") == "1.0.0-beta.56")
+_sent.clear()
+P.run = lambda cmd, **k: _sent.append(cmd[-1]) or (True, "REMOVED:3")
+with contextlib.redirect_stdout(io.StringIO()):
+    n = P._remove_stale_frozen("/dev/fake", ["barkeep.py", "urns/lxmf.py", "urns/interfaces/udp.py"])
+check('image: stale copies and empty package folders removed, deepest first', n == 3 and "'urns/interfaces'" in _sent[0]
+      and _sent[0].index("'urns/interfaces'") < _sent[0].index("'urns'"), _sent[0][-200:])
+P.run = _rn
+# The firmware question: in place on a board with this release's layout; erase otherwise
+_bi, _pb, _ac = P.board_image, P.pick_board_firmware, P.ask_choice
+P.pick_board_firmware = lambda port, path=None: ("esp32", Path("/x/stump-1.0.0-beta.56-wrover.bin"))
+seen = []
+P.ask_choice = lambda q, opts: seen.append(opts) or opts[0]
+P.board_image = lambda port: {"release": "1.0.0-beta.55", "partitions": P.STUMP_IMAGE_PARTITIONS, "frozen": []}
+with contextlib.redirect_stdout(io.StringIO()):
+    got = P.ask_flash("/dev/fake")
+check('image: same layout: update in place offered first, settings kept', got[0] and got[1] and len(seen[0]) == 3 and seen[0][0].startswith("Update"), (got, seen))
+seen.clear()
+P.board_image = lambda port: {"release": "1.0.0-beta.55", "partitions": "stump-old", "frozen": []}
+with contextlib.redirect_stdout(io.StringIO()):
+    got = P.ask_flash("/dev/fake")
+check('image: another layout: erase, no in-place update', got[0] and not got[1] and len(seen[0]) == 2 and seen[0][0].startswith("Put"), (got, seen))
+seen.clear()
+P.board_image = lambda port: None
+P.ask_choice = lambda q, opts: seen.append(opts) or opts[-1]
+with contextlib.redirect_stdout(io.StringIO()):
+    got = P.ask_flash("/dev/fake")
+check('image: nothing flashed when asked', got == (False, False, None, None), got)
+P.board_image, P.pick_board_firmware, P.ask_choice = _bi, _pb, _ac
+check('image: the release URL and markers', P.stump_image_url("esp32", "1.0.0-beta.56").endswith("/v1.0.0-beta.56/stump-1.0.0-beta.56-wrover.bin")
+      and P.stump_image_markers("esp32s3", "1.0.0-beta.56") == ("stump-1.0.0-beta.56-s3cam",))
 print('FAILURES', FAIL)

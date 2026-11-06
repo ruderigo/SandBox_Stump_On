@@ -1,0 +1,11 @@
+# Project Stump: the application partition is 3 MiB (MicroPython 1.7 MiB
+# plus the Stump's code frozen into it, ~0.9 MiB), from 0x10000. No vfs
+# partition: MicroPython's ESP32 port makes one from the end of the
+# application to the end of flash at boot (ports/esp32/main.c), so the
+# filesystem is 1 MiB on a 4 MiB WROVER and 5 MiB on an 8 MiB S3-CAM.
+# Changing this table (a new "partitions" tag in stump_image.py) means an
+# erase: the Provisioner then asks the setup questions again.
+# Name,   Type, SubType, Offset,  Size, Flags
+nvs,      data, nvs,     0x9000,  0x6000,
+phy_init, data, phy,     0xf000,  0x1000,
+factory,  app,  factory, 0x10000, 0x2F0000,

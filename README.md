@@ -315,6 +315,8 @@ there, the About page's Android card says "Not on this Stump yet".
 provisioner.py               technician deployment tool (runs on a laptop): flashes,
                               uploads, configures and diagnoses three board roles
 packs/                       plugin packs the Provisioner offers (tavern, rnfs) -- docs/PACKS.md
+image/                       the Stump image: MicroPython with the Stump frozen in, one per
+                              board, built by CI and attached to each release (image/README.md)
 pc/                          Stump on a computer: stump_pc.py and the stand-ins that run
                               the firmware on regular Python (provisioner.py --pc, docs/PC.md)
 tests/                       the test suite: python3 tests/run.py (tests/README.md)

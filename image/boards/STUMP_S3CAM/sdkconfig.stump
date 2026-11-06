@@ -1,0 +1,5 @@
+# Project Stump image: the partition table with the big application
+# partition (image/partitions-stump.csv, copied into ports/esp32 by
+# image/build.sh).
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions-stump.csv"

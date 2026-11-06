@@ -27,6 +27,7 @@ check("... and under LOW_BYTES free, whatever the share", mem.low())
 mem.LOW_FRACTION, mem.LOW_BYTES = 0.25, 96 * 1024
 # The per-packet places call it, not gc.collect (a chain secret's sign and check)
 import urns.interfaces as ifs, urns.transport as tr
-src = open("urns/interfaces/__init__.py").read() + open("urns/transport.py").read()
+_fw = sys.argv[1] + "/../../final_firmware/"
+src = open(_fw + "urns/interfaces/__init__.py").read() + open(_fw + "urns/transport.py").read()
 check("the chain secret's sign and check no longer force one", "gc.collect()" not in src.replace("# ", ""), "")
 print('FAILURES:', FAIL)
