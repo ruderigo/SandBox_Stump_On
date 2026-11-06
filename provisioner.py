@@ -4111,12 +4111,14 @@ def config_wizard(board_type):
             )
             standalone_pair = pairing.startswith("A CAM's")
             if standalone_pair:
-                print("\nThe CAM's own hotspot is open (no password) by design -- nothing")
-                print("to enter for that. Its own address is always 192.168.4.1, so this")
-                print("Heltec needs a DIFFERENT address in that same 192.168.4.x range.")
-                ssid = ask_wifi("  The CAM's hotspot name (its Node name, or custom SSID)", "")
+                print("\nThe Stump's own hotspot is open (no password) by design -- nothing")
+                print("to enter for that. Its address is 192.168.4.1 (a Stump in a chain:")
+                print("192.168.<its number>.1, at the end of its hotspot's name), and this")
+                print("Heltec takes a fixed one in that range, past what phones are given.")
+                ssid = ask_wifi("  The Stump's hotspot name (as its Provisioner run printed it)", "")
                 psk = ""
-                default_ip = "192.168.4.2"
+                n = _uplink_number(ssid) or 4
+                default_ip = "192.168.%d.%d" % (n, HELTEC_ON_HOTSPOT)
             else:
                 ssid = ask_wifi("  WiFi network for the Heltec to join", "")
                 psk = "" if wifi_is_open(ssid) else ask("  WiFi password", "")
@@ -4354,7 +4356,8 @@ def config_wizard(board_type):
                  "This CAM's own hotspot (standalone pair, no router)"],
             )
             standalone_pair = pairing.startswith("This CAM's")
-            default_bridge_ip = (_ap_ip(profile).rsplit(".", 1)[0] + ".2") if standalone_pair else "192.168.0.222"
+            profile["heltec_on_hotspot"] = standalone_pair
+            default_bridge_ip = (_ap_ip(profile).rsplit(".", 1)[0] + "." + str(HELTEC_ON_HOTSPOT)) if standalone_pair else "192.168.0.222"
             if standalone_pair and not profile.get("ssid_name"):
                 # The Heltec joins the hotspot by its name, and every Stump
                 # left on the default name has the same one: with two
@@ -4544,6 +4547,13 @@ def config_wizard(board_type):
     return profile, out_path
 
 
+# The Heltec's fixed address on its Stump's hotspot: past the addresses the
+# hotspot hands out to phones (ESP-IDF's DHCP server: .2 to .101). It was
+# .2, the first phone's address too (beta.56: a Mac got 192.168.6.2, the
+# Heltec's address, before the Heltec was on).
+HELTEC_ON_HOTSPOT = 200
+
+
 def _ap_ip(profile):
     """This Stump's own hotspot address: 192.168.<its chain number>.1."""
     chain = profile.get("chain") or {}
@@ -4591,9 +4601,14 @@ def _per_board(profile):
     if profile.get("heltec_enabled") and str(profile.get("heltec_host", "")).startswith("192.168."):
         h = profile["heltec_host"].split(".")
         a = _ap_ip(profile).split(".")
-        if h[2] != a[2] and h[2] != "0":
-            # The Heltec on this Stump's own hotspot: in its range.
-            profile["heltec_host"] = ".".join(a[:3] + [h[3]])
+        # Saved before beta.56 without the flag: the Heltec was on a Stump
+        # hotspot when its address was one (192.168.4.x up).
+        on_hotspot = profile.get("heltec_on_hotspot", h[2] == a[2] or int(h[2]) >= 4)
+        if on_hotspot:
+            # The Heltec on this Stump's own hotspot: in its range, and
+            # out of the addresses the hotspot hands out (.2 to .101).
+            last = h[3] if not (2 <= int(h[3]) <= 101) else str(HELTEC_ON_HOTSPOT)
+            profile["heltec_host"] = ".".join(a[:3] + [last])
     ssid = preview_ssid(profile.get("ssid_name"), _ap_ip(profile), profile.get("ssid_include_ip", False))[0]
     print("  Its hotspot: %s, at %s" % (bold(ssid), _ap_ip(profile)))
     if profile.get("heltec_enabled"):
@@ -5023,9 +5038,12 @@ def get_stump_ip(port, retries=3, retry_delay=2):
             sta_part = out.split("STA:", 1)[1].split(" AP:")[0].strip()
             ap_part = out.split("AP:", 1)[1].strip()
             if sta_part or ap_part:
+                # The query stopped the Stump (mpremote): start it again.
+                run(["mpremote", "connect", port, "reset"], timeout=15)
                 return {"sta": sta_part or None, "ap": ap_part or None}
         if attempt < retries - 1:
             time.sleep(retry_delay)
+    run(["mpremote", "connect", port, "reset"], timeout=15)
     return None
 
 
@@ -5342,6 +5360,14 @@ def diagnostics(port, board_type=None, interactive=True):
         print("\n" + bold(green("CERTIFIED FOR FIELD DEPLOYMENT")))
     else:
         print("\n" + bold(yellow("NOT CERTIFIED")) + " — resolve failures above before deploying.")
+    if board_type not in ("heltec", "heltec_transport"):
+        # mpremote stopped the Stump to ask its questions, and it stays
+        # stopped: started again here, or the board looks dead -- no page,
+        # no captive portal -- until someone presses EN (beta.56).
+        print("\n  Starting the Stump again (the checks stopped it)...")
+        ok, _ = run(["mpremote", "connect", port, "reset"], timeout=15)
+        print("  " + ("Restarted: give it about 40 s to come up." if ok else
+                      "Couldn't restart it over USB: press EN (or unplug and replug it)."))
     return results
 
 

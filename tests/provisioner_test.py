@@ -728,13 +728,13 @@ check('hotspot preview: a name of its own and the address, as the board writes i
 # number asked again, the Heltec moved into its range
 prof = {"node_name": "Wrover", "board_type": "cam", "ssid_name": "Wrover", "ssid_include_ip": True,
         "chain": {"enabled": True, "uplink_ssid": "Souche 192.168.4.1", "subnet": 5},
-        "heltec_enabled": True, "heltec_host": "192.168.5.2"}
+        "heltec_enabled": True, "heltec_host": "192.168.5.2", "heltec_on_hotspot": True}
 answers("Wrover2", "", "6")
 with contextlib.redirect_stdout(io.StringIO()) as said:
     prof = P._per_board(prof)
 check('settings for another board: its own name, hotspot, chain number; the Heltec follows',
       prof["node_name"] == "Wrover2" and prof["ssid_name"] == "Wrover2" and prof["chain"]["subnet"] == 6
-      and prof["heltec_host"] == "192.168.6.2" and "Wrover2 192.168.6.1" in said.getvalue(), (prof, said.getvalue()))
+      and prof["heltec_host"] == "192.168.6.200" and "Wrover2 192.168.6.1" in said.getvalue(), (prof, said.getvalue()))
 # The port held by another program (a `screen` left running): said, with who
 _rs = P.subprocess.run
 class _R:
@@ -757,4 +757,30 @@ with contextlib.redirect_stdout(io.StringIO()) as said:
 check('... 5 refused when joining number 5; the default is 6', prof["chain"]["subnet"] == 6
       and "number of the Stump it joins" in said.getvalue(), (prof, said.getvalue()[-300:]))
 check('... mpremote\'s "failed to access" is a busy port', P._port_busy("mpremote: failed to access /dev/cu.x (it may be in use by another program)"))
+# The checks stop the Stump (mpremote): it's started again after them
+_calls = []
+_rn = P.run
+P.run = lambda cmd, **k: _calls.append(cmd) or (True, "STA:192.168.4.3 AP:192.168.6.1")
+with contextlib.redirect_stdout(io.StringIO()):
+    got = P.get_stump_ip("/dev/fake")
+check('address lookup: the Stump started again after it', got == {"sta": "192.168.4.3", "ap": "192.168.6.1"}
+      and _calls[-1][-1] == "reset", _calls[-1:])
+_calls.clear()
+_sv3 = (P.sd_card_status, P.release_check)
+P.sd_card_status = lambda port: (True, "OK:mounted", False)
+P.release_check = lambda port, app_dir=None: (True, "same", "1.0.0-beta.56")
+with contextlib.redirect_stdout(io.StringIO()):
+    try:
+        P.diagnostics("/dev/fake", "cam", interactive=False)
+    except Exception as e:
+        _calls.append(["error", repr(e)])
+check('diagnostics: the Stump started again at the end', _calls and _calls[-1][-1] == "reset", _calls[-2:])
+P.run = _rn
+P.sd_card_status, P.release_check = _sv3
+prof = {"node_name": "Home", "board_type": "cam", "heltec_enabled": True, "heltec_host": "192.168.1.50",
+        "heltec_on_hotspot": False, "chain": {"enabled": True, "uplink_ssid": "Souche 192.168.4.1", "subnet": 6}}
+answers("", "")
+with contextlib.redirect_stdout(io.StringIO()):
+    prof = P._per_board(prof)
+check('... a Heltec on the home Wi-Fi keeps its address', prof["heltec_host"] == "192.168.1.50", prof)
 print('FAILURES', FAIL)
