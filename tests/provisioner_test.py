@@ -746,4 +746,15 @@ with contextlib.redirect_stdout(io.StringIO()) as said:
 check('... said, not a cable fault', "screen (pid 812)" in said.getvalue() and "Not a cable fault" in said.getvalue(), said.getvalue())
 check('... esptool\'s "Resource busy" is known', P._port_busy("[Errno 16] Resource busy: '/dev/cu.usbserial-120'"))
 P.subprocess.run = _rs
+# A chain number never the one of the Stump it joins
+check('chain: the number in a Stump hotspot\'s name', P._uplink_number("LaBuche1 192.168.5.1") == 5
+      and P._uplink_number("LaBuche-Stump.web.app") is None and P._uplink_number("Souche 192.168.4.1") is None)
+prof = {"node_name": "LaBucheB", "board_type": "cam", "ssid_name": "LaBucheB", "ssid_include_ip": True,
+        "chain": {"enabled": True, "uplink_ssid": "LaBuche1 192.168.5.1", "subnet": 5}}
+answers("", "", "5", "")                   # name, hotspot kept; 5 refused; then the default
+with contextlib.redirect_stdout(io.StringIO()) as said:
+    prof = P._per_board(prof)
+check('... 5 refused when joining number 5; the default is 6', prof["chain"]["subnet"] == 6
+      and "number of the Stump it joins" in said.getvalue(), (prof, said.getvalue()[-300:]))
+check('... mpremote\'s "failed to access" is a busy port', P._port_busy("mpremote: failed to access /dev/cu.x (it may be in use by another program)"))
 print('FAILURES', FAIL)
