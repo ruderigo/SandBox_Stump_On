@@ -1,5 +1,10 @@
 # µReticulum Interface Base Class
 
+try:
+    from keepalive import doing as _doing
+except ImportError:
+    def _doing(label):
+        pass
 import time
 from ..log import log, LOG_VERBOSE, LOG_DEBUG, LOG_ERROR
 
@@ -98,6 +103,7 @@ class Interface:
         self._last_activity = time.time()
 
         from ..transport import Transport
+        _doing("a packet from " + self.name)
         Transport.inbound(data, self)
 
     def ifac_sign(self, data):

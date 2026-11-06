@@ -63,6 +63,11 @@
 # and this file's own held clean TCP sessions). Only the protocol riding
 # on top of it was wrong.
 
+try:
+    from keepalive import doing as _doing
+except ImportError:
+    def _doing(label):
+        pass
 import time
 import socket
 from . import Interface
@@ -195,6 +200,7 @@ class WiFiSerialInterface(Interface):
             log("WiFi Serial initial connect failed: " + str(e), LOG_ERROR)
 
     def _connect(self):
+        _doing("connecting to the Heltec at %s" % self.target_host)
         addr_info = socket.getaddrinfo(self.target_host, self.target_port)
         addr = addr_info[0][-1]
 

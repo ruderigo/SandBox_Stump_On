@@ -26,6 +26,11 @@
 #                               # the Wi-Fi it joined (WIFI_SSID), so a computer on
 #                               # the same home network joins without switching Wi-Fi
 
+try:
+    from keepalive import doing as _doing
+except ImportError:
+    def _doing(label):
+        pass
 import time
 
 DEFAULT_SUBNET = 4
@@ -328,6 +333,7 @@ async def watch_loop(rns):
     started = time.time()
     while True:
         await asyncio.sleep(15)
+        _doing("the chain watch")
         up = _state["uplink"]
         now = time.time()
         if stump_host is not None and up is not None:

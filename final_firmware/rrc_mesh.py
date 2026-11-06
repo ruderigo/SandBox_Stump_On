@@ -5,6 +5,11 @@
 # MeshCommander (or any LXMF-capable) peer can participate in the room
 # as a named user alongside the local walk-up crowd.
 
+try:
+    from keepalive import doing as _doing
+except ImportError:
+    def _doing(label):
+        pass
 import time
 import rrc
 import i18n
@@ -1658,6 +1663,7 @@ async def poll_loop(router):
 
     while True:
         await asyncio.sleep(5)
+        _doing("the chat bridge (mesh sends)")
         try:
             # Primed ONCE per cycle, before whatever sends this cycle is
             # about to make -- not once per individual send, which would

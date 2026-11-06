@@ -2,6 +2,11 @@
 # Wire-compatible with reference LXMF for MeshChat/Sideband interop
 # Supports opportunistic (single-packet) and direct (link) message delivery
 
+try:
+    from keepalive import doing as _doing
+except ImportError:
+    def _doing(label):
+        pass
 import time, sys
 from . import umsgpack
 from .identity import Identity
@@ -587,6 +592,7 @@ class LXMRouter:
         Returns the LXMessage when sent/started, True when queued pending a path,
         or None on hard failure (reachable but identity still unknown).
         """
+        _doing("sending an LXMF message")
         from .transport import Transport
 
         if via is not None:

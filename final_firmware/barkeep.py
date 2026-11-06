@@ -11,6 +11,11 @@
 # for exactly the people this is built for. Every style below is a
 # system font stack or plain CSS, nothing fetched.
 
+try:
+    from keepalive import doing as _doing
+except ImportError:
+    def _doing(label):
+        pass
 import os
 import ujson as json
 import uasyncio as asyncio
@@ -3268,6 +3273,7 @@ async def _serve(reader, writer, secure=False):
             await _send(writer, "400 Bad Request", "Malformed request.", "text/plain")
             return
         method, path = parts[0], parts[1]
+        _doing("web " + method + " " + path.split("?")[0][:40])
         if path.startswith("/admin"):
             try:
                 writer._stump_no_store = True      # see _send
