@@ -760,10 +760,14 @@ check('... mpremote\'s "failed to access" is a busy port', P._port_busy("mpremot
 # The checks stop the Stump (mpremote): it's started again after them
 _calls = []
 _rn = P.run
-P.run = lambda cmd, **k: _calls.append(cmd) or (True, "STA:192.168.4.3 AP:192.168.6.1")
+P.run = lambda cmd, **k: _calls.append(cmd) or (True, "SSID:LaBuche-Stump.web.app\nSTA:192.168.4.3 AP:192.168.6.1")
 with contextlib.redirect_stdout(io.StringIO()):
     got = P.get_stump_ip("/dev/fake")
-check('address lookup: the Stump started again after it', got == {"sta": "192.168.4.3", "ap": "192.168.6.1"}
+with contextlib.redirect_stdout(io.StringIO()) as said:
+    P._print_discovered_addrs(got)
+check('address lookup: a chain member\'s Wi-Fi said to be the Stump above\'s hotspot',
+      "LaBuche-Stump.web.app" in said.getvalue() and "not your home" in said.getvalue(), said.getvalue())
+check('address lookup: the Stump started again after it', got == {"sta": "192.168.4.3", "ap": "192.168.6.1", "ssid": "LaBuche-Stump.web.app"}
       and _calls[-1][-1] == "reset", _calls[-1:])
 _calls.clear()
 _sv3 = (P.sd_card_status, P.release_check)

@@ -4994,9 +4994,18 @@ def _print_discovered_addrs(addrs, wifi_ssid=None):
     easily that gets lost in a wall of otherwise-identical plain text.
     """
     if addrs.get("sta"):
-        label = f" (from '{wifi_ssid}')" if wifi_ssid else ""
+        ssid = addrs.get("ssid") or wifi_ssid
+        label = f" (from '{ssid}')" if ssid else ""
         print(bold(f"LAN IP{label}: ") + bold(green(addrs["sta"])))
-        print("  -- reachable from anyone else on that same network:")
+        sta = addrs["sta"].split(".")
+        if sta[:2] == ["192", "168"] and sta[2].isdigit() and int(sta[2]) >= 4 and sta[3] != "1":
+            # In a chain the Wi-Fi it joined is the Stump above's hotspot,
+            # not the home network (beta.56: a laptop on the home Wi-Fi
+            # couldn't open 192.168.4.3 and took it for a fault).
+            print("  -- that's the hotspot of the Stump it joins (a chain), not your home")
+            print("     Wi-Fi: open it from a device on that hotspot, or on this Stump's own.")
+        else:
+            print("  -- reachable from anyone else on that same network:")
         print("     " + cyan(f"http://{addrs['sta']}/billboard"))
     if addrs.get("ap"):
         print(bold("AP IP (node's own hotspot): ") + bold(green(addrs["ap"])))
@@ -5029,6 +5038,11 @@ def get_stump_ip(port, retries=3, retry_delay=2):
         "ap = network.WLAN(network.AP_IF)\n"
         "sta_ip = sta.ifconfig()[0] if sta.active() and sta.isconnected() else ''\n"
         "ap_ip = ap.ifconfig()[0] if ap.active() else ''\n"
+        "try:\n"
+        "    ss = sta.config('essid') if sta_ip else ''\n"
+        "except Exception:\n"
+        "    ss = ''\n"
+        "print('SSID:' + ss)\n"
         "print('STA:' + sta_ip + ' AP:' + ap_ip)\n"
     )
     for attempt in range(retries):
@@ -5036,11 +5050,12 @@ def get_stump_ip(port, retries=3, retry_delay=2):
         out = out.strip()
         if "STA:" in out and "AP:" in out:
             sta_part = out.split("STA:", 1)[1].split(" AP:")[0].strip()
-            ap_part = out.split("AP:", 1)[1].strip()
+            ap_part = out.split("AP:", 1)[1].strip().splitlines()[0].strip()
+            ssid = out.split("SSID:", 1)[1].splitlines()[0].strip() if "SSID:" in out else ""
             if sta_part or ap_part:
                 # The query stopped the Stump (mpremote): start it again.
                 run(["mpremote", "connect", port, "reset"], timeout=15)
-                return {"sta": sta_part or None, "ap": ap_part or None}
+                return {"sta": sta_part or None, "ap": ap_part or None, "ssid": ssid or None}
         if attempt < retries - 1:
             time.sleep(retry_delay)
     run(["mpremote", "connect", port, "reset"], timeout=15)
