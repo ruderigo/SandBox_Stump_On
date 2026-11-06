@@ -1651,6 +1651,25 @@ def _send_item(item):
         print("[rrc_mesh] send error:", e)
 
 
+_gc_said = [0, 0]
+
+
+def _gc_ms(ms):
+    """How long a memory clean-up takes on this board, said when slow
+    (at most once a minute): every packet on a chain with a secret
+    forces one (urns), so a slow one slows the whole Stump."""
+    now = time.time()
+    if ms > 300 and now - _gc_said[0] > 60:
+        _gc_said[0] = now
+        try:
+            import gc
+            used = gc.mem_alloc() // 1024
+        except Exception:
+            used = -1
+        print("[mem] a memory clean-up took %d ms (%d KB in use)" % (ms, used))
+    _gc_said[1] = max(_gc_said[1], ms)
+
+
 async def poll_loop(router):
     """Drain _send_queue and push pending room messages to subscribed peers."""
     import uasyncio as asyncio
@@ -1685,6 +1704,7 @@ async def poll_loop(router):
                 h, text = _notices.pop(0)
                 _send_queue.append((router, bytes.fromhex(h), text))
             while _send_queue:
+                _doing("the chat bridge: a message out")
                 _send_item(_send_queue.pop(0))
                 await asyncio.sleep(0)
 
@@ -1700,6 +1720,7 @@ async def poll_loop(router):
             # and exactly as reachable by /msg as they are live on the
             # mesh, no more and no less.
             try:
+                _doing("the chat bridge: the chain's Stumps")
                 _take_in_chain_stumps(router)
             except Exception as e:
                 print("[rrc_mesh] chain peers:", e)
@@ -1721,25 +1742,33 @@ async def poll_loop(router):
                     r["nick"] = peer["nick"]
                     rrc.set_reachable(dest_hash_hex, peer["nick"])
 
+            _doing("the chat bridge: the radio's turn")
             lora_tick(now)
             for h, r in list(_reach.items()):
                 if h not in _peers and not _lora_waits():
+                    _doing("the chat bridge: direct messages for " + (r.get("nick") or h[:8]))
                     _deliver_reach_dms(router, h, r)
                     # Sent now, same as the room-peer loop below -- left
                     # queued, it waited a whole extra 5-second cycle.
                     while _send_queue:
+                        _doing("the chat bridge: a message out")
                         _send_item(_send_queue.pop(0))
                         await asyncio.sleep(0)
 
             for dest_hash_hex, peer in list(_peers.items()):
                 if _lora_waits() and not peer.get("stump"):
                     continue        # a LoRa person: their lines wait for the radio (lora_tick)
+                _doing("the chat bridge: lines for " + (peer.get("nick") or dest_hash_hex[:8]))
                 _flush_to_peer(router, dest_hash_hex, peer)
                 while _send_queue:
+                    _doing("the chat bridge: a message out to " + (peer.get("nick") or dest_hash_hex[:8]))
                     _send_item(_send_queue.pop(0))
                     await asyncio.sleep(0)
 
+            _doing("the chat bridge: a memory clean-up")
+            t0 = time.ticks_ms()
             gc.collect()
+            _gc_ms(time.ticks_diff(time.ticks_ms(), t0))
 
         except Exception as e:
             print("[rrc_mesh] poll_loop error:", e)

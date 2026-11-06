@@ -928,6 +928,8 @@ class Transport:
             import gc
             from .crypto.hkdf import hkdf
 
+            from .interfaces import _ticks, slow_ifac
+            t0 = _ticks()
             # Extract IFAC (not masked on wire)
             ifac = raw[2:2 + isz]
 
@@ -949,6 +951,7 @@ class Transport:
             # Verify signature
             expected_ifac = interface.ifac_signing_key.sign(new_raw)[-isz:]
             gc.collect()
+            slow_ifac("checking a packet from " + interface.name, t0)
 
             if ifac == expected_ifac:
                 if sl(LOG_DEBUG):
