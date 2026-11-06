@@ -5103,7 +5103,8 @@ def get_stump_ip(port, retries=3, retry_delay=2):
         out = out.strip()
         if "STA:" in out and "AP:" in out:
             sta_part = out.split("STA:", 1)[1].split(" AP:")[0].strip()
-            ap_part = out.split("AP:", 1)[1].strip().splitlines()[0].strip()
+            ap_lines = out.split("AP:", 1)[1].strip().splitlines()
+            ap_part = ap_lines[0].strip() if ap_lines else ""       # no hotspot yet: "AP:" and nothing
             ssid = out.split("SSID:", 1)[1].splitlines()[0].strip() if "SSID:" in out else ""
             if sta_part or ap_part:
                 # The query stopped the Stump (mpremote): start it again.

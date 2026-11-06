@@ -802,4 +802,11 @@ check('chain over the home Wi-Fi: CHAIN_PARENT_IP written', ns.get("CHAIN_PARENT
 check('summary: a chain member\'s address named for the Stump above\'s Wi-Fi',
       P._sta_note({"sta": "192.168.4.3", "ssid": "LaBuche-Stump.web.app"}) == ("Via the chain", "http://192.168.4.3/ on LaBuche-Stump.web.app")
       and P._sta_note({"sta": "192.168.0.179", "ssid": "Bob's Glitch"})[0] == "On the Wi-Fi")
+# Its hotspot not up yet ("AP:" and nothing): no crash (beta.56)
+_rn = P.run
+P.run = lambda cmd, **k: (True, "SSID:Bob's Glitch\nSTA:192.168.0.120 AP:")
+with contextlib.redirect_stdout(io.StringIO()):
+    got = P.get_stump_ip("/dev/fake", retries=1)
+P.run = _rn
+check('address lookup: no hotspot yet, no crash', got == {"sta": "192.168.0.120", "ap": None, "ssid": "Bob's Glitch"}, got)
 print('FAILURES', FAIL)
