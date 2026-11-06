@@ -348,11 +348,11 @@ EXPECTED_FILE_HASHES = {
     "_sd_web/billboard.txt": "e3b0c44298fc1c14",
     "admin_web.py": "693b5c87fbf02cd0",
     "announcer.py": "555c52b729947a67",
-    "barkeep.py": "ccb4660428ec3824",
+    "barkeep.py": "7ea84804f1f58604",
     "billboard.py": "73e95795f9430ea5",
     "boot_common.py": "dc95827c3989d1ca",
     "captive_portal.py": "35cb3a279ecc42db",
-    "chain.py": "465cfed4657ce70f",
+    "chain.py": "a42ee7e8b56d3887",
     "config.py": "60def0b5e9761110",
     "conn.py": "b17cf4fb4f80fbbf",
     "discovery.py": "c1808c59c1452dda",
@@ -374,7 +374,7 @@ EXPECTED_FILE_HASHES = {
     "fservbot/plugin.json": "12b3c544160411e3",
     "guard.py": "526fac7536abfe7f",
     "i18n.py": "5d4a45df67bd147f",
-    "keepalive.py": "1c7c55ecb362d569",
+    "keepalive.py": "482058c9e1eb17fa",
     "layout.py": "48b030ed144b50fd",
     "lib/bz2_fast_xtensawin.mpy": "ac55d9eda2126432",
     "lib/ed25519_fast_xtensawin.mpy": "96e74dac45f91687",
@@ -385,13 +385,13 @@ EXPECTED_FILE_HASHES = {
     "node_common.py": "e1e748a3283da2f4",
     "peripherals/__init__.py": "d2bdac4de6de79de",
     "peripherals/adc_reader.py": "50a393bfa61641d4",
-    "plugins.py": "5a411f74303aeaca",
+    "plugins.py": "cc33d84017fab80f",
     "profiles.py": "af13b5e91b83d004",
-    "propagation.py": "99b4bcebeeeff8a7",
+    "propagation.py": "b346921a495ce1bd",
     "qr.py": "7f8550209d5f6abd",
     "radio.py": "56e01b273ceaab68",
     "rrc.py": "0d9c0cf5abdb5d69",
-    "rrc_mesh.py": "728f3d9d1edd72c7",
+    "rrc_mesh.py": "cfdf21823f7e7c17",
     "rrc_ui.py": "7146777ddd5f6d6a",
     "settings.py": "1c9b13ede00d7cb7",
     "store.py": "625ba090410222cf",
@@ -556,7 +556,7 @@ EXPECTED_FILE_HASHES = {
     "urns/crypto/x25519.py": "62998f40d4e0976f",
     "urns/destination.py": "29eadd36dbfe9e3e",
     "urns/identity.py": "1a98f90e034bfb19",
-    "urns/interfaces/__init__.py": "f058f69c73c34294",
+    "urns/interfaces/__init__.py": "2a71c2e4448cbf79",
     "urns/interfaces/auto.py": "2a0430083c701c00",
     "urns/interfaces/chain.py": "8f79a4adf8292e1a",
     "urns/interfaces/e32.py": "4cc3c2994c2d7972",
@@ -566,10 +566,10 @@ EXPECTED_FILE_HASHES = {
     "urns/interfaces/serial.py": "3c7dda5e4ffb5dec",
     "urns/interfaces/tcp.py": "a29d90caa017764a",
     "urns/interfaces/udp.py": "cc5e30ddc0861737",
-    "urns/interfaces/wifi_serial.py": "4ce7c80aa6bf0846",
+    "urns/interfaces/wifi_serial.py": "89e21eedea563855",
     "urns/link.py": "ef808679cefb1ac0",
     "urns/log.py": "4b5576693991c7a6",
-    "urns/lxmf.py": "a5558f59f957857b",
+    "urns/lxmf.py": "2c3765adbefd45cc",
     "urns/packet.py": "d8a3a0c4a3a9ebbf",
     "urns/resource.py": "e54f10289b5a85e6",
     "urns/reticulum.py": "f35bb930e193c25a",
@@ -5251,7 +5251,8 @@ def diagnostics(port, board_type=None, interactive=True):
         print("    its address -- find it with:")
         print("    " + cyan(f"python3 provisioner.py --get-ip {port}"))
         print(bold("  AP IP:") + "  join the board's own hotspot, then browse to")
-        print("    " + cyan("http://192.168.4.1/"))
+        print("    " + cyan("http://192.168.4.1/") + "  -- a Stump in a chain: 192.168.<its number>.1,")
+        print("    the address at the end of its hotspot's name (\"LaBuche1 192.168.5.1\")")
         print()
         print("Either one loading the BarKeep page confirms the board is up and")
         print("serving requests correctly.")

@@ -27,6 +27,11 @@ Phase B; until then /offer answers ERROR_NO_ACCESS, which makes an
 upstream node that tries to auto-peer back off cleanly instead of retrying.
 """
 
+try:
+    from keepalive import doing as _doing
+except ImportError:
+    def _doing(label):
+        pass
 import os
 import sys
 import time
@@ -323,6 +328,7 @@ async def checker_loop():
             await asyncio.sleep(2)
             continue
         path = _pending[0]
+        _doing("propagation node: a stamp check")
         try:
             with open(path, "rb") as f:
                 transient_data = f.read()

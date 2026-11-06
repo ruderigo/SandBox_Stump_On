@@ -296,13 +296,31 @@ async def loop():
         check(_diff(_ms(), t) - FEED_S * 1000)
 
 
+_doing = ["starting", 0]
+
+
+def doing(label):
+    """What the Stump is starting now (a page, a packet, a timer...).
+    The event loop runs one thing at a time, so when it was busy, the
+    last thing started is the one that held it: named in the watchdog's
+    "busy" line (beta.56: a WROVER busy 15 s, nothing said by what)."""
+    _doing[0] = label
+    _doing[1] = _ms()
+
+
 def check(late=0):
     """One turn of loop(): how late it ran, a start that's now stable, a
     rescue start that's had its time."""
     if late > _st["lag_ms"]:
         _st["lag_ms"] = late
-        if late > 2000:
-            print("[watchdog] the Stump was busy for %d ms (nobody else served meanwhile)" % late)
+    if late > 2000:
+        # Every one (not only a new record), at most one line per 10 s.
+        now = _ms()
+        if _st.get("lag_said") is None or _diff(now, _st["lag_said"]) > 10000:
+            _st["lag_said"] = now
+            print("[watchdog] the Stump was busy for %d ms (nobody else served meanwhile): %s"
+                  % (late, _doing[0]))
+        _st["lag_what"] = _doing[0]
     if _st["t0"] is None:
         return
     up = _now() - _st["t0"]

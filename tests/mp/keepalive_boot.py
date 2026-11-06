@@ -121,4 +121,17 @@ check("(a rescue start)", W.mode() == "rescue")
 W.console_stop()
 check("a stop at the console (Ctrl+C, the Provisioner): the next start is a normal one",
       W.begin() == "normal" and W.status()["failed_starts"] == 0, W.status())
-print('FAILURES:', FAIL)
+print('FAILURES:', FAIL)# Busy: named by the last thing started (a page, a packet, a timer)
+import io, sys as _s
+W.doing("web GET /rrc")
+_buf = []
+_p = print
+import builtins
+builtins.print = lambda *a, **k: _buf.append(" ".join(str(x) for x in a))
+W._st["lag_said"] = None
+W.check(4600)
+W.check(3000)                          # within 10 s: not said again
+builtins.print = _p
+check("busy: says how long, and what held it", len(_buf) == 1 and "4600 ms" in _buf[0]
+      and "web GET /rrc" in _buf[0], _buf)
+

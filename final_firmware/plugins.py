@@ -21,6 +21,11 @@
 # off from /admin without a laptop, and a plugin that hangs or resets the
 # board while starting is switched off automatically at the next boot.
 
+try:
+    from keepalive import doing as _doing
+except ImportError:
+    def _doing(label):
+        pass
 import webtext
 import time
 
@@ -454,6 +459,7 @@ def _call(plugin, what, fn, *args):
     """Runs one plugin callback: (ok, result). Exceptions are logged with
     the plugin's name and never reach the chat; slow ones are logged."""
     t0 = _now_ms()
+    _doing("plugin %s: %s" % (plugin, what))
     try:
         res = fn(*args)
         ok = True
@@ -768,6 +774,7 @@ async def scheduler_loop():
                 continue
             t["next"] = time.ticks_add(now, t["every"] * 1000)
             t0 = _now_ms()
+            _doing("plugin %s: its timer" % t["plugin"])
             try:
                 res = t["fn"]()
                 if hasattr(res, "send"):
