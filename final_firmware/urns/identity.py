@@ -1,6 +1,7 @@
 # µReticulum Identity
 # Key management, encryption, signing
 
+from urns.mem import collect as _gc_collect
 import os
 import time
 from . import const
@@ -20,7 +21,7 @@ def _gc_after_crypto():
     ~10ms+ of heap scan per call on a populated heap — skip it."""
     if not _ed25519_backend.have_native():
         import gc
-        gc.collect()
+        _gc_collect()
 
 
 class Identity:

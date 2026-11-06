@@ -5,6 +5,7 @@ try:
 except ImportError:
     def _doing(label):
         pass
+from urns.mem import collect as _gc_collect
 import time
 from ..log import log, LOG_VERBOSE, LOG_DEBUG, LOG_ERROR
 
@@ -110,11 +111,11 @@ class Interface:
             salt=const.IFAC_SALT,
         )
         self.ifac_size = config.get("ifac_size", const.IFAC_DEFAULT_SIZE)
-        gc.collect()
+        _gc_collect()
 
         # Only need Ed25519 signing key (second 32 bytes of ifac_key)
         self.ifac_signing_key = Ed25519PrivateKey.from_private_bytes(self.ifac_key[32:])
-        gc.collect()
+        _gc_collect()
 
         log("IFAC enabled on " + self.name + " (size=" + str(self.ifac_size) + ")", LOG_DEBUG)
 
@@ -138,7 +139,7 @@ class Interface:
 
         t0 = _ticks()
         ifac = self.ifac_signing_key.sign(data)[-self.ifac_size:]
-        gc.collect()
+        _gc_collect()
 
         mask = hkdf(length=len(data) + self.ifac_size,
                      derive_from=ifac, salt=self.ifac_key)
@@ -155,7 +156,7 @@ class Interface:
         for i in range(2 + isz, len(new_raw)):
             new_raw[i] = new_raw[i] ^ mask[i]
 
-        gc.collect()
+        _gc_collect()
         slow_ifac("signing a packet for " + self.name, t0)
         log("IFAC signed " + str(len(new_raw)) + "B on " + self.name, LOG_DEBUG)
         return bytes(new_raw)

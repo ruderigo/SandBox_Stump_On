@@ -823,7 +823,6 @@ def _mem_free():
         import gc
         if getattr(gc, "STUMP_NO_MEM_FREE", False):
             return None     # a computer: no free-RAM figure, so no "0 B RAM" per plugin
-        gc.collect()
         return gc.mem_free()
     except Exception:
         return None

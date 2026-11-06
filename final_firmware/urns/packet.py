@@ -1,6 +1,7 @@
 # µReticulum Packet
 # Packet framing and handling
 
+from urns.mem import collect as _gc_collect
 import struct
 import time
 from . import const
@@ -286,7 +287,7 @@ class Packet:
         if self.destination and self.destination.identity and self.destination.identity.prv:
             signature = self.destination.identity.sign(self.packet_hash)
             try:
-                import gc; gc.collect()
+                import gc; _gc_collect()
             except:
                 pass
             # Implicit proof: just the signature
@@ -298,7 +299,7 @@ class Packet:
             proof = Packet(destination, proof_data, const.PKT_PROOF,
                            attached_interface=self.receiving_interface)
             try:
-                import gc; gc.collect()
+                import gc; _gc_collect()
             except:
                 pass
             proof.send()

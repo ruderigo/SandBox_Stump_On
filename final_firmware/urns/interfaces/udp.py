@@ -6,6 +6,7 @@
 #   corrupts non-blocking state, causing recvfrom to block)
 # - RX watchdog: if TX works but RX is dead, recreate socket
 
+from urns.mem import collect as _gc_collect
 import socket
 import time
 from . import Interface
@@ -117,7 +118,7 @@ class UDPInterface(Interface):
                 pass
             self._socket = None
 
-        gc.collect()
+        _gc_collect()
 
         try:
             self._socket = _create_socket(self.listen_ip, self.listen_port)
@@ -175,7 +176,7 @@ class UDPInterface(Interface):
 
                 # --- Periodic GC ---
                 if now - _last_gc >= 10:
-                    gc.collect()
+                    _gc_collect()
                     _last_gc = now
 
                 if loop_count % 1000 == 0:

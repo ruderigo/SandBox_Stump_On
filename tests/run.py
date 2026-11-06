@@ -75,6 +75,7 @@ TESTS = [
     ("nomadnet_pack", "assert", NOMADNET),
     ("wrover_board", "assert", []),
     ("heltec_connect", "assert", []),
+    ("mem_low", "assert", []),
     ("simple_pack", "assert", SIMPLE),
 ]
 

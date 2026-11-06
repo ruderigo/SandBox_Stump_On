@@ -1,6 +1,7 @@
 # µReticulum Core Engine
 # Simplified for Pico W: JSON config, no RPC, async event loop
 
+from urns.mem import collect as _gc_collect
 import os
 import gc
 import time
@@ -28,7 +29,7 @@ class Reticulum:
         if loglevel is not None:
             set_loglevel(loglevel)
 
-        gc.collect()
+        _gc_collect()
         Reticulum._instance = self
 
         self.is_connected_to_shared_instance = False
@@ -277,7 +278,7 @@ class Reticulum:
             log("Probe announced", LOG_NOTICE)
         except Exception as e:
             log("Probe initial announce error: " + str(e), LOG_ERROR)
-        gc.collect()
+        _gc_collect()
 
         interval = self.config.get("probe", {}).get("announce_interval", 60 * 60)
         if interval <= 0:
@@ -289,7 +290,7 @@ class Reticulum:
                 log("Probe re-announced", LOG_VERBOSE)
             except Exception as e:
                 log("Probe re-announce error: " + str(e), LOG_ERROR)
-            gc.collect()
+            _gc_collect()
 
     def shutdown(self):
         """Clean shutdown - persist state and close interfaces"""

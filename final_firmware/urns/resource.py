@@ -2,6 +2,7 @@
 # Wire-compatible with reference RNS Resource protocol
 # Supports segmented data transfer over Links for payloads > single packet
 
+from urns.mem import collect as _gc_collect
 import time
 from . import const, umsgpack
 from .log import log, LOG_VERBOSE, LOG_DEBUG, LOG_ERROR, LOG_NOTICE, sl
@@ -126,11 +127,11 @@ class Resource:
             pass
 
         # Encrypt: random_hash + data with link token
-        gc.collect()
+        _gc_collect()
         plaintext = self.random_hash + data
         self.encrypted = self.link._token.encrypt(plaintext)
         del plaintext
-        gc.collect()
+        _gc_collect()
 
         # Compute part size (same as reference: Packet.MDU)
         self.sdu = self.link.sdu
@@ -171,7 +172,7 @@ class Resource:
 
         # Free original data — we have encrypted form
         self.data = data  # Keep for proof verification
-        gc.collect()
+        _gc_collect()
 
         # Advertise
         self.advertise()
@@ -180,7 +181,7 @@ class Resource:
     def accept(adv_data, link):
         """Create a receiver-side Resource from an advertisement."""
         import gc
-        gc.collect()
+        _gc_collect()
 
         r = object.__new__(Resource)
         r.link = link
@@ -558,12 +559,12 @@ class Resource:
             log("Resource assembling " + self.hash.hex()[:8], LOG_DEBUG)
 
         # Join parts
-        gc.collect()
+        _gc_collect()
         stream = b""
         for p in self.parts:
             stream += p
         self.parts = None  # Free parts list
-        gc.collect()
+        _gc_collect()
 
         # Decrypt
         try:
@@ -574,14 +575,14 @@ class Resource:
             self._conclude()
             return
         del stream
-        gc.collect()
+        _gc_collect()
         t1 = time.time()
 
         # Strip random hash
         received_random = plaintext[:RANDOM_HASH_SIZE]
         self.data = plaintext[RANDOM_HASH_SIZE:]
         del plaintext
-        gc.collect()
+        _gc_collect()
 
         # Decompress before verification (hash is of original uncompressed data)
         if self.flags & FLAG_COMPRESSED:
@@ -589,7 +590,7 @@ class Resource:
                 log("Resource decompressing " + self.hash.hex()[:8] + " (" + str(len(self.data)) + "B compressed)", LOG_DEBUG)
             from .bz2dec import decompress as bz2_decompress
             self.data = bz2_decompress(self.data)
-            gc.collect()
+            _gc_collect()
         t2 = time.time()
 
         # Verify hash
@@ -647,7 +648,7 @@ class Resource:
         # Free encrypted data
         self.encrypted = None
         self.parts = None
-        import gc; gc.collect()
+        import gc; _gc_collect()
 
         self._conclude()
         return True

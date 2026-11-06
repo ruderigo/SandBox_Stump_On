@@ -2,6 +2,7 @@
 # Supports optional transport mode (blind flood forwarding between interfaces)
 # Uses uasyncio instead of threading
 
+from urns.mem import collect as _gc_collect
 import os
 import sys
 import time
@@ -950,7 +951,7 @@ class Transport:
 
             # Verify signature
             expected_ifac = interface.ifac_signing_key.sign(new_raw)[-isz:]
-            gc.collect()
+            _gc_collect()
             slow_ifac("checking a packet from " + interface.name, t0)
 
             if ifac == expected_ifac:
@@ -1961,7 +1962,7 @@ class Transport:
                 # pressure incrementally. Collect only when actually tight.
                 import gc
                 if gc.mem_free() < 262144:
-                    gc.collect()
+                    _gc_collect()
 
             except Exception as e:
                 log("Transport job error: " + str(e), LOG_ERROR)
