@@ -4,10 +4,15 @@ name: Stump images
 # (image/README.md): stump-<version>-wrover.bin (an ESP32-WROVER, flashed
 # at 0x1000) and stump-<version>-s3cam.bin (an ESP32-S3-CAM, at 0x0).
 # Built in Espressif's ESP-IDF container from the MicroPython release the
-# boards run. "Run workflow" by hand builds them as an artifact; the
-# Release workflow calls this one and attaches them to the release.
+# boards run. A push that touches image/ builds them as an artifact (so a
+# change is proven before a release), "Run workflow" by hand does too, and
+# the Release workflow calls this one and attaches them to the release.
 
 on:
+  push:
+    paths:
+      - 'image/**'
+      - '.github/workflows/images.yml'
   workflow_dispatch:
   workflow_call:
     outputs:
