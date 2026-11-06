@@ -269,7 +269,8 @@ builtins.input = fake_input
 saved = {n: getattr(P, n) for n in ("check_tools", "resolve_path", "choose_board", "config_wizard",
                                     "flash_cam_micropython", "upload_stump_app", "push_config_to_board",
                                     "install_packs", "run", "get_stump_ip", "diagnostics", "keep_awake",
-                                    "pick_board_firmware")}
+                                    "pick_board_firmware", "network_check")}
+P.network_check = lambda port, prof, addrs=None, **k: calls.append("reach") or (True, "its page answers", "http://192.168.0.161/")
 P.pick_board_firmware = lambda port, path=None: calls.append("image") or ("esp32", fw / "main.py")
 _cfg_dir = P.CONFIG_OUT_DIR
 P.CONFIG_OUT_DIR = Path(tempfile.mkdtemp()) / "profiles"        # no saved settings
@@ -286,7 +287,7 @@ P.push_config_to_board = lambda port, role, prof: calls.append("push") or True
 P.install_packs = lambda *a: True
 P.run = lambda *a, **k: None
 P.get_stump_ip = lambda port: {"sta": "192.168.0.161", "ap": "192.168.4.1"}
-P.diagnostics = lambda port, role=None, interactive=True: calls.append("diag") or {"serial": True}
+P.diagnostics = lambda port, role=None, interactive=True, final=True: calls.append("diag") or {"serial": True}
 P.keep_awake = lambda: True
 real_sleep = P.time.sleep
 P.time.sleep = lambda s: None
@@ -308,7 +309,7 @@ for n, f in saved.items():
     setattr(P, n, f)
 sys.stdout = sys.__stdout__
 check('CAM route: the questions (the image too) come before anything touches the board',
-      calls_first == ["image", "wizard", "flash", "upload", "push", "diag"], calls_first)
+      calls_first == ["image", "wizard", "flash", "upload", "push", "diag", "reach"], calls_first)
 check('CAM route: nothing is asked after section 3', asked_after == [], asked_after)
 check('CAM route: it says the rest runs by itself', "run by themselves now" in out and "step away" in out, out[-1500:])
 check('CAM route: the card says who does what, and why it is slow', "Why so long" in out and "auto = it runs by itself" in out)
@@ -682,28 +683,21 @@ with contextlib.redirect_stdout(io.StringIO()):
     got = P.resolve_path(None, "image", remember_key="x", is_dir=False, search_roots=[_rd], hint_finder=_find)
 check("firmware: 's' still skips", got is None, got)
 P._remembered_path, P.ask_yes_no = _sv2
-# A re-run after a flash: the settings saved last time, not asked again,
-# and never "keep the board's own" on a board being erased
-_cd = P.CONFIG_OUT_DIR
-P.CONFIG_OUT_DIR = Path(tempfile.mkdtemp())
-(P.CONFIG_OUT_DIR / "Wrover.json").write_text(json.dumps({"node_name": "Wrover", "board_type": "cam", "packs": ["simple"]}))
-(P.CONFIG_OUT_DIR / "Other.json").write_text(json.dumps({"node_name": "Radio", "board_type": "heltec"}))
+# No saved settings (beta.56): a flashed board gets fresh answers; an
+# update chooses between fresh answers and keeping the board's own
 _cw = P.config_wizard
 P.config_wizard = lambda bt: ({"node_name": "asked"}, None)
 seen = []
 _ac = P.ask_choice
 P.ask_choice = lambda q, opts: seen.append(opts) or opts[0]
-answers("")                                   # its name: kept
 with contextlib.redirect_stdout(io.StringIO()):
     prof = P._ask_profile("cam", erased=True)
-check('settings: the saved ones for this kind of board are offered, and used', prof and prof["node_name"] == "Wrover"
-      and len(seen[0]) == 2 and not any("Keep" in o for o in seen[0]) and not any("Radio" in o for o in seen[0]), seen)
-seen.clear()
-answers("")
+check('settings: a flashed board gets fresh answers, nothing offered', prof == {"node_name": "asked"} and not seen, seen)
 with contextlib.redirect_stdout(io.StringIO()):
     P._ask_profile("cam", erased=False)
-check("settings: an update can keep the board's own", any("Keep" in o for o in seen[0]), seen)
-P.ask_choice, P.config_wizard, P.CONFIG_OUT_DIR = _ac, _cw, _cd
+check("settings: an update: fresh answers or keep the board's own, nothing saved",
+      len(seen[0]) == 2 and "Keep" in seen[0][1] and not any("saved" in o for o in seen[0]), seen)
+P.ask_choice, P.config_wizard = _ac, _cw
 # The release on a board whose modules went compiled (no example_node.py:
 # beta.56's first WROVER said "couldn't read the board's release")
 _br = []
@@ -724,17 +718,6 @@ check('release: read from a compiled example_node (.mpy), not an IP', _o.getvalu
 check('hotspot preview: the default name, no address', P.preview_ssid(None, "192.168.4.1", False)[0] == "LaBuche-Stump.web.app")
 check('hotspot preview: a name of its own and the address, as the board writes it',
       P.preview_ssid("Wrover", "192.168.5.1", True)[0] == "Wrover 192.168.5.1")
-# One set of saved settings on a second WROVER: its name, hotspot and chain
-# number asked again, the Heltec moved into its range
-prof = {"node_name": "Wrover", "board_type": "cam", "ssid_name": "Wrover", "ssid_include_ip": True,
-        "chain": {"enabled": True, "uplink_ssid": "Souche 192.168.4.1", "subnet": 5},
-        "heltec_enabled": True, "heltec_host": "192.168.5.2", "heltec_on_hotspot": True}
-answers("Wrover2", "", "6")
-with contextlib.redirect_stdout(io.StringIO()) as said:
-    prof = P._per_board(prof)
-check('settings for another board: its own name, hotspot, chain number; the Heltec follows',
-      prof["node_name"] == "Wrover2" and prof["ssid_name"] == "Wrover2" and prof["chain"]["subnet"] == 6
-      and prof["heltec_host"] == "192.168.6.200" and "Wrover2 192.168.6.1" in said.getvalue(), (prof, said.getvalue()))
 # The port held by another program (a `screen` left running): said, with who
 _rs = P.subprocess.run
 class _R:
@@ -749,13 +732,6 @@ P.subprocess.run = _rs
 # A chain number never the one of the Stump it joins
 check('chain: the number in a Stump hotspot\'s name', P._uplink_number("LaBuche1 192.168.5.1") == 5
       and P._uplink_number("LaBuche-Stump.web.app") is None and P._uplink_number("Souche 192.168.4.1") is None)
-prof = {"node_name": "LaBucheB", "board_type": "cam", "ssid_name": "LaBucheB", "ssid_include_ip": True,
-        "chain": {"enabled": True, "uplink_ssid": "LaBuche1 192.168.5.1", "subnet": 5}}
-answers("", "", "5", "")                   # name, hotspot kept; 5 refused; then the default
-with contextlib.redirect_stdout(io.StringIO()) as said:
-    prof = P._per_board(prof)
-check('... 5 refused when joining number 5; the default is 6', prof["chain"]["subnet"] == 6
-      and "number of the Stump it joins" in said.getvalue(), (prof, said.getvalue()[-300:]))
 check('... mpremote\'s "failed to access" is a busy port', P._port_busy("mpremote: failed to access /dev/cu.x (it may be in use by another program)"))
 # The checks stop the Stump (mpremote): it's started again after them
 _calls = []
@@ -781,12 +757,6 @@ with contextlib.redirect_stdout(io.StringIO()):
 check('diagnostics: the Stump started again at the end', _calls and _calls[-1][-1] == "reset", _calls[-2:])
 P.run = _rn
 P.sd_card_status, P.release_check = _sv3
-prof = {"node_name": "Home", "board_type": "cam", "heltec_enabled": True, "heltec_host": "192.168.1.50",
-        "heltec_on_hotspot": False, "chain": {"enabled": True, "uplink_ssid": "Souche 192.168.4.1", "subnet": 6}}
-answers("", "")
-with contextlib.redirect_stdout(io.StringIO()):
-    prof = P._per_board(prof)
-check('... a Heltec on the home Wi-Fi keeps its address', prof["heltec_host"] == "192.168.1.50", prof)
 # A board in a chain over the home Wi-Fi: CHAIN_PARENT_IP written (and
 # cleared for a hotspot member), the result valid Python
 _cp = Path(tempfile.mkdtemp()) / "config.py"
@@ -802,4 +772,41 @@ check('chain over the home Wi-Fi: CHAIN_PARENT_IP written', ns.get("CHAIN_PARENT
 check('summary: a chain member\'s address named for the Stump above\'s Wi-Fi',
       P._sta_note({"sta": "192.168.4.3", "ssid": "LaBuche-Stump.web.app"}) == ("Via the chain", "http://192.168.4.3/ on LaBuche-Stump.web.app")
       and P._sta_note({"sta": "192.168.0.179", "ssid": "Bob's Glitch"})[0] == "On the Wi-Fi")
+# Its hotspot not up yet ("AP:" and nothing): no crash (beta.56)
+_rn = P.run
+P.run = lambda cmd, **k: (True, "SSID:Bob's Glitch\nSTA:192.168.0.120 AP:")
+with contextlib.redirect_stdout(io.StringIO()):
+    got = P.get_stump_ip("/dev/fake", retries=1)
+P.run = _rn
+check('address lookup: no hotspot yet, no crash', got == {"sta": "192.168.0.120", "ap": None, "ssid": "Bob's Glitch"}, got)
+# The last check: the board's page from this computer at its router
+# address, and its Heltec connected (beta.56: "certified" with an address
+# that worked from nowhere this computer was)
+PROF = {"node_name": "LaBucheD", "heltec_enabled": True}
+def _get(pages):
+    def get(url, timeout=4):
+        v = pages.get(url)
+        if isinstance(v, Exception) or v is None:
+            raise v or OSError("timed out")
+        return v
+    return get
+nop = lambda s: None
+with contextlib.redirect_stdout(io.StringIO()):
+    r1 = P.network_check("/dev/x", PROF, {"sta": "192.168.4.3", "ssid": "LaBuche-Stump.web.app"}, get=_get({}), sleep=nop, mine="192.168.0.50")
+    r2 = P.network_check("/dev/x", PROF, {"sta": "192.168.0.120", "ssid": "Bob's Glitch"}, get=_get({}), sleep=nop, mine="10.0.0.5")
+    ok_pages = {"http://192.168.0.120/node.json": {"name": "LaBucheD"}, "http://192.168.0.120/hw.json": {"state": "online"}}
+    r3 = P.network_check("/dev/x", PROF, {"sta": "192.168.0.120"}, get=_get(ok_pages), sleep=nop, mine="192.168.0.50")
+    r4 = P.network_check("/dev/x", PROF, {"sta": "192.168.0.120"}, sleep=nop, mine="192.168.0.50", wait_s=0.2,
+                         get=_get({"http://192.168.0.120/node.json": {"name": "LaBucheD"},
+                                   "http://192.168.0.120/hw.json": {"state": "connecting", "radios": [{"error": "no answer from 192.168.0.222:7633 in 3 s"}]}}))
+    r5 = P.network_check("/dev/x", PROF, {"sta": "192.168.0.120"}, sleep=nop, mine="192.168.0.50",
+                         get=_get({"http://192.168.0.120/node.json": {"name": "LaBuche"}}))
+    r6 = P.network_check("/dev/x", PROF, {"sta": "192.168.0.120"}, sleep=nop, mine="192.168.0.50", wait_s=0.2, get=_get({}))
+check("reach: joined another Stump's hotspot, not the router: not a pass, and said", not r1[0] and "hotspot" in r1[1] and "router" in r1[1], r1)
+check("reach: this computer on another network: not a pass, and said", not r2[0] and "isn't on the board's network" in r2[1], r2)
+check("reach: page from here and the Heltec connected: a pass, with the address to open",
+      r3 == (True, "its page answers at http://192.168.0.120/, and its Heltec is connected", "http://192.168.0.120/"), r3)
+check("reach: the Heltec not connected: not a pass, with its error", not r4[0] and "Heltec isn't connected" in r4[1] and "7633" in r4[1], r4)
+check("reach: another Stump at that address: not a pass", not r5[0] and "another Stump" in r5[1], r5)
+check("reach: no answer: not a pass", not r6[0] and "doesn't answer" in r6[1], r6)
 print('FAILURES', FAIL)

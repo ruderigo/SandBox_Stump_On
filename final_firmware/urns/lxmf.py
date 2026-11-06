@@ -7,6 +7,7 @@ try:
 except ImportError:
     def _doing(label):
         pass
+from urns.mem import collect as _gc_collect
 import time, sys
 from . import umsgpack
 from .identity import Identity
@@ -292,7 +293,7 @@ class LXMessage:
         signed_part = hashed_part + self.hash
         self.signature = self._source.sign(signed_part)
         try:
-            import gc; gc.collect()
+            import gc; _gc_collect()
         except:
             pass
         self.signature_validated = True
@@ -1097,7 +1098,7 @@ class LXMRouter:
 
             # Send delivery proof (so sender knows we received it)
             try:
-                import gc; gc.collect()
+                import gc; _gc_collect()
             except:
                 pass
             packet.prove()

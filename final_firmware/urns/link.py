@@ -2,6 +2,7 @@
 # Stateful encrypted link (Reticulum Link protocol)
 # Server-side (Link) and client-side (OutgoingLink) ECDH handshake + RPC
 
+from urns.mem import collect as _gc_collect
 import struct
 import time
 from . import const
@@ -181,28 +182,28 @@ class Link:
         Link._recent_creations = recent
 
         # Generate ephemeral X25519 keypair for ECDH
-        import gc; gc.collect()
+        import gc; _gc_collect()
         import time as _t; _t0 = _t.ticks_ms()
         ephemeral_prv = X25519PrivateKey.generate()
-        gc.collect()
+        _gc_collect()
         self._ephemeral_pub_bytes = ephemeral_prv.public_key().public_bytes()
 
         # Compute shared secret via ECDH
         peer_pub = X25519PublicKey.from_public_bytes(peer_pub_bytes)
         shared_key = ephemeral_prv.exchange(peer_pub)
-        gc.collect()
+        _gc_collect()
 
         # Derive link encryption key (64 bytes for AES-256 Token)
         derived_key = hkdf(length=64, derive_from=shared_key, salt=self.link_id)
         self._token = Token(derived_key)
-        gc.collect()
+        _gc_collect()
 
         if sl(LOG_DEBUG):
             log("ECDH completed in " + str(_t.ticks_diff(_t.ticks_ms(), _t0)) + "ms", LOG_DEBUG)
 
         # Clean up ECDH key material
         del ephemeral_prv, shared_key, derived_key, peer_pub
-        gc.collect()
+        _gc_collect()
 
         # Register with Transport
         Transport.active_links.append(self)
@@ -215,7 +216,7 @@ class Link:
 
     def _send_proof(self):
         """Send link proof: signature(64) + ephemeral_pub(32) [+ signalling(3)]"""
-        import gc; gc.collect()
+        import gc; _gc_collect()
 
         # Reference RNS prove(): signed_data = link_id + pub_bytes + sig_pub_bytes + signalling
         # Where pub_bytes = server's ephemeral X25519 pub
@@ -226,7 +227,7 @@ class Link:
                        + self.destination.identity.sig_pub_bytes
                        + self._signalling_bytes)
         signature = self.destination.identity.sign(signed_data)
-        gc.collect()
+        _gc_collect()
 
         proof_data = signature + self._ephemeral_pub_bytes + self._signalling_bytes
 
@@ -244,7 +245,7 @@ class Link:
 
         # Clean up (no longer needed after proof)
         del self._ephemeral_pub_bytes, self._signalling_bytes
-        gc.collect()
+        _gc_collect()
 
     @staticmethod
     def _creation_budget():
@@ -508,7 +509,7 @@ class Link:
         # MTU(500) - HDR_1(19) - IV(16) - max_PKCS7(16) - HMAC(32) = 417
         if len(response_packed) > 417:
             import gc
-            gc.collect()
+            _gc_collect()
             from .resource import Resource
             if sl(LOG_VERBOSE):
                 log("Link " + self.link_id.hex()[:8] + " response " + str(len(response_packed)) + "B, using Resource", LOG_VERBOSE)
@@ -822,9 +823,9 @@ class OutgoingLink:
                                       + _crypto_grace_s())
 
         # Generate ephemeral X25519 keypair for ECDH
-        gc.collect()
+        _gc_collect()
         self._prv = X25519PrivateKey.generate()
-        gc.collect()
+        _gc_collect()
         self._pub_bytes = self._prv.public_key().public_bytes()
 
         # Ed25519 keypair for the link. Normally the server never verifies the
@@ -836,7 +837,7 @@ class OutgoingLink:
         if sign_proofs:
             from .crypto import Ed25519PrivateKey
             self._sig_prv = Ed25519PrivateKey.generate()
-            gc.collect()
+            _gc_collect()
             self._sig_pub_bytes = self._sig_prv.public_key().public_bytes()
         else:
             self._sig_prv = None
@@ -907,12 +908,12 @@ class OutgoingLink:
         peer_sig_pub_bytes = self.destination.identity.sig_pub_bytes
         signed_data = self.link_id + peer_ecdh_pub_bytes + peer_sig_pub_bytes + signalling_bytes
 
-        gc.collect()
+        _gc_collect()
         if not self.destination.identity.validate(signature, signed_data):
             if sl(LOG_DEBUG):
                 log("OutLink proof signature invalid, ignoring (link " + self.link_id.hex()[:8] + " still pending)", LOG_DEBUG)
             return
-        gc.collect()
+        _gc_collect()
 
         # Signature OK — commit MTU negotiation.
         if signalling_bytes:
@@ -925,16 +926,16 @@ class OutgoingLink:
         # ECDH key exchange
         peer_pub = X25519PublicKey.from_public_bytes(peer_ecdh_pub_bytes)
         shared_key = self._prv.exchange(peer_pub)
-        gc.collect()
+        _gc_collect()
 
         # Derive link encryption key
         derived_key = hkdf(length=64, derive_from=shared_key, salt=self.link_id)
         self._token = Token(derived_key)
-        gc.collect()
+        _gc_collect()
 
         # Clean up key material
         del self._prv, shared_key, derived_key, peer_pub
-        gc.collect()
+        _gc_collect()
 
         # Send RTT to complete handshake (server marks link ACTIVE on receiving this)
         from . import umsgpack

@@ -13,6 +13,7 @@
 # blind into ongoing transmissions (e.g. a repeater still re-transmitting
 # the frame we are replying to).
 
+from urns.mem import collect as _gc_collect
 import os
 import gc
 import time
@@ -451,7 +452,7 @@ class LoRaInterface(Interface):
                 # Periodic GC (30s: more frequent collection causes audible
                 # pauses during voice recording on the T-Deck)
                 if now - _last_gc >= 30:
-                    gc.collect()
+                    _gc_collect()
                     _last_gc = now
 
                 # Periodic diagnostics
@@ -519,7 +520,7 @@ class LoRaInterface(Interface):
                                 + " RSSI=" + str(self.rssi)
                                 + " SNR=" + str(self.snr), LOG_DEBUG)
                         self.process_incoming(pkt)
-                        gc.collect()
+                        _gc_collect()
 
             except Exception as e:
                 log("LoRa poll error: " + str(e), LOG_ERROR)

@@ -10,6 +10,7 @@ try:
 except ImportError:
     def _doing(label):
         pass
+from urns.mem import collect as _gc_collect
 import time
 import rrc
 import i18n
@@ -1656,8 +1657,8 @@ _gc_said = [0, 0]
 
 def _gc_ms(ms):
     """How long a memory clean-up takes on this board, said when slow
-    (at most once a minute): every packet on a chain with a secret
-    forces one (urns), so a slow one slows the whole Stump."""
+    (at most once a minute). Only when memory is low since beta.56
+    (urns/mem.py): on a WROVER one takes about 2 s."""
     now = time.time()
     if ms > 300 and now - _gc_said[0] > 60:
         _gc_said[0] = now
@@ -1767,7 +1768,7 @@ async def poll_loop(router):
 
             _doing("the chat bridge: a memory clean-up")
             t0 = time.ticks_ms()
-            gc.collect()
+            _gc_collect()
             _gc_ms(time.ticks_diff(time.ticks_ms(), t0))
 
         except Exception as e:

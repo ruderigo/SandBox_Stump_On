@@ -1,6 +1,7 @@
 # µReticulum Destination
 # Endpoint addressing and announce management
 
+from urns.mem import collect as _gc_collect
 import os
 import time
 from . import const
@@ -149,12 +150,12 @@ class Destination:
             signed_data += app_data
 
         try:
-            import gc; gc.collect()
+            import gc; _gc_collect()
         except:
             pass
         signature = self.identity.sign(signed_data)
         try:
-            gc.collect()
+            _gc_collect()
         except:
             pass
         announce_data = self.identity.get_public_key() + self.name_hash + random_hash + ratchet + signature
@@ -271,9 +272,9 @@ class Destination:
             if self.accept_link_requests:
                 try:
                     from .link import Link
-                    import gc; gc.collect()
+                    import gc; _gc_collect()
                     link = Link(self, packet)
-                    gc.collect()
+                    _gc_collect()
                 except Exception as e:
                     log("Link creation failed: " + str(e), LOG_ERROR)
         else:

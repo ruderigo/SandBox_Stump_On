@@ -8,6 +8,7 @@ version -- captive_portal, barkeep, and fserv are wired in below. No
 patch scripts needed; this file can be dropped onto the device as-is.
 """
 
+from urns.mem import collect as _gc_collect
 from config import WIFI_SSID, WIFI_PASS, NODE_NAME, DEBUG, CONFIG
 try:
     from config import SSID_INCLUDE_IP
@@ -49,7 +50,7 @@ except ImportError:
     STUMP_ANNOUNCE_INTERVAL = 1800
 
 import gc
-gc.collect()
+_gc_collect()
 
 # ---- Peripherals ----
 import peripherals.adc_reader as adc_reader
@@ -57,7 +58,7 @@ adc_reader.init_battery(CONFIG)
 
 active_peripherals = [adc_reader]
 
-gc.collect()
+_gc_collect()
 
 # ---- Echo reply ----
 ECHO_REPLY = False   # superseded by rrc_mesh; kept so the old path is explicit
@@ -75,7 +76,7 @@ async def _send_msg(router, dest_hash, body):
             print("[Error] Unknown identity: " + dest_hash.hex()[:8])
     except Exception as e:
         print("[Error] Send failed: " + str(e))
-    gc.collect()
+    _gc_collect()
 
 
 async def serial_input_loop(router):
@@ -257,7 +258,7 @@ def setup_node(rns, node_name):
                 rrc_mesh.on_message(router, message)
             except Exception as e:
                 print("[rrc_mesh] inbound failed:", e)
-        gc.collect()
+        _gc_collect()
 
     def on_announce(destination_hash, display_name):
         if DEBUG >= 1:
@@ -388,7 +389,7 @@ def main():
     # stranded on flash and replaced by an empty SD-backed board.
     import billboard as _bb
     _bb.migrate_to_sd()
-    gc.collect()
+    _gc_collect()
 
     from urns import Reticulum
     from urns.log import LOG_NONE, LOG_NOTICE, LOG_DEBUG
@@ -448,7 +449,7 @@ def main():
         plugins.network_ready(rns.identity)      # plugins' own destinations (API 2)
     except Exception as e:
         print("[plugin] network not ready for plugins:", e)
-    gc.collect()
+    _gc_collect()
 
     # Radio settings saved from /admin override config.py's bridge entry,
     # written in before the interfaces exist so the Heltec's very first
@@ -498,7 +499,7 @@ def main():
         chain.attach(rns)
         import rrc as _rrc
         _rrc.open_chain_room()     # #wifi-mesh: the other Stumps of the chain
-    gc.collect()
+    _gc_collect()
 
     if DEBUG >= 1:
         print("LXMF address:", dest.hexhash)
@@ -517,7 +518,7 @@ def main():
         except Exception as e:
             if DEBUG >= 2:
                 print("Initial announce error:", e)
-        gc.collect()
+        _gc_collect()
 
     try:
         beacon = make_stump_beacon(rns.identity, dest, NODE_NAME)
@@ -547,7 +548,7 @@ def main():
                     propagation.announce()
             except Exception as e:
                 print("[pn] announce error:", e)
-            gc.collect()
+            _gc_collect()
             await asyncio.sleep(STUMP_ANNOUNCE_INTERVAL)
 
     async def beacon_loop():
@@ -569,7 +570,7 @@ def main():
             except Exception as e:
                 if DEBUG >= 2:
                     print("Beacon announce error:", e)
-            gc.collect()
+            _gc_collect()
             # Until the next beacon -- or sooner, when a new chain link
             # comes up: the Stump at the other end has to hear this
             # beacon (and the LXMF announce) to put us in #wifi-mesh.
@@ -643,7 +644,7 @@ def main():
                     beacon.announce(app_data=stump_beacon_data(dest, NODE_NAME))
                 except Exception as e:
                     print("[announce] beacon:", e)
-            gc.collect()
+            _gc_collect()
 
     _original_run = rns.run
 

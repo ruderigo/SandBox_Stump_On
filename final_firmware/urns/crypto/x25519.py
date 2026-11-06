@@ -3,6 +3,7 @@
 # Constant time exchange added by Mark Qvist
 # Adapted for MicroPython timing
 
+from urns.mem import collect as _gc_collect
 import os
 import sys
 
@@ -16,7 +17,7 @@ _A = 486662
 _a24 = (_A - 2) >> 2  # = 121665 per RFC 7748
 
 # GC frequency mask for Montgomery ladder.
-# Lower = more frequent gc.collect() = slower but less memory pressure.
+# Lower = more frequent _gc_collect() = slower but less memory pressure.
 _gc_mask = 7
 
 

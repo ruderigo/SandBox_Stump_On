@@ -31,6 +31,7 @@
 #     any plain HTTP address manually still lands on Stump's page, since
 #     DNS redirects everything the same way either way.
 
+from urns.mem import collect as _gc_collect
 import socket
 import gc
 import uasyncio as asyncio
@@ -130,7 +131,7 @@ async def run_dns_server(ap_ip):
             # that starved the web server and Reticulum along with it.
             idle += 1
             if handled or idle >= 200:      # ~10s when idle
-                gc.collect()
+                _gc_collect()
                 idle = 0
             await asyncio.sleep_ms(50)
     finally:
