@@ -9,6 +9,28 @@ import time
 from ..log import log, LOG_VERBOSE, LOG_DEBUG, LOG_ERROR
 
 
+
+def _ticks():
+    try:
+        return time.ticks_ms()
+    except AttributeError:
+        return int(time.time() * 1000)
+
+
+_ifac_said = [0]
+
+
+def slow_ifac(what, t0):
+    """A chain secret (IFAC) signs every packet out and checks every one
+    in; how long that takes, said when slow (at most once a minute)."""
+    try:
+        ms = time.ticks_diff(time.ticks_ms(), t0)
+    except AttributeError:
+        ms = int(time.time() * 1000) - t0
+    if ms > 150 and time.time() - _ifac_said[0] > 60:
+        _ifac_said[0] = time.time()
+        print("[chain secret] %s took %d ms" % (what, ms))
+
 class Interface:
     # Interface modes
     MODE_FULL = 0x01
@@ -114,6 +136,7 @@ class Interface:
         import gc
         from ..crypto.hkdf import hkdf
 
+        t0 = _ticks()
         ifac = self.ifac_signing_key.sign(data)[-self.ifac_size:]
         gc.collect()
 
@@ -133,6 +156,7 @@ class Interface:
             new_raw[i] = new_raw[i] ^ mask[i]
 
         gc.collect()
+        slow_ifac("signing a packet for " + self.name, t0)
         log("IFAC signed " + str(len(new_raw)) + "B on " + self.name, LOG_DEBUG)
         return bytes(new_raw)
 
