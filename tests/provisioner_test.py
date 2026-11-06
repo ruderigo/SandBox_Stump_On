@@ -735,4 +735,15 @@ with contextlib.redirect_stdout(io.StringIO()) as said:
 check('settings for another board: its own name, hotspot, chain number; the Heltec follows',
       prof["node_name"] == "Wrover2" and prof["ssid_name"] == "Wrover2" and prof["chain"]["subnet"] == 6
       and prof["heltec_host"] == "192.168.6.2" and "Wrover2 192.168.6.1" in said.getvalue(), (prof, said.getvalue()))
+# The port held by another program (a `screen` left running): said, with who
+_rs = P.subprocess.run
+class _R:
+    stdout = "p812\ncscreen\n"
+P.subprocess.run = lambda *a, **k: _R()
+check('port busy: who holds it', P.port_holder("/dev/cu.usbserial-120") == "screen (pid 812)")
+with contextlib.redirect_stdout(io.StringIO()) as said:
+    P.explain_port_busy("/dev/cu.usbserial-120")
+check('... said, not a cable fault', "screen (pid 812)" in said.getvalue() and "Not a cable fault" in said.getvalue(), said.getvalue())
+check('... esptool\'s "Resource busy" is known', P._port_busy("[Errno 16] Resource busy: '/dev/cu.usbserial-120'"))
+P.subprocess.run = _rs
 print('FAILURES', FAIL)

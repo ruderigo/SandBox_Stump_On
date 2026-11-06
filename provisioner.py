@@ -3053,6 +3053,10 @@ def flash_cam_micropython(port, firmware_path=None, chip=None):
                 print(f"\nRetrying erase on {port} ...")
                 ok, out = run(["esptool", "--port", port, "erase-flash"], timeout=120)
                 print(out.strip())
+        if not ok and _port_busy(out):
+            print("FAILED at erase step.")
+            explain_port_busy(port)
+            return (False, None)
         if not ok:
             print("FAILED at erase step.")
             print("If it still won't connect: try a different USB cable (data, not")
@@ -3067,11 +3071,56 @@ def flash_cam_micropython(port, firmware_path=None, chip=None):
     )
     print(out.strip())
     print("OK — MicroPython flashed." if ok else "FAILED — see output above.")
+    if not ok and _port_busy(out):
+        explain_port_busy(port)
     # Return the port that actually worked, not just a bool. Bootloader
     # recovery can change it, and everything after this (upload, config
     # push, diagnostics) has to target the port the board really is on.
     return (ok, port if ok else None)
 
+
+
+def port_holder(port):
+    """Who has the board's port open ("screen (pid 812)"), or None. macOS
+    and Linux (lsof); None where it can't be told."""
+    try:
+        r = subprocess.run(["lsof", "-F", "pc", port], capture_output=True, text=True, timeout=5)
+    except Exception:
+        return None
+    pid = cmd = None
+    for line in r.stdout.splitlines():
+        if line.startswith("p"):
+            pid = line[1:]
+        elif line.startswith("c"):
+            cmd = line[1:]
+    return "%s (pid %s)" % (cmd, pid) if pid and cmd else None
+
+
+def _port_busy(out):
+    return any(k in (out or "") for k in ("Resource busy", "Errno 16", "port is busy"))
+
+
+def _free_the_port(port):
+    """Before anything touches the board: if another program holds the
+    port, say which and wait for it to go (the unattended part would
+    otherwise fail on every step)."""
+    for _ in range(3):
+        who = port_holder(port)
+        if not who:
+            return True
+        explain_port_busy(port)
+        ask("  Press Enter once it's closed")
+    return not port_holder(port)
+
+
+def explain_port_busy(port):
+    """The port is open in another program: say which, and how to let go
+    (beta.56: a `screen` left running read as a cable fault)."""
+    who = port_holder(port)
+    print(yellow("  Another program has %s open%s, so nothing else can use it." % (port, ": " + who if who else "")))
+    print("  Close it first -- a `screen` (Ctrl-A then K; or `pkill -f \"screen %s\"`)," % port)
+    print("  an `mpremote` or serial monitor in another window, the Arduino IDE.")
+    print("  Not a cable fault: the board is there.")
 
 
 HASH_CHECK_EXEMPT = {"config.py"}
@@ -5306,6 +5355,7 @@ def _cam_after_board(r, port, app_dir):
         "You can step away: the summary at the end says how it went."])
 
     # ── Flash
+    _free_the_port(port)
     r.start("Flash")
     flashed = False
     if flash and image is None:
@@ -5633,6 +5683,7 @@ def interactive_wizard():
         return
 
     # ── Flash
+    _free_the_port(port)
     r.start("Flash")
     flashed = False
     if role == "heltec_transport":
