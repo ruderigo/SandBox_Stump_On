@@ -566,7 +566,7 @@ EXPECTED_FILE_HASHES = {
     "urns/interfaces/serial.py": "3c7dda5e4ffb5dec",
     "urns/interfaces/tcp.py": "a29d90caa017764a",
     "urns/interfaces/udp.py": "cc5e30ddc0861737",
-    "urns/interfaces/wifi_serial.py": "89e21eedea563855",
+    "urns/interfaces/wifi_serial.py": "f1ad1e89e36c7e81",
     "urns/link.py": "ef808679cefb1ac0",
     "urns/log.py": "4b5576693991c7a6",
     "urns/lxmf.py": "2c3765adbefd45cc",

@@ -73,6 +73,7 @@ TESTS = [
     ("lxmf_stamps", "assert", []),
     ("nomadnet_pack", "assert", NOMADNET),
     ("wrover_board", "assert", []),
+    ("heltec_connect", "assert", []),
     ("simple_pack", "assert", SIMPLE),
 ]
 
