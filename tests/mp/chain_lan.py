@@ -98,6 +98,36 @@ check("nobody of this chain answers: None (it tries again later)",
 chain._state["lan_parent"] = "192.168.0.181"
 check("... and the uplink then goes to where it was found", chain.parent_address(s, "192.168.0.1") == "192.168.0.181")
 chain._state["lan_parent"] = None
+
+# Off the router (at boot it wasn't there, or it dropped): the router is
+# joined again, and never a Stump hotspot (beta.56: a WROVER set up for
+# the router joined LaBuche's hotspot)
+class STA:
+    def __init__(self):
+        self.joined = []
+        self.scanned = 0
+    def active(self, on=None):
+        return True
+    def isconnected(self):
+        return False
+    def connect(self, ssid, psk=""):
+        self.joined.append(ssid)
+    def scan(self):
+        self.scanned += 1
+        return [(b"LaBuche-Stump.web.app", b"", 11, -40, 0, 0)]
+
+
+config.CHAIN_PARENT_IP = "192.168.0.173"
+config.CHAIN_UPLINK_SSID = ""
+config.WIFI_SSID = "Bob's Glitch"
+config.WIFI_PASS = "pw"
+s = chain.settings()
+sta = STA()
+chain._state["rejoin_at"] = 0
+check("off the router: joins it again", chain.rejoin_router(s, sta, 100) and sta.joined == ["Bob's Glitch"], sta.joined)
+check("... not again within REJOIN_S", not chain.rejoin_router(s, sta, 100 + chain.REJOIN_S - 1) and len(sta.joined) == 1)
+check("... and again after it", chain.rejoin_router(s, sta, 100 + chain.REJOIN_S + 1) and len(sta.joined) == 2)
+check("... never a scan for Stump hotspots", sta.scanned == 0)
 config.CHAIN_ENABLED = False
 config.CHAIN_PARENT_IP = ""
 print('FAILURES:', FAIL)

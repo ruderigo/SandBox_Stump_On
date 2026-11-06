@@ -382,23 +382,33 @@ async def watch_loop(rns):
         try:
             sta = network.WLAN(network.STA_IF)
             sta_up = sta.isconnected()
-            if stump_host is None:
-                # A CAM: keep the path fresh, and find another Stump to
-                # join when the one above is gone.
-                if sta_up and up is not None and up.parent_seen and now - _state["path_at"] > PATH_EVERY:
+            if stump_host is None and over_lan(s):
+                # Over the router: the router is the only Wi-Fi this board
+                # joins. Off it, it joins it again; never a hunt for Stump
+                # hotspots (beta.56: a WROVER set up for the router lost it
+                # at boot and joined LaBuche's hotspot instead).
+                if not sta_up:
+                    rejoin_router(s, sta, now)
+                    continue
+                if up is not None and up.parent_seen and now - _state["path_at"] > PATH_EVERY:
                     p = refresh_path()
                     if p:
                         _state["known_path"] = p
-                if over_lan(s) and sta_up and _lost(up, sta_up, now, max(started, _state.get("moved_at", 0))):
-                    # Over the home Wi-Fi: never off it to scan hotspots;
-                    # the first Stump is looked for on this network.
+                if _lost(up, sta_up, now, max(started, _state.get("moved_at", 0))):
                     if now - _state["last_look"] > LAN_RETRY_S:
                         _state["last_look"] = now
                         found = await find_parent_on_lan(s)
                         if found and found != parent_address(s, None):
                             print("[chain] the first Stump is at %s now: moving the uplink there" % found)
                             _state["lan_parent"] = found
-                elif _lost(up, sta_up, now, max(started, _state.get("moved_at", 0))):
+            elif stump_host is None:
+                # A CAM: keep the path fresh, and find another Stump to
+                # join when the one above is gone.
+                if sta_up and up is not None and up.parent_seen and now - _state["path_at"] > PATH_EVERY:
+                    p = refresh_path()
+                    if p:
+                        _state["known_path"] = p
+                if _lost(up, sta_up, now, max(started, _state.get("moved_at", 0))):
                     if _state["lost_since"] is None:
                         _state["lost_since"] = now
                         _state["path"] = []             # cut off: nobody joins this one meanwhile
@@ -592,6 +602,27 @@ async def find_new_parent(s, net=None, get=None, own_ssid=None):
 
 
 LAN_RETRY_S = 60      # over the home Wi-Fi: how often the first Stump is looked for
+REJOIN_S = 30         # ... and how often the router is joined again when it's lost
+
+
+def rejoin_router(s, sta, now):
+    """Over the router and off it: join it again (every REJOIN_S), and
+    say so. Nothing else is ever joined."""
+    if now - _state.get("rejoin_at", 0) < REJOIN_S:
+        return False
+    _state["rejoin_at"] = now
+    try:
+        import config as c
+        ssid, psk = getattr(c, "WIFI_SSID", "") or s["uplink_ssid"], getattr(c, "WIFI_PASS", "") or ""
+    except ImportError:
+        ssid, psk = s["uplink_ssid"], s.get("uplink_pass", "")
+    print("[chain] not on the router (%s): joining it again" % ssid)
+    try:
+        sta.active(True)
+        sta.connect(ssid, psk)
+    except Exception as e:
+        print("[chain] joining %r: %s" % (ssid, e))
+    return True
 
 
 async def find_parent_on_lan(s, sock=None, get=None, wait_s=2.0):
