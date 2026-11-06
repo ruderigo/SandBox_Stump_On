@@ -787,4 +787,7 @@ answers("", "")
 with contextlib.redirect_stdout(io.StringIO()):
     prof = P._per_board(prof)
 check('... a Heltec on the home Wi-Fi keeps its address', prof["heltec_host"] == "192.168.1.50", prof)
+check('summary: a chain member\'s address named for the Stump above\'s Wi-Fi',
+      P._sta_note({"sta": "192.168.4.3", "ssid": "LaBuche-Stump.web.app"}) == ("Via the chain", "http://192.168.4.3/ on LaBuche-Stump.web.app")
+      and P._sta_note({"sta": "192.168.0.179", "ssid": "Bob's Glitch"})[0] == "On the Wi-Fi")
 print('FAILURES', FAIL)
