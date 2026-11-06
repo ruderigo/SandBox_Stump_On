@@ -312,7 +312,21 @@ def main():
     import chain
     CHAIN = None if RESCUE else chain.settings()
     chain_sta_ip = chain_parent_ip = None
-    if CHAIN and CHAIN["uplink_ssid"]:
+    if CHAIN and chain.over_lan(CHAIN):
+        # A member over the home Wi-Fi (CHAIN_PARENT_IP): it joins WIFI_SSID
+        # like a Stump on its own (its home address, the clock, internet)
+        # and links to the first Stump there, as a computer Stump does.
+        try:
+            ip = connect_wifi(WIFI_SSID, WIFI_PASS)
+            try:
+                import network
+                network.WLAN(network.STA_IF).config(reconnects=-1)
+            except Exception:
+                pass
+            chain_sta_ip, chain_parent_ip = chain.note_lan_uplink(CHAIN, ip)
+        except Exception as e:
+            print("[chain] the home Wi-Fi isn't joined (" + str(e) + "); will keep trying")
+    elif CHAIN and CHAIN["uplink_ssid"]:
         try:
             chain_sta_ip, chain_parent_ip = chain.connect_uplink(CHAIN)
         except Exception as e:

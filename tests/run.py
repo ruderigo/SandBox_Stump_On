@@ -44,6 +44,7 @@ TESTS = [
     ("chain", "chain", []),
     ("chain_config", "assert", []),
     ("chain_failover", "assert", []),
+    ("chain_lan", "assert", []),
     ("json_api", "snapshot", []),
     ("latin1_names", "snapshot", []),
     ("tools_sections", "assert", []),
