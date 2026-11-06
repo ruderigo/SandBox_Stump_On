@@ -787,6 +787,18 @@ answers("", "")
 with contextlib.redirect_stdout(io.StringIO()):
     prof = P._per_board(prof)
 check('... a Heltec on the home Wi-Fi keeps its address', prof["heltec_host"] == "192.168.1.50", prof)
+# A board in a chain over the home Wi-Fi: CHAIN_PARENT_IP written (and
+# cleared for a hotspot member), the result valid Python
+_cp = Path(tempfile.mkdtemp()) / "config.py"
+_cp.write_text(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.py"), encoding="utf-8").read(), encoding="utf-8")
+txt = P._generate_config_py(_cp, "LaBucheD", "Bob's Glitch", "pw", "192.168.6.200", 7633,
+                            chain={"enabled": True, "uplink_ssid": "Bob's Glitch", "uplink_pass": "pw", "subnet": 6,
+                                   "channel": 0, "secret": "s", "lan_parent_ip": "192.168.0.173"})
+txt = txt if isinstance(txt, str) else _cp.read_text(encoding="utf-8")
+ns = {}
+exec(compile(txt, "config.py", "exec"), ns)
+check('chain over the home Wi-Fi: CHAIN_PARENT_IP written', ns.get("CHAIN_PARENT_IP") == "192.168.0.173"
+      and ns.get("CHAIN_UPLINK_SSID") == "Bob's Glitch" and ns.get("CHAIN_SUBNET") == 6, {k: ns.get(k) for k in ("CHAIN_PARENT_IP", "CHAIN_UPLINK_SSID")})
 check('summary: a chain member\'s address named for the Stump above\'s Wi-Fi',
       P._sta_note({"sta": "192.168.4.3", "ssid": "LaBuche-Stump.web.app"}) == ("Via the chain", "http://192.168.4.3/ on LaBuche-Stump.web.app")
       and P._sta_note({"sta": "192.168.0.179", "ssid": "Bob's Glitch"})[0] == "On the Wi-Fi")

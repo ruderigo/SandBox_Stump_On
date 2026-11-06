@@ -140,6 +140,21 @@ keeps its internet. Only with a secret, since anyone on that network
 could reach it; `CHAIN_LAN = False` turns it off. `GET /chain.json`
 shows the address as `lan_ip`.
 
+**A board Stump on the shared network too (1.0.0-beta.56).** A CAM or a
+WROVER can join the chain the same way: it stays on `WIFI_SSID` (its
+home address, the clock, internet) and links to the first Stump's
+address there, `CHAIN_PARENT_IP = "192.168.0.173"`, instead of joining
+the hotspot of the Stump before it. Its own hotspot (192.168.<its
+number>.1) still serves its visitors, its Heltec and any Stump below it.
+If the router gives the first Stump another address, the board finds it
+again on that network (discovery's question, port 4244: the first Stump
+of the same chain taking links there) and moves its uplink; it never
+leaves the network to scan for hotspots. The Provisioner asks: chain >
+"Joins another Stump's Wi-Fi" > "Over the Wi-Fi it joins". Over the home
+Wi-Fi a Stump links to the first Stump only (the one that takes links
+there), and both need the chain secret. `GET /chain.json` says
+`"over_lan": true` in its `uplink`.
+
 ## Who's who on the chain
 
 - **Everyone in `#wifi-mesh`, on every Stump.** Each Stump sends the

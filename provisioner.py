@@ -352,12 +352,12 @@ EXPECTED_FILE_HASHES = {
     "billboard.py": "73e95795f9430ea5",
     "boot_common.py": "dc95827c3989d1ca",
     "captive_portal.py": "35cb3a279ecc42db",
-    "chain.py": "a42ee7e8b56d3887",
+    "chain.py": "e7994cc4864ec245",
     "config.py": "60def0b5e9761110",
     "conn.py": "b17cf4fb4f80fbbf",
     "discovery.py": "c1808c59c1452dda",
     "docs/ARBORIST.md": "a783f30ef8fac45f",
-    "docs/CHAIN.md": "775bf418753c82ba",
+    "docs/CHAIN.md": "0a84e62e2179ff28",
     "docs/CLIENT_QUICKSTART.md": "396a5a48c947d77b",
     "docs/COMMANDS.md": "c17a3263eeeae767",
     "docs/ENGINEERING_NOTES.md": "72f7d19d7c5f03a4",
@@ -368,7 +368,7 @@ EXPECTED_FILE_HASHES = {
     "docs/PACKS.md": "acb8642931a96b42",
     "docs/PC.md": "e90244ab4b47d68e",
     "docs/PLUGINS.md": "73eb6ecaacd0d576",
-    "example_node.py": "b4fc3a6450974c95",
+    "example_node.py": "c6f9ce8b197439f2",
     "features.py": "81e8af361c64a911",
     "fserv.py": "06b87b1d6fb95eb4",
     "fservbot/plugin.json": "12b3c544160411e3",
@@ -4274,9 +4274,37 @@ def config_wizard(board_type):
                 print("  Every Stump in the chain needs the same one: note it down.")
                 chain_cfg["secret"] = ask("  Chain secret", suggested) or ""
             else:
-                chain_cfg["uplink_ssid"] = ask_wifi("  Wi-Fi name of the Stump this one joins", "LaBuche-Stump.web.app")
-                chain_cfg["uplink_pass"] = "" if wifi_is_open(chain_cfg["uplink_ssid"]) else \
-                    (ask("  Its Wi-Fi password (blank if open)", "") or "")
+                home = profile.get("wifi_ssid") or ""
+                lan = bool(home) and ask_choice("  How does it reach the chain?", [
+                    "Over the Wi-Fi it joins (%s): like a computer Stump, it keeps its home address" % home,
+                    "By joining the hotspot of the Stump before it",
+                ]).startswith("Over the Wi-Fi")
+                if lan:
+                    # The first Stump takes chain links on the home Wi-Fi when
+                    # it has a chain secret (CHAIN_LAN); this board stays on
+                    # that Wi-Fi and links to it there (chain.py, beta.56).
+                    print("  It stays on %s and links to the first Stump there (the first Stump" % home)
+                    print("  needs a chain secret). If the router gives the first Stump another")
+                    print("  address, this Stump finds it again on the network by itself.")
+                    chain_cfg["uplink_ssid"], chain_cfg["uplink_pass"] = home, profile.get("wifi_pass", "")
+                    default_ip = ""
+                    mine = _route_ip("192.0.2.1") or ""
+                    if mine.count(".") == 3 and not mine.startswith("127."):
+                        print("  Looking for the first Stump on this computer's network...")
+                        found = find_stumps(mine.rsplit(".", 1)[0] + ".", skip=(mine,))
+                        for fip, node in found:
+                            print("    %s  %s" % (fip, node.get("name") or "?"))
+                        if found:
+                            default_ip = found[0][0]
+                        else:
+                            print("  None found from here (is this computer on %s?). Its address is the" % home)
+                            print("  \"On the Wi-Fi\" one in its own setup summary.")
+                    while not chain_cfg.get("lan_parent_ip"):
+                        chain_cfg["lan_parent_ip"] = (ask("  The first Stump's address on %s" % home, default_ip) or "").strip()
+                if not lan:
+                    chain_cfg["uplink_ssid"] = ask_wifi("  Wi-Fi name of the Stump this one joins", "LaBuche-Stump.web.app")
+                    chain_cfg["uplink_pass"] = "" if wifi_is_open(chain_cfg["uplink_ssid"]) else \
+                        (ask("  Its Wi-Fi password (blank if open)", "") or "")
                 print("  Each Stump's own Wi-Fi uses its own address range, 192.168.<n>.1:")
                 print("  the first Stump is 4; give every other one a different number.")
                 up = _uplink_number(chain_cfg["uplink_ssid"])
@@ -4291,7 +4319,11 @@ def config_wizard(board_type):
                     except ValueError:
                         pass
                     print("    A number from 5 to 254.")
-                chain_cfg["secret"] = ask("  Chain secret (the same as on the first Stump)", "") or ""
+                while True:
+                    chain_cfg["secret"] = ask("  Chain secret (the same as on the first Stump)", "") or ""
+                    if chain_cfg["secret"] or not chain_cfg.get("lan_parent_ip"):
+                        break
+                    print("    Over the home Wi-Fi the first Stump only takes links with a chain secret.")
                 chain_cfg["channel"] = 0
                 print("  Once it's up, check the link from a computer on its Wi-Fi:")
                 print("    python3 provisioner.py --check-chain 192.168.%d.1" % chain_cfg["subnet"])
@@ -4937,6 +4969,9 @@ def _generate_config_py(local_config_path, node_name, wifi_ssid, wifi_pass, helt
             "CHAIN_SUBNET": int(chain.get("subnet", 4)),
             "CHAIN_CHANNEL": int(chain.get("channel", 0) or 0),
             "CHAIN_SECRET": chain.get("secret", ""),
+            # A board member over the home Wi-Fi (chain.py); "" otherwise,
+            # so answering the questions again clears it.
+            "CHAIN_PARENT_IP": chain.get("lan_parent_ip", ""),
         }
         rebuilt = []
         for line in out:
@@ -4949,7 +4984,7 @@ def _generate_config_py(local_config_path, node_name, wifi_ssid, wifi_pass, helt
         if want:
             out.append("\n# ---- Chain: Stumps linked over Wi-Fi, docs/CHAIN.md (added by the Provisioner) ----\n")
             for k in ("CHAIN_ENABLED", "CHAIN_UPLINK_SSID", "CHAIN_UPLINK_PASS", "CHAIN_SUBNET",
-                      "CHAIN_CHANNEL", "CHAIN_SECRET"):
+                      "CHAIN_CHANNEL", "CHAIN_SECRET", "CHAIN_PARENT_IP"):
                 if k in want:
                     out.append("%s = %r\n" % (k, want[k]))
     if mesh_greeting is not None and not saw_greeting:

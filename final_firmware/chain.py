@@ -25,6 +25,13 @@
 #   CHAIN_LAN         = True    # root only, with a secret: also take chain links on
 #                               # the Wi-Fi it joined (WIFI_SSID), so a computer on
 #                               # the same home network joins without switching Wi-Fi
+#   CHAIN_PARENT_IP   = ""      # a member that joins over that home Wi-Fi instead
+#                               # (1.0.0-beta.56): the first Stump's address there.
+#                               # The member stays on WIFI_SSID (its home address,
+#                               # internet), links to the first Stump at this
+#                               # address, and finds it again on that network when
+#                               # the router gives it another (discovery, port 4244).
+#                               # Like a computer Stump. Needs the chain secret.
 
 try:
     from keepalive import doing as _doing
@@ -144,7 +151,7 @@ def settings():
         channel = int(getattr(c, "CHAIN_CHANNEL", 0) or 0)
     except (TypeError, ValueError):
         channel = 0
-    return {
+    out = {
         "uplink_ssid": (getattr(c, "CHAIN_UPLINK_SSID", "") or "").strip(),
         "uplink_pass": getattr(c, "CHAIN_UPLINK_PASS", "") or "",
         "subnet": subnet,
@@ -152,7 +159,13 @@ def settings():
         "secret": getattr(c, "CHAIN_SECRET", "") or "",
         "port": int(getattr(c, "CHAIN_PORT", DEFAULT_PORT) or DEFAULT_PORT),
         "lan": bool(getattr(c, "CHAIN_LAN", True)),
+        # Over the home Wi-Fi: the first Stump's address there, and the
+        # Wi-Fi joined is WIFI_SSID (named as the uplink so it's a member).
+        "parent_ip": (getattr(c, "CHAIN_PARENT_IP", "") or "").strip(),
     }
+    if out["parent_ip"] and not out["uplink_ssid"]:
+        out["uplink_ssid"] = getattr(c, "WIFI_SSID", "") or "(the home Wi-Fi)"
+    return out
 
 
 def ap_ip(s=None):
@@ -175,6 +188,30 @@ def ap_prefix():
 def is_root(s=None):
     s = s or settings()
     return bool(s) and not s["uplink_ssid"]
+
+
+def over_lan(s=None):
+    """A member that joins the first Stump over the home Wi-Fi (its
+    CHAIN_PARENT_IP), not through the hotspot of the Stump above."""
+    s = s or settings()
+    return bool(s) and not is_root(s) and bool(s.get("parent_ip"))
+
+
+def parent_address(s, gw):
+    """Who the uplink talks to: the Stump above is the gateway of its
+    hotspot; over the home Wi-Fi it's the first Stump's address there
+    (the one found last, if it moved)."""
+    if over_lan(s):
+        return _state.get("lan_parent") or s["parent_ip"]
+    return gw
+
+
+def note_lan_uplink(s, ip):
+    """Over the home Wi-Fi: the boot joined WIFI_SSID itself (its NTP, its
+    address); the uplink goes to the first Stump from there."""
+    _state["sta_ip"], _state["parent_ip"] = ip, parent_address(s, None)
+    print("[chain] over the home Wi-Fi: %s, to the first Stump at %s" % (ip, _state["parent_ip"]))
+    return ip, _state["parent_ip"]
 
 
 def connect_uplink(s, timeout=20):
@@ -201,6 +238,7 @@ def connect_uplink(s, timeout=20):
     except Exception:
         pass
     ip, mask, gw, dns = sta.ifconfig()
+    gw = parent_address(s, gw)
     _state["sta_ip"], _state["parent_ip"] = ip, gw
     try:
         rssi = sta.status("rssi")
@@ -351,7 +389,16 @@ async def watch_loop(rns):
                     p = refresh_path()
                     if p:
                         _state["known_path"] = p
-                if _lost(up, sta_up, now, max(started, _state.get("moved_at", 0))):
+                if over_lan(s) and sta_up and _lost(up, sta_up, now, max(started, _state.get("moved_at", 0))):
+                    # Over the home Wi-Fi: never off it to scan hotspots;
+                    # the first Stump is looked for on this network.
+                    if now - _state["last_look"] > LAN_RETRY_S:
+                        _state["last_look"] = now
+                        found = await find_parent_on_lan(s)
+                        if found and found != parent_address(s, None):
+                            print("[chain] the first Stump is at %s now: moving the uplink there" % found)
+                            _state["lan_parent"] = found
+                elif _lost(up, sta_up, now, max(started, _state.get("moved_at", 0))):
                     if _state["lost_since"] is None:
                         _state["lost_since"] = now
                         _state["path"] = []             # cut off: nobody joins this one meanwhile
@@ -368,6 +415,7 @@ async def watch_loop(rns):
             if not sta_up:
                 continue
             ip, mask, gw, dns = sta.ifconfig()
+            gw = parent_address(s, gw)
             _state["sta_ip"], _state["parent_ip"] = ip, gw
             if up is None:
                 _start_uplink(rns, s, ip, gw)
@@ -543,6 +591,69 @@ async def find_new_parent(s, net=None, get=None, own_ssid=None):
     return None
 
 
+LAN_RETRY_S = 60      # over the home Wi-Fi: how often the first Stump is looked for
+
+
+async def find_parent_on_lan(s, sock=None, get=None, wait_s=2.0):
+    """Over the home Wi-Fi: asks "who's a Stump here?" (discovery's
+    broadcast, port 4244) and picks the one that is the first Stump of
+    this chain taking links on this network (its /chain.json: root, the
+    same chain, its lan_ip the address it answered from). Its address, or
+    None. Never leaves the network."""
+    import uasyncio as asyncio
+    import socket
+    try:
+        import ujson as json
+    except ImportError:
+        import json
+    import discovery
+    get = get or _http_json
+    own = None
+    if sock is None:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        own = sock
+        try:
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        except Exception:
+            pass
+        sock.setblocking(False)
+    try:
+        prefix = (_state.get("sta_ip") or "").rsplit(".", 1)[0]
+        for dest in ("255.255.255.255", prefix + ".255" if prefix else None):
+            if dest:
+                try:
+                    sock.sendto(discovery.QUERY, socket.getaddrinfo(dest, discovery.PORT)[0][-1])
+                except Exception:
+                    pass
+        seen = []
+        t0 = time.time()
+        while time.time() - t0 < wait_s:
+            try:
+                data, addr = sock.recvfrom(1024)
+            except OSError:
+                await asyncio.sleep(0.1)
+                continue
+            ip = discovery._ip_of(addr)
+            if ip and ip not in seen and ip != _state.get("sta_ip"):
+                try:
+                    json.loads(data)
+                    seen.append(ip)
+                except Exception:
+                    pass
+        for ip in seen:
+            d = get(ip, "/chain.json", 1)
+            if isinstance(d, dict) and d.get("enabled") and d.get("role") == "root" \
+                    and d.get("chain") == chain_id(s) and d.get("lan_ip") == ip:
+                return ip
+        return None
+    finally:
+        if own is not None:
+            try:
+                own.close()
+            except Exception:
+                pass
+
+
 def _lost(up, sta_up, now, started):
     """Is the Stump above gone? Its Wi-Fi gone, or there but the Stump
     silent."""
@@ -569,6 +680,7 @@ def status():
         "secret": bool(s["secret"]),
         "uplink": None if is_root(s) else {
             "ssid": s["uplink_ssid"],
+            "over_lan": over_lan(s),
             "ip": up.listen_ip if up else None,
             "parent": up.forward_ip if up else None,
             "parent_heard_s": int(now - up.parent_seen) if up and up.parent_seen else None,
