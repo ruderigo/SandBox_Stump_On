@@ -728,13 +728,13 @@ check('hotspot preview: a name of its own and the address, as the board writes i
 # number asked again, the Heltec moved into its range
 prof = {"node_name": "Wrover", "board_type": "cam", "ssid_name": "Wrover", "ssid_include_ip": True,
         "chain": {"enabled": True, "uplink_ssid": "Souche 192.168.4.1", "subnet": 5},
-        "heltec_enabled": True, "heltec_host": "192.168.5.2"}
+        "heltec_enabled": True, "heltec_host": "192.168.5.2", "heltec_on_hotspot": True}
 answers("Wrover2", "", "6")
 with contextlib.redirect_stdout(io.StringIO()) as said:
     prof = P._per_board(prof)
 check('settings for another board: its own name, hotspot, chain number; the Heltec follows',
       prof["node_name"] == "Wrover2" and prof["ssid_name"] == "Wrover2" and prof["chain"]["subnet"] == 6
-      and prof["heltec_host"] == "192.168.6.2" and "Wrover2 192.168.6.1" in said.getvalue(), (prof, said.getvalue()))
+      and prof["heltec_host"] == "192.168.6.200" and "Wrover2 192.168.6.1" in said.getvalue(), (prof, said.getvalue()))
 # The port held by another program (a `screen` left running): said, with who
 _rs = P.subprocess.run
 class _R:
@@ -777,4 +777,10 @@ with contextlib.redirect_stdout(io.StringIO()):
 check('diagnostics: the Stump started again at the end', _calls and _calls[-1][-1] == "reset", _calls[-2:])
 P.run = _rn
 P.sd_card_status, P.release_check = _sv3
+prof = {"node_name": "Home", "board_type": "cam", "heltec_enabled": True, "heltec_host": "192.168.1.50",
+        "heltec_on_hotspot": False, "chain": {"enabled": True, "uplink_ssid": "Souche 192.168.4.1", "subnet": 6}}
+answers("", "")
+with contextlib.redirect_stdout(io.StringIO()):
+    prof = P._per_board(prof)
+check('... a Heltec on the home Wi-Fi keeps its address', prof["heltec_host"] == "192.168.1.50", prof)
 print('FAILURES', FAIL)
