@@ -6,6 +6,12 @@ class _M: pass
 _m = _M(); _m.aes = lambda *a, **k: None
 sys.modules['ucryptolib'] = _m; sys.modules['cryptolib'] = _m
 sys.path.insert(0, '.')
+if os.getenv('STUMP_FROZEN'):
+    # The tests on a build with the Stump frozen in (image/README.md): the
+    # frozen modules right after the board's "filesystem" (the test
+    # tree), before this folder -- whose test files (librarian.py...)
+    # would otherwise be found as the Stump's modules.
+    sys.path.insert(1, '.frozen')
 ROOT = os.getcwd() + '/_sd_web'
 os.system('rm -rf %s && mkdir -p %s/shared %s/tools %s/home' % (ROOT, ROOT, ROOT, ROOT))
 import fserv
@@ -120,7 +126,20 @@ def req(path, body=b'', headers=(), method=None, declared=None, secure=False):
     head = head.decode()
     LAST_HEAD[0] = head
     ct = [l.split(': ', 1)[1] for l in head.split('\r\n') if l.lower().startswith('content-type')]
-    return head.split('\r\n')[0][9:], (ct[0] if ct else '-'), out.decode('utf-8', 'replace')
+    return head.split('\r\n')[0][9:], (ct[0] if ct else '-'), _text(out)
+
+
+def _text(b):
+    """The body as text. MicroPython 1.28 (the boards') raises on bytes that
+    aren't UTF-8 whatever the errors argument; later ones replace them."""
+    try:
+        return b.decode('utf-8', 'replace')
+    except UnicodeError:
+        out = bytearray(b)
+        for i in range(len(out)):
+            if out[i] >= 128:
+                out[i] = 63                     # '?' for each byte that isn't ASCII
+        return out.decode('utf-8')
 
 
 LAST_HEAD = ['']

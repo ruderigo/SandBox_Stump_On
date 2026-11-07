@@ -10,3 +10,4 @@ themes.json
 boot_fail_count
 # release signing key: never commit it (only RELEASE_SIGNING_KEY.txt, the public half)
 *.identity
+build/

@@ -1,0 +1,73 @@
+name: Stump images
+
+# MicroPython with the Stump frozen in, one image per board
+# (image/README.md): stump-<version>-wrover.bin (an ESP32-WROVER, flashed
+# at 0x1000) and stump-<version>-s3cam.bin (an ESP32-S3-CAM, at 0x0).
+# Built in Espressif's ESP-IDF container from the MicroPython release the
+# boards run. A push that touches image/ builds them as an artifact (so a
+# change is proven before a release), "Run workflow" by hand does too, and
+# the Release workflow calls this one and attaches them to the release.
+
+on:
+  push:
+    paths:
+      - 'image/**'
+      - '.github/workflows/images.yml'
+  workflow_dispatch:
+  workflow_call:
+    outputs:
+      artifact:
+        description: "The artifact that holds the images"
+        value: ${{ jobs.images.outputs.artifact }}
+
+env:
+  MICROPYTHON_TAG: v1.28.0
+  IDF_VERSION: v5.5.1
+
+jobs:
+  images:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    container:
+      image: espressif/idf:v5.5.1
+    outputs:
+      artifact: ${{ steps.name.outputs.artifact }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: The version
+        id: name
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          VERSION=$(sed -n 's/^STUMP_RELEASE = "\(.*\)"/\1/p' final_firmware/example_node.py)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "artifact=Stump-images-$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: MicroPython ${{ env.MICROPYTHON_TAG }} (cached)
+        id: mp-cache
+        uses: actions/cache@v4
+        with:
+          path: micropython
+          key: micropython-esp32-${{ env.MICROPYTHON_TAG }}-${{ env.IDF_VERSION }}
+
+      - name: Fetch MicroPython
+        if: steps.mp-cache.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 --branch "$MICROPYTHON_TAG" https://github.com/micropython/micropython micropython
+          cd micropython
+          git submodule update --init --depth 1 lib/berkeley-db-1.xx lib/micropython-lib
+          . "$IDF_PATH/export.sh"
+          make -C mpy-cross -j"$(nproc)"
+          make -C ports/esp32 submodules
+
+      - name: Build the images
+        run: |
+          . "$IDF_PATH/export.sh"
+          sh image/build.sh "$PWD/micropython" "$PWD/build/images"
+          ls -la build/images
+
+      - name: Keep the images as a build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.name.outputs.artifact }}
+          path: build/images/

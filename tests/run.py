@@ -119,7 +119,32 @@ def tree(extra):
     shutil.copy(HERE / "config.py", d / "fw" / "config.py")
     if MPY_CROSS:
         _compile_tree(d / "fw")
+    if FROZEN:
+        _strip_frozen(d / "fw")
     return d / "fw"
+
+
+# STUMP_FROZEN=1 with MICROPYTHON a build that has the Stump frozen in
+# (image/manifest_check.py): the same tests on what a board running a
+# Stump image has on its filesystem -- config.py, main.py, the plugin
+# folders, web, lib -- and nothing else; the Stump itself runs from the
+# frozen modules (image/README.md).
+FROZEN = os.environ.get("STUMP_FROZEN")
+
+
+def _strip_frozen(fw):
+    sys.path.insert(0, str(ROOT / "image"))
+    import stage
+    for rel in stage.frozen_modules():
+        for p in (fw / rel, (fw / rel).with_suffix(".mpy")):
+            if p.exists():
+                p.unlink()
+    (fw / "stump_image.py").unlink(missing_ok=True)
+    # An empty package folder left on the filesystem would shadow the
+    # frozen package (the filesystem is searched first): gone too.
+    for d in sorted((p for p in fw.rglob("*") if p.is_dir()), key=lambda p: -len(p.parts)):
+        if not any(d.iterdir()):
+            d.rmdir()
 
 
 # MPY_CROSS=/path/to/mpy-cross: the same tests on the firmware compiled

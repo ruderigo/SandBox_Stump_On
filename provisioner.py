@@ -245,7 +245,13 @@ def board_release(port):
     """STUMP_RELEASE of the firmware on a Stump board, read from its
     example_node.py (or .mpy) over USB. None if it couldn't be read."""
     code = ("r='?'\n"
-            "for p in ('example_node.py','/lib/example_node.py'):\n"
+            # A Stump image (image/README.md): the release is frozen in.
+            "try:\n"
+            "    import stump_image\n"
+            "    r=stump_image.RELEASE\n"
+            "except ImportError:\n"
+            "    pass\n"
+            "for p in (() if r!='?' else ('example_node.py','/lib/example_node.py')):\n"
             "    try:\n"
             "        for l in open(p):\n"
             "            if l.startswith('STUMP_RELEASE'):\n"
@@ -352,7 +358,7 @@ EXPECTED_FILE_HASHES = {
     "billboard.py": "73e95795f9430ea5",
     "boot_common.py": "dc95827c3989d1ca",
     "captive_portal.py": "5a89b67f2c47bdba",
-    "chain.py": "e7994cc4864ec245",
+    "chain.py": "72e87add0e6f7128",
     "config.py": "60def0b5e9761110",
     "conn.py": "b17cf4fb4f80fbbf",
     "discovery.py": "c1808c59c1452dda",
@@ -368,7 +374,7 @@ EXPECTED_FILE_HASHES = {
     "docs/PACKS.md": "acb8642931a96b42",
     "docs/PC.md": "e90244ab4b47d68e",
     "docs/PLUGINS.md": "73eb6ecaacd0d576",
-    "example_node.py": "429836a86d845624",
+    "example_node.py": "3f808b0b7a02b694",
     "features.py": "81e8af361c64a911",
     "fserv.py": "06b87b1d6fb95eb4",
     "fservbot/plugin.json": "12b3c544160411e3",
@@ -566,11 +572,11 @@ EXPECTED_FILE_HASHES = {
     "urns/interfaces/serial.py": "3c7dda5e4ffb5dec",
     "urns/interfaces/tcp.py": "a29d90caa017764a",
     "urns/interfaces/udp.py": "12ac3860ba2aa7a2",
-    "urns/interfaces/wifi_serial.py": "f1ad1e89e36c7e81",
+    "urns/interfaces/wifi_serial.py": "8fd465423fc3e5ad",
     "urns/link.py": "0f568caefc9c1efc",
     "urns/log.py": "4b5576693991c7a6",
     "urns/lxmf.py": "587c214e32876e9e",
-    "urns/mem.py": "b5d0cb7d645c5942",
+    "urns/mem.py": "58dc4fbef9aec87c",
     "urns/packet.py": "1712df82dae76dcf",
     "urns/resource.py": "fa53b285d1fae400",
     "urns/reticulum.py": "00aeba4810c20778",
@@ -666,6 +672,45 @@ FIRMWARE_FOR_CHIP = {
 }
 
 
+# A Stump image (image/README.md, 1.0.0-beta.56): MicroPython with the
+# Stump frozen in, one per chip, built by the release workflow and
+# attached to the GitHub release as stump-<release>-wrover.bin and
+# stump-<release>-s3cam.bin. Flashed instead of the plain MicroPython
+# image and the file upload: the board boots the Stump from flash, with
+# far less in RAM (a WROVER's memory clean-ups took 2 s each with the
+# Stump loaded into RAM).
+STUMP_IMAGE_REPO = "ruderigo/SandBox_Stump_On"
+# The tag of image/partitions-stump.csv (image/stage.py computes it; a
+# test checks this matches): a board whose image has another layout is
+# erased for the new one, not updated in place.
+STUMP_IMAGE_PARTITIONS = "stump-9eba0468"
+STUMP_IMAGE_NAMES = {"esp32": "wrover", "esp32s3": "s3cam"}
+
+
+def stump_image_url(chip, release=None):
+    release = release or _folder_release() or EXPECTED_STUMP_VERSION
+    return "https://github.com/%s/releases/download/v%s/stump-%s-%s.bin" % (
+        STUMP_IMAGE_REPO, release, release, STUMP_IMAGE_NAMES[chip])
+
+
+def stump_image_markers(chip, release=None):
+    """The file name's parts that make it this release's image for this
+    chip: stump-<release>-<wrover|s3cam>.bin."""
+    release = release or _folder_release() or EXPECTED_STUMP_VERSION
+    return ("stump-%s-%s" % (release, STUMP_IMAGE_NAMES[chip]),)
+
+
+def find_stump_image(chip, release=None):
+    """This release's Stump image for the chip, if it's here already: next
+    to the Provisioner (a release zip, image/build.sh's output), in the
+    firmware cache, Downloads or the Desktop."""
+    markers = stump_image_markers(chip, release)
+    roots = [Path(__file__).resolve().parent, Path(__file__).resolve().parent / "build" / "images",
+             FIRMWARE_CACHE_DIR, Path.cwd(), Path.home() / "Downloads", Path.home() / "Desktop"]
+    found = _find_cam_firmware_candidates(roots, markers=markers)
+    return found[0] if found else None
+
+
 def chip_from_esptool(text):
     """"esp32s3", "esp32" or None, from what esptool printed."""
     t = (text or "").upper()
@@ -680,6 +725,57 @@ def detect_chip(port):
     """The chip on that port, read by esptool (download mode), or None."""
     ok, out = run(["esptool", "--port", port, "chip-id"], timeout=60)
     return chip_from_esptool(out)
+
+
+def _remove_stale_frozen(port, frozen):
+    """Deletes from the board's filesystem the .py/.mpy of modules the
+    image has frozen in (one call, whatever the count)."""
+    names = sorted(set(f[:-3] for f in frozen))
+    # The packages' folders too, once empty (deepest first): an empty
+    # urns/ on the filesystem would shadow the frozen urns package, as
+    # the filesystem is searched before the frozen modules.
+    dirs = sorted(set(f.rsplit("/", 1)[0] for f in frozen if "/" in f), key=lambda d: -d.count("/"))
+    code = ("import os\n"
+            "n=0\n"
+            "for m in %r:\n"
+            "    for p in (m+'.py', m+'.mpy'):\n"
+            "        try:\n"
+            "            os.remove(p)\n"
+            "            n+=1\n"
+            "        except OSError:\n"
+            "            pass\n"
+            "for d in %r:\n"
+            "    try:\n"
+            "        if not os.listdir(d):\n"
+            "            os.rmdir(d)\n"
+            "    except OSError:\n"
+            "        pass\n"
+            "print('REMOVED:%%d' %% n)\n") % (names, dirs)
+    ok, out = run(["mpremote", "connect", port, "exec", code], timeout=60)
+    m = re.search(r"REMOVED:(\d+)", out or "") if ok else None
+    n = int(m.group(1)) if m else 0
+    if n:
+        print("  Removed %d stale copies of frozen modules from the board." % n)
+    return n
+
+
+def board_image(port):
+    """What a board running a Stump image says of it (stump_image.py,
+    frozen in by image/stage.py): {"release", "partitions", "frozen"},
+    or None on a board without the image (files uploaded one by one)."""
+    ok, out = run(["mpremote", "connect", port, "exec",
+                   "try:\n"
+                   "    import stump_image as s, json\n"
+                   "    print('IMAGE:' + json.dumps({'release': s.RELEASE, 'partitions': s.PARTITIONS, 'frozen': s.FROZEN}))\n"
+                   "except ImportError:\n"
+                   "    print('IMAGE:none')\n"], timeout=20)
+    m = re.search(r"IMAGE:(\{.*\})", out or "") if ok else None
+    if not m:
+        return None
+    try:
+        return json.loads(m.group(1))
+    except ValueError:
+        return None
 
 
 def board_is_wrover(port):
@@ -1935,7 +2031,8 @@ def ask_choice(prompt, options):
     for i, opt in enumerate(options, 1):
         print(f"  {i}) {opt}")
     while True:
-        raw = _in(f"Choose 1-{len(options)}: ").strip()
+        # Enter takes the first option: the recommended one comes first.
+        raw = _in(f"Choose 1-{len(options)} [1]: ").strip() or "1"
         if raw.isdigit() and 1 <= int(raw) <= len(options):
             return options[int(raw) - 1]
         print("  invalid choice, try again")
@@ -2981,6 +3078,19 @@ def pick_board_firmware(port, firmware_path=None):
         chip = "esp32" if pick and "WROVER" in pick else "esp32s3"
     fwv = FIRMWARE_FOR_CHIP[chip]
     print("  Board: %s" % ("ESP32-S3 (a CAM)" if chip == "esp32s3" else "original ESP32 (a WROVER board)"))
+    # The Stump image for this release first: here already, or from the
+    # GitHub release. Plain MicroPython (then the files uploaded one by
+    # one) only when there's none -- a release without images, or no
+    # network and no copy.
+    image = find_stump_image(chip)
+    if image is None:
+        got = _download_cam_firmware(stump_image_url(chip))
+        image = got if got and got.stat().st_size > 1024 * 1024 else None
+    if image is not None:
+        print("  The Stump image for this board: %s (the Stump frozen in; flashed in one go)" % image.name)
+        return chip, image
+    print(yellow("  No Stump image for %s (%s): plain MicroPython, then the files uploaded one by one."
+                 % (STUMP_IMAGE_NAMES[chip], stump_image_url(chip))))
     resolved = resolve_path(
         firmware_path,
         "MicroPython .bin firmware for " + fwv["label"],
@@ -3019,7 +3129,32 @@ def pick_board_firmware(port, firmware_path=None):
     return chip, resolved
 
 
-def flash_cam_micropython(port, firmware_path=None, chip=None):
+def ask_flash(port):
+    """Section 3's firmware question: (flash, keep, chip, image).
+    A board that runs a Stump image with this release's partition table
+    can take the new image in place, its settings and identity kept
+    (no erase: the filesystem partition isn't touched). Otherwise the
+    image erases the board (new, or starting over), or nothing is
+    flashed (files and settings only)."""
+    info = board_image(port)
+    same = bool(info) and info.get("partitions") == STUMP_IMAGE_PARTITIONS
+    if info:
+        print("  The board runs a Stump image: %s%s." % (
+            info.get("release"), "" if same else " (an older partition layout: updating it means an erase)"))
+    update = "Update it to this release's image, keeping its settings and identity"
+    erase = "Put the Stump image on it, erased first (a new board, or starting over)"
+    none = "Nothing: only the files and settings"
+    pick = ask_choice("The board's firmware:", ([update] if same else []) + [erase, none])
+    if pick == none:
+        return False, False, None, None
+    chip, image = pick_board_firmware(port)
+    if image is None:
+        print(yellow("  No image: the board won't be flashed, and nothing is installed on it"
+                     " (sections 4-7 are skipped). Run this again with the image."))
+    return True, pick == update, chip, image
+
+
+def flash_cam_micropython(port, firmware_path=None, chip=None, erase=True):
     banner(f"FLASHING MICROPYTHON — {port}")
     if chip is None or firmware_path is None:
         chip, firmware_path = pick_board_firmware(port, firmware_path)
@@ -3028,6 +3163,19 @@ def flash_cam_micropython(port, firmware_path=None, chip=None):
     fwv = FIRMWARE_FOR_CHIP[chip]
     print("  Image: %s at %s" % (Path(firmware_path).name, fwv["offset"]))
     firmware_path = str(firmware_path)
+
+    if not erase:
+        # In place: the image's bootloader, partition table and
+        # application are written; the filesystem partition after them
+        # (settings, identity, packs) stays.
+        print("Writing the image in place (the board's settings and identity stay)...")
+        ok, out = run(["esptool", "--port", port, "--baud", "460800", "write-flash", "-z", fwv["offset"], firmware_path],
+                      timeout=180)
+        print(out.strip())
+        if not ok and _port_busy(out):
+            explain_port_busy(port)
+        print("OK — the image is on the board." if ok else "FAILED — see output above.")
+        return (ok, port if ok else None)
 
     print("Erasing flash...")
     # esptool v5 renamed every underscore-style command/option to hyphens
@@ -3437,6 +3585,16 @@ def upload_stump_app(port, app_dir=None):
     # engines (the two .wasm, 540 KB) go on its SD card instead, where
     # the Stump serves them from (1.0.0-beta.56); and compiled modules
     # (.mpy) leave room for settings, identity and packs.
+    # A board running a Stump image (image/README.md) has these modules
+    # frozen in: not uploaded, and any copy left on its filesystem from
+    # before the image is removed -- the filesystem is searched before
+    # the frozen modules, so a stale copy there would run instead.
+    image = board_image(port)
+    if image:
+        frozen = set(image.get("frozen") or [])
+        present = [f for f in present if f not in frozen]
+        print("  A Stump image (%s): %d modules are frozen in, not uploaded." % (image.get("release"), len(frozen)))
+        _remove_stale_frozen(port, frozen)
     to_sd = []
     if board_is_wrover(port):
         to_sd = [f for f in present if f.startswith("web/") and f.endswith(".wasm")]
@@ -5451,14 +5609,7 @@ def _cam_after_board(r, port, app_dir):
     # ── Questions
     r.start("Questions")
     print("Everything is asked now, so the rest can run while you're away.")
-    flash = ask_yes_no(f"Flash MicroPython onto {port}? (erases the board: yes for a new or "
-                       "broken board, no to keep it and only update)", True)
-    chip = image = None
-    if flash:
-        chip, image = pick_board_firmware(port)
-        if image is None:
-            print(yellow("  No MicroPython image: the board won't be flashed, and nothing is"
-                         " installed on it (sections 4-7 are skipped). Run this again with the image."))
+    flash, keep, chip, image = ask_flash(port)
     upload = bool(app_dir) and (flash or ask_yes_no(
         "Upload the Stump files? (keeps the board's settings)", True))
     global SKIP_TOOLS
@@ -5466,7 +5617,7 @@ def _cam_after_board(r, port, app_dir):
         "Copy the Tools page's files to its SD card too? They're the slow part: ~20-25 min "
         "the first time and after each update (the firmware bundle and the Provisioner change). "
         "No: the node works the same; only its /tools downloads stay as they were", True)
-    profile = _ask_profile("cam", erased=flash)
+    profile = _ask_profile("cam", erased=flash and not keep)
     verify = ask_yes_no("Run the diagnostic suite at the end?", True)
     r.end()
     left = sum((r.expected(n)[0] or 0) for n, _ in r.steps[r.index + 1:])
@@ -5484,7 +5635,7 @@ def _cam_after_board(r, port, app_dir):
     if flash and image is None:
         r.end("fail", "no MicroPython image (section 3)")
     elif flash:
-        flashed, flashed_port = flash_cam_micropython(port, image, chip)
+        flashed, flashed_port = flash_cam_micropython(port, image, chip, erase=not keep)
         if flashed and flashed_port and flashed_port != port:
             # Bootloader recovery can land the board on another port.
             print(f"\nThe board moved to {flashed_port} during flashing: using that from here.")
@@ -5669,6 +5820,7 @@ def fix_menu():
         ("Run the diagnostic suite on a board", "diag"),
         ("Check a chain of Stumps is linked", "chain"),
         ("Find a CAM's addresses", "ip"),
+        ("Update a board to this release's Stump image (keeps its settings)", "image"),
         ("Re-upload the Stump files to a CAM (keeps its settings)", "upload"),
         ("Add a pack to a CAM", "pack"),
         ("Update the Tools page on a CAM's card", "tools"),
@@ -5702,6 +5854,8 @@ def fix_menu():
             print("  No address yet: reset the board, wait a few seconds, and try again.")
     elif what == "upload":
         upload_stump_app(port)
+    elif what == "image":
+        update_image(port)
     elif what == "pack":
         packs = discover_packs()
         chosen = choose_packs(_remembered_path("stump_app_dir") or STUMP_APP_DIR, packs) if packs else []
@@ -5716,6 +5870,38 @@ def fix_menu():
             wipe_sd_card(port, board_type="cam")
     elif what == "erase":
         erase_flash(port)
+
+
+def update_image(port):
+    """Check or fix > Update to this release's image: the image written in
+    place on a board that runs one with the same partition layout (its
+    settings, identity and packs stay), then the files that live on the
+    filesystem (plugins, web, lib) brought up to date. A board without
+    the image, or with another layout, is sent to the full setup."""
+    info = board_image(port)
+    if not info:
+        print("  This board doesn't run a Stump image (its Stump was uploaded file by file).")
+        print("  Give it the image with the full setup: python3 provisioner.py > A Stump board")
+        print("  > 'Put the Stump image on it' (it's erased: the setup questions again).")
+        return False
+    if info.get("partitions") != STUMP_IMAGE_PARTITIONS:
+        print("  This board's image has an older partition layout (%s): updating it means an"
+              " erase. Use the full setup: 'Put the Stump image on it'." % info.get("partitions"))
+        return False
+    if info.get("release") == (_folder_release() or EXPECTED_STUMP_VERSION):
+        print("  The board already runs this release's image (%s)." % info["release"])
+        if not ask_yes_no("  Write it again anyway?", False):
+            return True
+    _free_the_port(port)
+    chip, image = pick_board_firmware(port)
+    if image is None:
+        return False
+    ok, _ = flash_cam_micropython(port, image, chip, erase=False)
+    if not ok:
+        return False
+    print("Waiting for the board to boot the new image...")
+    time.sleep(6)
+    return upload_stump_app(port)
 
 
 def _ask_radio():

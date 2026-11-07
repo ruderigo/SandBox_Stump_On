@@ -12,6 +12,10 @@ name: Release
 #                           Chrome or Edge, saved and opened on the computer
 #                           (scripts/build_arborist.py)
 #   <pack>-pack-<v>.zip     each pack
+#   stump-<v>-wrover.bin    the Stump image for an ESP32-WROVER (flash at 0x1000)
+#   stump-<v>-s3cam.bin     the Stump image for an ESP32-S3-CAM (flash at 0x0)
+#                           (MicroPython with the Stump frozen in: image/README.md,
+#                           built by the Stump images workflow)
 #   MANIFEST.json           size and SHA-256 of every file inside every zip
 #   SHA256SUMS              SHA-256 of each release file
 #   SHA256SUMS.rnsig        Ed25519 signature by the release's Reticulum
@@ -37,11 +41,21 @@ permissions:
   attestations: write
 
 jobs:
+  images:
+    uses: ./.github/workflows/images.yml
+
   release:
-    runs-on: ubuntu-latest
+    needs: images
+    runs-on: ubuntu-24.04   # Playwright 1.56 has no Chromium for 26.04 yet (Arborist's test)
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
+
+      - name: The Stump images (built by the images job)
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.images.outputs.artifact }}
+          path: dist/
 
       - name: Read the version
         id: v
