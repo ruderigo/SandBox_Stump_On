@@ -140,7 +140,7 @@ keeps its internet. Only with a secret, since anyone on that network
 could reach it; `CHAIN_LAN = False` turns it off. `GET /chain.json`
 shows the address as `lan_ip`.
 
-**A board Stump on the shared network too (1.0.0-beta.56).** A CAM or a
+**A board Stump on the shared network too (1.0.0-beta.57).** A CAM or a
 WROVER can join the chain the same way: it stays on `WIFI_SSID` (its
 home address, the clock, internet) and links to the first Stump's
 address there, `CHAIN_PARENT_IP = "192.168.0.173"`, instead of joining
