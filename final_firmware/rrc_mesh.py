@@ -480,6 +480,11 @@ def _get_peer(dest_hash_hex, display_name, message=None):
         elif stump or _on_chain(dest_hash_hex, message):
             # Over the chain: #wifi-mesh, not #lora-mesh (which is for LoRa).
             room = rrc.CHAIN_ROOM
+        elif rrc.no_lora():
+            # No LoRa on this Stump nor its chain: an app over the local
+            # network (AutoInterface, TCP) isn't on LoRa, and #lora-mesh
+            # lets no one in -- #main, where the web chat reads it.
+            room = rrc.DEFAULT_ROOM
         elif ident is not None:
             room, allowed, redirect_reason = ident.mesh_landing_room(dest_hash_hex)
             redirected = not allowed

@@ -35,7 +35,8 @@ since 1.0.0-beta.4:
   nor along its chain, `#lora-mesh` refuses everyone from the chat (web,
   FireFly on Wi-Fi): `⊘ #lora-mesh no-lora — No LoRa on mesh: …`, and
   its topic starts with `⊘`. Read `/hw.json` `lora.state` (`none`) for a
-  light. People on the mesh itself (LXMF) still land there.
+  light. An LXMF app reaching the Stump over the local network lands in
+  `#main` instead.
 - `/rrc/poll` carries `hw` (the radio's state for a status light, see
   below); `GET /hw.json` gives the radios in full (`kind`: `usb`,
   `ble` or `wifi`); `/node.json` has `radio` (frequency, bandwidth, SF,

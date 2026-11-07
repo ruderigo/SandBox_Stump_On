@@ -220,7 +220,12 @@ r, _ = rrc.handle_input(WEB, "lora-mesh", "anyone?")
 check("... a line there refused too (nothing posted)", r and "No LoRa on mesh" in r[0]
       and not any(m["body"] == "anyone?" for m in rrc.since(rrc.MESH_ROOM, 0)), r)
 check("... the room's topic says so", "No LoRa on mesh" in rrc.topic(rrc.MESH_ROOM, "en"))
-check("... someone on the mesh itself still lands there", rrc.room_allows("ab" * 16, rrc.MESH_ROOM))
+check("... nor an app over the local network", not rrc.room_allows("ab" * 16, rrc.MESH_ROOM))
+APP = "ab" * 16
+rrc_mesh._peers.pop(APP, None)
+p = rrc_mesh._get_peer(APP, "Sideband")
+check("... which lands in #main instead, where the web chat reads it", p["room"] == rrc.DEFAULT_ROOM, p)
+rrc_mesh._peers.pop(APP, None)
 rrc_mesh._lora_paths = lambda: (True, False)
 r, room = rrc.handle_input(WEB, "main", "/join lora-mesh")
 check("a radio along the chain just heard (before the next tick): in", room == "lora-mesh", (r, room))

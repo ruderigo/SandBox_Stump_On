@@ -82,8 +82,9 @@ def is_local(client_id):
 
 
 # No LoRa on the mesh: no radio on this Stump nor on any Stump it hears
-# (rrc_mesh.lora_status() "none"). #lora-mesh then lets no one in from
-# the chat (web, FireFly on Wi-Fi): a line there would reach no radio.
+# (rrc_mesh.lora_status() "none"). #lora-mesh then lets no one in (web,
+# FireFly on Wi-Fi, an app over the local network): a line there would
+# reach no radio.
 # Set by rrc_mesh (rrc doesn't know the radio); unset, it's open.
 LORA_NONE = [None]
 
@@ -102,12 +103,13 @@ def _is_lxmf(cid):
 
 def lora_allows(client_id):
     """May this client be in #lora-mesh? Always, unless it's locked, or
-    there's no LoRa on the mesh (someone on the mesh itself still is)."""
+    there's no LoRa on the mesh: then no one (an app reaching this Stump
+    over the local network lands in #main, rrc_mesh)."""
     cid = str(client_id or "")
-    if _is_lxmf(cid):
-        return True                    # an LXMF address: someone on the mesh
     if no_lora():
         return False
+    if _is_lxmf(cid):
+        return True                    # an LXMF address: someone on the mesh
     if not LORA_LOCKED[0]:
         return True
     return is_local(cid) or cid in _lora_invited
