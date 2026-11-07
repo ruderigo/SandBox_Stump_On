@@ -40,6 +40,8 @@ one plugged in. Every external call is wrapped so a missing tool or absent
 board produces an explicit, readable message instead of a stack trace.
 """
 
+import contextlib
+import io
 import json
 import re
 import os
@@ -359,7 +361,7 @@ EXPECTED_FILE_HASHES = {
     "boot_common.py": "dc95827c3989d1ca",
     "captive_portal.py": "5a89b67f2c47bdba",
     "chain.py": "a3d72d962fc1cd52",
-    "config.py": "60def0b5e9761110",
+    "config.py": "8715a6f0e61d63be",
     "conn.py": "b17cf4fb4f80fbbf",
     "discovery.py": "c1808c59c1452dda",
     "docs/ARBORIST.md": "a783f30ef8fac45f",
@@ -820,7 +822,7 @@ def discover_plugins(fw_dir):
     return found
 
 
-def configure_plugins(fw_dir, show_advanced=False, extra=()):
+def configure_plugins(fw_dir, show_advanced=False, extra=(), preset=None, quiet=False):
     """Runs the wizard prompts each discovered plugin declares.
 
     Returns {CONFIG_KEY: value} to be written into config.py.
@@ -834,14 +836,37 @@ def configure_plugins(fw_dir, show_advanced=False, extra=()):
     plugins = discover_plugins(fw_dir) + list(extra)
     if not plugins:
         return {}
+    preset = dict(preset or {})
+    if quiet:
+        # Every plugin's defaults, nothing asked (the setup's "keep the
+        # defaults"); the passwords come from their own question.
+        values = {}
+        for name, spec in plugins:
+            for pr in (spec.get("wizard") or {}).get("prompts") or []:
+                if pr.get("key"):
+                    values[pr["key"]] = pr.get("default", "")
+        values.update(preset)
+        return values
 
-    banner("PLUGINS FOUND")
+    def _left(spec):
+        return [pr for pr in (spec.get("wizard") or {}).get("prompts") or [] if pr.get("key") not in preset]
+    if not any(_left(spec) for name, spec in plugins):
+        values = {}
+        for name, spec in plugins:
+            for pr in (spec.get("wizard") or {}).get("prompts") or []:
+                if pr.get("key"):
+                    values[pr["key"]] = pr.get("default", "")
+        values.update(preset)
+        return values
+
+    print("\n  Plugins:")
     for name, spec in plugins:
         title = spec.get("title", name)
         summary = spec.get("summary", "")
         print(f"  {title}  (v{spec.get('version','?')})")
         if summary:
-            print(f"    {summary}")
+            for line in _wrap(summary, 68):
+                print(f"    {line}")
         # Surface the claims that matter for a constrained board, from
         # the plugin's own declaration -- worth seeing before install.
         flags = []
@@ -892,8 +917,9 @@ def configure_plugins(fw_dir, show_advanced=False, extra=()):
             values[key] = raw
             return
 
+    values.update(preset)
     for name, spec in plugins:
-        prompts = (spec.get("wizard") or {}).get("prompts") or []
+        prompts = [pr for pr in (spec.get("wizard") or {}).get("prompts") or [] if pr.get("key") not in preset]
         basic = [pr for pr in prompts if not pr.get("advanced")]
         advanced = [pr for pr in prompts if pr.get("advanced")]
         if not basic and not advanced:
@@ -902,7 +928,7 @@ def configure_plugins(fw_dir, show_advanced=False, extra=()):
         title = spec.get("title", name)
         print(f"  Settings for {title}:")
         note = (spec.get("wizard") or {}).get("note")
-        if note:
+        if note and basic:
             for line in _wrap(note, 68):
                 print(f"    {line}")
 
@@ -1257,13 +1283,16 @@ def describe_pack(pack, fw_api, files_listed=True):
     return refusal, warnings
 
 
-def choose_packs(fw_dir, packs=None):
+def choose_packs(fw_dir, packs=None, one_list=False):
     """Lists the packs found and asks which to install. Returns the
-    chosen ones (possibly none)."""
+    chosen ones (possibly none). one_list (the setup): one numbered list
+    and one answer, not a question per pack."""
     packs = discover_packs() if packs is None else packs
     if not packs:
         return []
     fw_api = firmware_plugin_api(fw_dir)
+    if one_list and ANSWERS["map"] is None and ANSWERS["record"] is None:
+        return _pick_packs(packs, fw_api)
     banner("PACKS")
     print("A pack adds plugins (extra chat commands and pages), and sometimes a")
     print("theme, a bot persona and files for the SD card. A pack is code with")
@@ -1281,6 +1310,58 @@ def choose_packs(fw_dir, packs=None):
             chosen.append(pack)
         print()
     return chosen
+
+
+def _first_sentence(text):
+    text = " ".join(str(text or "").split())
+    cut = text.find(". ")
+    return text if cut < 0 else text[:cut + 1]
+
+
+def _clip(text, room):
+    """text cut to room characters at a word, with an ellipsis."""
+    if len(text) <= room:
+        return text
+    return text[:room - 1].rsplit(" ", 1)[0].rstrip(",;:") + "…"
+
+
+def _pick_packs(packs, fw_api):
+    """The packs as one short list and one answer: the numbers to install
+    (1.0.0-beta.58: it was a paragraph and a question per pack). Their
+    full descriptions on "?"."""
+    usable = []
+    for pack in packs:
+        with contextlib.redirect_stdout(io.StringIO()) as said:
+            refusal, warnings = describe_pack(pack, fw_api, files_listed=False)
+        usable.append((pack, refusal, warnings, said.getvalue()))
+    HELP[0] = "Packs add plugins (chat commands, pages), and sometimes a theme or a bot persona. A " \
+              "pack is code with full access to the node: install only packs from people you trust.\n" + \
+              "\n".join(u[3].rstrip() for u in usable)
+    print("\n  Packs (? for what each one does):")
+    pad = max(len(u[0]["spec"]["name"]) for u in usable)
+    room = max(30, _width() - pad - 10)
+    for i, (pack, refusal, warnings, _) in enumerate(usable, 1):
+        spec = pack["spec"]
+        about = "can't install here (? for why)" if refusal else _clip(_first_sentence(spec.get("description", "")), room)
+        line = "%d  %-*s  %s" % (i, pad, spec["name"], about)
+        print("    " + (dim(line) if refusal else line))
+    while True:
+        raw = ask("  Packs to install (numbers, e.g. 1 3; Enter for none)", "")
+        nums = (raw or "").replace(",", " ").split()
+        try:
+            picked = sorted(set(int(n) for n in nums))
+        except ValueError:
+            print("    Numbers from the list, or Enter for none.")
+            continue
+        if any(not 1 <= n <= len(usable) or usable[n - 1][1] for n in picked):
+            print("    Numbers from the list (not a pack marked can't install).")
+            continue
+        chosen = [usable[n - 1][0] for n in picked]
+        notes = [usable[n - 1][0]["spec"]["name"] for n in picked if usable[n - 1][2]]
+        if notes and not ask_yes_no("  %s %s notes (? to read them). Install anyway?"
+                                    % (", ".join(notes), "has" if len(notes) == 1 else "have"), False):
+            continue
+        return chosen
 
 
 def _pack_plugin_specs(packs):
@@ -1814,10 +1895,41 @@ def banner(text):
     print("\n" + bold(head + g["H"] * max(0, _width() - len(head))))
 
 
-def subhead(text):
+# The setup questions' sections (1.0.0-beta.58): "Questions 2/6 · Wi-Fi"
+# in the heading, a one-line hint under it, the longer explanation on "?"
+# at any prompt of that section.
+STEP = {"n": 0, "of": 0}
+HELP = [""]
+
+
+def subhead(text, help_text=""):
     """A topic inside a section (the config questions)."""
     g = _glyphs()
-    print("\n" + cyan(g["h"] * 2 + " " + text + " " + g["h"] * 2))
+    HELP[0] = help_text
+    count = "Questions %d/%d %s " % (STEP["n"], STEP["of"], "·" if _fancy() else "-") if STEP["of"] else ""
+    print("\n" + cyan(g["h"] * 2 + " " + count + text + " " + g["h"] * 2))
+
+
+def dim(text):
+    return _ansi(text, "2")
+
+
+def hint(text):
+    """One short line (or two) under a question: what it's for. The rest
+    is behind "?"."""
+    for line in _wrap(text, min(_width(), 100) - 4):
+        print("  " + dim(line))
+
+
+def _show_help():
+    """Prints the current section's help ("?" at a prompt). False when
+    there's none, so "?" is taken as an answer."""
+    if not HELP[0]:
+        return False
+    for para in HELP[0].split("\n"):
+        for line in _wrap(para, min(_width(), 100) - 4) or [""]:
+            print("  " + dim(line))
+    return True
 
 
 # Color/bold terminal output for exactly the things a technician needs
@@ -1959,8 +2071,11 @@ def ask(prompt, default=None):
     if a is not _NO_FILE:
         return "" if a is None else str(a)
     suffix = f" [{default}]" if default is not None else ""
-    val = _in(f"{prompt}{suffix}: ").strip()
-    return val if val else default
+    while True:
+        val = _in(f"{prompt}{suffix}: ").strip()
+        if val == "?" and _show_help():
+            continue
+        return val if val else default
 
 
 _YES = ("y", "yes", "yeah", "yep", "ok", "okay", "sure", "true", "1")
@@ -1994,9 +2109,11 @@ def ask_yes_no(prompt, default=True):
             return False
         print(red("\"%s\": %r isn't a yes or a no in the answers file." % (_qkey(prompt), a)))
         sys.exit(3)
-    hint = "Y/n" if default else "y/N"
+    yn = "Y/n" if default else "y/N"
     while True:
-        raw = _in(f"{prompt} [{hint}]: ").strip().lower()
+        raw = _in(f"{prompt} [{yn}]: ").strip().lower()
+        if raw == "?" and _show_help():
+            continue
         if not raw:
             return default
         if raw in _YES:
@@ -2033,6 +2150,8 @@ def ask_choice(prompt, options):
     while True:
         # Enter takes the first option: the recommended one comes first.
         raw = _in(f"Choose 1-{len(options)} [1]: ").strip() or "1"
+        if raw == "?" and _show_help():
+            continue
         if raw.isdigit() and 1 <= int(raw) <= len(options):
             return options[int(raw) - 1]
         print("  invalid choice, try again")
@@ -4193,10 +4312,17 @@ def config_wizard(board_type):
         "pc": "unnamed-stump",
         "heltec_transport": "unnamed-repeater",
     }
-    subhead("Name")
+    if board_type in ("cam", "pc"):
+        STEP["n"], STEP["of"] = 1, (6 if board_type == "cam" else 5)
+    subhead("Name", "The name other Stumps and mesh apps show for this one. On a Stump board it's "
+                    "also the default name of its own Wi-Fi hotspot.")
     node_name = ask("Node name (shown to peers)", default_names.get(board_type, "unnamed-firefly"))
 
     profile = {"node_name": node_name, "board_type": board_type}
+
+    def sec_name():
+        subhead("Name", HELP[0])
+        profile["node_name"] = ask("Node name (shown to peers)", profile["node_name"]) or profile["node_name"]
 
     if board_type == "heltec_transport":
         # Radio parameters MUST match the rest of the deployed mesh --
@@ -4305,12 +4431,16 @@ def config_wizard(board_type):
         profile["ssid_include_ip"] = False
         subhead("Storage")
         profile["pc_storage_mb"] = _pc_ask_storage(_PC_FOLDER[0], _pc_storage_in_folder(_PC_FOLDER[0]))
-    if board_type == "cam":
-        subhead("Wi-Fi")
-        print("This build's config.py has the CAM join an EXISTING WiFi network")
-        print("(for internet/LXMF reachability) -- it's not creating its own hotspot")
-        print("with this name. The local walk-up AP is a separate, fixed 'Stump'")
-        print("hotspot that comes up automatically, not something configured here.")
+    # The questions as sections: each one can be asked again from the
+    # review card at the end (1.0.0-beta.58), so a slip in one answer
+    # never means answering everything again.
+    def sec_wifi():
+        node_name = profile["node_name"]
+        subhead("Wi-Fi", "A Stump board does two things on Wi-Fi at once: it joins one network "
+                         "(the router: internet, a home address, the chain over the router) and runs its own "
+                         "small hotspot for visitors, with the captive portal.\n"
+                         "Leave the network blank for a board with no router: it still runs its hotspot.")
+        hint("The router it joins, then the name of its own hotspot for visitors.")
         wifi_ssid = ask_wifi("WiFi network to join", "")
         wifi_pass = "" if wifi_is_open(wifi_ssid) else ask("WiFi password", "")
         profile["wifi_ssid"] = wifi_ssid
@@ -4336,11 +4466,9 @@ def config_wizard(board_type):
         # changes there, this needs a matching update; noted so it
         # isn't a silent trap.
         cp_default_ssid = "LaBuche-Stump.web.app"
-        print("\nThe walk-up hotspot can broadcast as the public page")
-        print("(\"%s\"), so anyone can look up what this" % cp_default_ssid)
-        print("network is before ever joining -- or a custom name instead.")
-        print("Every Stump left on that name broadcasts the same one: with several")
-        print("Stumps (or a Heltec that joins this one's hotspot), give it its own.")
+        HELP[0] += ("\nThe hotspot can broadcast the public page's name (\"%s\"): anyone can look it "
+                    "up before joining. Every Stump left on that name broadcasts the same one, so with "
+                    "several Stumps, or a Heltec on this one's hotspot, give it its own." % cp_default_ssid)
         use_default_ssid = ask_yes_no(
             "Use the default hosted-page name? (n: name this Stump's hotspot yourself)", True)
         if use_default_ssid:
@@ -4354,13 +4482,20 @@ def config_wizard(board_type):
             profile["ssid_include_ip"] = ask_yes_no(
                 "Include the AP's IP address in the hotspot name?", True)
             profile["ssid_name"] = ask("Custom hotspot name", node_name)
+        preview, clipped = preview_ssid(profile.get("ssid_name"), _ap_ip(profile),
+                                        profile.get("ssid_include_ip", False))
+        print("  " + dim("Its hotspot will show as: ") + bold(preview)
+              + (dim("  (shortened to fit 32 characters)") if clipped else ""))
 
-    if board_type in ("cam", "pc"):
+
+    def sec_chain():
         # ---- Chain of Stumps over Wi-Fi (docs/CHAIN.md) ----
-        subhead("Chain")
-        print("Stumps can be chained over Wi-Fi -- e.g. one per apartment, each")
-        print("joining the Wi-Fi of the one before it -- so files move between them")
-        print("over Wi-Fi and never over LoRa.")
+        subhead("Chain", "A chain links Stumps over Wi-Fi so chat, people and files move between them "
+                         "fast, without LoRa. The first Stump is on the router; the others link to it over "
+                         "the router (they keep a home address) or by joining the hotspot of the Stump "
+                         "before them (out of the router's reach; no home address). Every Stump in a "
+                         "chain has the same secret and its own number: its hotspot is 192.168.<number>.1.")
+        hint("Linked to other Stumps over Wi-Fi? (? for how a chain works)")
         chain_cfg = None
         if ask_yes_no("Is this Stump part of a chain?", False):
             first = ask_choice("Its place in the chain", [
@@ -4415,9 +4550,7 @@ def config_wizard(board_type):
                                      " (%s.1 on this network)." % chain_cfg["parent_ip"].rsplit(".", 1)[0]))
                     chain_cfg["secret"] = ask("  Chain secret (the same as on the first Stump)", "") or ""
             elif first:
-                print("  The whole chain shares one Wi-Fi channel, set here. Pick the quietest:")
-                print("  bench/wifi_bench.py lists the channels in use around a CAM (1, 6 and 11")
-                print("  don't overlap).")
+                hint("The chain's Wi-Fi channel: 1, 6 or 11 (they don't overlap); the quietest around.")
                 while True:
                     try:
                         chain_cfg["channel"] = int(ask("  Wi-Fi channel (1-13)", "11"))
@@ -4429,8 +4562,7 @@ def config_wizard(board_type):
                 chain_cfg["subnet"] = 4
                 import secrets as _secrets
                 suggested = _secrets.token_hex(8)
-                print("  A chain secret keeps visitors on any Stump's Wi-Fi out of the chain.")
-                print("  Every Stump in the chain needs the same one: note it down.")
+                hint("The chain secret keeps visitors out of the chain; every Stump needs the same one.")
                 chain_cfg["secret"] = ask("  Chain secret", suggested) or ""
             else:
                 home = profile.get("wifi_ssid") or ""
@@ -4449,9 +4581,8 @@ def config_wizard(board_type):
                     # The first Stump takes chain links on the home Wi-Fi when
                     # it has a chain secret (CHAIN_LAN); this board stays on
                     # that Wi-Fi and links to it there (chain.py, beta.56).
-                    print("  It stays on %s and links to the first Stump there (the first Stump" % home)
-                    print("  needs a chain secret). If the router gives the first Stump another")
-                    print("  address, this Stump finds it again on the network by itself.")
+                    hint("It stays on %s and links to the first Stump there; if the router moves the "
+                         "first Stump, it finds it again by itself." % home)
                     chain_cfg["uplink_ssid"], chain_cfg["uplink_pass"] = home, profile.get("wifi_pass", "")
                     default_ip = ""
                     mine = _route_ip("192.0.2.1") or ""
@@ -4471,8 +4602,7 @@ def config_wizard(board_type):
                     chain_cfg["uplink_ssid"] = ask_wifi("  Wi-Fi name of the Stump this one joins", "LaBuche-Stump.web.app")
                     chain_cfg["uplink_pass"] = "" if wifi_is_open(chain_cfg["uplink_ssid"]) else \
                         (ask("  Its Wi-Fi password (blank if open)", "") or "")
-                print("  Each Stump's own Wi-Fi uses its own address range, 192.168.<n>.1:")
-                print("  the first Stump is 4; give every other one a different number.")
+                hint("Its number in the chain: the first Stump is 4, every other one its own.")
                 up = _uplink_number(chain_cfg["uplink_ssid"])
                 while True:
                     try:
@@ -4491,13 +4621,19 @@ def config_wizard(board_type):
                         break
                     print("    Over the home Wi-Fi the first Stump only takes links with a chain secret.")
                 chain_cfg["channel"] = 0
-                print("  Once it's up, check the link from a computer on its Wi-Fi:")
-                print("    python3 provisioner.py --check-chain 192.168.%d.1" % chain_cfg["subnet"])
             if not chain_cfg["secret"]:
                 print("  " + yellow("No secret: anyone on a Stump's Wi-Fi could join the chain."))
         profile["chain"] = chain_cfg
 
-        subhead("The Heltec (LoRa radio)")
+    def sec_heltec():
+        node_name = profile["node_name"]
+        chain_cfg = profile.get("chain")
+        subhead("The Heltec", "The Heltec is the LoRa radio: kilometres of reach, at a few kilobits a second. A "
+                              "Stump board reaches it over Wi-Fi at a fixed address: on the router (the "
+                              "usual way, like your other Stumps) or on the board's own hotspot (no router "
+                              "nearby). Give the Heltec the same address when you set it up (A Heltec for "
+                              "a CAM). On the router, pick an address the router doesn't hand out itself: "
+                              "outside its DHCP range, or reserved for the Heltec on the router.")
         has_heltec = True
         if board_type == "pc":
             link = ask_choice("The Heltec (LoRa radio)", [
@@ -4530,7 +4666,7 @@ def config_wizard(board_type):
             profile["heltec_host"], profile["heltec_port"] = "192.168.4.2", 7633
         elif not has_heltec:
             profile["heltec_host"], profile["heltec_port"] = "192.168.4.2", 7633
-            print("  No Heltec: this Stump reaches the LoRa mesh through the chain.")
+            hint("No Heltec: it reaches the LoRa mesh through the chain.")
 
         # Same explicit pairing question as the Heltec's own wizard branch
         # above, and for the identical reason: this CAM's own hotspot is a
@@ -4545,9 +4681,6 @@ def config_wizard(board_type):
             profile["heltec_host"] = ask("  The Heltec's address", "192.168.137.2")
             profile["heltec_port"] = 7633
         elif has_heltec and board_type != "pc":
-            print("\nIs the Heltec reaching this CAM through an existing WiFi network (a")
-            print("router), or connected directly to THIS CAM's own hotspot (a")
-            print("standalone pair, no router involved)?")
             pairing = ask_choice(
                 "Heltec Bridge network setup",
                 ["The router (%s, recommended): the Heltec joins it too, like your other Stumps"
@@ -4559,10 +4692,7 @@ def config_wizard(board_type):
             default_bridge_ip = (_ap_ip(profile).rsplit(".", 1)[0] + "." + str(HELTEC_ON_HOTSPOT)) if standalone_pair \
                 else _router_heltec_ip()
             if not standalone_pair:
-                print("\nThe Heltec joins the router too, with a fixed address. Pick one the router")
-                print("doesn't hand out itself (outside its DHCP range, often .10-.200, or set it")
-                print("as a DHCP reservation on the router): suggested %s. Give the Heltec the" % default_bridge_ip)
-                print("same address when you set it up (A Heltec for a CAM > the router).")
+                hint("A fixed address the router doesn't hand out (its range is often .10-.200).")
             if standalone_pair and not profile.get("ssid_name"):
                 # The Heltec joins the hotspot by its name, and every Stump
                 # left on the default name has the same one: with two
@@ -4575,31 +4705,19 @@ def config_wizard(board_type):
                 profile["ssid_include_ip"] = True
             if standalone_pair:
                 ssid_now = preview_ssid(profile.get("ssid_name"), _ap_ip(profile), profile.get("ssid_include_ip", False))[0]
-                print("\nWhen you provision the Heltec, join it to this Stump's hotspot:")
-                print("  %s   (open network, no password)" % bold(ssid_now))
-                print("with a fixed address next to this Stump's (%s) -- suggested: %s"
-                      % (_ap_ip(profile), default_bridge_ip))
+                hint("The Heltec joins %s (open, no password) at a fixed address." % ssid_now)
 
-            heltec_host = ask(
-                "Heltec Bridge IP (the static IP set on the Heltec via\n"
-                "  'rnodeconf <port> -w STATION --ip ...')", default_bridge_ip
-            )
-            heltec_port = ask(
-                "Heltec Bridge port (fixed by Reticulum's own protocol --\n"
-                "  leave as-is unless you know otherwise)", "7633"
-            )
-            profile["heltec_host"] = heltec_host
-            try:
-                profile["heltec_port"] = int(heltec_port)
-            except ValueError:
-                print(f"  '{heltec_port}' isn't a number -- keeping the default 7633.")
-                profile["heltec_port"] = 7633
+            profile["heltec_host"] = ask("Heltec Bridge IP", default_bridge_ip) or default_bridge_ip
+            # Reticulum's own port for an RNode over Wi-Fi: not a question.
+            profile["heltec_port"] = 7633
 
+
+    def sec_rest_custom():
         # ---- Packs ----
         # Asked before the persona and the theme: a pack can bring both.
         try:
             fw = _remembered_path("stump_app_dir") or STUMP_APP_DIR
-            packs = choose_packs(fw)
+            packs = choose_packs(fw, one_list=True)
         except Exception as e:
             print(f"  (pack scan skipped: {e})")
             packs = []
@@ -4610,27 +4728,10 @@ def config_wizard(board_type):
         pack_themes = [p["spec"]["theme"] for p in packs if p["spec"].get("theme", {}).get("name")]
 
         # ---- Local greeter name ----
-        subhead("The bot")
-        print("The node's bot has a name: it's who answers '!' commands in the")
-        print("chat (and the Concierge, a hidden page at /concierge). Cosmetic,")
-        print("and separate from the node name above, which is what mesh peers see.")
+        print()
+        hint("The bot answers '!' commands in the chat; the auto-reply goes once to each mesh "
+             "peer's first message (blank: none).")
         profile["bot_name"] = ask("  Bot's name", persona.get("bot_name") or "BarKeep")
-
-        # ---- What the Wi-Fi list will actually show ----
-        preview, clipped = preview_ssid(profile.get("ssid_name"), _ap_ip(profile),
-                                        profile.get("ssid_include_ip", False))
-        print("\n  The node's own Wi-Fi network will appear as:")
-        print("    %s   (%d/32 characters)" % (preview, len(preview)))
-        if clipped:
-            print("    NOTE: the name was shortened to fit both addresses.")
-            print("    A shorter node name keeps it whole.")
-
-        # ---- Mesh auto-reply ----
-        print("\nWhen a mesh peer messages this node for the FIRST time, it can")
-        print("send back a fixed line -- where the node is, what it offers, how")
-        print("to reach it. Sent once per peer, not per message: every LXMF send")
-        print("costs real airtime, so replying to every message would be noise.")
-        print("Leave blank for no auto-reply.")
         while True:
             greeting = ask("  Auto-reply text (max 200 chars)", persona.get("mesh_greeting") or "")
             if greeting is None:
@@ -4649,15 +4750,13 @@ def config_wizard(board_type):
         # the wizard starts.
         try:
             fw = _remembered_path("stump_app_dir") or STUMP_APP_DIR
-            profile["plugin_config"] = configure_plugins(fw, extra=_pack_plugin_specs(packs))
+            profile["plugin_config"] = configure_plugins(fw, extra=_pack_plugin_specs(packs), preset=_password_keys(profile))
         except Exception as e:
             print(f"  (plugin scan skipped: {e})")
             profile["plugin_config"] = {}
 
         # ---- Credit economy ----
-        subhead("File sharing")
-        print("File sharing can run as a credit economy (bring something to take")
-        print("something) or completely free. Free mode hides the credit UI entirely.")
+        print()
         credit_choice = ask_choice(
             "How should file sharing work?",
             [
@@ -4695,18 +4794,8 @@ def config_wizard(board_type):
         # Which visitor features this node offers. One that's off is gone:
         # no tile, no link, and its addresses answer "not offered here".
         # Turning chat off also turns off chat over the mesh.
-        subhead("Features")
-        print("Which features should this node offer? (A feature that's off is")
-        print("removed entirely: no tile, no link, its pages answer 'not offered'.)")
-        picked = []
-        for key, label in (
-            ("chat", "Chat -- rooms and DMs, on WiFi and over the mesh"),
-            ("billboard", "Billboard -- the bulletin board"),
-            ("files", "File sharing -- upload and download"),
-            ("about", "About page -- where this came from, how to connect"),
-        ):
-            if ask_yes_no("  Offer " + label + "?", True):
-                picked.append(key)
+        print()
+        picked = ask_features()
         if not picked:
             print("  With nothing enabled, visitors see only the logo and title.")
             if not ask_yes_no("  Keep it that way?", False):
@@ -4715,21 +4804,16 @@ def config_wizard(board_type):
         profile["features"] = picked
 
         # ---- Propagation node ----
-        subhead("Propagation node")
-        print("Run an LXMF propagation node? It holds messages for people who")
-        print("are offline (FireFly, Sideband) and hands them over when they're")
-        print("back. Needs the SD card. Each stored message costs ~30 s of")
-        print("background work on this board. Can be switched later in /admin.")
+        print()
+        hint("A propagation node holds messages for people who are offline and hands them over "
+             "when they're back (needs the SD card; can be switched in /admin).")
         profile["propagation_node"] = ask_yes_no("  Run a propagation node?", False)
 
         # ---- Look ----
         # Site-wide: every page and the chat use it, for every visitor.
         # A browser can still pick its own from /admin; that only
         # changes that one browser.
-        subhead("Look")
-        print("Pick the node's look. It applies to every page and the chat, for")
-        print("everyone. (Anyone with the admin password can still switch their")
-        print("own browser from /admin -- that changes nothing for other visitors.)")
+        print()
         looks = [
             "Amber -- warm dark, the original look",
             "Phosphor -- green terminal on near-black",
@@ -4743,6 +4827,54 @@ def config_wizard(board_type):
             looks.append("%s -- %s (from a pack)" % (t["name"], label))
         look = ask_choice("Theme:", looks)
         profile["theme"] = look.split(" ", 1)[0].lower()
+
+    def sec_passwords():
+        subhead("Passwords", "The admin password opens /admin (settings, plugins, the board's state). "
+                             "The fserv bot's password lets someone edit the bot's dialogue from the chat; "
+                             "blank turns editing off. Note both down: they're shown again in the review.")
+        hint("The admin password is required. The bot can share it.")
+        while True:
+            pw = ask("Admin password (/admin)", profile.get("admin_password") or None)
+            if pw:
+                break
+            print("    " + yellow("A password is needed: without one /admin stays locked."))
+        profile["admin_password"] = pw
+        # An answers file from before beta.58 named the bot's password
+        # "fserv bot operator password": still read.
+        legacy = ANSWERS["map"] is not None and "fserv bot operator password" in ANSWERS["map"]
+        if ask_yes_no("Use the same password for the fserv bot?",
+                      not legacy and profile.get("fserv_password", pw) == pw):
+            profile["fserv_password"] = pw
+        else:
+            profile["fserv_password"] = ask("fserv bot operator password (blank: editing off)",
+                                            "" if profile.get("fserv_password") == pw else profile.get("fserv_password", ""))
+
+    def sec_rest(custom):
+        subhead("Everything else", "These all have working defaults, and most can be changed later in "
+                                   "/admin. Answer n to go through them now: packs, the bot, the plugins' "
+                                   "settings, file sharing, features, the propagation node, the look.")
+        for line in rest_defaults_text(profile):
+            print("  " + dim(line))
+        # With an answers file every old question is consulted, as before.
+        if ask_yes_no("Keep these defaults? (n: go through them)", ANSWERS["map"] is None):
+            apply_rest_defaults(profile)
+        else:
+            custom()
+
+    if board_type in ("cam", "pc"):
+        sections = [("Name", sec_name)] + \
+            ([("Wi-Fi", sec_wifi)] if board_type == "cam" else []) + \
+            [("Chain", sec_chain), ("The Heltec", sec_heltec), ("Passwords", sec_passwords),
+             ("Everything else", lambda: sec_rest(sec_rest_custom))]
+        STEP["of"] = len(sections)
+        for i, (title, fn) in enumerate(sections):
+            STEP["n"] = i + 1
+            if title != "Name":            # asked first, above
+                fn()
+        STEP["n"] = STEP["of"] = 0
+        review_answers(profile, sections)
+        profile.setdefault("plugin_config", {}).update(_password_keys(profile))
+    node_name = profile["node_name"]
 
     CONFIG_OUT_DIR.mkdir(parents=True, exist_ok=True)
     out_path = CONFIG_OUT_DIR / f"{node_name.replace(' ', '_')}.json"
@@ -4829,6 +4961,115 @@ def network_check(port, profile, addrs=None, get=None, wait_s=120, sleep=None, m
         return True, "its page answers at %s (no Heltec of its own)" % url, url
     errs = "; ".join(r.get("error") or r.get("state") or "" for r in hw.get("radios") or []) or "no answer"
     return False, "its page answers at %s, but its Heltec isn't connected (%s)" % (url, errs), url
+
+
+FEATURES = (("chat", "Chat"), ("billboard", "Billboard"), ("files", "File sharing"), ("about", "About page"))
+
+
+def ask_features():
+    """Which visitor features this node offers, as one answer: Enter keeps
+    all four (the per-feature questions stay for answers files)."""
+    if ANSWERS["map"] is not None or ANSWERS["record"] is not None:
+        return [k for k, label in FEATURES if ask_yes_no("  Offer " + label + "?", True)]
+    print("  Features: " + "  ".join("%d %s" % (i, label) for i, (k, label) in enumerate(FEATURES, 1)))
+    while True:
+        raw = ask("  Features to offer (Enter: all four, or the numbers to keep)", "")
+        if not raw:
+            return [k for k, _ in FEATURES]
+        try:
+            nums = sorted(set(int(n) for n in raw.replace(",", " ").split()))
+        except ValueError:
+            nums = [0]
+        if nums and all(1 <= n <= len(FEATURES) for n in nums):
+            return [FEATURES[n - 1][0] for n in nums]
+        print("    Numbers from 1 to %d." % len(FEATURES))
+
+
+def _password_keys(profile):
+    """The two passwords as the plugins' settings: /admin's and the fserv
+    bot's (asked once, in the setup's essentials)."""
+    out = {}
+    if profile.get("admin_password"):
+        out["AUTH_ADMIN_PASSWORD"] = profile["admin_password"]
+    if "fserv_password" in profile:
+        out["FSERVBOT_OP_PASSWORD"] = profile["fserv_password"]
+    return out
+
+
+def rest_defaults_text(profile):
+    return ["Packs: none   Look: Amber   Features: chat, billboard, files, about",
+            "File sharing: free   Propagation node: off   Bot: BarKeep, no auto-reply"]
+
+
+def apply_rest_defaults(profile):
+    """The setup's "keep these defaults": what answering every remaining
+    question with Enter gives, without the questions."""
+    profile["packs"] = []
+    profile["bot_name"] = "BarKeep"
+    profile["mesh_greeting"] = ""
+    try:
+        fw = _remembered_path("stump_app_dir") or STUMP_APP_DIR
+        profile["plugin_config"] = configure_plugins(fw, preset=_password_keys(profile), quiet=True)
+    except Exception:
+        profile["plugin_config"] = _password_keys(profile)
+    profile["credits_enabled"] = False
+    profile["credit_weights"] = DEFAULT_CREDIT_WEIGHTS.copy()
+    profile["features"] = [k for k, _ in FEATURES]
+    profile["propagation_node"] = False
+    profile["theme"] = "amber"
+
+
+def review_lines(profile):
+    """Every answer, for the review card (the passwords and the secret in
+    full: they're for noting down)."""
+    out = ["Name           %s" % profile.get("node_name")]
+    if profile.get("board_type") == "cam":
+        out.append("Its hotspot    %s" % preview_ssid(profile.get("ssid_name"), _ap_ip(profile),
+                                                     profile.get("ssid_include_ip", False))[0])
+        out.append("Wi-Fi          %s" % (profile.get("wifi_ssid") or "none (hotspot only)"))
+    ch = profile.get("chain") or {}
+    if not ch.get("enabled"):
+        out.append("Chain          none")
+    elif not ch.get("uplink_ssid"):
+        out.append("Chain          the first Stump, channel %s" % ch.get("channel"))
+    elif ch.get("lan_parent_ip") or ch.get("parent_ip"):
+        out.append("Chain          number %s, over the router to %s" % (ch.get("subnet", "-"),
+                                                                      ch.get("lan_parent_ip") or ch.get("parent_ip")))
+    else:
+        out.append("Chain          number %s, through %s" % (ch.get("subnet"), ch.get("uplink_ssid")))
+    if ch.get("enabled"):
+        out.append("Chain secret   %s" % (ch.get("secret") or "none (anyone on a Stump's Wi-Fi can join)"))
+    if profile.get("board_type") == "cam":
+        if not profile.get("heltec_enabled", True):
+            out.append("Heltec         none")
+        else:
+            out.append("Heltec         %s, on %s" % (profile.get("heltec_host"),
+                                                     "its own hotspot" if profile.get("heltec_on_hotspot") else "the router"))
+    out.append("Admin password %s" % profile.get("admin_password"))
+    fp = profile.get("fserv_password")
+    out.append("Bot password   %s" % ("the same" if fp == profile.get("admin_password") else (fp or "none (editing off)")))
+    packs = [Path(p).name.replace("-pack", "") for p in profile.get("packs") or []]
+    out.append("Packs          %s" % (", ".join(packs) or "none"))
+    out.append("Look           %s   Features: %s" % ((profile.get("theme") or "amber").capitalize(),
+                                                    ", ".join(profile.get("features") or []) or "none"))
+    out.append("Files          %s   Propagation node: %s" % ("credits" if profile.get("credits_enabled") else "free",
+                                                           "on" if profile.get("propagation_node") else "off"))
+    return out
+
+
+def review_answers(profile, sections):
+    """The answers on one card before anything touches the board: Enter
+    goes on, e asks one section again (1.0.0-beta.58). Skipped with an
+    answers file (nobody at the keyboard)."""
+    if ANSWERS["map"] is not None or ANSWERS["record"] is not None:
+        return
+    while True:
+        box("Your answers", review_lines(profile))
+        raw = _in("Enter to go on %s e to change a section: " % ("·" if _fancy() else "-")).strip().lower()
+        if raw != "e":
+            return
+        title = ask_choice("Which section?", [t for t, _ in sections])
+        dict(sections)[title]()
 
 
 def _router_heltec_ip():
