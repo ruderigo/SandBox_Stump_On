@@ -76,6 +76,7 @@ hm = rrc.help_lines('en', mesh=True)
 check('help mesh compact', 'extras: /fshelp !many !roll /secret' in hm, hm[-3:])
 # mesh capping
 import rrc_mesh
+rrc.LORA_NONE[0] = False  # #lora-mesh open: as on a Stump with a radio (the gate: lora_mesh_test)
 rrc_mesh._peers[M] = {'nick': 'meshy', 'room': 'lxmf', 'home_room': 'lxmf', 'via_propagation': True}
 rrc.touch_user(M, nick='~meshy', room='lxmf'); i18n.set_lang(M, 'en')
 plugins._cmd_use.clear()
