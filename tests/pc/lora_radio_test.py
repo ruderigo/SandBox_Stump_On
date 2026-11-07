@@ -1,10 +1,9 @@
-# #lora-mesh between Stumps goes over the radio, even when Wi-Fi (the
-# chain) reaches the other Stump too -- with the real firmware (urns, LXMF,
+# A radio send between Stumps -- with the real firmware (urns, LXMF,
 # rrc_mesh) on regular Python: a radio and a chain interface, an open link
-# and a two-hop path over the chain, and a #lora-mesh line for the other
-# Stump. Only the radio transmits it, as one plain packet straight to that
-# Stump (not "via" the chain's next hop); without a radio online, it goes
-# the usual way. Run: python3 tests/pc/lora_radio_test.py
+# and a two-hop path over the chain. A message tied to the radio goes as
+# one plain packet straight to that Stump (not "via" the chain's next
+# hop). #lora-mesh lines go over the radio only to a Stump the chain
+# doesn't reach (1.0.0-beta.58); without a radio online, the usual way. Run: python3 tests/pc/lora_radio_test.py
 import os, sys, time
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(HERE))
@@ -88,10 +87,24 @@ check("pieces: none over the limit, every piece keeps its <nick>",
 check("pieces: nothing lost", "".join(l.split("> ", 1)[1] for p in pieces for l in p.split("\n")
                                       if l.startswith("<ana>")) == "é" * 300)
 del rrc_mesh._send_queue[:]
+# The chain reaches it (its path over the chain): over Wi-Fi, not the radio
+# (1.0.0-beta.58: every Stump of the chain got every line on the air).
 rrc_mesh._queue_lora(me, other.hash.hex(), lines)
 q = list(rrc_mesh._send_queue)
-check("with the radio online: queued for the radio, titled #lora-mesh", q and all(len(i) == 6 and i[5] is radio_if
-                                                                                 and i[3] == "#lora-mesh" for i in q), q)
+check("the chain reaches it: the usual way, not the radio", len(q) == 1 and len(q[0]) == 4
+      and q[0][3] == "#lora-mesh", q)
+del rrc_mesh._send_queue[:]
+rrc_mesh._queue_lora(me, other.hash.hex(), ["<rod> short"])
+q = list(rrc_mesh._send_queue)
+check("... a short one tied to the chain interface", len(q) == 1 and q[0][5] is chain_if, q)
+del rrc_mesh._send_queue[:]
+# Reached over the radio only: the radio.
+chain_path = Transport.path_table[other.hash]
+Transport.path_table[other.hash] = [time.time(), other.hash, 1, time.time() + 3600, radio_if, None, time.time()]
+rrc_mesh._queue_lora(me, other.hash.hex(), lines)
+q = list(rrc_mesh._send_queue)
+check("reached over the radio only: queued for the radio, titled #lora-mesh", q and all(len(i) == 6 and i[5] is radio_if
+                                                                                       and i[3] == "#lora-mesh" for i in q), q)
 radio_if.sent.clear()
 for item in q:
     rrc_mesh._send_item(item)
@@ -102,6 +115,7 @@ rrc_mesh._queue_lora(me, other.hash.hex(), lines)
 q = list(rrc_mesh._send_queue)
 check("without a radio online: the usual way (the chain)", len(q) == 1 and len(q[0]) == 4, q)
 del rrc_mesh._send_queue[:]
+Transport.path_table[other.hash] = chain_path
 
 # #wifi-mesh stays on Wi-Fi: a short batch to a chain Stump goes on the
 # chain interface only, not the radio as well.

@@ -531,6 +531,18 @@ check('no pyserial: the Heltec and the CAM told apart by port name', "Heltec" in
       and "CAM" in guess.get("/dev/cu.usbmodem5C372383661", ""), guess)
 # remove_plugin refuses core
 check('remove refuses urns', P.remove_plugin('/dev/fake', 'urns') is False)
+# A Heltec on the router: each its own address, the first free from .222
+# (1.0.0-beta.58: always .222, three Heltecs on one router took the same).
+check('Heltec address: .222 when nothing is there',
+      P._free_heltec_ip("192.168.0.", probe=lambda ip: False, stumps=()) == "192.168.0.222")
+check('... .223 when something answers at .222',
+      P._free_heltec_ip("192.168.0.", probe=lambda ip: ip.endswith(".222"), stumps=()) == "192.168.0.223")
+check('... .224 when a Stump says its Heltec (switched off) is at .223',
+      P._free_heltec_ip("192.168.0.", probe=lambda ip: ip.endswith(".222"), stumps={"192.168.0.223"}) == "192.168.0.224")
+hw = {"http://192.168.0.173/hw.json": {"radios": [{"name": "Heltec", "where": "Wi-Fi 192.168.0.223:7633"}]}}
+check('a Stump\'s Heltec address read from its /hw.json',
+      P._stumps_heltecs("192.168.0.", find=lambda prefix, get=None: [("192.168.0.173", {})],
+                        get=lambda url, timeout=0: hw[url]) == {"192.168.0.223"})
 # --answers FILE.json (the RK3326 Provisioner): the wizards with no one at the keyboard.
 import io, contextlib, os, importlib
 P = importlib.reload(P)                  # (the stand-ins above for ask_yes_no and others, gone)

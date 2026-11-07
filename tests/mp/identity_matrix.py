@@ -15,6 +15,7 @@ config.APP_HELLO = True
 import plugins
 plugins.load_all()
 import rrc, rrc_mesh, i18n, time, ubinascii
+rrc.LORA_NONE[0] = False  # #lora-mesh open: as on a Stump with a radio (the gate: lora_mesh_gate)
 from urns.identity import Identity
 FAIL = []
 

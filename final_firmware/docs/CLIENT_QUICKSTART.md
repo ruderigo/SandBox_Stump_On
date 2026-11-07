@@ -31,6 +31,11 @@ since 1.0.0-beta.4:
   computer with its own Heltec: people on LoRa are always in; on the
   web, the computer's owner and whom they invite (`/lora invite <nick>`).
   Others then get `⊘ #lora-mesh LoRa — …` (`/rooms` marks it `[LoRa]`).
+- **No LoRa on mesh** (since 1.0.0-beta.58): with no radio on the Stump
+  nor along its chain, `#lora-mesh` refuses everyone from the chat (web,
+  FireFly on Wi-Fi): `⊘ #lora-mesh no-lora — No LoRa on mesh: …`, and
+  its topic starts with `⊘`. Read `/hw.json` `lora.state` (`none`) for a
+  light. People on the mesh itself (LXMF) still land there.
 - `/rrc/poll` carries `hw` (the radio's state for a status light, see
   below); `GET /hw.json` gives the radios in full (`kind`: `usb`,
   `ble` or `wifi`); `/node.json` has `radio` (frequency, bandwidth, SF,
@@ -775,6 +780,7 @@ then ` — ` and a sentence for people:
 | `= #lora-mesh — …` | you're already in #lora-mesh (reply to `/join`, `/part`) |
 | `? /frob — …` | no such command |
 | `⊘ #vip minted — …` | that room's tier (`minted` or `hybrid`) refused you |
+| `⊘ #lora-mesh no-lora — …` | No LoRa on mesh: no radio on this Stump nor along its chain (`/hw.json` `lora.state` `none`), so `#lora-mesh` lets no one in from the chat -- a `/join`, or a line there (not posted). The poll moves you to `#main`; the room's topic says so. It opens again as soon as a Stump of the chain has a radio (since 1.0.0-beta.58) |
 | `⧗ — …` | slow down: lines too fast (3 at once, then one every 2 s, for anything others see), too many voice notes, or too many wrong passwords. The line wasn't sent: offer to resend it |
 
 Inside a DM, `♪ 5.0 s` is a voice note and its length: `[DM] <bob>: ♪ 5.0 s`.

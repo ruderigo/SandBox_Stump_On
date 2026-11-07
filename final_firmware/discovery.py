@@ -263,6 +263,7 @@ def caps():
         out["rh"] = st != "none"          # it has a radio, online or not (1.0.0-beta.38)
     except Exception:
         out["rad"] = False
+    out["lb"] = 1                         # takes #lora-mesh broadcasts (rrc_mesh, 1.0.0-beta.58)
     try:
         import fserv
         if fserv.sd_ok:

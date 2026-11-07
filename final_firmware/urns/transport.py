@@ -374,6 +374,25 @@ class Transport:
         except (TypeError, ValueError):
             return 0
 
+    # A path on a higher-gravity interface (a Stump chain's Wi-Fi, gravity
+    # 10) stays while it's alive, against a shorter or newer one on a lower
+    # (LoRa): two chain members are 2 hops apart over Wi-Fi (through the
+    # first Stump) and 1 over their Heltecs, so "fewer hops wins" put all
+    # their traffic -- big chat batches, profiles, DMs -- on the radio, at
+    # LoRa speed (1.0.0-beta.58). Alive: its interface online and the path
+    # confirmed by an announce within GRAVITY_KEEP_S (announces come every
+    # 2 min); past that, the lower one is taken as before.
+    GRAVITY_KEEP_S = 600
+
+    @staticmethod
+    def _keeps(entry, new_if, now):
+        old_if = entry[const.IDX_PT_RECV_IF]
+        if Transport._gravity_of(old_if) <= Transport._gravity_of(new_if):
+            return False
+        if old_if is None or not getattr(old_if, "online", True):
+            return False
+        return now - entry[const.IDX_PT_TIMESTAMP] < Transport.GRAVITY_KEEP_S
+
     @staticmethod
     def _announce_emitted(packet):
         """Emission timebase of an announce: the last 5 bytes of its 10-byte
@@ -1671,9 +1690,10 @@ class Transport:
             if entry is None:
                 should_add = True
             elif packet.hops < entry[const.IDX_PT_HOPS]:
-                should_add = True
+                should_add = not Transport._keeps(entry, packet.receiving_interface, now)
             elif packet.hops == entry[const.IDX_PT_HOPS]:
-                should_add = emitted > entry[const.IDX_PT_EMITTED]
+                should_add = emitted > entry[const.IDX_PT_EMITTED] \
+                    and not Transport._keeps(entry, packet.receiving_interface, now)
                 if not should_add and emitted == entry[const.IDX_PT_EMITTED]:
                     # Same announce, same cost, reached us over a second
                     # interface: let pathing affinity break the tie (RNS 1.4.1
