@@ -131,28 +131,13 @@ if up:
           and sum(m["body"] == "hello back" for m in second) == 1, second)
     check("no notices crossed", not any("@" in m["nick"] and m["kind"] == "system" for m in second)
           and not any(m["body"].startswith(("✓", "✗", "✎")) and "@" in m["nick"] for m in second), second)
-    lora = []
+    # Two computers with no radio, none along the chain: No LoRa on mesh,
+    # #lora-mesh lets no one in (1.0.0-beta.58). (#lora-mesh between Stumps
+    # with radios: pc_chain_radio_test, lora_mesh_test.)
     for who in (FIRST, SECOND):
-        get(who, "/rrc/send", b"/join lora-mesh")      # the poll answers the room you're in
-        lora += [m for m in room(who, "lora-mesh")]
-    check("#lora-mesh stays quiet", not any("hello" in m["body"] for m in lora), lora)
-    # #lora-mesh is shared by the Stumps too, in its own room
-    get(SECOND, "/rrc/send", b"over the radio room")
-    got = wait(lambda: any(m["body"] == "over the radio room" and m["nick"].endswith("@Secondpc")
-                           for m in room(FIRST, "lora-mesh")), 60)
-    check("a line in #lora-mesh reaches the other Stump's #lora-mesh, as nick@stump", got, room(FIRST, "lora-mesh"))
-    get(FIRST, "/rrc/send", b"radio room back")
-    got = wait(lambda: any(m["body"] == "radio room back" and m["nick"].endswith("@Firstpc")
-                           for m in room(SECOND, "lora-mesh")), 60)
-    check("... and back", got, room(SECOND, "lora-mesh"))
-    time.sleep(12)
-    l2 = room(SECOND, "lora-mesh")
-    check("#lora-mesh: once, never echoed back", sum(m["body"] == "over the radio room" for m in l2) == 1
-          and sum(m["body"] == "radio room back" for m in l2) == 1, l2)
-    for who in (FIRST, SECOND):
-        get(who, "/rrc/send", b"/join wifi-mesh")
-    w = room(FIRST, "wifi-mesh") + room(SECOND, "wifi-mesh")
-    check("#lora-mesh lines stay out of #wifi-mesh", not any("radio room" in m["body"] for m in w), w)
+        r = json.loads(get(who, "/rrc/send", b"/join lora-mesh"))
+        check("no radio on either Stump: /join lora-mesh refused, No LoRa on mesh",
+              any(x.startswith("⊘ #lora-mesh no-lora") for x in r.get("replies", [])) and r.get("room") is None, r)
 
     # Registered profiles (no FireFly): made on one Stump, the chain shares
     # them -- the nick is reserved on the other, and its password logs in

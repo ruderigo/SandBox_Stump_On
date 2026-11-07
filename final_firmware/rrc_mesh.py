@@ -370,6 +370,8 @@ def _from_stump(dest_hash_hex, peer, text, router=None, title=""):
                 _send_queue.append((router, bytes.fromhex(dest_hash_hex), "\n".join(
                     "[DM>%s] <%s> %s" % (nick, me, l) for l in reply.split("\n") if l.strip())))
             continue
+        if room == rrc.MESH_ROOM and line[:1] in ("<", "*") and _seen_line(dest_hash_hex, line):
+            continue
         if line.startswith("<") and "> " in line:
             nick, body = line[1:].split("> ", 1)
             if nick and " " not in nick:
@@ -478,6 +480,11 @@ def _get_peer(dest_hash_hex, display_name, message=None):
         elif stump or _on_chain(dest_hash_hex, message):
             # Over the chain: #wifi-mesh, not #lora-mesh (which is for LoRa).
             room = rrc.CHAIN_ROOM
+        elif rrc.no_lora():
+            # No LoRa on this Stump nor its chain: an app over the local
+            # network (AutoInterface, TCP) isn't on LoRa, and #lora-mesh
+            # lets no one in -- #main, where the web chat reads it.
+            room = rrc.DEFAULT_ROOM
         elif ident is not None:
             room, allowed, redirect_reason = ident.mesh_landing_room(dest_hash_hex)
             redirected = not allowed
@@ -696,6 +703,18 @@ def _lora_notice(client_id, kind, target=None):
 
 
 rrc.LORA_NOTICE[0] = _lora_notice
+def _no_lora_now():
+    """No radio on this Stump nor along its chain, now: the state lora_tick
+    keeps, checked again when it says none (it starts there, and only
+    turns every 5 s: a /join right after boot was refused)."""
+    if _lora["state"] != "none":
+        return False
+    has, _ = _lora_paths()
+    return not has
+
+
+if rrc.LORA_NONE[0] is None:          # (a test sets False: #lora-mesh open)
+    rrc.LORA_NONE[0] = _no_lora_now
 
 
 def _note_stump_beacon(router, app_data, packet):
@@ -901,6 +920,10 @@ def install_announce_handler(router):
             print("[rrc_mesh] announce error:", e)
     Transport.register_announce_handler(_handler)
     _announce_installed[0] = True
+    try:
+        _lb_install(router)
+    except Exception as e:
+        print("[rrc_mesh] LoRa broadcast not installed:", e)
 
 
 def _prune_reach(now):
@@ -1542,16 +1565,40 @@ def _radio_pieces(lines, limit=RADIO_CHUNK):
     return out
 
 
+def _no_radio(h):
+    """Stump h said in its beacon that it has no radio online. (Not heard
+    yet, or from before the beacon said: not known, so False.)"""
+    try:
+        import discovery
+        v = discovery._known.get(h)
+        c = v.get("caps") if v else None
+        return isinstance(c, dict) and not c.get("rad")
+    except Exception:
+        return False
+
+
 def _queue_lora(router, dest_hash_hex, lines):
-    """#lora-mesh lines for another Stump: over this Stump's radio when it
-    has one online -- even when Wi-Fi reaches that Stump too, #lora-mesh is
-    the radio's room -- in single packets; without a radio, the usual way
-    (the chain)."""
+    """#lora-mesh lines for another Stump. Over the chain's Wi-Fi when the
+    chain reaches it, over this Stump's radio (single packets) only when
+    nothing else does.
+
+    Until 1.0.0-beta.58 they went over the radio whenever this Stump had
+    one, Wi-Fi or not: every line on the air once per Stump of the chain
+    (LoRa airtime, a send each, the Stump held meanwhile), and never
+    heard by a Stump with no radio of its own (a WROVER with no Heltec, a
+    computer): its people could write to #lora-mesh, never read the
+    answers."""
     dest = bytes.fromhex(dest_hash_hex)
     title = "#" + rrc.MESH_ROOM
-    r = _radio()
-    if r is None:
-        _send_queue.append((router, dest, "\n".join(lines), title))
+    chain_if = _chain_iface(dest)
+    r = None if chain_if is not None else _radio()
+    if r is None or _no_radio(dest_hash_hex):
+        text = "\n".join(lines)
+        if chain_if is not None and len((text + title).encode()) <= RADIO_CHUNK:
+            # Short: tied to the chain, or it goes out on every interface.
+            _send_queue.append((router, dest, text, title, None, chain_if))
+        else:
+            _send_queue.append((router, dest, text, title))
         return
     for text in _radio_pieces(lines):
         _send_queue.append((router, dest, text, title, None, r))
@@ -1604,6 +1651,166 @@ def _room_roster(room):
     return sorted(set(out))[:60]
 
 
+# ── #lora-mesh once for several Stumps over the radio (1.0.0-beta.58) ──
+# To the Stumps this one reaches only over LoRa, a line went once per
+# Stump: N Stumps, N transmissions, N sends. Now, with two or more of them
+# that understand it (their beacon's "lb"), it goes once: a broadcast on
+# the radio (a plain Reticulum packet, one hop, never relayed), signed by
+# this Stump's LXMF identity, which the others know from its announces.
+# Not encrypted: #lora-mesh is a public room, its lines go to anyone who
+# joins it. [b"lb1", sender's LXMF hash, boot, seq, text, signature]; seq
+# rises with each packet and boot changes when the Stump restarts, so a
+# recorded packet played again is ignored. A Stump that hears a line two
+# ways (Wi-Fi and the radio) shows it once (_seen_line).
+LB_APP = ("stump", "lora", "mesh")
+_lb = {"in": None, "out": None, "router": None, "sent": None, "seq": 0, "boot": None,
+       "roster": None, "roster_at": 0, "last": {}}
+
+
+def _lb_install(router):
+    from urns.destination import Destination
+    import os
+    _lb["router"] = router
+    _lb["boot"] = bytes(os.urandom(4))
+    _lb["in"] = Destination(None, Destination.IN, Destination.PLAIN, *LB_APP)
+    _lb["in"].set_packet_callback(_lb_in)
+    _lb["out"] = Destination(None, Destination.OUT, Destination.PLAIN, *LB_APP)
+
+
+def _lb_signed(src, boot, seq, text):
+    return b"lb1" + bytes(src) + bytes(boot) + seq.to_bytes(4, "big") + text.encode()
+
+
+def _lb_capable(h):
+    try:
+        import discovery
+        v = discovery._known.get(h)
+        c = v.get("caps") if v else None
+        return isinstance(c, dict) and bool(c.get("lb"))
+    except Exception:
+        return False
+
+
+def _lb_peers():
+    """The Stumps reached over this Stump's radio only, that understand
+    the broadcast: their #lora-mesh goes in one transmission."""
+    if _lb["out"] is None or _radio() is None:
+        return []
+    out = []
+    for h, p in _peers.items():
+        if not p.get("stump") or not _lb_capable(h) or _no_radio(h):
+            continue
+        try:
+            if _chain_iface(bytes.fromhex(h)) is not None:
+                continue
+        except Exception:
+            continue
+        out.append(h)
+    return out
+
+
+def _flush_lora_broadcast(router):
+    """Each pass: this Stump's own people's new #lora-mesh lines, once on
+    the radio for all the Stumps of _lb_peers(), and their marks moved on
+    (each one's own sends then have nothing left to carry)."""
+    hs = _lb_peers()
+    if len(hs) < 2:
+        _lb["sent"] = None            # one, or none: their own sends, as before
+        return
+    if _lb["sent"] is None:
+        # From where the most advanced left off; the others catch up by
+        # their own sends (any line they'd get twice shows once).
+        _lb["sent"] = max(_peers[h].get("lora_sent_id", 0) for h in hs)
+    start = _lb["sent"]
+    msgs = rrc.since(rrc.MESH_ROOM, start)
+    if len(msgs) > POLL_LIMIT:
+        msgs = msgs[-POLL_LIMIT:]
+    lines = _stump_lines(msgs) if msgs else []
+    roster = " ".join(_lora_roster())
+    now = time.time()
+    if roster != _lb["roster"] or now - _lb["roster_at"] > NAMES_EVERY:
+        _lb["roster"], _lb["roster_at"] = roster, now
+        lines.append("[NAMES] " + (roster or "-"))
+    if msgs:
+        _lb["sent"] = msgs[-1]["id"]
+    for h in hs:
+        p = _peers[h]
+        if p.get("lora_sent_id", 0) >= start:
+            p["lora_sent_id"] = _lora_marks[h] = max(p.get("lora_sent_id", 0), _lb["sent"])
+            p["lora_roster"], p["lora_roster_at"] = _lb["roster"], _lb["roster_at"]
+    if not lines:
+        return
+    r = _radio()
+    for text in _radio_pieces(lines, RADIO_CHUNK - 30):
+        _send_queue.append(("lb", text, r))
+
+
+def _lb_send(item):
+    _, text, iface = item
+    router = _lb["router"]
+    if router is None or _lb["out"] is None:
+        return
+    from urns.packet import Packet
+    from urns import umsgpack
+    src = bytes(router.delivery_destination.hash)
+    _lb["seq"] += 1
+    seq = _lb["seq"]
+    sig = router.identity.sign(_lb_signed(src, _lb["boot"], seq, text))
+    data = umsgpack.packb([b"lb1", src, _lb["boot"], seq, text, sig])
+    Packet(_lb["out"], data, attached_interface=iface, create_receipt=False).send()
+
+
+def _lb_in(data, packet):
+    """A Stump's #lora-mesh broadcast, heard on the radio."""
+    try:
+        from urns import umsgpack
+        from urns.identity import Identity
+        f = umsgpack.unpackb(bytes(data))
+        if not isinstance(f, (list, tuple)) or len(f) != 6 or f[0] != b"lb1":
+            return
+        src, boot, seq, text, sig = bytes(f[1]), bytes(f[2]), int(f[3]), str(f[4]), bytes(f[5])
+        router = _lb["router"]
+        if router is None or src == bytes(router.delivery_destination.hash):
+            return
+        h = src.hex()
+        if not rrc.is_stump(h):
+            return                    # only a Stump's (by its beacon)
+        ident = Identity.recall(src)
+        if ident is None or not ident.validate(sig, _lb_signed(src, boot, seq, text)):
+            return
+        last = _lb["last"].get(h)
+        if last is not None and last[0] == boot and seq <= last[1]:
+            return                    # played again
+        _lb["last"][h] = (boot, seq)
+        if len(_lb["last"]) > 64:
+            _lb["last"].pop(next(iter(_lb["last"])))
+        p = _peers.get(h)
+        if p is None:
+            p = _get_peer(h, _known_name(router, h))
+        else:
+            p["last_seen"] = time.time()
+        _from_stump(h, p, text, router, "#" + rrc.MESH_ROOM)
+    except Exception as e:
+        print("[rrc_mesh] a LoRa broadcast unreadable:", e)
+
+
+# A #lora-mesh line from another Stump heard twice (over Wi-Fi and over the
+# radio, or a Stump catching up): shown once. (who, line) -> when.
+SEEN_LINE_S = 120
+_seen = {}
+
+
+def _seen_line(h, line):
+    now = time.time()
+    if len(_seen) > 200:
+        for k in [k for k, t in _seen.items() if now - t > SEEN_LINE_S]:
+            del _seen[k]
+    k = h + line
+    t = _seen.get(k)
+    _seen[k] = now
+    return t is not None and now - t < SEEN_LINE_S
+
+
 # ── Poll loop (scheduled as asyncio task) ─────────────────────────────
 
 def _send_item(item):
@@ -1611,6 +1818,9 @@ def _send_item(item):
     room batch, (router, dest, text, title) -- the title names the room
     the batch belongs to, so a client never has to guess (lines queued
     just before a /join could otherwise land under the new room)."""
+    if item[0] == "lb":
+        _lb_send(item)
+        return
     rtr, dest_hash_bytes, text = item[0], item[1], item[2]
     title = item[3] if len(item) > 3 else ""
     fields = item[4] if len(item) > 4 else None
@@ -1671,6 +1881,26 @@ def _gc_ms(ms):
     _gc_said[1] = max(_gc_said[1], ms)
 
 
+# Sends per pass of the loop, and a pause between them: each one signs
+# and encrypts without letting anything else run, so a burst of them held
+# the pages and the portal (1.0.0-beta.58). What's left goes next pass, 5 s
+# later; a peer's lines aren't even gathered while QUEUE_HIGH wait (its
+# marks don't move, nothing is lost).
+SENDS_PER_PASS = 8
+SEND_GAP_S = 0.03
+QUEUE_HIGH = 16
+_budget = [SENDS_PER_PASS, 0]     # sends left this pass, whose turn is first
+
+
+async def _drain(what):
+    import uasyncio as asyncio
+    while _send_queue and _budget[0] > 0:
+        _doing(what)
+        _send_item(_send_queue.pop(0))
+        _budget[0] -= 1
+        await asyncio.sleep(SEND_GAP_S)
+
+
 async def poll_loop(router):
     """Drain _send_queue and push pending room messages to subscribed peers."""
     import uasyncio as asyncio
@@ -1701,13 +1931,11 @@ async def poll_loop(router):
             except Exception:
                 pass  # never let a diagnostic aid block real forwarding
 
+            _budget[0] = SENDS_PER_PASS
             while _notices:
                 h, text = _notices.pop(0)
                 _send_queue.append((router, bytes.fromhex(h), text))
-            while _send_queue:
-                _doing("the chat bridge: a message out")
-                _send_item(_send_queue.pop(0))
-                await asyncio.sleep(0)
+            await _drain("the chat bridge: a message out")
 
             # Presence is decided HERE, on one clock, for both tables.
             # Before this, the two disagreed: _prune_peers() only ever
@@ -1748,23 +1976,34 @@ async def poll_loop(router):
             for h, r in list(_reach.items()):
                 if h not in _peers and not _lora_waits():
                     _doing("the chat bridge: direct messages for " + (r.get("nick") or h[:8]))
+                    if len(_send_queue) >= QUEUE_HIGH:
+                        break
                     _deliver_reach_dms(router, h, r)
                     # Sent now, same as the room-peer loop below -- left
                     # queued, it waited a whole extra 5-second cycle.
-                    while _send_queue:
-                        _doing("the chat bridge: a message out")
-                        _send_item(_send_queue.pop(0))
-                        await asyncio.sleep(0)
+                    await _drain("the chat bridge: a message out")
 
-            for dest_hash_hex, peer in list(_peers.items()):
+            try:
+                _doing("the chat bridge: #lora-mesh on the radio")
+                _flush_lora_broadcast(router)
+                await _drain("the chat bridge: #lora-mesh on the radio")
+            except Exception as e:
+                print("[rrc_mesh] LoRa broadcast:", e)
+            # A different peer first each pass: with QUEUE_HIGH reached,
+            # the ones at the end of the list wait a pass, not forever.
+            order = list(_peers.items())
+            if order:
+                k = _budget[1] % len(order)
+                order = order[k:] + order[:k]
+                _budget[1] += 1
+            for dest_hash_hex, peer in order:
                 if _lora_waits() and not peer.get("stump"):
                     continue        # a LoRa person: their lines wait for the radio (lora_tick)
+                if len(_send_queue) >= QUEUE_HIGH:
+                    break           # the rest next pass, where they left off
                 _doing("the chat bridge: lines for " + (peer.get("nick") or dest_hash_hex[:8]))
                 _flush_to_peer(router, dest_hash_hex, peer)
-                while _send_queue:
-                    _doing("the chat bridge: a message out to " + (peer.get("nick") or dest_hash_hex[:8]))
-                    _send_item(_send_queue.pop(0))
-                    await asyncio.sleep(0)
+                await _drain("the chat bridge: a message out to " + (peer.get("nick") or dest_hash_hex[:8]))
 
             _doing("the chat bridge: a memory clean-up")
             t0 = time.ticks_ms()

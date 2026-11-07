@@ -81,14 +81,45 @@ def is_local(client_id):
         return str(client_id or "") in _LOCAL
 
 
+# No LoRa on the mesh: no radio on this Stump nor on any Stump it hears
+# (rrc_mesh.lora_status() "none"). #lora-mesh then lets no one in (web,
+# FireFly on Wi-Fi, an app over the local network): a line there would
+# reach no radio.
+# Set by rrc_mesh (rrc doesn't know the radio); unset, it's open.
+LORA_NONE = [None]
+
+
+def no_lora():
+    f = LORA_NONE[0]
+    try:
+        return bool(f and f())
+    except Exception:
+        return False
+
+
+def _is_lxmf(cid):
+    return len(cid) == 32 and all(c in "0123456789abcdef" for c in cid)
+
+
 def lora_allows(client_id):
-    """May this client be in #lora-mesh? Always, unless it's locked."""
+    """May this client be in #lora-mesh? Always, unless it's locked, or
+    there's no LoRa on the mesh: then no one (an app reaching this Stump
+    over the local network lands in #main, rrc_mesh)."""
+    cid = str(client_id or "")
+    if no_lora():
+        return False
+    if _is_lxmf(cid):
+        return True                    # an LXMF address: someone on the mesh
     if not LORA_LOCKED[0]:
         return True
-    cid = str(client_id or "")
-    if len(cid) == 32 and all(c in "0123456789abcdef" for c in cid):
-        return True                    # an LXMF address: someone on the mesh
     return is_local(cid) or cid in _lora_invited
+
+
+def lora_refusal(lang):
+    """The answer to someone #lora-mesh doesn't let in."""
+    if no_lora():
+        return tok_refused(MESH_ROOM, "no-lora", i18n.t("lora_none", lang))
+    return tok_refused(MESH_ROOM, "LoRa", i18n.t("lora_room_locked", lang))
 
 
 def room_allows(client_id, room):
@@ -822,6 +853,8 @@ def room_exists(room):
 
 def topic(room, lang=None):
     room = canon(room)
+    if room == MESH_ROOM and no_lora():
+        return "⊘ " + i18n.t("lora_none", lang or i18n.DEFAULT_LANG)
     if room in _topics:
         return _topics[room]
     key = _DEFAULT_TOPIC_KEYS.get(room)
@@ -1215,6 +1248,10 @@ def handle_input(client_id, room, text):
 
 def _handle_core(client_id, room, text, user, lang):
     if not text.startswith("/"):
+        if not room_allows(client_id, room):
+            # In #lora-mesh from before the LoRa went (or a client that
+            # didn't ask): not posted.
+            return [lora_refusal(lang)], None
         touch_user(client_id, room=room)
         posted = post(room, user["nick"], text)
         if posted is None:
@@ -1265,7 +1302,7 @@ def _handle_core(client_id, room, text, user, lang):
         if target == room:
             return [tok_already(target, i18n.t("join_already", lang, room=target))], None
         if not room_allows(client_id, target):
-            return [tok_refused(target, "LoRa", i18n.t("lora_room_locked", lang))], None
+            return [lora_refusal(lang)], None
         system(room, ev_leave(user["nick"]))
         touch_user(client_id, room=target)
         system(target, ev_join(user["nick"]))
@@ -1284,7 +1321,7 @@ def _handle_core(client_id, room, text, user, lang):
 
     if cmd == "rooms":
         return [rooms_line(r, len(names_in_room(r)), topic(r, lang))
-                + ("  [LoRa]" if r == MESH_ROOM and LORA_LOCKED[0] else "") for r in room_names()], None
+                + ("  [LoRa]" if r == MESH_ROOM and LORA_LOCKED[0] and not no_lora() else "") for r in room_names()], None
 
     if cmd == "lora":
         # /lora, /lora invite <nick>, /lora uninvite <nick>: who may use the

@@ -31,8 +31,14 @@ rest reach the LoRa mesh through the chain.
   from their people show as `<nick@thatstump>`, and people on different
   Stumps can DM each other (`/msg rod@LaBuche ...`). `#lora-mesh` is
   for LoRa phones and handhelds; the Stumps share it too (lines from
-  another Stump's `#lora-mesh` show there as `<nick@thatstump>`), over
-  the radio when the Stump has one online, even with Wi-Fi there.
+  another Stump's `#lora-mesh` show there as `<nick@thatstump>`):
+  over the chain's Wi-Fi to the Stumps of the chain (a Stump with no
+  Heltec gets every line), over the radio only to Stumps the chain
+  doesn't reach -- once for all of them when there are several (a signed
+  broadcast, since 1.0.0-beta.58). A route over the chain's Wi-Fi isn't
+  replaced by a shorter one over LoRa while it's alive. With no radio on
+  any Stump of the chain, `#lora-mesh` says "No LoRa on mesh" and lets
+  no one in from the chat.
   `#wifi-mesh` always goes over Wi-Fi; `#main` stays on its Stump.
 - **The chain secret** keeps the chain to Stumps (and PCs) that know it.
   Each one says hello to the Stump above it with a code made from the

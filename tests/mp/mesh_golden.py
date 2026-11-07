@@ -8,6 +8,7 @@ config.AUTH_ADMIN_PASSWORD = 'pw'; config.FSERVBOT_OP_PASSWORD = 'op'
 import rrc, i18n, rrc_mesh
 if True:
     import plugins; plugins.load_all()
+    rrc.LORA_NONE[0] = False  # #lora-mesh open: as on a Stump with a radio (the gate: lora_mesh_test)
 else:
     for n in ('fservbot', 'stumpid'):
         m = __import__(n + '.install', None, None, ('activate',)); m.activate()

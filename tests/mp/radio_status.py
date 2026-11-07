@@ -6,6 +6,7 @@
 import sys
 exec(open(sys.argv[1] + '/harness.py').read())
 import rrc, radio, i18n
+rrc.LORA_NONE[0] = False  # #lora-mesh open: as on a Stump with a radio (the gate: lora_mesh_test)
 import ujson as json
 FAIL = []
 

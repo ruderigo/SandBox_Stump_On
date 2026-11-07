@@ -363,10 +363,10 @@ EXPECTED_FILE_HASHES = {
     "chain.py": "a3d72d962fc1cd52",
     "config.py": "8715a6f0e61d63be",
     "conn.py": "b17cf4fb4f80fbbf",
-    "discovery.py": "c1808c59c1452dda",
+    "discovery.py": "42577357fe8201fb",
     "docs/ARBORIST.md": "a783f30ef8fac45f",
-    "docs/CHAIN.md": "a2fdfd6e4f540552",
-    "docs/CLIENT_QUICKSTART.md": "396a5a48c947d77b",
+    "docs/CHAIN.md": "0015ad1f8d0ac9be",
+    "docs/CLIENT_QUICKSTART.md": "3c1616f8b440b666",
     "docs/COMMANDS.md": "c17a3263eeeae767",
     "docs/ENGINEERING_NOTES.md": "72f7d19d7c5f03a4",
     "docs/FIELD_TEST.md": "e7f7b3878fda4de3",
@@ -376,12 +376,12 @@ EXPECTED_FILE_HASHES = {
     "docs/PACKS.md": "acb8642931a96b42",
     "docs/PC.md": "e90244ab4b47d68e",
     "docs/PLUGINS.md": "73eb6ecaacd0d576",
-    "example_node.py": "1994da82d53f8062",
+    "example_node.py": "de88f5b76260040d",
     "features.py": "81e8af361c64a911",
     "fserv.py": "06b87b1d6fb95eb4",
     "fservbot/plugin.json": "12b3c544160411e3",
     "guard.py": "526fac7536abfe7f",
-    "i18n.py": "5d4a45df67bd147f",
+    "i18n.py": "4b63db209b8528a8",
     "keepalive.py": "482058c9e1eb17fa",
     "layout.py": "48b030ed144b50fd",
     "lib/bz2_fast_xtensawin.mpy": "ac55d9eda2126432",
@@ -398,8 +398,8 @@ EXPECTED_FILE_HASHES = {
     "propagation.py": "b346921a495ce1bd",
     "qr.py": "7f8550209d5f6abd",
     "radio.py": "56e01b273ceaab68",
-    "rrc.py": "0d9c0cf5abdb5d69",
-    "rrc_mesh.py": "0b7f5533d987066b",
+    "rrc.py": "25e8639cd43bf1c4",
+    "rrc_mesh.py": "047711fb840278d2",
     "rrc_ui.py": "7146777ddd5f6d6a",
     "settings.py": "1c9b13ede00d7cb7",
     "store.py": "625ba090410222cf",
@@ -582,7 +582,7 @@ EXPECTED_FILE_HASHES = {
     "urns/packet.py": "1712df82dae76dcf",
     "urns/resource.py": "fa53b285d1fae400",
     "urns/reticulum.py": "00aeba4810c20778",
-    "urns/transport.py": "05ac075eab493b49",
+    "urns/transport.py": "37f07d81e735e379",
     "urns/umsgpack.py": "b1616a439fa0e915",
     "web/codec2.js": "2caf391c54505c61",
     "web/codec2.wasm": "342264605478d63f",
@@ -4407,7 +4407,8 @@ def config_wizard(board_type):
             else:
                 ssid = ask_wifi("  WiFi network for the Heltec to join", "")
                 psk = "" if wifi_is_open(ssid) else ask("  WiFi password", "")
-                default_ip = "192.168.0.222"
+                print("  Each Heltec on the router needs its own address; looking for a free one...")
+                default_ip = _router_heltec_ip()
             ip = ask("  Static IP for the Heltec (must match the CAM's\n"
                       "    'Heltec Bridge' target_host)", default_ip)
             netmask = ask("  Netmask", "255.255.255.0")
@@ -4689,10 +4690,14 @@ def config_wizard(board_type):
             )
             standalone_pair = pairing.startswith("This CAM's")
             profile["heltec_on_hotspot"] = standalone_pair
+            if not standalone_pair:
+                print(dim("  Looking for a free address for the Heltec on the router..."))
             default_bridge_ip = (_ap_ip(profile).rsplit(".", 1)[0] + "." + str(HELTEC_ON_HOTSPOT)) if standalone_pair \
                 else _router_heltec_ip()
             if not standalone_pair:
-                hint("A fixed address the router doesn't hand out (its range is often .10-.200).")
+                hint("A fixed address the router doesn't hand out (often .10-.200), and its own: "
+                     "each Heltec on the router needs a different one (.222, .223, ...). "
+                     "Suggested: the first free one.")
             if standalone_pair and not profile.get("ssid_name"):
                 # The Heltec joins the hotspot by its name, and every Stump
                 # left on the default name has the same one: with two
@@ -4708,6 +4713,8 @@ def config_wizard(board_type):
                 hint("The Heltec joins %s (open, no password) at a fixed address." % ssid_now)
 
             profile["heltec_host"] = ask("Heltec Bridge IP", default_bridge_ip) or default_bridge_ip
+            if not standalone_pair:
+                hint("Give the Heltec this same address in its own setup (A Heltec for a CAM > the router).")
             # Reticulum's own port for an RNode over Wi-Fi: not a question.
             profile["heltec_port"] = 7633
 
@@ -5072,13 +5079,71 @@ def review_answers(profile, sections):
         dict(sections)[title]()
 
 
-def _router_heltec_ip():
-    """A Heltec's fixed address on the router: .222 on this computer's
-    network (when it's on one), past most routers' DHCP ranges."""
+HELTEC_FIRST = 222        # a Heltec on the router: .222, .223, ... (past most DHCP ranges)
+
+
+def _router_heltec_ip(probe=None, stumps=None):
+    """A Heltec's fixed address on the router: the first free one from .222
+    on this computer's network (when it's on one). With three Heltecs on
+    one router, each needs its own (1.0.0-beta.58: it was always .222, so
+    the second and third Heltecs took the first one's address). Taken:
+    something answers there (_heltec_addr_taken), or a Stump found on
+    this network says its Heltec is there (_stumps_heltecs) -- a Heltec
+    that's off still counts."""
     mine = _route_ip("192.0.2.1") or ""
-    if mine.count(".") == 3 and not mine.startswith("127."):
-        return mine.rsplit(".", 1)[0] + ".222"
-    return "192.168.0.222"
+    prefix = mine.rsplit(".", 1)[0] + "." if mine.count(".") == 3 and not mine.startswith("127.") else "192.168.0."
+    return _free_heltec_ip(prefix, probe=probe, stumps=stumps)
+
+
+def _free_heltec_ip(prefix, probe=None, stumps=None, first=HELTEC_FIRST):
+    probe = probe or _heltec_addr_taken
+    taken = set(_stumps_heltecs(prefix) if stumps is None else stumps)
+    cands = [prefix + str(n) for n in range(first, 255) if prefix + str(n) not in taken][:12]
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=12) as pool:
+        busy = list(pool.map(probe, cands))
+    for ip, b in zip(cands, busy):
+        if not b:
+            return ip
+    return prefix + str(first)
+
+
+def _heltec_addr_taken(ip, port=7633, timeout=0.5):
+    """Something at this address: a Heltec answering on Reticulum's port,
+    or any device refusing it (it's there)."""
+    import socket
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.settimeout(timeout)
+    try:
+        s.connect((ip, port))
+        return True
+    except ConnectionRefusedError:
+        return True
+    except OSError:
+        return False
+    finally:
+        s.close()
+
+
+def _stumps_heltecs(prefix, find=None, get=None):
+    """The Heltec addresses the Stumps on this network say they use (their
+    /hw.json), for one that's switched off right now."""
+    import re
+    get = get or _get_json
+    out = set()
+    try:
+        found = (find or find_stumps)(prefix, get=get)
+    except Exception:
+        return out
+    for ip, _ in found:
+        try:
+            hw = get("http://%s/hw.json" % ip, timeout=1.5)
+        except Exception:
+            continue
+        for r in (hw.get("radios") or []) if isinstance(hw, dict) else []:
+            for v in r.values() if isinstance(r, dict) else []:
+                out.update(re.findall(re.escape(prefix) + r"\d{1,3}", str(v)))
+    return out
 
 
 def _ask_profile(board_type, erased):
