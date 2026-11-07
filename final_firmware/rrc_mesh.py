@@ -696,6 +696,7 @@ def _lora_notice(client_id, kind, target=None):
 
 
 rrc.LORA_NOTICE[0] = _lora_notice
+rrc.LORA_NONE[0] = lambda: _lora["state"] == "none"
 
 
 def _note_stump_beacon(router, app_data, packet):
@@ -1542,15 +1543,30 @@ def _radio_pieces(lines, limit=RADIO_CHUNK):
     return out
 
 
+def _no_radio(h):
+    """Stump h said in its beacon that it has no radio online. (Not heard
+    yet, or from before the beacon said: not known, so False.)"""
+    try:
+        import discovery
+        v = discovery._known.get(h)
+        c = v.get("caps") if v else None
+        return isinstance(c, dict) and not c.get("rad")
+    except Exception:
+        return False
+
+
 def _queue_lora(router, dest_hash_hex, lines):
     """#lora-mesh lines for another Stump: over this Stump's radio when it
     has one online -- even when Wi-Fi reaches that Stump too, #lora-mesh is
     the radio's room -- in single packets; without a radio, the usual way
-    (the chain)."""
+    (the chain). And the usual way to a Stump with no radio of its own
+    online (a WROVER with no Heltec, a computer): it can't hear the radio,
+    and got none of the lines of the Stumps with one (1.0.0-beta.58: its
+    people could write to #lora-mesh, never read the answers)."""
     dest = bytes.fromhex(dest_hash_hex)
     title = "#" + rrc.MESH_ROOM
     r = _radio()
-    if r is None:
+    if r is None or _no_radio(dest_hash_hex):
         _send_queue.append((router, dest, "\n".join(lines), title))
         return
     for text in _radio_pieces(lines):

@@ -179,6 +179,10 @@ STRINGS = {
     "lora_room_locked": {"fr": "la salle de la radio : il faut une radio LoRa, ou une invitation de la personne qui tient cette Bûche (/lora invite)",
                          "en": "the radio's room: it takes a LoRa radio, or an invitation from whoever runs this Stump (/lora invite)",
                          "es": "la sala de la radio: hace falta una radio LoRa, o una invitación de quien lleva este Tronco (/lora invite)"},
+    # No radio on this Stump nor along its chain (rrc.no_lora): #lora-mesh refuses.
+    "lora_none": {"fr": "Pas de LoRa sur le réseau : ni cette Bûche ni sa chaîne n'ont de radio LoRa",
+                  "en": "No LoRa on mesh: neither this Stump nor its chain has a LoRa radio",
+                  "es": "No hay LoRa en la red: ni este Tronco ni su cadena tienen una radio LoRa"},
     "lora_room_open": {"fr": "#lora-mesh est ouverte à tous ici", "en": "#lora-mesh is open to everyone here", "es": "#lora-mesh está abierta a todos aquí"},
     "lora_room_status": {"fr": "#lora-mesh : la radio, et sur le web les invités : {names}", "en": "#lora-mesh: the radio, and on the web those invited: {names}", "es": "#lora-mesh: la radio, y en la web los invitados: {names}"},
     "lora_room_owner_only": {"fr": "seule la personne sur cette Bûche (l'ordinateur) peut inviter", "en": "only the person on this Stump (the computer) can invite", "es": "solo la persona en este Tronco (la computadora) puede invitar"},
