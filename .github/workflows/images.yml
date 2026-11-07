@@ -10,6 +10,7 @@ name: Stump images
 
 on:
   push:
+    branches: ['**']           # not a tag: the Release workflow builds them then
     paths:
       - 'image/**'
       - '.github/workflows/images.yml'

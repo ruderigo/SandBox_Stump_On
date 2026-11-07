@@ -124,8 +124,15 @@ jobs:
       - name: Check every hash
         run: cd dist && sha256sum -c SHA256SUMS
 
+      # A second proof besides our own signature of SHA256SUMS. When
+      # Sigstore's transparency log doesn't answer (a 500 from Rekor stopped
+      # beta.57 twice, with nothing on their status page), the release still
+      # goes out on our signature and its notes say the attestation is
+      # missing; rerunning this job once Sigstore is back adds it.
       - name: Attest build provenance (Sigstore)
+        id: attest
         uses: actions/attest-build-provenance@v2
+        continue-on-error: true
         with:
           subject-path: 'dist/*'
 
@@ -135,12 +142,18 @@ jobs:
           awk -v v="## $V" '$0==v{on=1;next} /^## /{on=0} on' CHANGELOG.md > notes.md
           {
             printf '\n---\n\n**Install:** download `Stump-%s.zip`, unzip it, and run `python3 provisioner.py` inside the folder (see the README).\n\n' "$V"
-            printf '**Verify:**\n\n```\nsha256sum -c SHA256SUMS\ngh attestation verify Stump-%s.zip --repo %s\n' "$V" "$GITHUB_REPOSITORY"
+            printf '**Verify:**\n\n```\nsha256sum -c SHA256SUMS\n'
+            if [ "${{ steps.attest.outcome }}" = "success" ]; then
+              printf 'gh attestation verify Stump-%s.zip --repo %s\n' "$V" "$GITHUB_REPOSITORY"
+            fi
             if [ "${{ steps.sign.outputs.signed }}" = "true" ]; then
               printf 'python3 scripts/sign_release.py verify SHA256SUMS SHA256SUMS.rnsig RELEASE_SIGNING_KEY.txt\n'
             fi
             printf '```\n\nBuilt from %s by [this run](%s/%s/actions/runs/%s). Rebuilding the same commit with `scripts/build_release.py` gives byte-identical files.\n\n' \
               "$GITHUB_SHA" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID"
+            if [ "${{ steps.attest.outcome }}" != "success" ]; then
+              printf '*No Sigstore attestation: their transparency log did not answer when this was built. The files are signed with the release identity (SHA256SUMS.rnsig) all the same.*\n\n'
+            fi
             printf '```\n'; cat dist/SHA256SUMS; printf '```\n'
           } >> notes.md
           cat notes.md
