@@ -542,7 +542,7 @@ check('answers: a question is keyed by its text, to its "?", no parentheses, any
 tmp = Path(tempfile.mkdtemp())
 SECRET = "Hunter2-not-printed"
 (tmp / "a.json").write_text(json.dumps({
-    "_comment": "ignored", "Node name": "Handheld", "Is this Stump part of a chain?": "no",
+    "_comment": "ignored", "Node name": "Handheld", "Admin password (/admin)": SECRET + "-admin", "Is this Stump part of a chain?": "no",
     "The Heltec": 3, "Theme": "amb", "FSERV bot operator password": SECRET,
     "How should file sharing work?": "Free", "Identity requirement": "open", "nobody asks this": 1}))
 P.load_answers(tmp / "a.json")

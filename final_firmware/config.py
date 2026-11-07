@@ -177,9 +177,9 @@ CREDITS_ENABLED = False
 CREDIT_WEIGHTS = {'video': 3, 'music': 2, 'document': 1, 'other': 1}
 
 # ---- Plugin settings (added by the Provisioner) ----
-AUTH_ADMIN_PASSWORD = 'TeK'
+AUTH_ADMIN_PASSWORD = ''          # set by the Provisioner's setup (required there)
 AUTH_MODE = 'open'
-FSERVBOT_OP_PASSWORD = 'TeK_Knoh'
+FSERVBOT_OP_PASSWORD = ''         # set by the Provisioner's setup (blank: the bot's editing off)
 
 # ---- Features offered: any of chat, billboard, files, about (added by the Provisioner) ----
 FEATURES = ['chat', 'billboard', 'files']

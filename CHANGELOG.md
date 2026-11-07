@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.0.0-beta.58
+- **The setup questions, shorter** (the Provisioner's *A Stump board* and *--pc*). A board with a Heltec on the router took 29 questions; now it's 14 and a review:
+  - **Six sections, counted**: "Questions 2/6 · Wi-Fi" -- name, Wi-Fi (boards), chain, the Heltec, passwords, everything else. One header style; each explanation is one dim line, and `?` at any question shows the longer help.
+  - **Passwords are part of the essentials.** The admin password (/admin) is asked and required (no blank); then "Use the same password for the fserv bot?", or its own (blank: the bot's editing off). The template's built-in passwords are gone (`config.py` came with LaBuche's).
+  - **Everything else behind one question.** Packs, the bot, the plugins' settings, file sharing, features, the propagation node and the look are shown with their defaults (none, BarKeep, free, all four, off, Amber): Enter keeps them, *n* goes through them.
+  - **One answer for the packs and one for the features**: a numbered list, the numbers to install or keep (full descriptions on `?`), not a paragraph and a question each.
+  - **A review card before anything is written**: every answer (passwords included, to note down), Enter to go on or *e* to answer one section again.
+  - Gone: the Heltec's port question (7633 is Reticulum's own), the paragraph saying the hotspot "isn't configured here" (it is), rnodeconf details in the Heltec's address question.
+  - An answers file (`--answers`) still runs: no review, the per-pack and per-feature questions, and the bot's password read under its old name ("fserv bot operator password"). It needs "Admin password (/admin)" now.
+- Tests: provisioner_test (the answers file with the admin password).
+
 ## 1.0.0-beta.57
 - **The WROVER made a working Stump, and the Stump image** (everything found on the bench with three Freenove ESP32-WROVERs, a CAM and two Heltecs: a Stump that's slow, a chain joined the wrong way, a Provisioner that certified what didn't work). In order of what the bench turned up:
 - **The board step knows a WROVER.** Its one USB port goes through a CH340 bridge, like a Heltec's, so the USB ids can't tell them apart: it was shown as "likely the Heltec V3" with a "doesn't look like a CAM" warning. For a Stump board on a bridge port the Provisioner now asks the chip (esptool, read-only): an original ESP32 is a WROVER and goes straight on; an ESP32-S3 behind a bridge is a Heltec and it warns before going on. The labels say "Stump board" (was "CAM").
