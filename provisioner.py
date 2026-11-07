@@ -358,12 +358,12 @@ EXPECTED_FILE_HASHES = {
     "billboard.py": "73e95795f9430ea5",
     "boot_common.py": "dc95827c3989d1ca",
     "captive_portal.py": "5a89b67f2c47bdba",
-    "chain.py": "72e87add0e6f7128",
+    "chain.py": "a3d72d962fc1cd52",
     "config.py": "60def0b5e9761110",
     "conn.py": "b17cf4fb4f80fbbf",
     "discovery.py": "c1808c59c1452dda",
     "docs/ARBORIST.md": "a783f30ef8fac45f",
-    "docs/CHAIN.md": "0a84e62e2179ff28",
+    "docs/CHAIN.md": "a2fdfd6e4f540552",
     "docs/CLIENT_QUICKSTART.md": "396a5a48c947d77b",
     "docs/COMMANDS.md": "c17a3263eeeae767",
     "docs/ENGINEERING_NOTES.md": "72f7d19d7c5f03a4",
@@ -374,7 +374,7 @@ EXPECTED_FILE_HASHES = {
     "docs/PACKS.md": "acb8642931a96b42",
     "docs/PC.md": "e90244ab4b47d68e",
     "docs/PLUGINS.md": "73eb6ecaacd0d576",
-    "example_node.py": "3f808b0b7a02b694",
+    "example_node.py": "1994da82d53f8062",
     "features.py": "81e8af361c64a911",
     "fserv.py": "06b87b1d6fb95eb4",
     "fservbot/plugin.json": "12b3c544160411e3",
@@ -672,7 +672,7 @@ FIRMWARE_FOR_CHIP = {
 }
 
 
-# A Stump image (image/README.md, 1.0.0-beta.56): MicroPython with the
+# A Stump image (image/README.md, 1.0.0-beta.57): MicroPython with the
 # Stump frozen in, one per chip, built by the release workflow and
 # attached to the GitHub release as stump-<release>-wrover.bin and
 # stump-<release>-s3cam.bin. Flashed instead of the plain MicroPython

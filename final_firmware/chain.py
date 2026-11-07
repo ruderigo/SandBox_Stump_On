@@ -26,7 +26,7 @@
 #                               # the Wi-Fi it joined (WIFI_SSID), so a computer on
 #                               # the same home network joins without switching Wi-Fi
 #   CHAIN_PARENT_IP   = ""      # a member that joins over that home Wi-Fi instead
-#                               # (1.0.0-beta.56): the first Stump's address there.
+#                               # (1.0.0-beta.57): the first Stump's address there.
 #                               # The member stays on WIFI_SSID (its home address,
 #                               # internet), links to the first Stump at this
 #                               # address, and finds it again on that network when
