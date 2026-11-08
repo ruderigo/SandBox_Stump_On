@@ -534,6 +534,16 @@ async function lookTests() {
     await page.waitForSelector("#worktitle .ok, #worktitle .err", { timeout: 90000 });
     check("look: a chain secret this browser knows, filled in", (await page.inputValue("#f-secret")) === "sekrit"
           && /knows LaBuche's chain secret/.test(await page.textContent("#f-secret-hint")), await page.inputValue("#f-secret"));
+    // 6. The name typed is a Stump's already there: a tagged one offered, as a person would add.
+    await page.fill("#f-name", "LaBuche");
+    await page.click("#f-look");
+    await page.waitForSelector("#worktitle .ok, #worktitle .err", { timeout: 90000 });
+    const warn = await page.textContent("#f-look-out");
+    check("look: a Stump called LaBuche already there: said, keep it if it's that board set up again", /already on this Wi-Fi/.test(warn)
+          && /set up again, keep the name/.test(warn), warn);
+    await page.click("#f-look-out button:has-text('Call it')");
+    check("... or a name with a tag, like LaBuche-k7q2", /^LaBuche-[a-hjkmnp-z2-9]{4}$/.test(await page.inputValue("#f-name")) && /\d/.test(await page.inputValue("#f-name")),
+          await page.inputValue("#f-name"));
     check("look: no errors in the page", t.errors.length === 0, t.errors.join("\n"));
   } finally {
     first.close();

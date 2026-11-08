@@ -678,6 +678,54 @@ def clean_room(name):
     return canon(slug.strip("-"))
 
 
+# A nick or a Stump's name already in use here gets a tag, the way a person
+# would add something of their own (1.0.0-beta.60: it got a number,
+# "LaBuche1", which read like a second LaBuche). Made from who it is, so the
+# same person or Stump has the same tag on every Stump and after a restart.
+TAG_CHARS = "abcdefghjkmnpqrstuvwxyz23456789"   # no 0/o, 1/l/i: read aloud without doubt
+
+
+def nick_tag(client_id, salt=0):
+    """Four characters from who it is: "k7q2"."""
+    cid = str(client_id)
+    h = 0
+    for ch in cid:
+        h = (h * 131 + ord(ch) + salt) & 0xFFFFFFFF
+    out = ""
+    for _ in range(4):
+        out += TAG_CHARS[h % len(TAG_CHARS)]
+        h //= len(TAG_CHARS)
+    # A digit and a letter at least, so it reads as a tag ("j3d5"), not a word.
+    if not any(c.isdigit() for c in out):
+        out = out[:2] + TAG_CHARS[23 + (h % 8)] + out[3]
+    return out
+
+
+def tagged_nick(nick, client_id, salt=0):
+    """nick-<tag>, within MAX_NICK_LEN."""
+    return nick[:MAX_NICK_LEN - 5] + "-" + nick_tag(client_id, salt)
+
+
+def free_nick(nick, client_id, taken=None):
+    """nick if no one else goes by it, else nick-<tag> (another tag in the
+    unlikely case that one is taken too)."""
+    taken = taken or nick_taken
+    if not taken(nick, client_id):
+        return nick
+    for salt in range(8):
+        t = tagged_nick(nick, client_id, salt)
+        if not taken(t, client_id):
+            return t
+    return tagged_nick(nick, client_id, 99)
+
+
+def is_tagged_from(nick, base):
+    """Is nick base itself, or base with a tag?"""
+    b = base[:MAX_NICK_LEN - 5]
+    return nick == base or (nick.startswith(b + "-") and len(nick) == len(b) + 5
+                            and all(c in TAG_CHARS for c in nick[len(b) + 1:]))
+
+
 def default_nick(client_id):
     """A stable, non-identifying default so someone who never sets a
     nick still appears as a consistent person rather than 'anon' next to
@@ -1276,8 +1324,14 @@ def _handle_core(client_id, room, text, user, lang):
         if str(client_id).startswith("p:") and new.lower() != client_id[2:]:
             # Logged into a registered profile: its nick is the profile's.
             return [i18n.t("nick_profile", lang, nick=user["nick"])], None
+        said = []
         if nick_taken(new, client_id):
-            return [i18n.t("nick_taken", lang, nick=new)], None
+            # Taken: theirs with a tag (always the same one for them).
+            want = new
+            new = free_nick(new, client_id)
+            if new.lower() == user["nick"].lower():
+                return [i18n.t("nick_already", lang)], None
+            said = [i18n.t("nick_tagged", lang, nick=want, tagged=new)]
         old = user["nick"]
         touch_user(client_id, nick=new, room=room)
         if client_id not in _hidden:          # (an app's greeting isn't news)
@@ -1291,7 +1345,7 @@ def _handle_core(client_id, room, text, user, lang):
                 rrc_mesh._one_name(lx, client_id)
             except Exception:
                 pass
-        return [], None
+        return said, None
 
     if cmd in ("join", "j"):
         if not arg:

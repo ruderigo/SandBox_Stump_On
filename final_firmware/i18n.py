@@ -268,6 +268,10 @@ STRINGS = {
         "en": "that's already your name",
         "es": "ese ya es tu nombre",
     },
+    # /nick with a nick someone else here goes by: theirs with a tag (rrc.free_nick).
+    "nick_tagged": {"fr": "{nick} est déjà pris ici : vous êtes {tagged}",
+                    "en": "{nick} is taken here: you're {tagged}",
+                    "es": "{nick} ya está en uso aquí: usted es {tagged}"},
     "nick_taken": {
         "fr": "« {nick} » est déjà pris ici",
         "en": "'{nick}' is taken in here",

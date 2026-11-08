@@ -5,7 +5,8 @@
 #    new one gets the plain name, not "LaBuche1";
 #  - one just heard (no route yet) is never taken for the old one; a copy of
 #    the old one's announce passed on late doesn't keep it alive; another
-#    Stump with the same name elsewhere keeps its number;
+#    Stump with the same name elsewhere keeps its tag ("LaBuche-k7q2", not
+#    a number);
 #  - a Stump whose announces stopped isn't kept a peer by its route;
 #  - a renamed Stump goes by its new name.
 # Run: python3 tests/pc/stump_names_test.py
@@ -76,7 +77,8 @@ T[0] += 30
 rrc_mesh._tidy_replaced(T[0])
 check("a new identity just heard, no route yet: not taken for the old one", NEW in discovery._known and OLD in discovery._known)
 p = rrc_mesh._get_peer(NEW, "LaBuche")
-check("... while the old one holds the name, the new one has a number", p["nick"] == "LaBuche1", p["nick"])
+check("... while the old one holds the name, the new one has a tag (from its identity: the same on every Stump)",
+      p["nick"] == rrc.tagged_nick("LaBuche", NEW) and p["nick"].startswith("LaBuche-"), p["nick"])
 stump(NEW, "LaBuche", ["http://192.168.0.173/", "http://192.168.4.1/"], emitted=5000)
 rrc_mesh._quiet_for(NEW)
 
@@ -108,10 +110,22 @@ for step in range(4):
             rrc_mesh._peers[h]["last_seen"] = T[0]
     rrc_mesh._quiet_for(NEW); rrc_mesh._quiet_for(OTHER)
     rrc_mesh._tidy_replaced(T[0])
-check("another Stump of the same name elsewhere: not retired, keeps its number", OTHER in discovery._known
-      and po["nick"] == "LaBuche1", po["nick"])
+check("another Stump of the same name elsewhere: not retired, keeps its tag", OTHER in discovery._known
+      and po["nick"] == rrc.tagged_nick("LaBuche", OTHER), po["nick"])
 rrc_mesh._fix_nick(me, OTHER, po)
-check("... and _fix_nick leaves it numbered while the name is taken", po["nick"] == "LaBuche1", po["nick"])
+check("... and _fix_nick leaves it tagged while the name is taken", po["nick"] == rrc.tagged_nick("LaBuche", OTHER), po["nick"])
+# A Stump known with a number from before 1.0.0-beta.60: the plain name once free, as with a tag.
+OLDNUM = "66" * 16
+stump(OLDNUM, "Grange", ["http://192.168.0.191/"], emitted=1)
+pn = rrc_mesh._get_peer(OLDNUM, "Grange")
+pn["nick"] = "Grange1"
+rrc_mesh._fix_nick(me, OLDNUM, pn)
+check("a nick with a number from an older release: the plain name once free", pn["nick"] == "Grange", pn["nick"])
+# /nick with a taken nick: a tag, said.
+rrc.touch_user("10.0.0.9", nick="ann", room="main")
+r, _ = rrc.handle_input("10.0.0.10", "main", "/nick ann")
+got = rrc._users.get("10.0.0.10", {}).get("nick")
+check("/nick with a nick taken here: theirs with a tag, and said", got == rrc.tagged_nick("ann", "10.0.0.10") and r and got in r[0], (got, r))
 
 # A Stump whose announces stopped: not kept alive by its route.
 GONE = "44" * 16
