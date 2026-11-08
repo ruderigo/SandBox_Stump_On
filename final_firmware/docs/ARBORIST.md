@@ -1,15 +1,17 @@
 # Arborist
 
-One HTML page for a **Freenove ESP32-S3-CAM** on a computer's USB, from
-Chrome or Edge: it makes the board a Stump, updates one, changes its
-settings and watches it start. Nothing to install, no certificate, no
+One HTML page for a **Freenove ESP32-S3-CAM** or an **ESP32-WROVER** (since
+1.0.0-beta.59) on a computer's USB, from Chrome or Edge: it makes the
+board a Stump, updates one, changes its settings and watches it start. Nothing to install, no certificate, no
 terminal: save the page, open the saved file, plug the board in.
 
 It's `Arborist-<release>.html` on each release (the version is in
-the name). It holds everything: MicroPython 1.28 for the ESP32-S3 with
-octal PSRAM (MIT licence), the Stump compiled for it, and esptool-js
-(Apache-2.0), which writes the board. Nothing is downloaded or sent
-anywhere while it works.
+the name). It holds everything: the release's **Stump images** for both
+boards (`stump-<release>-s3cam.bin`, `stump-<release>-wrover.bin`:
+MicroPython 1.28, MIT licence, with the Stump built in), the Stump's
+other files compiled, MicroPython for the ESP32-S3 with octal PSRAM, and
+esptool-js (Apache-2.0), which writes the board. About 11 MB. Nothing is
+downloaded or sent anywhere while it works.
 
 What it carries is also on each release as a file of its own,
 `Stump-<release>.bundle` (since 1.0.0-beta.48, in `SHA256SUMS`), for
@@ -25,7 +27,7 @@ makes both.
 `Arborist-<release>.html` next to the Provisioner, which puts it on the
 Stump's Tools page (section *Arborist*), for a visitor's laptop to
 download with no internet. A computer Stump gets it with `--pc`. On a
-CAM it's too big for USB (about 2.5 MB: some 40 minutes), so the
+board it's too big for USB (about 11 MB with the images), so the
 Provisioner lists it with the files to copy by card reader: into
 `tools/arborist/` on the card, with the `README*.md` files from
 `final_firmware/tools_payload/arborist/`. Only the Arborist of the same
@@ -36,18 +38,40 @@ release is offered.
 1. Save the page on the computer and open the saved file in Chrome or
    Edge. (Opened from a web address it can't reach the board: browsers
    only allow USB from a secure page, and a saved file counts as one.)
-2. Choose **A new Stump** and fill in its name, an admin password, and,
-   only if you have one, the home Wi-Fi and the LoRa radio (a Heltec
-   running RNode: set it up with the Provisioner).
-3. **Make my Stump**, pick the board in the browser's list. About 5
-   minutes: it erases the board, writes MicroPython, copies the Stump,
+2. Choose **A new Stump** and fill in its name, an admin password
+   (needed; the fserv bot takes the same one unless you untick it), and,
+   only if you have them, the home Wi-Fi, the LoRa radio (a Heltec
+   running RNode: set it up with the Provisioner) and a chain.
+3. **Make my Stump**, pick the board in the browser's list. A few
+   minutes: it reads the chip, erases the board, writes the Stump image
+   for it (the S3-CAM's or the WROVER's), copies the rest of the Stump,
    writes its settings and restarts it.
 4. Its Wi-Fi appears: join it from a phone.
 
-**Update a Stump** copies the new release onto a Stump and keeps
-everything else: its settings (`config.py`), its identity on the mesh,
-what's on its card. A Stump on an older MicroPython is told to use
-*A new Stump* instead (that erases the board, so it gets a new identity).
+**Update a Stump** puts the new release on a Stump and keeps everything
+else: its settings (`config.py`), its identity on the mesh, what's on its
+card. A Stump that runs a Stump image with this release's partition
+layout gets the new image written in place (no erase), then the rest of
+the files; old copies of modules the image has built in are removed. One
+with an older layout is told to use *A new Stump* (an erase: a new
+identity). One on plain MicroPython (an earlier Arborist) is updated file
+by file as before, and told that *A new Stump* would give it the image.
+A Stump on an older MicroPython is told to use *A new Stump*.
+
+**The chain**: *the first Stump* (it sets the channel; with the home
+Wi-Fi and a chain secret, the others can join it over the router too),
+*joins the first Stump over the home Wi-Fi* (the router, like the
+Provisioner's: the first Stump's address there, this Stump's number, the
+chain secret, needed), or *joins another Stump's Wi-Fi* (its hotspot, no
+router).
+
+**The Heltec**: on the Stump's own Wi-Fi it's at 192.168.<number>.200,
+past the addresses the hotspot hands out (.2 to .101), as with the
+Provisioner. On the home Wi-Fi, each Heltec needs its own address, one
+the router doesn't hand out: the page suggests .222 on the home network
+(from the first Stump's address when it knows it) -- it can't see which
+are taken, so the next Heltec takes .223, and so on. The result says
+which address to give the Heltec in its own setup.
 
 **Settings** reads a Stump's settings into the same form -- its name,
 admin password, Wi-Fi, the radio, what it offers, its look, who may come
@@ -96,10 +120,15 @@ port; or hold BOOT, press and release RESET, let go of BOOT, and try again.
 
 The same as the Provisioner:
 
-- erase, then MicroPython at 0x0 (esptool-js, 460800 baud)
+- the chip read (esptool-js, 460800 baud), then erase and the Stump
+  image for it: the S3-CAM's at 0x0, the WROVER's at 0x1000 (as the
+  Provisioner writes them); plain MicroPython at 0x0 on a CAM when the
+  page was built without images. An update in place writes the image
+  without erasing.
 - at its REPL (115200): a running Stump stopped, its watchdog given two
   hours (`QUIET_WATCHDOG`), a soft reset
-- every file of the Stump, folders first: each in chunks to
+- every file of the Stump the image hasn't built in (`stump_image.FROZEN`,
+  read from the board), folders first: each in chunks to
   `<file>.part`, its SHA-256 checked on the board, then renamed over the
   old one, so a cable pulled out never leaves half a module; a module
   arriving compiled (`.mpy`) has its `.py` removed, and the other way
@@ -111,10 +140,12 @@ The same as the Provisioner:
   file as it was, a temporary file then a rename), plus the Heltec
   bridge's three lines in `CONFIG` (as the Provisioner edits them). A
   result that isn't Python is undone. The rules are `/admin`'s and the
-  Provisioner's: a name of 20 characters at most, a chain's first Stump
-  is number 4 and sets the channel, the others 5 to 254, a Heltec on the
-  Stump's own Wi-Fi is 192.168.<number>.2. The fserv bot's operator
-  password is the admin password.
+  Provisioner's: a name of 20 characters at most, an admin password on
+  a new Stump, a chain's first Stump is number 4 and sets the channel,
+  the others 5 to 254, a member over the router has `CHAIN_PARENT_IP` and
+  the home Wi-Fi as its uplink (its password copied on the board when it
+  isn't typed again), a Heltec on the Stump's own Wi-Fi is
+  192.168.<number>.200 (.2 read from an older one, saved as .200).
 - *Settings* checks that the `config.py` it saves over is the one it
   read (another board, or a change since: read again)
 - `machine.reset()`
@@ -133,9 +164,13 @@ over the network.
 ## Building it
 
     pip install mpy-cross==1.28.0.post2
-    python3 scripts/build_arborist.py dist/ [--micropython FILE.bin]
+    python3 scripts/build_arborist.py dist/ [--micropython FILE.bin] [--images DIR]
 
-Without `--micropython` it downloads the image the Provisioner uses
+The Stump images are taken from `--images`, or `dist/` itself (where the
+release workflow puts them first), or `build/images/` (`image/build.sh`);
+without them the page makes a CAM with plain MicroPython. They go in a
+block of their own, so `Stump-<release>.bundle` stays the page's other
+block, byte for byte. Without `--micropython` it downloads the image the Provisioner uses
 (`CAM_FIRMWARE_LATEST_URL`) and checks its SHA-256
 (`MICROPYTHON_SHA256`). Built twice from the same commit, the page is
 the same, byte for byte. Tests: `tests/arborist_test.py` (the uploader

@@ -1,7 +1,7 @@
 # Arborist
 
-Makes a Freenove ESP32-S3-CAM into a Stump, updates one, changes its
-settings and watches it start: one page, with no internet and nothing
+Makes a Freenove ESP32-S3-CAM or an ESP32-WROVER into a Stump, updates
+one, changes its settings and watches it start: one page, with no internet and nothing
 to install.
 
 - `Arborist-<release>.html` — save it on a computer, then open the saved

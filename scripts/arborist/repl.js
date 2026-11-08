@@ -178,10 +178,10 @@
 
   // The board's MicroPython: {release: "1.28.0", mpy: "6.3"}.
   async function boardInfo(repl) {
-    var out = await repl.run("import sys\nv=getattr(sys.implementation,'_mpy',0)\n" +
-      "print('INFO', '.'.join(str(x) for x in sys.implementation.version[:3]), '%d.%d' % (v & 0xff, (v >> 8) & 3))\n");
-    var m = /INFO (\S+) (\S+)/.exec(out) || [];
-    return { release: m[1], mpy: m[2] };
+    var out = await repl.run("import sys, os\nv=getattr(sys.implementation,'_mpy',0)\n" +
+      "print('INFO', '.'.join(str(x) for x in sys.implementation.version[:3]), '%d.%d' % (v & 0xff, (v >> 8) & 3), (os.uname().machine if hasattr(os, 'uname') else sys.platform).replace(' ', '_'))\n");
+    var m = /INFO (\S+) (\S+) ?(\S*)/.exec(out) || [];
+    return { release: m[1], mpy: m[2], machine: (m[3] || "").replace(/_/g, " ") };
   }
 
   // files: [{path, data: Uint8Array, sha256: hex}]. progress(done, total, path) in bytes.
@@ -231,7 +231,16 @@
   // three lines inside CONFIG (as the Provisioner edits them). The old
   // file is kept as config.py.bak; a result that isn't Python is undone.
   var KEYS = ["NODE_NAME", "BOT_NAME", "MESH_GREETING", "WIFI_SSID", "AUTH_MODE", "FEATURES", "THEME", "SSID_NAME",
-              "CHAIN_ENABLED", "CHAIN_UPLINK_SSID", "CHAIN_UPLINK_PASS", "CHAIN_SUBNET", "CHAIN_CHANNEL", "CHAIN_SECRET"];
+              "CHAIN_ENABLED", "CHAIN_UPLINK_SSID", "CHAIN_UPLINK_PASS", "CHAIN_SUBNET", "CHAIN_CHANNEL", "CHAIN_SECRET",
+              "CHAIN_PARENT_IP"];
+  // A Heltec on the Stump's own hotspot: .200, past the addresses the
+  // hotspot hands out itself (.2 to .101): at .2 a phone could take it
+  // first (the Provisioner's HELTEC_ON_HOTSPOT, 1.0.0-beta.56). On the
+  // router, each Heltec its own address from .222 (HELTEC_FIRST).
+  var HELTEC_ON_HOTSPOT = 200, HELTEC_FIRST = 222;
+  // CHAIN_UPLINK_PASS for a member over the router: the home Wi-Fi's
+  // password, which the page never reads back -- copied on the board.
+  var FROM_WIFI_PASS = "\u0000WIFI_PASS";
   var FEATURES = ["chat", "billboard", "files", "about"], THEMES = ["paper", "amber", "phosphor", "oled"],
       MODES = ["open", "hybrid", "mandatory"];
 
@@ -308,6 +317,7 @@
     Object.keys(values).forEach(function (k) { if (k !== "HELTEC") top[k] = values[k]; });
     var code =
       "import json, os, settings\nch=json.loads(" + py(JSON.stringify(top)) + ")\nH=json.loads(" + py(JSON.stringify(h)) + ")\n" +
+      "if ch.get('CHAIN_UPLINK_PASS')==" + py(FROM_WIFI_PASS) + ":\n import config as _c\n ch['CHAIN_UPLINK_PASS']=ch.get('WIFI_PASS',getattr(_c,'WIFI_PASS',''))\n" +
       "src=open('config.py').read()\nf=open('config.py.bak','w')\nf.write(src)\nf.close()\n" +
       "if ch and not settings.write_config(ch,'config.py'):\n raise OSError('config.py not written')\n" +
       "if H:\n L=open('config.py').read().split('\\n')\n blk=False\n done=0\n for i in range(len(L)):\n" +
@@ -333,6 +343,7 @@
   }
 
   function ctl(s) { return /[\x00-\x1f\x7f]/.test(s); }
+  function isIp(s) { return /^(\d{1,3})(\.\d{1,3}){3}$/.test(s || "") && s.split(".").every(function (x) { return +x <= 255; }); }
   function hex(n) { var u = new Uint8Array(n); crypto.getRandomValues(u); return Array.from(u).map(function (b) { return ("0" + b.toString(16)).slice(-2); }).join(""); }
 
   // The form's answers -> {values} for writeSettings, or {error}; {warn} too.
@@ -361,13 +372,16 @@
       if (a.pw !== a.pw2) return no("The two admin passwords aren't the same.");
       v.AUTH_ADMIN_PASSWORD = a.pw;
     }
-    if (a.opw) {
-      if (a.opw.length < 4 || a.opw.length > 64) return no("The BarKeep operator password: 4 to 64 characters.");
+    if (a.samePw && v.AUTH_ADMIN_PASSWORD) {
+      v.FSERVBOT_OP_PASSWORD = v.AUTH_ADMIN_PASSWORD;      // the fserv bot's, the same (the Provisioner's default)
+    } else if (a.opw && !a.samePw) {
+      if (a.opw.length < 4 || a.opw.length > 64) return no("The fserv bot's password: 4 to 64 characters.");
       v.FSERVBOT_OP_PASSWORD = a.opw;
     }
-    // A new Stump needs at least one way into /admin.
-    if (a.requireAdmin && !v.AUTH_ADMIN_PASSWORD && !a.hasPw && !v.FSERVBOT_OP_PASSWORD && !a.hasOpPw)
-      return no("Set an admin password (or a BarKeep operator password for /admin to reuse).");
+    // A new Stump needs its admin password, as with the Provisioner
+    // (1.0.0-beta.58: the bot's alone used to do).
+    if (a.requireAdmin && !v.AUTH_ADMIN_PASSWORD && !a.hasPw)
+      return no("Set an admin password (for /admin).");
     var ssid = (a.ssid || "").trim();
     if (ssid.length > 32 || ctl(ssid)) return no("The home Wi-Fi's name: at most 32 characters.");
     v.WIFI_SSID = ssid;
@@ -392,7 +406,7 @@
       var secret = (a.secret || "").trim();
       if (secret.length > 64 || /['"\\]/.test(secret) || ctl(secret)) return no("The chain secret: at most 64 characters, no quotes or backslashes.");
       if (!secret) warn.push("No chain secret: anyone on a Stump's Wi-Fi could join the chain.");
-      v.CHAIN_ENABLED = true; v.CHAIN_SECRET = secret;
+      v.CHAIN_ENABLED = true; v.CHAIN_SECRET = secret; v.CHAIN_PARENT_IP = "";
       if (a.chain === "first") {
         var ch = parseInt(a.channel, 10);
         if (!(ch >= 1 && ch <= 13)) return no("The chain's Wi-Fi channel: 1 to 13.");
@@ -404,35 +418,51 @@
         if (!(subnet >= 5 && subnet <= 254) || String(subnet) !== String(a.subnet).trim()) return no("This Stump's number in the chain: 5 to 254, a different one on each Stump.");
         v.CHAIN_UPLINK_SSID = up; v.CHAIN_UPLINK_PASS = a.upPass || ""; v.CHAIN_SUBNET = subnet; v.CHAIN_CHANNEL = 0;
       }
+    } else if (a.chain === "lan") {
+      // A member over the router (chain.py's CHAIN_PARENT_IP, 1.0.0-beta.57):
+      // it stays on the home Wi-Fi and links to the first Stump there.
+      var sec2 = (a.secret || "").trim();
+      if (!sec2) return no("Over the home Wi-Fi the first Stump only takes Stumps with the chain secret: type it in.");
+      if (sec2.length > 64 || /['"\\]/.test(sec2) || ctl(sec2)) return no("The chain secret: at most 64 characters, no quotes or backslashes.");
+      if (!ssid) return no("Joining over the home Wi-Fi needs the home Wi-Fi's name (above).");
+      var pip = (a.parentIp || "").trim();
+      if (!isIp(pip)) return no("The first Stump's address on the home Wi-Fi looks like 192.168.0.173.");
+      subnet = parseInt(a.subnet, 10);
+      if (!(subnet >= 5 && subnet <= 254) || String(subnet) !== String(a.subnet).trim()) return no("This Stump's number in the chain: 5 to 254, a different one on each Stump.");
+      v.CHAIN_ENABLED = true; v.CHAIN_SECRET = sec2; v.CHAIN_PARENT_IP = pip;
+      v.CHAIN_UPLINK_SSID = ssid; v.CHAIN_UPLINK_PASS = a.wpass || FROM_WIFI_PASS; v.CHAIN_SUBNET = subnet; v.CHAIN_CHANNEL = 0;
     } else {
       v.CHAIN_ENABLED = false;
     }
+    var onAp = "192.168." + subnet + "." + HELTEC_ON_HOTSPOT;
     if (a.radio === "lan") {
       var host = (a.hhost || "").trim();
-      if (!/^(\d{1,3})(\.\d{1,3}){3}$/.test(host) || host.split(".").some(function (x) { return +x > 255; }))
-        return no("The Heltec's address looks like 192.168.1.50.");
+      if (!isIp(host)) return no("The Heltec's address looks like 192.168.0.222.");
       if (!ssid) return no("A Heltec on the home Wi-Fi needs the home Wi-Fi's name.");
+      if (+host.split(".")[3] < 2 || +host.split(".")[3] > 254) return no("The Heltec's address: its last number from 2 to 254 (.222 is a good one).");
       v.HELTEC = { enabled: true, host: host, port: 7633 };
     } else if (a.radio === "ap") {
-      v.HELTEC = { enabled: true, host: "192.168." + subnet + ".2", port: 7633 };
+      v.HELTEC = { enabled: true, host: onAp, port: 7633 };
     } else {
-      v.HELTEC = { enabled: false, host: a.hhost && /^[\d.]+$/.test(a.hhost) ? a.hhost : "192.168." + subnet + ".2", port: 7633 };
+      v.HELTEC = { enabled: false, host: a.hhost && isIp(a.hhost) ? a.hhost : onAp, port: 7633 };
     }
     return { values: v, warn: warn };
   }
 
   // What readSettings found -> the form's answers.
   function answersFrom(c) {
-    var chain = !c.CHAIN_ENABLED ? "none" : c.CHAIN_UPLINK_SSID ? "member" : "first";
-    var subnet = chain === "member" ? c.CHAIN_SUBNET : 4, h = c.HELTEC || {};
-    var radio = !h.enabled ? "none" : h.host === "192.168." + subnet + ".2" ? "ap" : "lan";
+    var chain = !c.CHAIN_ENABLED ? "none" : c.CHAIN_PARENT_IP ? "lan" : c.CHAIN_UPLINK_SSID ? "member" : "first";
+    var subnet = chain === "member" || chain === "lan" ? c.CHAIN_SUBNET : 4, h = c.HELTEC || {};
+    // On its hotspot: .200, or .2 as before 1.0.0-beta.58 (saved again as .200).
+    var radio = !h.enabled ? "none" : (h.host === "192.168." + subnet + "." + HELTEC_ON_HOTSPOT
+                                       || h.host === "192.168." + subnet + ".2") ? "ap" : "lan";
     return {
       name: c.NODE_NAME || "", bot: c.BOT_NAME || "BarKeep", greeting: c.MESH_GREETING || "",
       ssid: c.WIFI_SSID || "", radio: radio, hhost: radio === "lan" ? h.host : "",
       features: Array.isArray(c.FEATURES) ? c.FEATURES : FEATURES.slice(0, 3), theme: c.THEME || "paper",
       mode: c.AUTH_MODE || "open", hotspot: c.SSID_NAME || "", chain: chain,
       channel: c.CHAIN_CHANNEL || 11, upSsid: c.CHAIN_UPLINK_SSID || "", upPass: c.CHAIN_UPLINK_PASS || "",
-      subnet: c.CHAIN_SUBNET || 5, secret: c.CHAIN_SECRET || "",
+      subnet: c.CHAIN_SUBNET || 5, secret: c.CHAIN_SECRET || "", parentIp: c.CHAIN_PARENT_IP || "",
       hasPw: !!c.HAS_ADMIN_PASSWORD, hasOpPw: !!c.HAS_OP_PASSWORD, hasWifiPass: !!c.HAS_WIFI_PASS
     };
   }
@@ -635,7 +665,52 @@
     return { byReader: byReader.map(function (f) { return f.path; }) };
   }
 
+  // -- the Stump image (MicroPython with the Stump frozen in, 1.0.0-beta.57)
+  // Which image for the chip esptool-js names, and where it goes: the
+  // S3-CAM's at 0x0, the original ESP32's (a WROVER) at 0x1000 -- as the
+  // Provisioner writes them (FIRMWARE_FOR_CHIP).
+  var IMAGE_FOR = { s3cam: { offset: 0x0, board: "the Freenove ESP32-S3-CAM" },
+                    wrover: { offset: 0x1000, board: "an ESP32-WROVER (the original ESP32, with PSRAM)" } };
+  function imageForChip(chip) {
+    var c = String(chip || "").toUpperCase();
+    if (/ESP32-S3/.test(c)) return "s3cam";
+    if (/ESP32-(S2|C\d|H\d|P\d)/.test(c)) return null;     // other chips: no Stump for them
+    if (/ESP32/.test(c)) return "wrover";
+    return null;
+  }
+  // What a board running a Stump image says of it: {release, partitions,
+  // frozen} (stump_image.py, frozen in by image/stage.py), or null.
+  async function imageInfo(repl) {
+    var out = await repl.run("import json\ntry:\n import stump_image as s\n print('IMG'+json.dumps({'release':s.RELEASE,'partitions':s.PARTITIONS,'frozen':s.FROZEN}))\n" +
+                             "except ImportError:\n print('IMGnone')\n");
+    var m = /IMG(\{.*\})/.exec(out);
+    return m ? JSON.parse(m[1]) : null;
+  }
+  // The board's files left to copy beside an image: those it hasn't frozen
+  // in (a frozen module's copy on the filesystem would be loaded instead:
+  // the filesystem comes first).
+  function notFrozen(files, frozen) {
+    var f = {};
+    (frozen || []).forEach(function (n) { f[n.replace(/\.(py|mpy)$/, "")] = 1; });
+    return files.filter(function (x) { return !/\.(py|mpy)$/.test(x.path) || /(^|\/)(boot|main|config)\.py$/.test(x.path)
+                                                || !f[x.path.replace(/\.(py|mpy)$/, "")]; });
+  }
+  // Stale copies of frozen modules removed from the filesystem (an older
+  // install's), then the packages' folders left empty.
+  async function removeFrozenCopies(repl, frozen) {
+    var names = Array.from(new Set((frozen || []).map(function (n) { return n.replace(/\.(py|mpy)$/, ""); }))).sort();
+    var dirs = Array.from(new Set((frozen || []).filter(function (n) { return n.indexOf("/") > 0; })
+                                  .map(function (n) { return n.slice(0, n.lastIndexOf("/")); })))
+                    .sort(function (a, b) { return b.split("/").length - a.split("/").length; });
+    var out = await repl.run("import os\nn=0\nfor m in " + JSON.stringify(names) + ":\n for p in (m+'.py',m+'.mpy'):\n  try:\n   os.remove(p)\n   n+=1\n  except OSError:\n   pass\n" +
+                             "for d in " + JSON.stringify(dirs) + ":\n try:\n  if not os.listdir(d):\n   os.rmdir(d)\n except OSError:\n  pass\nprint('GONE%d' % n)\n", 60000);
+    var m = /GONE(\d+)/.exec(out);
+    return m ? +m[1] : 0;
+  }
+
   var api = { Repl: Repl, prepare: prepare, restart: restart, upload: upload, boardInfo: boardInfo,
+              IMAGE_FOR: IMAGE_FOR, imageForChip: imageForChip, imageInfo: imageInfo, notFrozen: notFrozen,
+              removeFrozenCopies: removeFrozenCopies, HELTEC_ON_HOTSPOT: HELTEC_ON_HOTSPOT, HELTEC_FIRST: HELTEC_FIRST,
               CARD: CARD, USB_MAX: USB_MAX, cardStatus: cardStatus, wipeCard: wipeCard, toCard: toCard,
               readZip: readZip, packFrom: packFrom, installPack: installPack, fillTools: fillTools, shaHex: shaHex,
               readSettings: readSettings, writeSettings: writeSettings, readConfigFile: readConfigFile, putConfigFile: putConfigFile,

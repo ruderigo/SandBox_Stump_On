@@ -1,7 +1,7 @@
 # Arborist
 
-Fait d'une Freenove ESP32-S3-CAM une Bûche, en met une à jour, change ses
-réglages et la regarde démarrer : une seule page, sans internet et sans
+Fait d'une Freenove ESP32-S3-CAM ou d'une ESP32-WROVER une Bûche, en met
+une à jour, change ses réglages et la regarde démarrer : une seule page, sans internet et sans
 rien à installer.
 
 - `Arborist-<version>.html` — enregistrez-la sur un ordinateur, puis
