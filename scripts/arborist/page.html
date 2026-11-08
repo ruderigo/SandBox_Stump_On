@@ -49,6 +49,22 @@
   dl.sum { display:grid; grid-template-columns:auto 1fr; gap:4px 14px; margin:8px 0; }
   dl.sum dt { color:var(--muted); } dl.sum dd { margin:0; }
   .hidden { display:none !important; }
+  /* Look around: the networks, the Stumps found (1.0.0-beta.60) */
+  .look { border:1px solid var(--line); border-radius:8px; padding:10px 12px; margin-top:8px; }
+  .look h4 { margin:10px 0 4px; font-size:.9rem; color:var(--muted); font-weight:600; }
+  .look h4:first-child { margin-top:0; }
+  .nets { display:grid; gap:2px; }
+  .net { display:grid; grid-template-columns:1fr auto auto; gap:10px; align-items:center; padding:3px 8px; margin:0; border-radius:6px; cursor:pointer; font-weight:400; line-height:1.4; }
+  .net:hover { background:var(--bg); }
+  .net.on { background:var(--bg); outline:1px solid var(--accent); }
+  .net .sig { font-family:ui-monospace,monospace; letter-spacing:-1px; color:var(--accent); }
+  .net .sig i { color:var(--line); font-style:normal; }
+  .net .lock { color:var(--muted); font-size:.85rem; width:3.2em; text-align:right; }
+  .stumps { width:100%; border-collapse:collapse; font-size:.92rem; }
+  .stumps td { padding:5px 6px; border-top:1px solid var(--line); vertical-align:middle; }
+  .stumps td.what { color:var(--muted); }
+  .stumps button { padding:5px 10px; font-size:.85rem; }
+  .look .line { margin:6px 0 0; }
   code { font-size:.92em; }
 </style>
 </head>
@@ -159,12 +175,12 @@
 
   <label for="f-ssid">Home Wi-Fi <span class="hint">· optional</span></label>
   <div class="two">
-    <div><input type="text" id="f-ssid" maxlength="32" placeholder="Its name" list="f-ssids"><datalist id="f-ssids"></datalist></div>
-    <div><input type="password" id="f-wpass" maxlength="63" placeholder="Its password"></div>
+    <div><input type="text" id="f-ssid" maxlength="32" placeholder="Its name" autocomplete="off" spellcheck="false"></div>
+    <div><input type="password" id="f-wpass" maxlength="63" placeholder="Its password" autocomplete="new-password"></div>
   </div>
-  <div class="row" style="margin-top:6px"><button type="button" class="plain small" id="f-look">Look around with the board</button>
-    <span class="hint" id="f-look-hint">The board lists the Wi-Fi networks it sees; with one chosen above, it joins it (checking the password) and finds the Stumps on it.</span></div>
-  <div id="f-look-out" class="hidden"></div>
+  <div class="row" style="margin-top:6px"><button type="button" class="plain small" id="f-look">Find networks and Stumps</button>
+    <span class="hint" id="f-look-hint">With the board: the networks it sees, and with one filled in, its password checked and the Stumps on it.</span></div>
+  <div id="f-look-out" class="look hidden"></div>
   <p class="hint">Not needed: the Stump makes its own Wi-Fi. For a LoRa radio on the home Wi-Fi, or a chain that reaches it. This board only sees 2.4 GHz Wi-Fi.</p>
 
   <label>LoRa radio (a Heltec running RNode)</label>
@@ -218,7 +234,9 @@
     </div>
     <div id="f-chain-lan" class="hidden">
       <label for="f-parent">The first Stump's address on the home Wi-Fi <span class="hint">· its "On the Wi-Fi" address, like 192.168.0.173</span></label>
-      <input type="text" id="f-parent" maxlength="15" placeholder="192.168.0.173" style="width:11em">
+      <div class="row" style="margin-top:0"><input type="text" id="f-parent" maxlength="15" placeholder="192.168.0.173" style="width:11em">
+        <button type="button" class="plain small" id="f-find-first">Find it on the network</button></div>
+      <p class="hint err" id="f-find-err"></p>
       <p class="hint">It stays on the home Wi-Fi above and links to the first Stump there; if the router gives the first Stump another address, it finds it again.</p>
     </div>
     <div id="f-chain-member" class="hidden">
@@ -603,7 +621,7 @@ async function rememberSecret(secret) {
 }
 async function lookIt() {
   var fresh = mode() !== "update" && !EDITING;
-  steps("Looking around with the board", ["Choose the board", "Connect", "Look at the Wi-Fi", "Find the Stumps", "Done with the board"]);
+  steps("Looking around with the board", ["Choose the board", "Connect", "The Wi-Fi networks", "The Stumps", "Done with the board"]);
   step(0); await choosePort();
   step(1);
   var repl;
@@ -620,42 +638,108 @@ async function lookIt() {
   CURRENT = repl;
   var running = await hasStump(repl);
   step(2);
-  var nets = await R.scanWifi(repl);
-  var dl = $("f-ssids"); dl.innerHTML = "";
-  nets.forEach(function (n) { var o = document.createElement("option"); o.value = n.ssid; o.label = n.ssid + " · " + n.rssi + " dBm · channel " + n.channel + (n.open ? " · open" : ""); dl.appendChild(o); });
+  NETS = await R.scanWifi(repl);
   var out = $("f-look-out"); out.innerHTML = ""; out.classList.remove("hidden");
-  out.appendChild(para(nets.length ? "It sees: " + nets.slice(0, 12).map(function (n) { return n.ssid + " (" + n.rssi + " dBm" + (n.open ? ", open" : "") + ")"; }).join(", ") +
-                                     ". Click the name field for the list." : "It sees no Wi-Fi networks.", "hint"));
-  var ssid = $("f-ssid").value.trim(), pw = $("f-wpass").value, net = nets.filter(function (n) { return n.ssid === ssid; })[0];
-  step(3);
+  showNets(out);
+  var ssid = $("f-ssid").value.trim(), pw = $("f-wpass").value, net = NETS.filter(function (n) { return n.ssid === ssid; })[0];
   var kept = !pw && EDITING && EDITING.hasWifiPass;
-  if (ssid && (pw || (net && net.open) || kept)) {
+  step(3);
+  var status = document.createElement("div"); out.appendChild(status);
+  if (!ssid) line(status, "Pick the home Wi-Fi above (and type its password): Find then checks it and finds the Stumps.", "");
+  else if (!pw && !(net && net.open) && !kept) {
+    line(status, "Type “" + ssid + "”'s password above, then Find again.", "warn");
+    $("f-wpass").focus();
+  } else {
     if (kept) pw = await R.wifiPass(repl);
-    if (!net) out.appendChild(para("“" + ssid + "” isn't among the networks it sees (this board only sees 2.4 GHz Wi-Fi). It tries anyway.", "warn"));
+    if (!net) line(status, "“" + ssid + "” isn't among the networks it sees (it only sees 2.4 GHz). Trying anyway…", "warn");
     bar(0.5, "Joining “" + ssid + "” and asking who's a Stump there…");
     var r = await R.lookAround(repl, ssid, pw);
-    if (!r.joined) out.appendChild(para("It couldn't join “" + ssid + "”: " + r.why + ".", "err"));
-    else showFound(r, out);
-  } else {
-    out.appendChild(para("Choose the home Wi-Fi above (and type its password), then Look again: it joins it, checks the password and finds the Stumps on it."));
+    if (!r.joined) line(status, "✗ It couldn't join “" + ssid + "”: " + r.why + ".", "err");
+    else showFound(r, status);
   }
   step(4);
   if (running) await R.restart(repl);          // a Stump goes back to running
   await closePort();
   CURRENT = null;
   done("");
-  $("result").appendChild(para("Looked: what it found is under the home Wi-Fi, in the form."));
+  $("result").appendChild(para("Done: what the board found is under the home Wi-Fi."));
   placeForm();
   return true;
 }
+var NETS = [];
+function line(into, text, cls) { var p = document.createElement("p"); p.className = "line" + (cls ? " " + cls : ""); p.textContent = text; into.appendChild(p); return p; }
+function bars(rssi) {
+  var n = rssi >= -55 ? 4 : rssi >= -65 ? 3 : rssi >= -75 ? 2 : 1, g = "▂▄▆█", o = "";
+  for (var i = 0; i < 4; i++) o += i < n ? g[i] : "<i>" + g[i] + "</i>";
+  return o;
+}
+// A Stump's own Wi-Fi (its hotspot): open, the hosted page's name or
+// "<name> 192.168.<n>.1". Not a home Wi-Fi: listed apart.
+function isStumpWifi(n) { return n.open && (n.ssid === SSID || /\s192\.168\.\d+\.1$/.test(n.ssid)); }
+function showNets(out) {
+  var home = NETS.filter(function (n) { return !isStumpWifi(n); }), stumps = NETS.filter(isStumpWifi);
+  var h = document.createElement("h4"); h.textContent = home.length ? "Networks this board sees · pick one" : "It sees no Wi-Fi networks"; out.appendChild(h);
+  var list = document.createElement("div"); list.className = "nets"; out.appendChild(list);
+  var cur = $("f-ssid").value.trim(), MAX = 8;
+  home.forEach(function (n, i) {
+    var row = document.createElement("label"); row.className = "net" + (n.ssid === cur ? " on" : "") + (i >= MAX ? " hidden more-net" : "");
+    row.dataset.ssid = n.ssid;
+    var name = document.createElement("span"); name.textContent = n.ssid;
+    var sig = document.createElement("span"); sig.className = "sig"; sig.innerHTML = bars(n.rssi); sig.title = n.rssi + " dBm, channel " + n.channel;
+    var lock = document.createElement("span"); lock.className = "lock"; lock.textContent = n.open ? "open" : "🔒";
+    row.appendChild(name); row.appendChild(sig); row.appendChild(lock);
+    row.onclick = function () {
+      $("f-ssid").value = n.ssid;
+      qa("#f-look-out .net").forEach(function (x) { x.classList.toggle("on", x === row); });
+      if (n.open) $("f-wpass").value = ""; else $("f-wpass").focus();
+    };
+    list.appendChild(row);
+  });
+  if (home.length > MAX) {
+    var more = document.createElement("button"); more.type = "button"; more.className = "plain small"; more.style.marginTop = "4px";
+    more.textContent = (home.length - MAX) + " more";
+    more.onclick = function () { qa("#f-look-out .more-net").forEach(function (x) { x.classList.remove("hidden"); }); more.remove(); };
+    out.appendChild(more);
+  }
+  if (stumps.length) line(out, "Stumps' own Wi-Fi (not a home Wi-Fi): " + stumps.map(function (n) { return n.ssid; }).join(", ") + ".", "hint");
+}
 function showFound(r, out) {
-  var o = R.offers(r.stumps, r.ip);
+  var o = R.offers(r.stumps, r.ip), ssid = $("f-ssid").value.trim();
   LOOKED = { stumps: r.stumps, offers: o, home: r.ip };
-  out.appendChild(para("On “" + $("f-ssid").value.trim() + "”: the password works (the board got " + r.ip + ").", "ok"));
-  if (!r.stumps.length) { out.appendChild(para("No Stump answered on it.")); return; }
-  // A Stump with the name typed above already there: the same board set up
-  // again keeps it (the others give it back once the old one goes quiet);
-  // another Stump takes its own, a tag added as a person would.
+  line(out, "✓ The password works (the board got " + r.ip + " on “" + ssid + "”).", "ok");
+  var h = document.createElement("h4"); h.textContent = "Stumps on “" + ssid + "”"; out.appendChild(h);
+  if (!r.stumps.length) {
+    line(out, "None answered. Are they on, and on this Wi-Fi? (A guest Wi-Fi that keeps its devices apart hides them.)", "warn");
+    return;
+  }
+  var tb = document.createElement("table"); tb.className = "stumps"; out.appendChild(tb);
+  r.stumps.forEach(function (st) {
+    var tr = tb.insertRow(), bits = [];
+    bits.push(st.role === "root" ? "first Stump" : st.role === "member" ? "in a chain" : "on its own");
+    if (st.ap_ip) bits.push("number " + st.ap_ip.split(".")[2]);
+    if (st.heltecs.length) bits.push("Heltec ." + st.heltecs.map(function (x) { return x.split(".")[3]; }).join(", ."));
+    tr.insertCell().textContent = st.name;
+    tr.insertCell().textContent = st.ip;
+    var w = tr.insertCell(); w.className = "what"; w.textContent = bits.join(" · ");
+    var c = tr.insertCell();
+    if (o.roots.indexOf(st) >= 0) {
+      var b = document.createElement("button"); b.type = "button"; b.className = "plain small"; b.textContent = "Join its chain";
+      b.onclick = function () { useRoot(st); qa("#f-look-out .stumps button").forEach(function (x) { x.textContent = x === b ? "✓ Joining" : "Join its chain"; }); };
+      c.appendChild(b);
+    }
+  });
+  if (!o.roots.length) {
+    line(out, "No first Stump answered (found " + r.stumps.map(function (s) { return s.name; }).join(", ") + "). Is it on, and on “" + ssid + "”?", "warn");
+  } else if (o.roots.length === 1 && val("f-chain") !== "first") {
+    useRoot(o.roots[0]);
+    var b1 = out.querySelector(".stumps button"); if (b1) b1.textContent = "✓ Joining";
+  }
+  line(out, "Free for this one: number " + o.number + " · Heltec " + o.heltec, "");
+  // A Heltec on the router: the next free address offered.
+  $("f-hhost").placeholder = o.heltec;
+  if (val("f-radio") === "lan" && (!$("f-hhost").value || o.heltecs.indexOf($("f-hhost").value.trim()) >= 0)) $("f-hhost").value = o.heltec;
+  // The name typed is a Stump's already here: keep it if it's that board
+  // set up again; another Stump takes its own, a tag added as a person would.
   var mine = $("f-name").value.trim().toLowerCase(), same = r.stumps.filter(function (st) { return (st.name || "").toLowerCase() === mine; });
   if (mine && same.length) {
     var tag = "", A = "abcdefghjkmnpqrstuvwxyz23456789", rnd = new Uint8Array(4);
@@ -663,38 +747,25 @@ function showFound(r, out) {
     for (var i = 0; i < 4; i++) tag += A[rnd[i] % A.length];
     if (!/\d/.test(tag)) tag = tag.slice(0, 2) + A[23 + (rnd[2] % 8)] + tag[3];
     var alt = $("f-name").value.trim().slice(0, 15) + "-" + tag;
-    var w = para("A Stump called “" + same[0].name + "” is already on this Wi-Fi (at " + same[0].ip + "). If this board is that one set up again, keep the name: " +
-                 "the others give it back once the old one goes quiet. If it's another Stump, give it its own, like “" + alt + "”.", "warn");
-    var b = document.createElement("button"); b.type = "button"; b.className = "plain small"; b.textContent = "Call it " + alt;
-    b.onclick = function () { $("f-name").value = alt; b.disabled = true; };
-    w.appendChild(document.createTextNode(" ")); w.appendChild(b);
-    out.appendChild(w);
+    var wp = line(out, "“" + same[0].name + "” is already on this Wi-Fi (" + same[0].ip + "). The same board set up again? Keep the name. Another Stump? ", "warn");
+    var bn = document.createElement("button"); bn.type = "button"; bn.className = "plain small"; bn.textContent = "Call it " + alt;
+    bn.onclick = function () { $("f-name").value = alt; bn.disabled = true; };
+    wp.appendChild(bn);
   }
-  var ul = document.createElement("ul");
-  r.stumps.forEach(function (st) {
-    var li = document.createElement("li");
-    li.textContent = st.name + " at " + st.ip + (st.role === "root" ? " · the first Stump of a chain" : st.role === "member" ? " · in a chain" : "") +
-                     (st.ap_ip ? " · number " + st.ap_ip.split(".")[2] : "") + (st.heltecs.length ? " · its Heltec " + st.heltecs.join(", ") : "") +
-                     (st.release ? " · " + st.release : "");
-    ul.appendChild(li);
-  });
-  out.appendChild(ul);
-  if (!o.roots.length) out.appendChild(para("None of them is the first Stump of a chain taking Stumps over this Wi-Fi.", "hint"));
-  else {
-    var wrap = document.createElement("div");
-    o.roots.forEach(function (rt) {
-      var b = document.createElement("button"); b.type = "button"; b.className = "plain small"; b.style.marginRight = "6px";
-      b.textContent = "Join " + rt.name + "'s chain"; b.onclick = function () { useRoot(rt); };
-      wrap.appendChild(b);
-    });
-    out.appendChild(wrap);
-    if (o.roots.length === 1 && val("f-chain") !== "first") useRoot(o.roots[0]);
+}
+// "Find it on the network", by the first Stump's address: the same look,
+// with the home Wi-Fi filled in above.
+async function findFirst() {
+  $("f-find-err").textContent = "";
+  if (!$("f-ssid").value.trim()) {
+    $("f-find-err").textContent = "Fill in the home Wi-Fi above first (“Find networks and Stumps” lists them).";
+    $("f-ssid").focus();
+    return false;
   }
-  // A Heltec on the router: the next free address offered.
-  $("f-hhost").placeholder = o.heltec;
-  if (val("f-radio") === "lan" && (!$("f-hhost").value || o.heltecs.indexOf($("f-hhost").value.trim()) >= 0)) $("f-hhost").value = o.heltec;
-  if (o.heltecs.length) out.appendChild(para("Heltec addresses taken: " + o.heltecs.join(", ") + ". Free: " + o.heltec + ".", "hint"));
-  if (o.numbers.length) out.appendChild(para("Chain numbers taken: " + o.numbers.join(", ") + ". Free: " + o.number + ".", "hint"));
+  var r = await lookIt();
+  if (LOOKED && !LOOKED.offers.roots.length)
+    $("f-find-err").textContent = "No first Stump answered on “" + $("f-ssid").value.trim() + "”: is it on, and on this Wi-Fi?";
+  return r;
 }
 function useRoot(rt) {
   $("f-more").open = true;
@@ -1234,6 +1305,7 @@ async function act(fn, errId) {
 }
 $("make-go").onclick = function () { act(make, "make-err"); };
 $("f-look").onclick = function () { act(lookIt, "make-err"); };
+$("f-find-first").onclick = function () { act(findFirst, "make-err"); };
 $("set-read").onclick = function () { act(readIt, "set-err"); };
 $("set-save").onclick = function () { act(saveIt, "set-err"); };
 $("set-put").onclick = function () { act(putIt); };
