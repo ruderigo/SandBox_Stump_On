@@ -470,10 +470,32 @@
   // What a Stump says as it starts -> {release, micropython, serving, wifi, problems}.
   function bootSummary(text) {
     var lines = text.replace(/\r/g, "").split("\n"), m;
-    var out = { release: null, micropython: null, serving: false, ap: null, sta: null, problems: [], notes: [] };
+    var out = { release: null, micropython: null, serving: false, ap: null, sta: null, problems: [], notes: [],
+                home: null, homeWhy: null, heapKB: null,
+                chain: { root: false, linked: null, noAnswer: null, below: [], refused: [] },
+                heltec: { ok: null, fail: null } };
     if ((m = /Project Stump -- (.+?) \(([^)]+)\)/.exec(text))) out.release = m[2];
     if ((m = /MicroPython (v[\w.\-]+)/.exec(text))) out.micropython = m[1];
     out.serving = /\[web\] serving/.test(text);
+    // What a setup wants to know (1.0.0-beta.60): its address on the home
+    // Wi-Fi or why it isn't on it, its place in the chain, its Heltec.
+    var IP = "(\\d{1,3}(?:\\.\\d{1,3}){3})";
+    if ((m = new RegExp("Connected! IP: " + IP).exec(text)) || (m = new RegExp("over the home Wi-Fi: " + IP).exec(text))
+        || (m = new RegExp("and on " + IP + " \\(the Wi-Fi it joined\\)").exec(text))) out.home = m[1];
+    if (!out.home) {
+      if ((m = /WiFi connection timed out: ([^)\n]+)/.exec(text))) out.homeWhy = m[1].trim();
+      else if (/WiFi connection timed out|WiFi unavailable|isn't joined yet/.test(text)) out.homeWhy = "it didn't get on within its time";
+    }
+    if ((m = /\[mem\] at boot: heap (\d+) KB/.exec(text))) out.heapKB = +m[1];
+    out.chain.root = /\[chain\] root on/.test(text);
+    if ((m = new RegExp("Chain: linked to the Stump above at " + IP).exec(text))) out.chain.linked = m[1];
+    if ((m = new RegExp("Chain: no answer from the Stump above at " + IP).exec(text))) out.chain.noAnswer = m[1];
+    var re = new RegExp("Chain: " + IP + " joined below this one", "g");
+    while ((m = re.exec(text))) if (out.chain.below.indexOf(m[1]) < 0) out.chain.below.push(m[1]);
+    re = new RegExp("Chain hello from " + IP + " refused", "g");
+    while ((m = re.exec(text))) if (out.chain.refused.indexOf(m[1]) < 0) out.chain.refused.push(m[1]);
+    if ((m = new RegExp("WiFi Serial connected to " + IP).exec(text))) out.heltec.ok = m[1];
+    else if ((m = /WiFi Serial (?:initial )?connect failed: ([^\n]+)/.exec(text))) out.heltec.fail = m[1].trim();
     lines.forEach(function (l) {
       if (/Traceback|Error|FAILED|rescue start|couldn't|not armed/i.test(l) && out.problems.length < 12) out.problems.push(l.trim());
       else if (/WiFi unavailable|\[watchdog\] armed|\[chain\]|\[radio\]|\[sd\]/i.test(l) && out.notes.length < 12) out.notes.push(l.trim());
@@ -708,7 +730,89 @@
     return m ? +m[1] : 0;
   }
 
-  var api = { Repl: Repl, prepare: prepare, restart: restart, upload: upload, boardInfo: boardInfo,
+  // Free memory at the prompt (bytes), or null: a WROVER's or a CAM's
+  // PSRAM gives megabytes; a board without it (an ESP32-WROOM) a few
+  // hundred KB, too little for a Stump.
+  async function memory(repl) {
+    var m = /MEM(\d+)/.exec(await repl.run("import gc\ngc.collect()\nprint('MEM%d' % (gc.mem_free() + gc.mem_alloc()))\n"));
+    return m ? +m[1] : null;
+  }
+
+  // -- looking around with the board (1.0.0-beta.60) ----------------------------
+  // The browser can't see Wi-Fi networks or the local network; the board
+  // can, at its prompt: it scans, joins the home Wi-Fi (the password
+  // checked there and then), and asks "who's a Stump here?" (discovery's
+  // broadcast, port 4244), then each Stump's /chain.json and /hw.json.
+  var LOOK_PY = "import network, time, json, socket\nw=network.WLAN(network.STA_IF)\nw.active(True)\n" +
+    "def _s(b):\n try:\n  return b.decode()\n except Exception:\n  return ''\n" +
+    "def scan():\n o={}\n for n in w.scan():\n  s=_s(n[0])\n  if s and (s not in o or n[3]>o[s][0]):\n   o[s]=[n[3],n[2],n[4]==0]\n print('SCAN'+json.dumps(o))\n" +
+    "def get(ip,pt,p):\n c=None\n try:\n  c=socket.socket()\n  c.settimeout(2)\n  c.connect(socket.getaddrinfo(ip,pt)[0][-1])\n" +
+    "  c.send(('GET %s HTTP/1.0\\r\\nHost: %s\\r\\n\\r\\n'%(p,ip)).encode())\n  d=b''\n  while len(d)<24000:\n   x=c.recv(1024)\n   if not x:\n    break\n   d+=x\n" +
+    "  return json.loads(d.split(b'\\r\\n\\r\\n',1)[1])\n except Exception:\n  return None\n finally:\n  if c:\n   c.close()\n" +
+    "def why():\n st=w.status()\n for k,v in (('STAT_WRONG_PASSWORD','wrong'),('STAT_NO_AP_FOUND','notfound'),('STAT_ASSOC_FAIL','refused'),('STAT_HANDSHAKE_TIMEOUT','wrong')):\n  if st==getattr(network,k,None):\n   return v\n return 'timeout'\n" +
+    "def look(ssid,pw):\n try:\n  w.disconnect()\n except Exception:\n  pass\n w.connect(ssid,pw)\n t=time.time()\n" +
+    " while not w.isconnected() and time.time()-t<20:\n  time.sleep(0.3)\n if not w.isconnected():\n  print('LOOK'+json.dumps({'joined':False,'why':why()}))\n  return\n" +
+    " ip=w.ifconfig()[0]\n u=socket.socket(socket.AF_INET,socket.SOCK_DGRAM)\n try:\n  u.setsockopt(socket.SOL_SOCKET,socket.SO_BROADCAST,1)\n except Exception:\n  pass\n" +
+    " for d in ('255.255.255.255',ip.rsplit('.',1)[0]+'.255'):\n  try:\n   u.sendto(b'STUMP?',socket.getaddrinfo(d,4244)[0][-1])\n  except Exception:\n   pass\n" +
+    " u.settimeout(0.3)\n cards={}\n t=time.time()\n while time.time()-t<3:\n  try:\n   c=json.loads(u.recv(1024))\n  except Exception:\n   continue\n" +
+    "  h=(c.get('here') or '').split('//')[-1].split('/')[0]\n  a=h.split(':')[0]\n  if c.get('stump') and a and a!=ip:\n   cards[a]=(c,int(h.split(':')[1]) if ':' in h else 80)\n u.close()\n out=[]\n" +
+    " for a,(c,pt) in cards.items():\n  ch=get(a,pt,'/chain.json') or {}\n  hw=get(a,pt,'/hw.json') or {}\n" +
+    "  out.append({'name':c.get('name'),'lxmf':c.get('lxmf'),'release':c.get('release'),'ip':a,'role':ch.get('role'),'chain':ch.get('chain'),\n" +
+    "   'ap_ip':ch.get('ap_ip'),'lan_ip':ch.get('lan_ip'),'secret':ch.get('secret'),'stumps':[[x.get('name'),x.get('http')] for x in ch.get('stumps') or []],\n" +
+    "   'heltecs':[r.get('where') for r in hw.get('radios') or [] if r.get('where')]})\n" +
+    " print('LOOK'+json.dumps({'joined':True,'ip':ip,'stumps':out}))\n";
+  // The home Wi-Fi's password as the board has it (Settings, when it isn't
+  // typed again): used on the board by Look, never shown.
+  async function wifiPass(repl) {
+    var m = /WPW(".*")/.exec(await repl.run("import json\ntry:\n import config as c\n print('WPW'+json.dumps(getattr(c,'WIFI_PASS','')))\nexcept Exception:\n print('WPW\"\"')\n"));
+    return m ? JSON.parse(m[1]) : "";
+  }
+  async function scanWifi(repl) {
+    var m = /SCAN(\{.*\})/.exec(await repl.run(LOOK_PY + "scan()\n", 30000));
+    if (!m) throw new Error("the board couldn't scan the Wi-Fi");
+    var o = JSON.parse(m[1]);
+    return Object.keys(o).map(function (k) { return { ssid: k, rssi: o[k][0], channel: o[k][1], open: o[k][2] }; })
+                 .sort(function (a, b) { return b.rssi - a.rssi; });
+  }
+  async function lookAround(repl, ssid, pw) {
+    var m = /LOOK(\{.*\})/.exec(await repl.run(LOOK_PY + "look(" + py(ssid) + "," + py(pw || "") + ")\n", 90000));
+    if (!m) throw new Error("the board couldn't look around the Wi-Fi");
+    var r = JSON.parse(m[1]);
+    r.why = { wrong: "the password is wrong", notfound: "the network wasn't found (this board only sees 2.4 GHz Wi-Fi)",
+              refused: "the router refused it", timeout: "it didn't get on (is the password right?)" }[r.why] || r.why;
+    return r;
+  }
+  // What the page offers from what the board found: the first Stumps on
+  // this Wi-Fi (taking links here), the chain numbers taken (each Stump's
+  // own Wi-Fi is 192.168.<number>.1) and the Heltec addresses taken.
+  function offers(found, homeIp) {
+    var st = found || [], numbers = {}, heltecs = {}, roots = [];
+    function num(u) { var m = /192\.168\.(\d+)\.1\b/.exec(u || ""); if (m) numbers[+m[1]] = 1; }
+    st.forEach(function (s) {
+      num(s.ap_ip);
+      (s.stumps || []).forEach(function (x) { (x[1] || []).forEach(num); });
+      (s.heltecs || []).forEach(function (h) { if (/^\d+\.\d+\.\d+\.\d+$/.test(h)) heltecs[h] = 1; });
+      if (s.role === "root" && s.lan_ip === s.ip) roots.push(s);
+    });
+    var next = 5;
+    while (numbers[next]) next++;
+    var prefix = (homeIp || (roots[0] && roots[0].ip) || "192.168.0.1").split(".").slice(0, 3).join("."), h = HELTEC_FIRST;
+    while (heltecs[prefix + "." + h] && h < 254) h++;
+    return { roots: roots, numbers: Object.keys(numbers).map(Number).sort(function (a, b) { return a - b; }), number: next,
+             heltecs: Object.keys(heltecs).sort(), heltec: prefix + "." + h };
+  }
+  // The chain's id from its secret, as chain.py makes it (sha256 of
+  // "stump-chain:" + secret, the first 6 bytes in hex): a typed secret
+  // checked against the first Stump's /chain.json, which never shows it.
+  async function chainIdOf(secret) {
+    var data = new TextEncoder().encode("stump-chain:" + secret), d;
+    if (root.crypto && root.crypto.subtle) d = new Uint8Array(await root.crypto.subtle.digest("SHA-256", data));
+    else d = new Uint8Array(require("crypto").createHash("sha256").update(Buffer.from(data)).digest());
+    return Array.from(d.subarray(0, 6)).map(function (b) { return ("0" + b.toString(16)).slice(-2); }).join("");
+  }
+
+  var api = { Repl: Repl, prepare: prepare, restart: restart, upload: upload, boardInfo: boardInfo, memory: memory,
+              scanWifi: scanWifi, lookAround: lookAround, offers: offers, chainIdOf: chainIdOf, wifiPass: wifiPass,
               IMAGE_FOR: IMAGE_FOR, imageForChip: imageForChip, imageInfo: imageInfo, notFrozen: notFrozen,
               removeFrozenCopies: removeFrozenCopies, HELTEC_ON_HOTSPOT: HELTEC_ON_HOTSPOT, HELTEC_FIRST: HELTEC_FIRST,
               CARD: CARD, USB_MAX: USB_MAX, cardStatus: cardStatus, wipeCard: wipeCard, toCard: toCard,

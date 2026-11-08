@@ -284,7 +284,7 @@ def main():
     # Needs the cryptography and pyserial packages (CI installs them).
     for name, script in (("pc_rnode_serial", "rnode_serial_test.py"), ("pc_rnode_ble", "rnode_ble_test.py"),
                          ("pc_radio_link", "radio_link_test.py"),
-                         ("pc_lora_radio", "lora_radio_test.py"), ("pc_lora_mesh", "lora_mesh_test.py"),
+                         ("pc_lora_radio", "lora_radio_test.py"), ("pc_lora_mesh", "lora_mesh_test.py"), ("pc_stump_names", "stump_names_test.py"),
                          ("pc_chain", "pc_chain_test.py"),
                          ("pc_joins_cam", "pc_joins_cam_test.py"), ("pc_two_stumps", "pc_two_stumps_test.py"),
                          ("pc_parent_moves", "pc_parent_moves_test.py"), ("pc_power", "pc_power_test.py"),

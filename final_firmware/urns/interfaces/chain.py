@@ -30,6 +30,7 @@ from ..log import log, LOG_NOTICE, LOG_WARNING, LOG_DEBUG
 
 HELLO_MAGIC = b"STUMPCHAIN1"
 HELLO_S = 20          # a child says hello this often
+UNANSWERED_HELLOS = 4  # ... and says so after this many go unanswered (about a minute)
 PEER_TTL_S = 75       # a child whose last good hello is older than this is dropped
 REFUSED_KEEP_S = 600  # refused hellos are remembered this long (for /chain.json)
 REFUSED_MAX = 16
@@ -113,6 +114,10 @@ class ChainUplinkInterface(UDPInterface):
                     return False
             if not self.parent_seen:
                 _link_event()                  # first answer: introduce ourselves
+                # Said on the USB too: Arborist reads it after a setup
+                # (1.0.0-beta.60).
+                log("Chain: linked to the Stump above at " + self.forward_ip
+                    + ("" if self.parent_verified is not False else " (an older Stump: no chain secret check)"), LOG_NOTICE)
             self.parent_seen = time.time()     # the parent's answer to a hello
             return False
         return True
@@ -120,6 +125,13 @@ class ChainUplinkInterface(UDPInterface):
     def hello(self):
         if not self._socket:
             return
+        # No answer after a few hellos: said once, with the two usual
+        # reasons (a wrong address, another chain secret: the Stump above
+        # doesn't answer a hello it can't check).
+        self._hellos = getattr(self, "_hellos", 0) + 1
+        if self._hellos == UNANSWERED_HELLOS and not self.parent_seen:
+            log("Chain: no answer from the Stump above at " + self.forward_ip
+                + " yet: is that its address, and is the chain secret the same?", LOG_WARNING)
         try:
             tag = _hello_tag(self._secret, self.listen_ip, self.forward_ip)
             self._socket.sendto(HELLO_MAGIC + tag, self._forward_addr)

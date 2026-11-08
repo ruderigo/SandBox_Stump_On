@@ -213,13 +213,121 @@ def _lora_start(h):
     return max(_lora_marks.get(h, floor), floor)
 
 
+# A Stump is alive while the time in its announces keeps rising: each one
+# it sends carries the moment it was made (the path table's "emitted").
+# A copy passed on later (a path request answered from another Stump's
+# memory) carries the old moment, so it doesn't count (1.0.0-beta.60). Its
+# clock may be off (no internet): only whether it rises matters, seen
+# here: hash -> [emitted, when it last rose here].
+STUMP_QUIET_S = 1800          # not risen for this long: gone (announces come every 2 minutes)
+RETIRE_QUIET_S = 600          # ... and with another identity live under its name, at its address
+_risen = {}
+
+
+def _quiet_for(h, now=None):
+    """Seconds since Stump h's announces last brought a newer time, or
+    None when there's no route to it."""
+    now = now or time.time()
+    try:
+        from urns.transport import Transport
+        from urns import const
+        e = Transport.path_table.get(bytes.fromhex(h))
+    except Exception:
+        return 0
+    if e is None:
+        return None
+    em = e[const.IDX_PT_EMITTED]
+    r = _risen.get(h)
+    if r is None or em > r[0]:
+        _risen[h] = [em, now]
+        if len(_risen) > 128:
+            _risen.pop(min(_risen, key=lambda k: _risen[k][1]))
+        return 0
+    return now - r[1]
+
+
+def _alive(h, now=None):
+    q = _quiet_for(h, now)
+    return q is None or q < _setting("STUMP_QUIET_S", STUMP_QUIET_S)
+
+
+def _tidy_replaced(now=None):
+    """A Stump set up again: a new identity, the same name, at the same
+    address on the home network as one already known whose announces have
+    stopped -- that one is the old identity: retired, its name free for the
+    new one (1.0.0-beta.60: it held it, and the new one showed as
+    "LaBuche1" until every Stump restarted)."""
+    try:
+        import discovery
+    except Exception:
+        return
+    now = now or time.time()
+    by = {}
+    for h, v in list(discovery._known.items()):
+        n = (v.get("name") or "").lower()
+        if n:
+            by.setdefault(n, []).append(h)
+    for n, hs in by.items():
+        if len(hs) < 2:
+            continue
+        lim = _setting("STUMP_RETIRE_QUIET_S", RETIRE_QUIET_S)
+        qs = {h: _quiet_for(h, now) for h in hs}
+        live = [h for h in hs if qs[h] is not None and qs[h] < lim]
+        for old in hs:
+            # Gone: its announces stopped for lim, or no route to it and not
+            # heard at all for lim. (One just heard, its route not there
+            # yet, isn't: that's how a new one starts.)
+            heard_ago = now - discovery._known[old].get("at", now)
+            if old in live or not ((qs[old] is not None and qs[old] >= lim) or (qs[old] is None and heard_ago >= lim)):
+                continue
+            for new in live:
+                if discovery.same_place(discovery._known[old].get("http"), discovery._known[new].get("http")):
+                    discovery._known.pop(old, None)
+                    _retire(old, new)
+                    break
+
+
+def _retire(old, new=None):
+    """A Stump's old identity, gone (discovery: the same Stump set up again
+    under a new one): out of the rooms, the contacts, the names lists and
+    the route table, so its name is free and nothing more is sent to it."""
+    p = _peers.pop(old, None)
+    if p is not None:
+        rrc.system(p["room"], rrc.ev_leave("~" + p["nick"]))
+    rrc.drop_user(old)
+    if old in _reach:
+        _reach.pop(old)
+    rrc.drop_reachable(old)
+    rrc._remote_names.pop(old, None)
+    _lora_marks.pop(old, None)
+    rrc._stumps.discard(old)
+    try:
+        from urns.transport import Transport
+        Transport.path_table.pop(bytes.fromhex(old), None)
+    except Exception:
+        pass
+    print("[rrc_mesh] %s: set up again (%s -> %s); the old one retired"
+          % (p["nick"] if p else "a Stump", old[:8], (new or "?")[:8]))
+
+
 def _take_in_chain_stumps(router):
     """Each cycle: Stumps on the chain become peers in #wifi-mesh, and stay
     while their path is over the chain; other Stumps heard (over LoRa)
     become peers in #lora-mesh. Either way #lora-mesh is shared with them
     (_flush_to_peer)."""
     now = time.time()
+    _tidy_replaced(now)
     for h in list(rrc._stumps):
+        if not _alive(h, now):
+            # No announce has confirmed its route for STUMP_QUIET_S: gone (a
+            # board set up again under a new identity, one switched off).
+            # Not kept alive by its route any more: it leaves after
+            # PEER_TIMEOUT, its name free (1.0.0-beta.60: a route lasts a
+            # day, and kept a dead identity a peer -- and its name -- as long).
+            if h in _reach:
+                _reach.pop(h)
+                rrc.drop_reachable(h)
+            continue
         if not _chain_stump(h):
             if _has_path(h) or _radio_reachable(h):
                 p = _peers.get(h)
@@ -276,15 +384,22 @@ def _known_name(router, h):
 
 
 def _fix_nick(router, h, p):
-    """A Stump met before its name was known goes by "mesh-xxxx": once its
-    announce gives the name, it goes by that (its lines then show as
-    nick@ThatStump, not nick@mesh-xxxx)."""
-    if not p["nick"].startswith("mesh-"):
-        return
+    """A Stump goes by its name: met before its name was known ("mesh-xxxx"),
+    once its announce gives it; renamed (1.0.0-beta.60), its new one; and
+    given a number because its name was taken ("LaBuche1"), the plain name
+    once it's free again (the identity holding it gone). Its lines then show
+    as nick@ThatStump."""
     name = _known_name(router, h)
     if not name:
         return
+    want = rrc.clean_nick(name.strip())[:rrc.MAX_NICK_LEN]
+    if not want or p["nick"] == want:
+        return
+    # Its name with a number: the plain name only once it's free.
+    numbered = not p["nick"].startswith("mesh-") and _from_name(p["nick"], want)
     nick = _make_nick(name, h)
+    if numbered and nick != want:
+        return                        # its name still taken: keeps its number
     if nick and nick != p["nick"]:
         old = p["nick"]
         p["nick"] = nick
@@ -297,6 +412,15 @@ def _fix_nick(router, h, p):
         e = rrc._remote_names.get(h)
         if e is not None:
             e["who"] = nick
+        if h in _reach:
+            _reach[h]["nick"] = nick
+            rrc.set_reachable(h, nick)
+
+
+def _from_name(nick, want):
+    """Is this nick made from that name (itself, or it with a number)?"""
+    base = want[:rrc.MAX_NICK_LEN - 2]
+    return nick == want or (nick.startswith(base) and nick[len(base):].isdigit())
 
 
 def _from_stump(dest_hash_hex, peer, text, router=None, title=""):
@@ -537,13 +661,30 @@ def _get_peer(dest_hash_hex, display_name, message=None):
     return _peers[dest_hash_hex]
 
 
+def _nick_held(nick, h):
+    """Someone else goes by this nick: in the chat (rrc), or a peer or a
+    contact here -- a quiet peer drops out of the chat's list after a few
+    minutes but still goes by it (1.0.0-beta.60: two Stumps of the same
+    name could both get the plain one)."""
+    if rrc.nick_taken(nick, h):
+        return True
+    low = nick.lower()
+    for k, p in _peers.items():
+        if k != h and p.get("nick", "").lower() == low:
+            return True
+    for k, r in _reach.items():
+        if k != h and r.get("nick", "").lower() == low:
+            return True
+    return False
+
+
 def _make_nick(display_name, dest_hash_hex):
     """Produce a valid, unique-enough nick from an LXMF display name."""
     raw = (display_name or "").strip() or ("mesh-" + dest_hash_hex[:4])
     nick = rrc.clean_nick(raw)[:rrc.MAX_NICK_LEN] or ("mesh-" + dest_hash_hex[:4])
     base = nick
     suffix = 1
-    while rrc.nick_taken(nick, dest_hash_hex):
+    while _nick_held(nick, dest_hash_hex):
         nick = (base[: rrc.MAX_NICK_LEN - 2] + str(suffix))
         suffix += 1
     return nick

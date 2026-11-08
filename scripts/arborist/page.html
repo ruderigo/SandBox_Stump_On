@@ -159,10 +159,13 @@
 
   <label for="f-ssid">Home Wi-Fi <span class="hint">· optional</span></label>
   <div class="two">
-    <div><input type="text" id="f-ssid" maxlength="32" placeholder="Its name"></div>
+    <div><input type="text" id="f-ssid" maxlength="32" placeholder="Its name" list="f-ssids"><datalist id="f-ssids"></datalist></div>
     <div><input type="password" id="f-wpass" maxlength="63" placeholder="Its password"></div>
   </div>
-  <p class="hint">Not needed: the Stump makes its own Wi-Fi. For a LoRa radio on the home Wi-Fi, or a chain that reaches it.</p>
+  <div class="row" style="margin-top:6px"><button type="button" class="plain small" id="f-look">Look around with the board</button>
+    <span class="hint" id="f-look-hint">The board lists the Wi-Fi networks it sees; with one chosen above, it joins it (checking the password) and finds the Stumps on it.</span></div>
+  <div id="f-look-out" class="hidden"></div>
+  <p class="hint">Not needed: the Stump makes its own Wi-Fi. For a LoRa radio on the home Wi-Fi, or a chain that reaches it. This board only sees 2.4 GHz Wi-Fi.</p>
 
   <label>LoRa radio (a Heltec running RNode)</label>
   <label class="choice"><input type="radio" name="f-radio" value="none" checked> <span>None for now</span></label>
@@ -231,6 +234,7 @@
     <div id="f-chain-secret" class="hidden">
       <label for="f-secret">Chain secret <span class="hint">· the same on every Stump of the chain: note it down</span></label>
       <div class="row" style="margin-top:0"><input type="text" id="f-secret" maxlength="64" style="flex:1"><button type="button" class="plain small" id="f-newsecret">New one</button></div>
+      <p class="hint" id="f-secret-hint"></p>
     </div>
   </details>
 </div>
@@ -517,6 +521,9 @@ function waitClick(text) {
 // The port at 115200, the board's REPL on it. After a reset a board on its
 // own USB (no USB-serial chip) comes back as a new port: the same one is
 // looked for, else the person picks it again.
+var PORT_BUSY = "The board's port is held by another program: a screen session (in its window: Ctrl-A, then K, then y), " +
+                "the Provisioner, the Arduino IDE or another tab with this page. Close it, then start again.";
+var REOPENING = false;       // opening again after a restart (the S3-CAM's own USB comes back as a new port)
 async function openRepl(onText) {
   var info = port.getInfo ? port.getInfo() : {};
   for (var i = 0; ; i++) {
@@ -524,6 +531,9 @@ async function openRepl(onText) {
     catch (e) {
       if (/already open/i.test(e.message)) break;
       if (i < 12) { await R.sleep(500); continue; }
+      // Still plugged in (the browser still lists it) but it won't open:
+      // another program has it.
+      if ((await navigator.serial.getPorts()).indexOf(port) >= 0 && i === 12 && !REOPENING) throw new Error(PORT_BUSY);
       var same = (await navigator.serial.getPorts()).filter(function (p) {
         var x = p.getInfo ? p.getInfo() : {};
         return p !== port && x.usbVendorId === info.usbVendorId && x.usbProductId === info.usbProductId;
@@ -557,8 +567,11 @@ async function openRepl(onText) {
 }
 // The REPL, the board ready for it (it restarts when the port opens): a
 // running Stump stopped, its watchdog quieted, a clean interpreter.
+// What the board says while it starts, when a setup listens (LISTEN.on).
+var LISTEN = { on: false, text: "" };
+function bootHeard(t) { if (LISTEN.on) LISTEN.text += t; }
 async function readyRepl() {
-  var repl = await openRepl(), until = Date.now() + 40000, last;
+  var repl = await openRepl(bootHeard), until = Date.now() + 40000, last;
   await R.sleep(1500);
   while (Date.now() < until) {
     try { await R.prepare(repl, 4000); return repl; }
@@ -568,6 +581,201 @@ async function readyRepl() {
 }
 async function hasStump(repl) {
   return /YES/.test(await repl.run("import os\ntry:\n os.stat('config.py')\n print('YES')\nexcept OSError:\n print('NO')\n"));
+}
+
+// -- looking around with the board (1.0.0-beta.60) -------------------------------
+// The board scans the Wi-Fi, and with a network chosen joins it (the
+// password checked) and finds the Stumps there: the page then offers the
+// first Stump's address, a free number and a free Heltec address, and the
+// chain secret when this browser knows it. A blank board, for a new Stump,
+// gets the Stump image first (it has to have something to look with); Make
+// then doesn't write it again.
+var LOOKED = null;           // {stumps, offers, home} from the last look
+var IMAGED = null;           // the port a new Stump's image was written on, by Look
+var PICKED_ROOT = null;      // the first Stump chosen from what Look found
+// Chain secrets this browser has seen (made or read), by chain id: offered
+// back when the board finds that chain's first Stump. Only in this
+// browser's storage.
+function secrets() { try { return JSON.parse(localStorage.getItem("arborist.secrets") || "{}"); } catch (e) { return {}; } }
+async function rememberSecret(secret) {
+  if (!secret) return;
+  try { var m = secrets(); m[await R.chainIdOf(secret)] = secret; localStorage.setItem("arborist.secrets", JSON.stringify(m)); } catch (e) {}
+}
+async function lookIt() {
+  var fresh = mode() !== "update" && !EDITING;
+  steps("Looking around with the board", ["Choose the board", "Connect", "Look at the Wi-Fi", "Find the Stumps", "Done with the board"]);
+  step(0); await choosePort();
+  step(1);
+  var repl;
+  try { repl = await readyRepl(); }
+  catch (e) {
+    if (!fresh) throw e;
+    // Nothing that answers on it yet: the Stump image first.
+    await closePort();
+    if (!confirm("This board has nothing to look with yet. Write the Stump image on it now? It erases the board (Make won't write it again).")) return false;
+    await flashNew(await payload(), await images());
+    IMAGED = port;
+    repl = await readyRepl();
+  }
+  CURRENT = repl;
+  var running = await hasStump(repl);
+  step(2);
+  var nets = await R.scanWifi(repl);
+  var dl = $("f-ssids"); dl.innerHTML = "";
+  nets.forEach(function (n) { var o = document.createElement("option"); o.value = n.ssid; o.label = n.ssid + " · " + n.rssi + " dBm · channel " + n.channel + (n.open ? " · open" : ""); dl.appendChild(o); });
+  var out = $("f-look-out"); out.innerHTML = ""; out.classList.remove("hidden");
+  out.appendChild(para(nets.length ? "It sees: " + nets.slice(0, 12).map(function (n) { return n.ssid + " (" + n.rssi + " dBm" + (n.open ? ", open" : "") + ")"; }).join(", ") +
+                                     ". Click the name field for the list." : "It sees no Wi-Fi networks.", "hint"));
+  var ssid = $("f-ssid").value.trim(), pw = $("f-wpass").value, net = nets.filter(function (n) { return n.ssid === ssid; })[0];
+  step(3);
+  var kept = !pw && EDITING && EDITING.hasWifiPass;
+  if (ssid && (pw || (net && net.open) || kept)) {
+    if (kept) pw = await R.wifiPass(repl);
+    if (!net) out.appendChild(para("“" + ssid + "” isn't among the networks it sees (this board only sees 2.4 GHz Wi-Fi). It tries anyway.", "warn"));
+    bar(0.5, "Joining “" + ssid + "” and asking who's a Stump there…");
+    var r = await R.lookAround(repl, ssid, pw);
+    if (!r.joined) out.appendChild(para("It couldn't join “" + ssid + "”: " + r.why + ".", "err"));
+    else showFound(r, out);
+  } else {
+    out.appendChild(para("Choose the home Wi-Fi above (and type its password), then Look again: it joins it, checks the password and finds the Stumps on it."));
+  }
+  step(4);
+  if (running) await R.restart(repl);          // a Stump goes back to running
+  await closePort();
+  CURRENT = null;
+  done("");
+  $("result").appendChild(para("Looked: what it found is under the home Wi-Fi, in the form."));
+  placeForm();
+  return true;
+}
+function showFound(r, out) {
+  var o = R.offers(r.stumps, r.ip);
+  LOOKED = { stumps: r.stumps, offers: o, home: r.ip };
+  out.appendChild(para("On “" + $("f-ssid").value.trim() + "”: the password works (the board got " + r.ip + ").", "ok"));
+  if (!r.stumps.length) { out.appendChild(para("No Stump answered on it.")); return; }
+  var ul = document.createElement("ul");
+  r.stumps.forEach(function (st) {
+    var li = document.createElement("li");
+    li.textContent = st.name + " at " + st.ip + (st.role === "root" ? " · the first Stump of a chain" : st.role === "member" ? " · in a chain" : "") +
+                     (st.ap_ip ? " · number " + st.ap_ip.split(".")[2] : "") + (st.heltecs.length ? " · its Heltec " + st.heltecs.join(", ") : "") +
+                     (st.release ? " · " + st.release : "");
+    ul.appendChild(li);
+  });
+  out.appendChild(ul);
+  if (!o.roots.length) out.appendChild(para("None of them is the first Stump of a chain taking Stumps over this Wi-Fi.", "hint"));
+  else {
+    var wrap = document.createElement("div");
+    o.roots.forEach(function (rt) {
+      var b = document.createElement("button"); b.type = "button"; b.className = "plain small"; b.style.marginRight = "6px";
+      b.textContent = "Join " + rt.name + "'s chain"; b.onclick = function () { useRoot(rt); };
+      wrap.appendChild(b);
+    });
+    out.appendChild(wrap);
+    if (o.roots.length === 1 && val("f-chain") !== "first") useRoot(o.roots[0]);
+  }
+  // A Heltec on the router: the next free address offered.
+  $("f-hhost").placeholder = o.heltec;
+  if (val("f-radio") === "lan" && (!$("f-hhost").value || o.heltecs.indexOf($("f-hhost").value.trim()) >= 0)) $("f-hhost").value = o.heltec;
+  if (o.heltecs.length) out.appendChild(para("Heltec addresses taken: " + o.heltecs.join(", ") + ". Free: " + o.heltec + ".", "hint"));
+  if (o.numbers.length) out.appendChild(para("Chain numbers taken: " + o.numbers.join(", ") + ". Free: " + o.number + ".", "hint"));
+}
+function useRoot(rt) {
+  $("f-more").open = true;
+  setVal("f-chain", "lan");
+  $("f-parent").value = rt.ip;
+  var taken = LOOKED ? LOOKED.offers.numbers : [];
+  if (!$("f-subnet").value || taken.indexOf(+$("f-subnet").value) >= 0 || +$("f-subnet").value < 5) $("f-subnet").value = LOOKED ? LOOKED.offers.number : 5;
+  var known = rt.chain && secrets()[rt.chain];
+  if (known) $("f-secret").value = known;
+  else if (!EDITING) $("f-secret").value = "";
+  PICKED_ROOT = rt;
+  chainView();
+  $("f-secret-hint").textContent = known ? "This browser knows " + rt.name + "'s chain secret: filled in." :
+    "Type " + rt.name + "'s chain secret (shown when it was set up, or in Settings for " + rt.name + "). It's checked against " + rt.name + " before anything is written.";
+}
+// A member over the router with a first Stump found by Look: its chain
+// secret checked against the first Stump's chain id before anything is written.
+async function secretMismatch(v) {
+  if (!v.CHAIN_PARENT_IP || !PICKED_ROOT || PICKED_ROOT.ip !== v.CHAIN_PARENT_IP || !PICKED_ROOT.chain) return null;
+  if ((await R.chainIdOf(v.CHAIN_SECRET)) === PICKED_ROOT.chain) return null;
+  return "That isn't " + PICKED_ROOT.name + "'s chain secret (its chain doesn't match). Type the one it was set up with: Settings for " + PICKED_ROOT.name + " shows it.";
+}
+
+// -- after a setup: listening to it start ----------------------------------------
+// The board restarted (R.restart), then listened to for up to ms: done
+// early once enough(summary) -- its pages up and what the setup waits for
+// heard. Its own USB (the S3-CAM's) comes back as a new port: opened again.
+async function listenStart(repl, ms, enough) {
+  LISTEN.text = ""; LISTEN.on = true;
+  await R.restart(repl);
+  var t0 = Date.now(), until = t0 + ms, s = R.bootSummary("");
+  while (Date.now() < until) {
+    await R.sleep(500);
+    bar((Date.now() - t0) / ms, "Listening to it start… " + Math.round((until - Date.now()) / 1000) + " s");
+    if (repl.dead) {
+      await closePort();
+      REOPENING = true;
+      try { repl = await openRepl(bootHeard); } catch (e) { log("reopen: " + e.message); }
+      REOPENING = false;
+    }
+    repl.drain();
+    s = R.bootSummary(LISTEN.text);
+    if (enough(s)) break;
+  }
+  LISTEN.on = false;
+  await closePort();
+  return s;
+}
+// What the setup waits to hear: the home Wi-Fi (joined, or why not), a
+// member's link (made, or unanswered), the Heltec (reached, or not).
+function enoughFor(v) {
+  var home = !!v.WIFI_SSID, member = !!(v.CHAIN_ENABLED && (v.CHAIN_UPLINK_SSID || v.CHAIN_PARENT_IP)),
+      heltec = !!(v.HELTEC && v.HELTEC.enabled), first = !!(v.CHAIN_ENABLED && !member);
+  return function (s) {
+    return s.serving && (!home || s.home || s.homeWhy) && (!member || s.chain.linked || s.chain.noAnswer)
+           && (!heltec || s.heltec.ok) && (!first || !home || s.home);
+  };
+}
+// The report: what it said as it started, in rows, and what to do next.
+function startReport(s, v, into) {
+  var dl = document.createElement("dl"); dl.className = "sum";
+  function row(k, val, cls) { var dt = document.createElement("dt"), dd = document.createElement("dd"); dt.textContent = k; dd.textContent = val; if (cls) dd.className = cls; dl.appendChild(dt); dl.appendChild(dd); }
+  var ap = "192.168." + (v.CHAIN_ENABLED && (v.CHAIN_UPLINK_SSID || v.CHAIN_PARENT_IP) ? v.CHAIN_SUBNET : 4) + ".1";
+  var member = !!(v.CHAIN_ENABLED && (v.CHAIN_UPLINK_SSID || v.CHAIN_PARENT_IP)), first = !!(v.CHAIN_ENABLED && !member);
+  row("Its pages", s.serving ? "up" : "not up yet", s.serving ? "ok" : "warn");
+  row("Its own Wi-Fi", "“" + (v.SSID_NAME || SSID) + "” · http://" + ap + "/");
+  if (v.WIFI_SSID) {
+    if (s.home) row("On the home Wi-Fi", "http://" + s.home + "/ · its admin page http://" + s.home + "/admin", "ok");
+    else if (s.homeWhy) row("The home Wi-Fi", "not joined (“" + v.WIFI_SSID + "”): " + s.homeWhy, "err");
+    else row("The home Wi-Fi", "not joined yet (“" + v.WIFI_SSID + "”)", "warn");
+  }
+  if (member) {
+    var to = v.CHAIN_PARENT_IP || "the Stump it joins";
+    if (s.chain.linked) row("The chain", "linked to the Stump above at " + s.chain.linked, "ok");
+    else if (s.chain.noAnswer) row("The chain", "no answer from " + s.chain.noAnswer + ": is that the first Stump's address, and the same chain secret?", "err");
+    else row("The chain", "not linked yet (to " + to + ")", "warn");
+  }
+  if (first && s.chain.below.length) row("The chain", s.chain.below.length + " Stump" + (s.chain.below.length > 1 ? "s" : "") + " linked below it", "ok");
+  if (s.chain.refused.length) row("Refused", s.chain.refused.join(", ") + " tried to join with another chain secret", "warn");
+  if (v.HELTEC && v.HELTEC.enabled) {
+    if (s.heltec.ok) row("Its Heltec", "answered at " + s.heltec.ok, "ok");
+    else row("Its Heltec", "nothing answered at " + v.HELTEC.host + " yet" + (s.heltec.fail ? " (" + s.heltec.fail + ")" : "") +
+             ": is the Heltec on, and set to that address?", "warn");
+  }
+  into.appendChild(dl);
+  if (v.WIFI_SSID && !s.home && /wasn't found/.test(s.homeWhy || ""))
+    into.appendChild(para("This board only sees 2.4 GHz Wi-Fi. A router with one name for its 2.4 and 5 GHz networks usually works; one that's 5 GHz only doesn't.", "hint"));
+  if (first && v.WIFI_SSID && s.home) {
+    into.appendChild(para("For the next Stumps of this chain (“It joins the first Stump over the home Wi-Fi”): the first Stump's address " + s.home +
+                          " and the chain secret " + v.CHAIN_SECRET + ". Note them down. On the router, reserve " + s.home +
+                          " for this Stump (a DHCP reservation), so its address doesn't change."));
+  } else if (first) {
+    into.appendChild(para("For the next Stumps of this chain: its Wi-Fi “" + (v.SSID_NAME || SSID) + "” and the chain secret " + v.CHAIN_SECRET + ". Note them down."));
+  }
+  if (v.HELTEC && v.HELTEC.enabled)
+    into.appendChild(para("Its Heltec: give it the address " + v.HELTEC.host + " in its own setup (the Provisioner: A Heltec for a CAM)" +
+                          (/^192\.168\.\d+\.200$/.test(v.HELTEC.host) ? "." : ". The next Heltec on the router takes another one.")));
+  if (!s.serving || (v.WIFI_SSID && !s.home)) into.appendChild(para("It may just need longer: Check listens to it start again.", "hint"));
 }
 
 // -- writing the board -------------------------------------------------------------
@@ -582,6 +790,7 @@ async function loader() {
   try { chip = await esp.main(); }
   catch (e) {
     try { await transport.disconnect(); } catch (x) {}
+    if (/failed to open|already open|access denied|busy/i.test(e.message)) throw new Error(PORT_BUSY);
     throw new Error("Couldn't start the board's loader (" + e.message + "). Hold its BOOT button, press and release RESET (EN), let go of BOOT, then start again.");
   }
   log("chip: " + chip);
@@ -635,7 +844,9 @@ async function make() {
       if (rad.error) { $("make-err").textContent = rad.error; return false; }
     }
     if (s.warn.length && !confirm(s.warn.join("\n") + "\n\nGo ahead anyway?")) return false;
-    if (!confirm("This erases everything on the board. Go ahead?")) return false;
+    var bad = await secretMismatch(s.values);
+    if (bad) { $("make-err").textContent = bad; return false; }
+    if (!(IMAGED && IMAGED === port) && !confirm("This erases everything on the board. Go ahead?")) return false;
   }
   var P = await payload(), IM = await images();
   var all = Object.keys(P.files).filter(function (k) { return k.indexOf("app/") === 0; }).map(function (k) {
@@ -644,13 +855,24 @@ async function make() {
   var repl, info, files = all, note = null;
   if (!upd) {
     steps("Making the Stump", ["Choose the board", "Connect", "Erase it, write the Stump image", "Restart",
-                               "Copy the rest of the Stump", "Its settings", "Restart"]);
+                               "Copy the rest of the Stump", "Its settings", "Restart, and listen to it start"]);
     step(0); await choosePort();
     step(1);
-    await flashNew(P, IM);
-    repl = await readyRepl();
+    if (IMAGED && IMAGED === port) { log("the Stump image: written when it looked around"); step(3); }
+    else await flashNew(P, IM);
+    IMAGED = null;
+    try { repl = await readyRepl(); }
+    catch (e) {
+      // An image built for PSRAM on a board without it may not start at all.
+      throw new Error(e.message + " If this is an ESP32 board, it may have no PSRAM (an ESP32-WROOM): a Stump needs an ESP32-WROVER.");
+    }
     info = await R.boardInfo(repl);
     log("MicroPython " + info.release + ", .mpy " + info.mpy + ", " + info.machine);
+    var mem = await R.memory(repl);
+    if (mem !== null && mem < PSRAM_MIN) {
+      throw new Error("This board has only " + Math.round(mem / 1024) + " KB of memory: it has no PSRAM (an ESP32-WROOM, or a CAM without it). " +
+                      "A Stump needs a board with PSRAM: an ESP32-WROVER or the Freenove ESP32-S3-CAM.");
+    }
     var im = await R.imageInfo(repl);
     if (im) { files = R.notFrozen(all, im.frozen); log("the Stump image " + im.release + ": " + im.frozen.length + " modules built in"); }
     step(4);
@@ -706,16 +928,20 @@ async function make() {
     if (rad && !(await R.writeRadio(repl, rad.values))) log("note: the radio settings weren't saved to the board");
   }
   step(upd ? 4 : 6);
-  await R.restart(repl);
-  await closePort();
   var r = document.createElement("div");
-  if (upd) r.appendChild(para("The Stump restarts with @@RELEASE@@, its settings as they were. You can unplug it."));
-  else {
-    r.appendChild(para("Your Stump is starting (about a minute the first time). On a phone, look for the Wi-Fi “" +
-                       (s.values.SSID_NAME || SSID) + "”, join it, and a page opens. Its admin page is /admin, with the password you chose."));
-    if (s.values.HELTEC && s.values.HELTEC.enabled)
-      r.appendChild(para("Its Heltec: at " + s.values.HELTEC.host + ". Give the Heltec that same address in its own setup (the Provisioner: A Heltec for a CAM)."));
-    r.appendChild(para("You can unplug it from the computer and power it from any USB charger. To see it start, use Check."));
+  if (upd) {
+    await R.restart(repl);
+    await closePort();
+    r.appendChild(para("The Stump restarts with @@RELEASE@@, its settings as they were. You can unplug it."));
+  } else {
+    // Listened to as it starts (about 90 s at most): its address on the
+    // home Wi-Fi or why it isn't on it, the chain, its Heltec.
+    if (s.values.CHAIN_SECRET) await rememberSecret(s.values.CHAIN_SECRET);
+    var heard = await listenStart(repl, START_LISTEN_MS, enoughFor(s.values));
+    r.appendChild(para("Your Stump is running. On a phone, join the Wi-Fi “" + (s.values.SSID_NAME || SSID) +
+                       "” and a page opens. Its admin page is /admin, with the password you chose."));
+    startReport(heard, s.values, r);
+    r.appendChild(para("You can unplug it from the computer and power it from any USB charger."));
   }
   if (note) r.appendChild(para(note, "hint"));
   done(""); $("result").appendChild(r);
@@ -734,6 +960,7 @@ async function readIt() {
   step(3); await R.restart(repl); await closePort();
   var ans = R.answersFrom(c);
   ans.radioAnswers = R.radioAnswers(radio);
+  if (c.CHAIN_SECRET) await rememberSecret(c.CHAIN_SECRET);     // offered back when another board finds this chain
   SETTINGS = { answers: ans, file: file, sha: await sha256(file), name: c.NODE_NAME };
   EDITING = SETTINGS.answers;
   formFor(EDITING);
@@ -746,12 +973,15 @@ async function readIt() {
 async function saveIt() {
   var a = answers(SETTINGS.answers), s = R.settingsFrom(a), rad = null;
   if (s.error) { $("set-err").textContent = s.error; return false; }
+  var bad = await secretMismatch(s.values);
+  if (bad) { $("set-err").textContent = bad; return false; }
+  if (s.values.CHAIN_SECRET) await rememberSecret(s.values.CHAIN_SECRET);
   if (a.radio !== "none") {
     rad = R.radioFrom(a);
     if (rad.error) { $("set-err").textContent = rad.error; return false; }
   }
   if (s.warn.length && !confirm(s.warn.join("\n") + "\n\nSave anyway?")) return false;
-  steps("Saving its settings", ["Choose the board", "Connect", "Save", "Restart"]);
+  steps("Saving its settings", ["Choose the board", "Connect", "Save", "Restart, and listen to it start"]);
   step(0); await choosePort();
   step(1); var repl = await readyRepl();
   step(2);
@@ -760,13 +990,15 @@ async function saveIt() {
     throw new Error("This isn't the config.py read earlier (another board, or it changed since). Read its settings again, then save.");
   await R.writeSettings(repl, s.values);
   if (rad && !(await R.writeRadio(repl, rad.values))) log("note: the radio settings weren't saved to the board");
-  var after = await R.readConfigFile(repl);
-  step(3); await R.restart(repl); await closePort();
+  var after = await R.readConfigFile(repl), nowCfg = await R.readSettings(repl);
+  step(3);
+  var heard = await listenStart(repl, START_LISTEN_MS, enoughFor(nowCfg));
   SETTINGS.file = after; SETTINGS.sha = await sha256(after);
   var c2 = SETTINGS.answers;
   c2.hasPw = c2.hasPw || "AUTH_ADMIN_PASSWORD" in s.values; c2.hasWifiPass = c2.hasWifiPass || !!s.values.WIFI_PASS;
   done("");
-  $("result").appendChild(para("Saved. The Stump restarts with them; the old settings are on it as config.py.bak."));
+  $("result").appendChild(para("Saved, and it's running with them; the old settings are on it as config.py.bak."));
+  startReport(heard, nowCfg, $("result"));
   return true;
 }
 $("set-download").onclick = function () {
@@ -791,6 +1023,8 @@ async function putIt() {
 
 // -- Check -------------------------------------------------------------------------------
 var BOOTLOG = "";
+var START_LISTEN_MS = window.__listenMs || 90000;   // a setup listens this long at most (a test: less)
+var PSRAM_MIN = 512 * 1024;        // less memory than this: no PSRAM (a WROOM gives MicroPython ~110 KB, PSRAM megabytes)
 async function checkIt() {
   steps("Watching it start", ["Choose the board", "Connect", "Restart", "Listen (a minute)"]);
   $("chk-out").classList.remove("hidden");
@@ -813,7 +1047,9 @@ async function checkIt() {
     bar((Date.now() - t0) / 60000, "Listening… " + Math.round((until - Date.now()) / 1000) + " s");
     if (repl.dead) {                      // its own USB: it came back as a new port
       await closePort();
+      REOPENING = true;
       try { repl = await openRepl(heard); } catch (e) { log("reopen: " + e.message); }
+      REOPENING = false;
     }
     repl.drain();
     if (!served && /\[web\] serving/.test(BOOTLOG)) { served = Date.now(); until = Math.min(until, served + 8000); }
@@ -824,6 +1060,14 @@ async function checkIt() {
   row("Stump", s.release || "didn't say", s.release ? "" : "warn");
   row("MicroPython", s.micropython || "didn't say");
   row("Its pages", s.serving ? "up" : "not up within a minute", s.serving ? "ok" : "err");
+  if (s.home) row("On the home Wi-Fi", "http://" + s.home + "/", "ok");
+  else if (s.homeWhy) row("The home Wi-Fi", "not joined: " + s.homeWhy, "err");
+  if (s.chain.linked) row("The chain", "linked to the Stump above at " + s.chain.linked, "ok");
+  else if (s.chain.noAnswer) row("The chain", "no answer from " + s.chain.noAnswer + ": its address, or the chain secret?", "err");
+  if (s.chain.below.length) row("Below it", s.chain.below.join(", "), "ok");
+  if (s.heltec.ok) row("Its Heltec", "answered at " + s.heltec.ok, "ok");
+  else if (s.heltec.fail) row("Its Heltec", "no answer (" + s.heltec.fail + ")", "warn");
+  if (s.heapKB !== null && s.heapKB < PSRAM_MIN / 1024) row("Memory", s.heapKB + " KB: no PSRAM, a Stump can't run on this board", "err");
   s.notes.forEach(function (n) { row("", n); });
   if (s.problems.length) {
     $("chk-problems").appendChild(para("What looks wrong:", "err"));
@@ -869,10 +1113,17 @@ async function toolsFiles() {
     if (n) { $("card-tools-size").textContent = kb(n); $("card-tools-time").textContent = usbTime(n); }
   } catch (e) {}
 })();
+// The SD card: the S3-CAM has a slot, a WROVER none (its packs and the
+// Tools page go with the Provisioner's computer Stump, or on a CAM).
+async function cardBoard(repl) {
+  var info = await R.boardInfo(repl);
+  if (/ESP32/i.test(info.machine || "") && !/ESP32-?S3/i.test(info.machine || ""))
+    throw new Error("This board is an ESP32-WROVER: it has no SD card slot, so there's no card to look at, packs to put on it or a Tools page. A CAM (the Freenove ESP32-S3-CAM) has one.");
+}
 async function cardRead() {
   steps("Looking at its card", ["Choose the board", "Connect", "Read the card", "Restart"]);
   step(0); await choosePort();
-  step(1); var repl = await readyRepl();
+  step(1); var repl = await readyRepl(); CURRENT = repl; await cardBoard(repl);
   step(2); var st = await R.cardStatus(repl);
   step(3); await R.restart(repl); await closePort();
   var dl = $("card-sum"); dl.innerHTML = ""; dl.classList.remove("hidden");
@@ -906,7 +1157,7 @@ async function cardPack() {
   if (!PACK) return;
   steps("Installing " + PACK.name + " " + PACK.version, ["Choose the board", "Connect", "Copy it", "Restart"]);
   step(0); await choosePort();
-  step(1); var repl = await readyRepl();
+  step(1); var repl = await readyRepl(); CURRENT = repl; await cardBoard(repl);
   step(2); await R.installPack(repl, PACK, progressTo("Copying"));
   step(3); await R.restart(repl); await closePort();
   done("");
@@ -919,7 +1170,7 @@ async function cardTools() {
   if (!confirm("Copy the Tools page to its card? " + kb(n) + ", " + usbTime(n) + " over USB. Keep the cable in.")) return false;
   steps("Filling the Tools page", ["Choose the board", "Connect", "Copy it", "Restart"]);
   step(0); await choosePort();
-  step(1); var repl = await readyRepl();
+  step(1); var repl = await readyRepl(); CURRENT = repl; await cardBoard(repl);
   step(2); var r = await R.fillTools(repl, files, progressTo("Copying"));
   step(3); await R.restart(repl); await closePort();
   done("");
@@ -930,7 +1181,7 @@ async function cardWipe() {
   if ($("card-confirm").value.trim() !== "WIPE") { $("card-err").textContent = "Type WIPE in the box to confirm."; return false; }
   steps(scope === "all" ? "Wiping the whole card" : "Wiping the shared files", ["Choose the board", "Connect", "Wipe", "Restart"]);
   step(0); await choosePort();
-  step(1); var repl = await readyRepl();
+  step(1); var repl = await readyRepl(); CURRENT = repl; await cardBoard(repl);
   step(2); var n = await R.wipeCard(repl, scope);
   step(3); await R.restart(repl); await closePort();
   $("card-confirm").value = "";
@@ -967,6 +1218,7 @@ async function act(fn, errId) {
   }
 }
 $("make-go").onclick = function () { act(make, "make-err"); };
+$("f-look").onclick = function () { act(lookIt, "make-err"); };
 $("set-read").onclick = function () { act(readIt, "set-err"); };
 $("set-save").onclick = function () { act(saveIt, "set-err"); };
 $("set-put").onclick = function () { act(putIt); };

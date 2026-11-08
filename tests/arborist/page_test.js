@@ -75,6 +75,7 @@ async function run(name, root, simArgs, fill, keep, pageFile, chip) {
   await page.exposeFunction("__simWrite", (b64) => new Promise((ok) => sim.stdin.write(Buffer.from(b64, "base64"), ok)));
   sim.stdout.on("data", (d) => page.evaluate((b) => window.__simFeed(b), d.toString("base64")).catch(() => {}));
   await page.addInitScript(FAKE_SERIAL);
+  await page.addInitScript("window.__listenMs = 3000;");    // a setup's listening, short (the sim prints no boot)
   if (chip) await page.addInitScript("window.__chip = " + JSON.stringify(chip) + ";");
   await page.goto("file://" + path.resolve(pageFile || PAGE));
   return { page, browser, sim, errors };
@@ -327,6 +328,7 @@ for name, swap in (("good.zip", False), ("bad.zip", True)):
     check("... nothing copied", !fs.existsSync(path.join(root, "barkeep.mpy")));
     await t.browser.close(); t.sim.kill();
   }
+  await lookTests();
   if (PAGE_IMAGES) await imageTests();
   console.log("FAILURES: " + JSON.stringify(FAIL));
   process.exit(FAIL.length ? 1 : 0);
@@ -435,6 +437,106 @@ async function imageTests() {
     await newStump(t.page);
     const r = await finish(t.page, 60000);
     check("no images in the page, a WROVER: stopped, it says so", /no Stump image for an ESP32-WROVER/.test(r.result), r.result);
+    await t.browser.close(); t.sim.kill();
+  }
+}
+
+// -- Look around with the board (1.0.0-beta.60) ----------------------------------------
+// The board_sim gets a stand-in network module (two networks, "Home" with a
+// password), and a stand-in first Stump answers "who's a Stump here?" (UDP
+// 4244) and serves its /chain.json and /hw.json.
+const NETWORK_PY = `STA_IF = 0
+AP_IF = 1
+STAT_IDLE = 0
+STAT_GOT_IP = 1010
+STAT_NO_AP_FOUND = 201
+STAT_WRONG_PASSWORD = 202
+class WLAN:
+    _on = False
+    def __init__(self, i=0): pass
+    def active(self, *a): return True
+    def scan(self): return [(b"Home", b"a", 6, -48, 3, 0), (b"Cafe", b"b", 1, -71, 0, 0), (b"Home", b"c", 6, -60, 3, 0)]
+    def connect(self, ssid, pw): WLAN._on = (ssid == "Home" and pw == "homepass1") or ssid == "Cafe"
+    def disconnect(self): WLAN._on = False
+    def isconnected(self): return WLAN._on
+    def status(self): return STAT_GOT_IP if WLAN._on else STAT_WRONG_PASSWORD
+    def ifconfig(self): return ("127.0.0.5", "255.0.0.0", "127.0.0.1", "8.8.8.8")
+`;
+function fakeFirstStump(chainId) {
+  const http = require("http"), dgram = require("dgram");
+  return new Promise((ok) => {
+    const srv = http.createServer((req, res) => {
+      const body = req.url.startsWith("/chain.json")
+        ? { enabled: true, role: "root", chain: chainId, ap_ip: "192.168.4.1", lan_ip: "127.0.0.1", secret: true,
+            stumps: [{ name: "LaBuche8", http: ["http://127.0.0.8/", "http://192.168.8.1/"] }] }
+        : { state: "online", radios: [{ name: "Heltec Bridge", where: "127.0.0.222", state: "online" }] };
+      res.writeHead(200, { "Content-Type": "application/json" }); res.end(JSON.stringify(body));
+    });
+    srv.listen(0, "127.0.0.1", () => {
+      const port = srv.address().port, u = dgram.createSocket({ type: "udp4", reuseAddr: true });
+      u.on("message", (m, r) => {
+        if (String(m).startsWith("STUMP?"))
+          u.send(JSON.stringify({ stump: 1, name: "LaBuche", lxmf: "ab".repeat(16), release: "1.0.0-beta.59",
+                                  http: ["http://127.0.0.1:" + port + "/"], here: "http://127.0.0.1:" + port + "/" }), r.port, r.address);
+      });
+      u.bind(4244, () => { try { u.setBroadcast(true); } catch (e) {} ok({ close() { srv.close(); u.close(); } }); });
+    });
+  });
+}
+async function lookTests() {
+  const crypto = require("crypto");
+  const chainId = crypto.createHash("sha256").update("stump-chain:sekrit").digest("hex").slice(0, 12);
+  const first = await fakeFirstStump(chainId);
+  const root = path.join(SCRATCH, "look");
+  const t = await run("look", root, [], (r) => fs.writeFileSync(path.join(r, "network.py"), NETWORK_PY));
+  const page = t.page;
+  try {
+    await page.fill("#f-name", "Next"); await page.fill("#f-pw", "s3cret!"); await page.fill("#f-pw2", "s3cret!");
+    // 1. The networks it sees.
+    await page.click("#f-look");
+    await page.waitForSelector("#worktitle .ok, #worktitle .err", { timeout: 60000 });
+    const opts = await page.$$eval("#f-ssids option", (os) => os.map((o) => o.value));
+    check("look: the networks the board sees offered for the home Wi-Fi (each once, the strongest first)",
+          JSON.stringify(opts) === JSON.stringify(["Home", "Cafe"]), JSON.stringify(opts) + " " + (await page.textContent("#result")));
+    // 2. A wrong password: said, from the board's own try.
+    await page.fill("#f-ssid", "Home"); await page.fill("#f-wpass", "wrongpass");
+    await page.click("#f-look");
+    await page.waitForSelector("#worktitle .ok, #worktitle .err", { timeout: 90000 });
+    check("look: a wrong Wi-Fi password, said by the board's own try", /password is wrong/.test(await page.textContent("#f-look-out")),
+          await page.textContent("#f-look-out"));
+    // 3. The right one: the first Stump found and offered, a free number and Heltec address.
+    await page.fill("#f-wpass", "homepass1");
+    await page.check("input[name=f-radio][value=lan]");
+    await page.fill("#f-hhost", "127.0.0.222");
+    await page.click("#f-look");
+    await page.waitForSelector("#worktitle .ok, #worktitle .err", { timeout: 90000 });
+    const out = await page.textContent("#f-look-out");
+    check("look: the password works, the first Stump found", /password works/.test(out) && /LaBuche at 127\.0\.0\.1/.test(out), out);
+    check("... offered: joining LaBuche's chain over the router, its address filled in",
+          (await page.isChecked("input[name=f-chain][value=lan]")) && (await page.inputValue("#f-parent")) === "127.0.0.1",
+          await page.inputValue("#f-parent"));
+    check("... a free chain number (4 and 8 taken: 5)", (await page.inputValue("#f-subnet")) === "5", await page.inputValue("#f-subnet"));
+    check("... the Heltec: .222 taken by LaBuche's, the next one offered", (await page.inputValue("#f-hhost")) === "127.0.0.223",
+          await page.inputValue("#f-hhost"));
+    check("... the chain secret unknown to this browser: asked, not made up", (await page.inputValue("#f-secret")) === ""
+          && /Type LaBuche's chain secret/.test(await page.textContent("#f-secret-hint")), await page.textContent("#f-secret-hint"));
+    // 4. A wrong secret: stopped before anything is written.
+    await page.fill("#f-secret", "nope");
+    await page.click("#make-go");
+    check("look: a wrong chain secret, checked against LaBuche's chain: stopped before writing",
+          /isn't LaBuche's chain secret/.test(await page.textContent("#make-err")) && (await page.evaluate(() => window.__flashed)) === null,
+          await page.textContent("#make-err"));
+    check("... the right one passes", (await page.evaluate(() => secretMismatch({ CHAIN_PARENT_IP: "127.0.0.1", CHAIN_SECRET: "sekrit" }))) === null);
+    // 5. A secret this browser has seen: offered back when the chain is found again.
+    await page.evaluate(() => rememberSecret("sekrit"));
+    await page.fill("#f-secret", "");
+    await page.click("#f-look");
+    await page.waitForSelector("#worktitle .ok, #worktitle .err", { timeout: 90000 });
+    check("look: a chain secret this browser knows, filled in", (await page.inputValue("#f-secret")) === "sekrit"
+          && /knows LaBuche's chain secret/.test(await page.textContent("#f-secret-hint")), await page.inputValue("#f-secret"));
+    check("look: no errors in the page", t.errors.length === 0, t.errors.join("\n"));
+  } finally {
+    first.close();
     await t.browser.close(); t.sim.kill();
   }
 }
