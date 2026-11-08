@@ -58,6 +58,24 @@ identity). One on plain MicroPython (an earlier Arborist) is updated file
 by file as before, and told that *A new Stump* would give it the image.
 A Stump on an older MicroPython is told to use *A new Stump*.
 
+**Look around with the board** (since 1.0.0-beta.60): the board, over
+USB, lists the Wi-Fi networks it sees (it only sees 2.4 GHz), and with one
+chosen joins it -- a wrong password is said there -- and asks "who's a
+Stump here?" (the Stumps' discovery broadcast). The Stumps found are
+listed; the first Stump of a chain is offered, its address filled in, with
+a free chain number and a free Heltec address. A chain secret typed in is
+checked against that first Stump (its chain id) before anything is
+written; the secrets of the chains this browser made or read are
+remembered (in its storage only) and filled in. A blank board gets the
+Stump image first, to look with.
+
+**After Make and Settings** it listens to the board start (up to 90 s):
+its address on the home Wi-Fi or why it didn't join, the chain linked or
+not answering, its Heltec reached or not; a first Stump ends with what the
+next ones need (its address, the chain secret, reserve the address on the
+router). A board without PSRAM is told it can't run a Stump; the SD card
+section says a WROVER has no slot; a port another program holds is said.
+
 **The chain**: *the first Stump* (it sets the channel; with the home
 Wi-Fi and a chain secret, the others can join it over the router too),
 *joins the first Stump over the home Wi-Fi* (the router, like the

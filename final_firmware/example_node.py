@@ -35,7 +35,7 @@ except ImportError:
 STUMP_VERSION = "Beta A"
 # The exact release (a git tag "v" + this, built and signed by
 # .github/workflows/release.yml, which refuses a tag that doesn't match).
-STUMP_RELEASE = "1.0.0-beta.59"
+STUMP_RELEASE = "1.0.0-beta.60"
 
 # Node-type beacon: a second destination on this node's own identity,
 # aspect "stump.node", so clients can tell a Stump from a person without
@@ -152,6 +152,23 @@ async def serial_input_loop(router):
         await asyncio.sleep(0.05)
 
 
+def _wifi_why(network, wlan):
+    """Why the Wi-Fi wasn't joined, as the chip says (said on the USB:
+    Arborist reads it after a setup, 1.0.0-beta.60)."""
+    try:
+        st = wlan.status()
+    except Exception:
+        return ""
+    for name, why in (("STAT_WRONG_PASSWORD", "the password is wrong"),
+                      ("STAT_NO_AP_FOUND", "the network wasn't found (this board only sees 2.4 GHz Wi-Fi)"),
+                      ("STAT_ASSOC_FAIL", "the router refused it"),
+                      ("STAT_HANDSHAKE_TIMEOUT", "no answer to the password (is it right?)"),
+                      ("STAT_BEACON_TIMEOUT", "the network went out of reach")):
+        if st == getattr(network, name, None):
+            return ": " + why
+    return ""
+
+
 def connect_wifi(ssid, password, timeout=15):
     import sys
     import network
@@ -175,7 +192,7 @@ def connect_wifi(ssid, password, timeout=15):
         start = time.time()
         while not wlan.isconnected():
             if time.time() - start > timeout:
-                raise RuntimeError("WiFi connection timed out")
+                raise RuntimeError("WiFi connection timed out" + _wifi_why(network, wlan))
             time.sleep(0.5)
 
     if platform == "esp32":

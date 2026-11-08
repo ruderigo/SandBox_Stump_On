@@ -328,6 +328,20 @@ _known = {}
 KNOWN_MAX = 64
 
 
+def same_place(a, b):
+    """The same address on a home network in both lists: one device (a
+    Stump's own Wi-Fi, 192.168.<n>.1, doesn't count: every first Stump
+    has 192.168.4.1)."""
+    def homes(urls):
+        out = set()
+        for u in urls or []:
+            h = str(u).split("//")[-1].split("/")[0].split(":")[0]
+            if h and not (h.startswith("192.168.") and h.endswith(".1")):
+                out.add(h)
+        return out
+    return bool(homes(a) & homes(b))
+
+
 def heard(lxmf_hex, name, http, c=None):
     if not lxmf_hex:
         return

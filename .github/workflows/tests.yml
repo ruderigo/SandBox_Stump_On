@@ -153,6 +153,9 @@ jobs:
         run: python tests/pc/lora_radio_test.py
       - name: "#lora-mesh across a chain with radios (Wi-Fi first, once on the radio, No LoRa on mesh)"
         run: python tests/pc/lora_mesh_test.py
+      - name: "Stump names: one set up again takes its name back, quiet Stumps expire, renames follow"
+        run: python tests/pc/stump_names_test.py
+
 
       - name: Turning the Stump off from /admin
         run: python tests/pc/pc_power_test.py

@@ -210,7 +210,32 @@ async function scenario(name, extra, chunk) {
                                   "print(repr((c.CHAIN_PARENT_IP, c.CHAIN_UPLINK_SSID, c.CHAIN_UPLINK_PASS, c.CHAIN_SUBNET)))\n")).trim();
       check("a router member, its Wi-Fi password kept: copied on the board into CHAIN_UPLINK_PASS",
             py3 === "('192.168.0.173', 'Home Net', \"pa'ss\\\\word\", 8)", py3);
-      // -- the radio (the CAM's host-controlled Heltec settings) --
+      // What a setup reads from the board starting (1.0.0-beta.60).
+  {
+    const ok = R.bootSummary("[mem] at boot: heap 4077 KB, 93 KB in use\nConnected! IP: 192.168.0.181 (esp32)\n" +
+                             "[1][NOTE] Chain: linked to the Stump above at 192.168.0.173\n[2][NOTE] WiFi Serial connected to 192.168.0.223:7633\n[web] serving on port 80\n");
+    check("boot: its home address, the chain linked, its Heltec reached, its memory", ok.home === "192.168.0.181" && ok.chain.linked === "192.168.0.173"
+          && ok.heltec.ok === "192.168.0.223" && ok.heapKB === 4077 && ok.serving, JSON.stringify(ok));
+    const bad = R.bootSummary("WiFi unavailable (WiFi connection timed out: the password is wrong)\n" +
+                              "[3][WARN] Chain: no answer from the Stump above at 192.168.0.170 yet: is that its address\n" +
+                              "[4][ERR] WiFi Serial initial connect failed: [Errno 113] EHOSTUNREACH\n");
+    check("boot: why not: the Wi-Fi's password, the Stump above silent, the Heltec unreachable", !bad.home && bad.homeWhy === "the password is wrong"
+          && bad.chain.noAnswer === "192.168.0.170" && bad.heltec.fail === "[Errno 113] EHOSTUNREACH" && !bad.heltec.ok, JSON.stringify(bad));
+    const root = R.bootSummary("[chain] root on 192.168.4.1, channel 11 and on 192.168.0.173 (the Wi-Fi it joined)\n[5][NOTE] Chain: 192.168.0.179 joined below this one\n" +
+                               "[6][WARN] Chain hello from 192.168.0.190 refused (wrong chain secret)\n");
+    check("boot: a first Stump: its home address, who linked below, who was refused", root.home === "192.168.0.173" && root.chain.root
+          && root.chain.below.join() === "192.168.0.179" && root.chain.refused.join() === "192.168.0.190", JSON.stringify(root));
+    const o = R.offers([{ name: "LaBuche", ip: "192.168.0.173", role: "root", lan_ip: "192.168.0.173", ap_ip: "192.168.4.1",
+                          stumps: [["LaBuche8", ["http://192.168.0.179/", "http://192.168.8.1/"]]], heltecs: ["192.168.0.222"] },
+                        { name: "LaBuche10", ip: "192.168.0.180", role: "member", ap_ip: "192.168.10.1", heltecs: ["192.168.0.223"] },
+                        { name: "LaBuche5", ip: "192.168.0.185", role: "member", ap_ip: "192.168.5.1", heltecs: [] }], "192.168.0.50");
+    check("offers: the first Stump; the numbers taken and the next free; the Heltec addresses taken and the next free",
+          o.roots.length === 1 && o.roots[0].name === "LaBuche" && o.numbers.join() === "4,5,8,10" && o.number === 6
+          && o.heltecs.join() === "192.168.0.222,192.168.0.223" && o.heltec === "192.168.0.224", JSON.stringify(o));
+    const cid = await R.chainIdOf("abc");
+    check("chainIdOf: as chain.py makes it (sha256 of stump-chain:<secret>, 6 bytes)", cid === "29ea9d39caf0", cid);
+  }
+  // -- the radio (the CAM's host-controlled Heltec settings) --
       check("no radio saved yet: readRadio is null", (await R.readRadio(repl)) === null);
       const rf = R.radioFrom({ freqMhz: "915", bandwidth: 250000, sf: 10, cr: 7, txpower: 17 });
       check("radioFrom: MHz -> Hz, the canonical dict", !rf.error && rf.values.frequency === 915000000
