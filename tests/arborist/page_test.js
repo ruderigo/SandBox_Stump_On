@@ -455,7 +455,7 @@ class WLAN:
     _on = False
     def __init__(self, i=0): pass
     def active(self, *a): return True
-    def scan(self): return [(b"Home", b"a", 6, -48, 3, 0), (b"Cafe", b"b", 1, -71, 0, 0), (b"Home", b"c", 6, -60, 3, 0)]
+    def scan(self): return [(b"Home", b"a", 6, -48, 3, 0), (b"Cafe", b"b", 1, -71, 0, 0), (b"Home", b"c", 6, -60, 3, 0), (b"Box 192.168.7.1", b"d", 11, -50, 0, 0)]
     def connect(self, ssid, pw): WLAN._on = (ssid == "Home" and pw == "homepass1") or ssid == "Cafe"
     def disconnect(self): WLAN._on = False
     def isconnected(self): return WLAN._on
@@ -492,34 +492,58 @@ async function lookTests() {
   const page = t.page;
   try {
     await page.fill("#f-name", "Next"); await page.fill("#f-pw", "s3cret!"); await page.fill("#f-pw2", "s3cret!");
-    // 1. The networks it sees.
-    await page.click("#f-look");
-    await page.waitForSelector("#worktitle .ok, #worktitle .err", { timeout: 60000 });
-    const opts = await page.$$eval("#f-ssids option", (os) => os.map((o) => o.value));
-    check("look: the networks the board sees offered for the home Wi-Fi (each once, the strongest first)",
-          JSON.stringify(opts) === JSON.stringify(["Home", "Cafe"]), JSON.stringify(opts) + " " + (await page.textContent("#result")));
+    const go = async (sel) => { await page.click(sel || "#f-look"); await page.waitForSelector("#worktitle .ok, #worktitle .err", { timeout: 90000 }); };
+    // 0. "Find it on the network" by the first Stump's address, with no home Wi-Fi yet: says what's needed.
+    await page.click("#f-more summary");
+    await page.check("input[name=f-chain][value=lan]");
+    await page.click("#f-find-first");
+    check("find the first Stump with no home Wi-Fi filled in: says to fill it in first", /home Wi-Fi above first/.test(await page.textContent("#f-find-err")),
+          await page.textContent("#f-find-err"));
+    await page.check("input[name=f-chain][value=none]");
+    await page.click("#f-more summary");
+    // 1. The networks it sees, as a list to pick from; a Stump's own Wi-Fi apart.
+    await go();
+    const nets = await page.$$eval("#f-look-out .net", (os) => os.map((o) => o.dataset.ssid));
+    check("look: the networks the board sees, a list to pick from (each once, the strongest first)",
+          JSON.stringify(nets) === JSON.stringify(["Home", "Cafe"]), JSON.stringify(nets) + " " + (await page.textContent("#result")));
+    check("... a Stump's own Wi-Fi listed apart, not as a home Wi-Fi", /Stumps' own Wi-Fi.*Box 192\.168\.7\.1/.test(await page.textContent("#f-look-out")),
+          await page.textContent("#f-look-out"));
+    check("... nothing picked yet: says to pick one", /Pick the home Wi-Fi/.test(await page.textContent("#f-look-out")));
+    await page.click("#f-look-out .net[data-ssid=Home]");
+    check("picking one fills in the name", (await page.inputValue("#f-ssid")) === "Home");
+    // 1b. Picked, no password: asked for, not a second scan's worth of text.
+    await go();
+    check("look: a locked network picked, no password: asked for it", /Type “Home”'s password/.test(await page.textContent("#f-look-out")),
+          await page.textContent("#f-look-out"));
     // 2. A wrong password: said, from the board's own try.
-    await page.fill("#f-ssid", "Home"); await page.fill("#f-wpass", "wrongpass");
-    await page.click("#f-look");
-    await page.waitForSelector("#worktitle .ok, #worktitle .err", { timeout: 90000 });
+    await page.fill("#f-wpass", "wrongpass");
+    await go();
     check("look: a wrong Wi-Fi password, said by the board's own try", /password is wrong/.test(await page.textContent("#f-look-out")),
           await page.textContent("#f-look-out"));
-    // 3. The right one: the first Stump found and offered, a free number and Heltec address.
+    // 3. The right one, one click: the first Stump found and offered, a free number and Heltec address.
     await page.fill("#f-wpass", "homepass1");
     await page.check("input[name=f-radio][value=lan]");
     await page.fill("#f-hhost", "127.0.0.222");
-    await page.click("#f-look");
-    await page.waitForSelector("#worktitle .ok, #worktitle .err", { timeout: 90000 });
+    await go();
     const out = await page.textContent("#f-look-out");
-    check("look: the password works, the first Stump found", /password works/.test(out) && /LaBuche at 127\.0\.0\.1/.test(out), out);
+    const row = await page.$$eval("#f-look-out table.stumps tr", (rs) => rs.map((r) => r.textContent));
+    check("look: the password works, the first Stump in the table", /password works/.test(out) && row.length === 1
+          && /LaBuche/.test(row[0]) && /127\.0\.0\.1/.test(row[0]) && /first Stump/.test(row[0]) && /number 4/.test(row[0]), JSON.stringify(row) + out);
+    check("... what's free for this one said in one line", /Free for this one: number 5 · Heltec 127\.0\.0\.223/.test(out), out);
     check("... offered: joining LaBuche's chain over the router, its address filled in",
-          (await page.isChecked("input[name=f-chain][value=lan]")) && (await page.inputValue("#f-parent")) === "127.0.0.1",
-          await page.inputValue("#f-parent"));
+          (await page.isChecked("input[name=f-chain][value=lan]")) && (await page.inputValue("#f-parent")) === "127.0.0.1"
+          && /Joining/.test(await page.textContent("#f-look-out table.stumps button")), await page.inputValue("#f-parent"));
     check("... a free chain number (4 and 8 taken: 5)", (await page.inputValue("#f-subnet")) === "5", await page.inputValue("#f-subnet"));
     check("... the Heltec: .222 taken by LaBuche's, the next one offered", (await page.inputValue("#f-hhost")) === "127.0.0.223",
           await page.inputValue("#f-hhost"));
     check("... the chain secret unknown to this browser: asked, not made up", (await page.inputValue("#f-secret")) === ""
           && /Type LaBuche's chain secret/.test(await page.textContent("#f-secret-hint")), await page.textContent("#f-secret-hint"));
+    // 3b. The same from "Find it on the network", by the first Stump's address.
+    await page.fill("#f-parent", "");
+    await go("#f-find-first");
+    check("find it on the network (by the first Stump's address): filled in", (await page.inputValue("#f-parent")) === "127.0.0.1"
+          && (await page.textContent("#f-find-err")) === "", await page.inputValue("#f-parent"));
+    check("the Wi-Fi password field isn't autofilled by the browser", (await page.getAttribute("#f-wpass", "autocomplete")) === "new-password");
     // 4. A wrong secret: stopped before anything is written.
     await page.fill("#f-secret", "nope");
     await page.click("#make-go");
@@ -530,17 +554,15 @@ async function lookTests() {
     // 5. A secret this browser has seen: offered back when the chain is found again.
     await page.evaluate(() => rememberSecret("sekrit"));
     await page.fill("#f-secret", "");
-    await page.click("#f-look");
-    await page.waitForSelector("#worktitle .ok, #worktitle .err", { timeout: 90000 });
+    await go();
     check("look: a chain secret this browser knows, filled in", (await page.inputValue("#f-secret")) === "sekrit"
           && /knows LaBuche's chain secret/.test(await page.textContent("#f-secret-hint")), await page.inputValue("#f-secret"));
     // 6. The name typed is a Stump's already there: a tagged one offered, as a person would add.
     await page.fill("#f-name", "LaBuche");
-    await page.click("#f-look");
-    await page.waitForSelector("#worktitle .ok, #worktitle .err", { timeout: 90000 });
+    await go();
     const warn = await page.textContent("#f-look-out");
     check("look: a Stump called LaBuche already there: said, keep it if it's that board set up again", /already on this Wi-Fi/.test(warn)
-          && /set up again, keep the name/.test(warn), warn);
+          && /set up again\? Keep the name/.test(warn), warn);
     await page.click("#f-look-out button:has-text('Call it')");
     check("... or a name with a tag, like LaBuche-k7q2", /^LaBuche-[a-hjkmnp-z2-9]{4}$/.test(await page.inputValue("#f-name")) && /\d/.test(await page.inputValue("#f-name")),
           await page.inputValue("#f-name"));
