@@ -4,7 +4,7 @@ into a Stump, updates it, changes its settings and watches it start, from
 Chrome or Edge, saved on the computer and opened from there -- nothing to
 install, no certificate.
 
-    python3 scripts/build_arborist.py dist/ [--micropython FILE.bin]
+    python3 scripts/build_arborist.py dist/ [--micropython FILE.bin] [--images DIR]
 
 Writes dist/Arborist-<release>.html, holding:
 
@@ -20,6 +20,13 @@ Writes dist/Arborist-<release>.html, holding:
 
 Packed as one gzip, in base64, inside the page; each file's SHA-256 is
 checked on the board after it's copied.
+
+And the Stump images (1.0.0-beta.58), when they're here: stump-<release>-s3cam.bin
+and stump-<release>-wrover.bin (MicroPython with the Stump frozen in, built
+by the Stump images workflow; --images, or dist/ itself, or build/images/),
+in a block of their own: a new Stump gets the image for its chip, one that
+runs an image with the same partition layout is updated in place. Without
+them the page makes a CAM the earlier way (plain MicroPython, the files).
 
 Also writes dist/Stump-<release>.bundle: that same gzip, byte for byte, as
 a file of its own, for tools that make Stumps the way Arborist does (the
@@ -205,7 +212,36 @@ def tools_files(tmp):
     return out
 
 
-def build(out_dir, mp_path=None):
+IMAGE_KINDS = (("s3cam", 0x0), ("wrover", 0x1000))       # as the Provisioner flashes them
+
+
+def find_images(rel, dirs):
+    """{kind: bytes} for this release's Stump images found in dirs."""
+    found = {}
+    for kind, _ in IMAGE_KINDS:
+        for d in dirs:
+            f = Path(d) / ("stump-%s-%s.bin" % (rel, kind))
+            if f.is_file():
+                data = f.read_bytes()
+                if data[:1] != b"\xe9" or len(data) < 1024 * 1024:
+                    raise SystemExit("%s isn't an ESP32 firmware image (%d bytes)" % (f, len(data)))
+                found[kind] = data
+                break
+    return found
+
+
+def images_blob(rel, found):
+    """The images' block: pack()'s format, each as <kind>.bin, the header
+    with the partition layout's tag (a board that runs an image with
+    another layout is erased, not updated in place) and each offset."""
+    if not found:
+        return b""
+    entries = [(k + ".bin", found[k]) for k, _ in IMAGE_KINDS if k in found]
+    return pack(entries, {"release": rel, "partitions": P.STUMP_IMAGE_PARTITIONS,
+                          "offsets": {k: o for k, o in IMAGE_KINDS if k in found}})
+
+
+def build(out_dir, mp_path=None, image_dirs=None):
     rel = release()
     print("Arborist, %s" % rel)
     with tempfile.TemporaryDirectory() as tmp:
@@ -225,11 +261,16 @@ def build(out_dir, mp_path=None):
     esptool = esptool[:m.start()] + "window.esptool={%s};" % names
     lic = (FW / "tools_payload" / "flasher" / "esptool-js-LICENSE.txt").read_text(encoding="utf-8")
     page = (HERE / "page.html").read_text(encoding="utf-8")
+    dirs = image_dirs if image_dirs is not None else [Path(out_dir), ROOT / "build" / "images"]
+    imgs = find_images(rel, dirs)
+    print("  Stump images: %s" % (", ".join("%s (%d KB)" % (k, len(v) // 1024) for k, v in imgs.items()) or
+                                  "none here (the page makes a CAM with plain MicroPython)"))
     for k, v in (("@@RELEASE@@", rel), ("@@SSID@@", ssid), ("@@MICROPYTHON@@", MICROPYTHON_VERSION),
                  ("/*@@REPL@@*/", (HERE / "repl.js").read_text(encoding="utf-8")),
                  ("/*@@ESPTOOL@@*/", esptool.replace("</script", "<\\/script")),
                  ("@@ESPTOOL_LICENSE@@", lic.replace("&", "&amp;").replace("<", "&lt;")),
-                 ("@@PAYLOAD@@", base64.b64encode(blob).decode())):
+                 ("@@PAYLOAD@@", base64.b64encode(blob).decode()),
+                 ("@@IMAGES@@", base64.b64encode(images_blob(rel, imgs)).decode())):
         if k not in page:
             raise SystemExit("page.html has no %s" % k)
         page = page.replace(k, v)
@@ -249,11 +290,15 @@ def build(out_dir, mp_path=None):
 
 if __name__ == "__main__":
     a = sys.argv[1:]
-    mp = None
+    mp, imd = None, None
+    if "--images" in a:
+        i = a.index("--images")
+        imd = [a[i + 1]]
+        del a[i:i + 2]
     if "--micropython" in a:
         i = a.index("--micropython")
         mp = a[i + 1]
         del a[i:i + 2]
     if len(a) != 1:
         raise SystemExit(__doc__)
-    build(a[0], mp)
+    build(a[0], mp, imd)

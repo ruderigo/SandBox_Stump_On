@@ -73,6 +73,7 @@ def main():
         print("skip: no node")
         print("FAILURES", FAIL)
         return
+    import base64, gzip, json as J, re
     work = Path(tempfile.mkdtemp(prefix="stump-arborist-"))
     try:
         fake = bytearray(os.urandom(600000))
@@ -85,7 +86,28 @@ def main():
             pinned = "expected 67c19ae1" in str(e)
         check("an image that isn't the pinned MicroPython: the build stops", pinned)
         B.MICROPYTHON_SHA256 = None              # the stand-in, from here on
-        page = B.build(work / "dist", work / "mp.bin")
+        page = B.build(work / "dist", work / "mp.bin", image_dirs=[])
+        # With stand-in Stump images (1.0.0-beta.58): each with a tag the page test reads back.
+        imgd = work / "imgs"
+        imgd.mkdir()
+        for kind, tag in (("s3cam", b"S3CAMIMG"), ("wrover", b"WROVERIM")):
+            (imgd / ("stump-%s-%s.bin" % (B.release(), kind))).write_bytes(b"\xe9" + tag + os.urandom(1100000))
+        page_img = B.build(work / "dist_img", work / "mp.bin", image_dirs=[imgd])
+        html_img = page_img.read_text(encoding="utf-8")
+        im = re.search(r'id="images"[^>]*>([^<]*)<', html_img)
+        try:
+            g = gzip.decompress(base64.b64decode(im.group(1).strip()))
+            n = int.from_bytes(g[:4], "little")
+            ih = J.loads(g[4:4 + n])
+        except Exception as e:
+            ih = {"error": repr(e)}
+        import provisioner as PP
+        check("built with the images: both, their offsets, the partition layout's tag",
+              [f[0] for f in ih.get("files", [])] == ["s3cam.bin", "wrover.bin"] and ih.get("offsets") == {"s3cam": 0, "wrover": 4096}
+              and ih.get("partitions") == PP.STUMP_IMAGE_PARTITIONS, {k: v for k, v in ih.items() if k != "files"})
+        check("... and the bundle unchanged by them (the RK3326 Provisioner's)",
+              (work / "dist_img" / ("Stump-%s.bundle" % B.release())).read_bytes() == (work / "dist" / ("Stump-%s.bundle" % B.release())).read_bytes())
+        check("built without them: the images' block empty", re.search(r'id="images"[^>]*></script>', page.read_text(encoding="utf-8")))
         html = page.read_text(encoding="utf-8")
         check("built: Arborist-<release>.html", page.name == "Arborist-%s.html" % B.release())
         import re
@@ -115,7 +137,7 @@ def main():
         node_test("repl_test.js", MP, work / "repl", work / "template.py", B.FW)
         try:
             subprocess.run(["node", "-e", "require('playwright')"], check=True, capture_output=True, timeout=60)
-            node_test("page_test.js", page, MP, work / "page")
+            node_test("page_test.js", page, MP, work / "page", page_img)
         except (subprocess.CalledProcessError, FileNotFoundError):
             print("skip: page_test.js (no Playwright here)")
     finally:

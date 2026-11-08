@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.0-beta.59
+- **Arborist, caught up with the Provisioner** (`Arborist-<release>.html`, the browser page):
+  - **The Stump images, and the WROVER.** It reads the board's chip and writes the release's Stump image for it (MicroPython with the Stump built in, the image that made the WROVER fast): the S3-CAM's at 0x0, the WROVER's at 0x1000, then only the files the image hasn't built in. A WROVER can be made a Stump from the browser now. The page carries both images (about 11 MB); built without them it makes a CAM the earlier way.
+  - **Updates in place.** A Stump that runs a Stump image with this release's partition layout gets the new image written without an erase (its settings, identity and chat stay), then the rest of the files; old copies of built-in modules are removed. An older layout is refused, with why (an erase would give it a new identity). A Stump on plain MicroPython is updated file by file as before, and told that a new setup would give it the image.
+  - **A chain over the router.** "It joins the first Stump over the home Wi-Fi": the first Stump's address there, this Stump's number and the chain secret (needed), written as the Provisioner writes them (`CHAIN_PARENT_IP`, the home Wi-Fi as its uplink; its password copied on the board when it isn't typed again). Only the hotspot way was there.
+  - **The Heltec's addresses.** On the Stump's own hotspot: .200, past the addresses the hotspot hands out (it was .2, which a phone could take first). On the router: .222 on the home network suggested and filled in, and the page says each Heltec needs its own (.223 for the next); the result says which address to give the Heltec.
+  - **The admin password is needed** for a new Stump, and the fserv bot takes the same one unless it's unticked (the Provisioner's essentials). The bot's password alone used to do.
+- Tests: `arborist` (a new CAM and a new WROVER from their images, the built-in modules not copied; an image Stump updated in place, settings and identity kept, a stale copy removed; an older layout refused; a WROVER without images refused; a router member written and its Wi-Fi password copied on the board; the Heltec at .200 and .222; the admin password needed; the images' block and the bundle unchanged).
+
 ## 1.0.0-beta.58
 - **The setup questions, shorter** (the Provisioner's *A Stump board* and *--pc*). A board with a Heltec on the router took 29 questions; now it's 14 and a review:
   - **Six sections, counted**: "Questions 2/6 · Wi-Fi" -- name, Wi-Fi (boards), chain, the Heltec, passwords, everything else. One header style; each explanation is one dim line, and `?` at any question shows the longer help.

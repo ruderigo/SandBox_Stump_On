@@ -364,7 +364,7 @@ EXPECTED_FILE_HASHES = {
     "config.py": "8715a6f0e61d63be",
     "conn.py": "b17cf4fb4f80fbbf",
     "discovery.py": "42577357fe8201fb",
-    "docs/ARBORIST.md": "a783f30ef8fac45f",
+    "docs/ARBORIST.md": "af104a9fc18756ca",
     "docs/CHAIN.md": "0015ad1f8d0ac9be",
     "docs/CLIENT_QUICKSTART.md": "3c1616f8b440b666",
     "docs/COMMANDS.md": "c17a3263eeeae767",
@@ -376,7 +376,7 @@ EXPECTED_FILE_HASHES = {
     "docs/PACKS.md": "acb8642931a96b42",
     "docs/PC.md": "e90244ab4b47d68e",
     "docs/PLUGINS.md": "73eb6ecaacd0d576",
-    "example_node.py": "de88f5b76260040d",
+    "example_node.py": "572da4a727543826",
     "features.py": "81e8af361c64a911",
     "fserv.py": "06b87b1d6fb95eb4",
     "fservbot/plugin.json": "12b3c544160411e3",
@@ -532,9 +532,9 @@ EXPECTED_FILE_HASHES = {
     "tools_payload/apps/README.es.md": "26ec9046d7c4447a",
     "tools_payload/apps/README.fr.md": "afdbb2570e4cb770",
     "tools_payload/apps/README.md": "2e0f5a7aa18abdaf",
-    "tools_payload/arborist/README.es.md": "fd7f5f9f4a1fbde0",
-    "tools_payload/arborist/README.fr.md": "ca79ddd29c921d4e",
-    "tools_payload/arborist/README.md": "f5a33d10f63b07cd",
+    "tools_payload/arborist/README.es.md": "1114b17f97616b8b",
+    "tools_payload/arborist/README.fr.md": "e1901e7cf60f48d3",
+    "tools_payload/arborist/README.md": "d70177038b7784bb",
     "tools_payload/flasher/README.md": "2c4d04f9fa3e4c39",
     "tools_payload/flasher/esptool-bundle.js": "ef7d5a237d3f273e",
     "tools_payload/flasher/esptool-js-LICENSE.txt": "1c25f29242785d63",
@@ -4205,7 +4205,7 @@ def _install_tools_on_node(port):
                     by_card.append("tools/firefly/" + app.name)
                     continue
                 push(app, ":/sd/tools/firefly/" + app.name, app.name)
-        # Arborist (~2.5 MB): 40 minutes over USB, so by card reader, with
+        # Arborist (~11 MB with the Stump images): hours over USB, so by card reader, with
         # its README, into tools/arborist/ (since 1.0.0-beta.49).
         page = arborist_page(here)
         if page:

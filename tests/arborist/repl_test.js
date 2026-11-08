@@ -109,12 +109,14 @@ async function scenario(name, extra, chunk) {
   check("settings: both passwords, independent (as the Provisioner)", !r.error && r.values.AUTH_ADMIN_PASSWORD === "s3cret"
         && r.values.FSERVBOT_OP_PASSWORD === "barkeep99", JSON.stringify(r));
   r = S({ pw: "", pw2: "", opw: "barkeep99" });
-  check("settings: BarKeep password only, admin blank (/admin reuses it)", !r.error && !("AUTH_ADMIN_PASSWORD" in r.values)
-        && r.values.FSERVBOT_OP_PASSWORD === "barkeep99", JSON.stringify(r));
+  check("settings: the fserv bot's password alone: refused, a new Stump needs its admin one (1.0.0-beta.58, as the Provisioner)",
+        /admin password/.test(r.error || ""), JSON.stringify(r));
+  r = S({ samePw: true, opw: "ignored1" });
+  check("settings: the same password for the fserv bot", !r.error && r.values.FSERVBOT_OP_PASSWORD === "s3cret", JSON.stringify(r));
   r = S({ pw: "", pw2: "", opw: "" });
   check("settings: a new Stump with neither password: refused", /admin password|BarKeep/.test(r.error || ""), JSON.stringify(r));
   r = S({ opw: "ab" });
-  check("settings: too-short BarKeep password: refused", /BarKeep operator password/.test(r.error || ""), JSON.stringify(r));
+  check("settings: too-short fserv bot password: refused", /fserv bot's password/.test(r.error || ""), JSON.stringify(r));
   const errs = [
     [{ name: "" }, /name/], [{ name: "x".repeat(21) }, /name/], [{ pw: "abc", pw2: "abc" }, /password/], [{ pw2: "other" }, /aren't the same/],
     [{ wpass: "longenough" }, /no Wi-Fi name/], [{ ssid: "Home", wpass: "short" }, /8 to 63/],
@@ -132,8 +134,25 @@ async function scenario(name, extra, chunk) {
   check("settings: change only the BarKeep password, admin kept", !r.error && !("AUTH_ADMIN_PASSWORD" in r.values)
         && r.values.FSERVBOT_OP_PASSWORD === "newbar99", JSON.stringify(r));
   r = S({ chain: "member", upSsid: "LaBuche-Stump.web.app", upPass: "", subnet: "7", secret: "abc", radio: "ap" });
-  check("settings: a chain member, its Heltec on its own Wi-Fi at 192.168.<its number>.2", !r.error && r.values.CHAIN_SUBNET === 7
-        && r.values.CHAIN_CHANNEL === 0 && r.values.HELTEC.host === "192.168.7.2" && r.values.HELTEC.enabled, JSON.stringify(r));
+  check("settings: a chain member, its Heltec on its own Wi-Fi at 192.168.<its number>.200 (past what the hotspot hands out)",
+        !r.error && r.values.CHAIN_SUBNET === 7 && r.values.CHAIN_CHANNEL === 0 && r.values.HELTEC.host === "192.168.7.200"
+        && r.values.HELTEC.enabled && r.values.CHAIN_PARENT_IP === "", JSON.stringify(r));
+  r = S({ chain: "lan", ssid: "Home", wpass: "homepass1", parentIp: "192.168.0.173", subnet: "8", secret: "sec" });
+  check("settings: a member over the router (CHAIN_PARENT_IP): the home Wi-Fi as its uplink", !r.error && r.values.CHAIN_PARENT_IP === "192.168.0.173"
+        && r.values.CHAIN_UPLINK_SSID === "Home" && r.values.CHAIN_UPLINK_PASS === "homepass1" && r.values.CHAIN_SUBNET === 8
+        && r.values.CHAIN_CHANNEL === 0, JSON.stringify(r));
+  r = S({ requireAdmin: false, hasPw: true, keepWifiPass: true, chain: "lan", ssid: "Home", wpass: "", parentIp: "192.168.0.173", subnet: "8", secret: "sec" });
+  check("... its Wi-Fi password kept (not typed again): copied on the board", !r.error && r.values.CHAIN_UPLINK_PASS === "\u0000WIFI_PASS", JSON.stringify(r));
+  const lanErrs = [[{ chain: "lan", ssid: "Home", parentIp: "192.168.0.173", subnet: "8", secret: "" }, /secret/],
+                   [{ chain: "lan", ssid: "", parentIp: "192.168.0.173", subnet: "8", secret: "s" }, /home Wi-Fi/],
+                   [{ chain: "lan", ssid: "Home", parentIp: "nope", subnet: "8", secret: "s" }, /address/],
+                   [{ chain: "lan", ssid: "Home", parentIp: "192.168.0.173", subnet: "3", secret: "s" }, /5 to 254/]];
+  const lanBad = lanErrs.filter(([o, re]) => !re.test(S(o).error || ""));
+  check("settings: a router member's wrong answers refused (no secret, no home Wi-Fi, an address, the number)", !lanBad.length,
+        JSON.stringify(lanBad.map(([o]) => [o, S(o)])));
+  check("answers from a router member's config.py: read back as one", R.answersFrom({ CHAIN_ENABLED: true, CHAIN_PARENT_IP: "192.168.0.173",
+        CHAIN_UPLINK_SSID: "Home", CHAIN_SUBNET: 8, HELTEC: { enabled: true, host: "192.168.8.2" } }).chain === "lan"
+        && R.answersFrom({ CHAIN_ENABLED: true, CHAIN_UPLINK_SSID: "X", CHAIN_SUBNET: 8, HELTEC: { enabled: true, host: "192.168.8.2" } }).radio === "ap");
   r = S({ chain: "first", channel: "6", secret: "" });
   check("settings: the first Stump, no secret: allowed, with a warning", !r.error && r.values.CHAIN_SUBNET === 4 && r.values.CHAIN_CHANNEL === 6
         && r.warn.some((w) => /secret/.test(w)), JSON.stringify(r));
@@ -181,7 +200,16 @@ async function scenario(name, extra, chunk) {
       const py2 = (await repl.run("import config as c\nb=[i for i in c.CONFIG['interfaces'] if i['name']=='Heltec Bridge'][0]\n" +
                                   "print(repr((c.WIFI_PASS, c.AUTH_ADMIN_PASSWORD, c.FSERVBOT_OP_PASSWORD, c.CHAIN_ENABLED, b['target_host'], b['enabled'])))\n")).trim();
       check("changed again: admin + Wi-Fi kept, BarKeep changed, out of the chain, Heltec on its Wi-Fi",
-            py2 === "(\"pa'ss\\\\word\", 's3cret', 'newbar', False, '192.168.4.2', True)", py2);
+            py2 === "(\"pa'ss\\\\word\", 's3cret', 'newbar', False, '192.168.4.200', True)", py2);
+      // A member over the router, its Wi-Fi password not typed again: the
+      // home Wi-Fi's copied into CHAIN_UPLINK_PASS on the board.
+      const lan = R.settingsFrom(Object.assign({}, a, { requireAdmin: false, keepWifiPass: true, pw: "", pw2: "", opw: "",
+                                                        wpass: "", chain: "lan", parentIp: "192.168.0.173", subnet: "8", secret: "sec" }));
+      await R.writeSettings(repl, lan.values);
+      const py3 = (await repl.run("import sys\nsys.modules.pop('config', None)\nimport config as c\n" +
+                                  "print(repr((c.CHAIN_PARENT_IP, c.CHAIN_UPLINK_SSID, c.CHAIN_UPLINK_PASS, c.CHAIN_SUBNET)))\n")).trim();
+      check("a router member, its Wi-Fi password kept: copied on the board into CHAIN_UPLINK_PASS",
+            py3 === "('192.168.0.173', 'Home Net', \"pa'ss\\\\word\", 8)", py3);
       // -- the radio (the CAM's host-controlled Heltec settings) --
       check("no radio saved yet: readRadio is null", (await R.readRadio(repl)) === null);
       const rf = R.radioFrom({ freqMhz: "915", bandwidth: 250000, sf: 10, cr: 7, txpower: 17 });

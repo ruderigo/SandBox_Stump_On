@@ -54,7 +54,7 @@
 </head>
 <body>
 <h1>Arborist</h1>
-<p class="sub">Makes and looks after a Stump: a Freenove ESP32-S3-CAM on this computer's USB. Stump @@RELEASE@@ · MicroPython @@MICROPYTHON@@</p>
+<p class="sub">Makes and looks after a Stump: a Freenove ESP32-S3-CAM or an ESP32-WROVER on this computer's USB. Stump @@RELEASE@@ · MicroPython @@MICROPYTHON@@</p>
 
 <div class="card hidden" id="gate">
   <h2 class="err">This browser can't reach a board</h2>
@@ -150,9 +150,12 @@
   </div>
   <p class="hint" id="f-pw-hint">For its <code>/admin</code> page. Keep it somewhere.</p>
 
-  <label for="f-opw">BarKeep operator password <span class="hint">· optional</span></label>
-  <input type="password" id="f-opw" maxlength="64">
-  <p class="hint" id="f-opw-hint">Lets an operator edit BarKeep's replies from chat. Blank: editing off, and <code>/admin</code> uses the admin password above.</p>
+  <label class="inline"><input type="checkbox" id="f-same"> The same password for the fserv bot</label>
+  <div id="f-opw-box">
+    <label for="f-opw">The fserv bot's password <span class="hint">· optional</span></label>
+    <input type="password" id="f-opw" maxlength="64">
+  </div>
+  <p class="hint" id="f-opw-hint">Lets an operator edit the bot's replies from chat. Blank: editing off.</p>
 
   <label for="f-ssid">Home Wi-Fi <span class="hint">· optional</span></label>
   <div class="two">
@@ -163,9 +166,10 @@
 
   <label>LoRa radio (a Heltec running RNode)</label>
   <label class="choice"><input type="radio" name="f-radio" value="none" checked> <span>None for now</span></label>
-  <label class="choice"><input type="radio" name="f-radio" value="ap"> <span>It joins this Stump's Wi-Fi <span class="hint" id="f-ap-addr">(at 192.168.4.2)</span></span></label>
-  <label class="choice"><input type="radio" name="f-radio" value="lan"> <span>It's on the home Wi-Fi, at <input type="text" id="f-hhost" placeholder="192.168.1.50" style="width:11em;padding:3px 6px"></span></label>
-  <p class="hint">The Heltec itself is set up with the Provisioner (<code>rnodeconf</code>); this page only does the CAM.</p>
+  <label class="choice"><input type="radio" name="f-radio" value="ap"> <span>It joins this Stump's Wi-Fi <span class="hint" id="f-ap-addr">(at 192.168.4.200)</span></span></label>
+  <label class="choice"><input type="radio" name="f-radio" value="lan"> <span>It's on the home Wi-Fi, at <input type="text" id="f-hhost" placeholder="192.168.0.222" style="width:11em;padding:3px 6px"></span></label>
+  <p class="hint" id="f-hhost-hint">On the home Wi-Fi each Heltec needs its own address, one the router doesn't hand out (often past .200): .222 for the first, .223 for the next, and so on. Give the Heltec the same one in its own setup.</p>
+  <p class="hint">The Heltec itself is set up with the Provisioner (<code>rnodeconf</code>); this page only does the Stump.</p>
 
   <div id="f-radio-params" class="hidden">
     <label>Radio settings <span class="hint">· the CAM sets these on the Heltec</span></label>
@@ -202,17 +206,26 @@
     <h3>A chain of Stumps <span class="hint">· linked over Wi-Fi, files go between them</span></h3>
     <label class="choice"><input type="radio" name="f-chain" value="none" checked> <span>Not in a chain</span></label>
     <label class="choice"><input type="radio" name="f-chain" value="first"> <span>The first Stump (the others join it)</span></label>
-    <label class="choice"><input type="radio" name="f-chain" value="member"> <span>It joins another Stump's Wi-Fi</span></label>
+    <label class="choice"><input type="radio" name="f-chain" value="lan"> <span>It joins the first Stump over the home Wi-Fi <span class="hint">· the router: like your other Stumps</span></span></label>
+    <label class="choice"><input type="radio" name="f-chain" value="member"> <span>It joins another Stump's Wi-Fi <span class="hint">· no router: its hotspot</span></span></label>
     <div id="f-chain-first" class="hidden">
       <label for="f-channel">The chain's Wi-Fi channel <span class="hint">· 1 to 13; 1, 6 and 11 don't overlap</span></label>
       <input type="number" id="f-channel" min="1" max="13" value="11" style="width:7em">
+      <p class="hint">With the home Wi-Fi above and a chain secret, the others can also join it over the router.</p>
+    </div>
+    <div id="f-chain-lan" class="hidden">
+      <label for="f-parent">The first Stump's address on the home Wi-Fi <span class="hint">· its "On the Wi-Fi" address, like 192.168.0.173</span></label>
+      <input type="text" id="f-parent" maxlength="15" placeholder="192.168.0.173" style="width:11em">
+      <p class="hint">It stays on the home Wi-Fi above and links to the first Stump there; if the router gives the first Stump another address, it finds it again.</p>
     </div>
     <div id="f-chain-member" class="hidden">
       <div class="two">
         <div><label for="f-up">The Stump it joins: its Wi-Fi</label><input type="text" id="f-up" maxlength="32" value="@@SSID@@"></div>
         <div><label for="f-uppass">Its password <span class="hint">· blank if open</span></label><input type="password" id="f-uppass" maxlength="63"></div>
       </div>
-      <label for="f-subnet">This Stump's number <span class="hint">· 5 to 254, a different one on each; its Wi-Fi is 192.168.&lt;number&gt;.1</span></label>
+    </div>
+    <div id="f-chain-number" class="hidden">
+      <label for="f-subnet">This Stump's number <span class="hint">· 5 to 254, a different one on each (the first is 4); its Wi-Fi is 192.168.&lt;number&gt;.1</span></label>
       <input type="number" id="f-subnet" min="5" max="254" value="5" style="width:7em">
     </div>
     <div id="f-chain-secret" class="hidden">
@@ -236,11 +249,12 @@
 </div>
 
 <details class="card"><summary>About this page</summary>
-<p>Everything is in this one file: nothing is downloaded or sent anywhere. It holds the Stump @@RELEASE@@, MicroPython @@MICROPYTHON@@ (MIT licence, micropython.org) for the ESP32-S3 with octal PSRAM, and esptool-js (Apache-2.0, Espressif), which writes it. Each file's SHA-256 is checked on the board after it's copied. Settings are written by the Stump's own <code>settings.py</code>, as from <code>/admin</code>.</p>
+<p>Everything is in this one file: nothing is downloaded or sent anywhere. It holds the Stump @@RELEASE@@: its images for the ESP32-S3-CAM and the ESP32-WROVER (MicroPython @@MICROPYTHON@@, MIT licence, micropython.org, with the Stump built in) when the release has them, the Stump's files, MicroPython for the ESP32-S3 with octal PSRAM, and esptool-js (Apache-2.0, Espressif), which writes them. Each file's SHA-256 is checked on the board after it's copied. Settings are written by the Stump's own <code>settings.py</code>, as from <code>/admin</code>.</p>
 <details><summary>esptool-js licence</summary><pre>@@ESPTOOL_LICENSE@@</pre></details>
 </details>
 
 <script type="application/octet-stream" id="payload">@@PAYLOAD@@</script>
+<script type="application/octet-stream" id="images">@@IMAGES@@</script>
 <script type="module">/*@@ESPTOOL@@*/</script>
 <script>/*@@REPL@@*/</script>
 <script>
@@ -291,11 +305,32 @@ qa("input[name=mode]").forEach(function (r) { r.onchange = placeForm; });
 function chainView() {
   var c = val("f-chain");
   $("f-chain-first").classList.toggle("hidden", c !== "first");
+  $("f-chain-lan").classList.toggle("hidden", c !== "lan");
   $("f-chain-member").classList.toggle("hidden", c !== "member");
+  $("f-chain-number").classList.toggle("hidden", c !== "member" && c !== "lan");
   $("f-chain-secret").classList.toggle("hidden", c === "none");
-  if (c !== "none" && !$("f-secret").value) $("f-secret").value = R.randomSecret();
-  $("f-ap-addr").textContent = "(at 192.168." + (c === "member" ? ($("f-subnet").value || "5") : "4") + ".2)";
+  // A member over the router types the first Stump's secret; the others get one made.
+  if ((c === "first" || c === "member") && !$("f-secret").value) $("f-secret").value = R.randomSecret();
+  var n = c === "member" || c === "lan" ? ($("f-subnet").value || "5") : "4";
+  $("f-ap-addr").textContent = "(at 192.168." + n + "." + R.HELTEC_ON_HOTSPOT + ")";
+  heltecSuggest();
 }
+// A Heltec on the home Wi-Fi: .222 on the home network, when the page
+// knows it (the first Stump's address), filled in only while the field is
+// blank -- it can't see which addresses are taken: the hint says to give
+// each Heltec the next one.
+function heltecSuggest() {
+  var p = $("f-parent").value.trim(), m = /^(\d{1,3}\.\d{1,3}\.\d{1,3})\.\d{1,3}$/.exec(p);
+  $("f-hhost").placeholder = (m ? m[1] : "192.168.0") + "." + R.HELTEC_FIRST;
+}
+function sameView() {
+  var same = $("f-same").checked;
+  $("f-opw-box").classList.toggle("hidden", same);
+  $("f-opw-hint").textContent = same ? "The fserv bot's password: the admin one (lets an operator edit the bot's replies from chat)."
+    : "Lets an operator edit the bot's replies from chat. Blank: editing off.";
+}
+$("f-same").onchange = sameView;
+$("f-parent").oninput = heltecSuggest;
 qa("input[name=f-chain]").forEach(function (r) { r.onchange = chainView; });
 $("f-subnet").oninput = chainView;
 $("f-newsecret").onclick = function () { $("f-secret").value = R.randomSecret(); };
@@ -309,7 +344,14 @@ $("f-hhost").onfocus = function () { setVal("f-radio", "lan"); radioView(); };
   for (var c = 5; c <= 8; c++) opt("f-cr", c, "4/" + c, c === 5);
 })();
 function radioView() { $("f-radio-params").classList.toggle("hidden", val("f-radio") === "none"); }
-qa("input[name=f-radio]").forEach(function (r) { r.onchange = radioView; });
+qa("input[name=f-radio]").forEach(function (r) {
+  r.onchange = function () {
+    // On the home Wi-Fi: the suggested address filled in, to edit (the next
+    // Heltec takes the next one: the page can't see which are taken).
+    if (val("f-radio") === "lan" && !$("f-hhost").value) $("f-hhost").value = $("f-hhost").placeholder;
+    radioView();
+  };
+});
 function fillRadio(a) {
   a = a || R.radioAnswers(null);
   $("f-freq").value = a.freqMhz; $("f-bw").value = a.bandwidth; $("f-sf").value = a.sf; $("f-cr").value = a.cr; $("f-txp").value = a.txpower;
@@ -324,16 +366,17 @@ function formFor(a) {
       qa("input[name=f-feat]").forEach(function (c) { c.checked = c.value !== "about"; });
       $("f-theme").value = "paper"; $("f-mode").value = "open"; $("f-channel").value = 11; $("f-up").value = SSID;
       $("f-uppass").value = ""; $("f-subnet").value = 5; $("f-secret").value = ""; $("f-more").open = false;
+      $("f-parent").value = "";
       fillRadio(null);
     }
     if ($("form").dataset.filled !== "new") {
       $("form").dataset.filled = "new";
       ["f-pw", "f-pw2", "f-opw", "f-wpass"].forEach(function (id) { $(id).value = ""; $(id).placeholder = ""; });
+      $("f-same").checked = true;            // the Provisioner's default: the same for the bot
     }
-    $("f-pw-hint").textContent = "Unlocks /admin. Blank: /admin uses the BarKeep password below.";
-    $("f-opw-hint").textContent = "Lets an operator edit BarKeep's replies from chat. Blank: editing off.";
+    $("f-pw-hint").textContent = "Unlocks /admin (needed). Keep it somewhere.";
     $("f-wpass").placeholder = "Its password";
-    chainView(); radioView();
+    chainView(); radioView(); sameView();
     return;
   }
   $("form").dataset.filled = "edit";
@@ -344,14 +387,16 @@ function formFor(a) {
   $("f-mode").value = R.MODES.indexOf(a.mode) >= 0 ? a.mode : "open";
   $("f-hotspot").value = a.hotspot; setVal("f-chain", a.chain);
   $("f-channel").value = a.channel; $("f-up").value = a.upSsid || SSID; $("f-uppass").value = a.upPass;
-  $("f-subnet").value = a.subnet; $("f-secret").value = a.secret;
+  $("f-subnet").value = a.subnet; $("f-secret").value = a.secret; $("f-parent").value = a.parentIp || "";
   ["f-pw", "f-pw2", "f-opw", "f-wpass"].forEach(function (id) { $(id).value = ""; });
+  $("f-same").checked = false;
   $("f-pw").placeholder = $("f-pw2").placeholder = a.hasPw ? "unchanged" : "";
   $("f-pw-hint").textContent = a.hasPw ? "Blank: the admin password stays as it is."
-    : "It has none yet — give it one, or set the BarKeep password for /admin to reuse.";
+    : "It has none yet: give it one.";
   $("f-opw").placeholder = a.hasOpPw ? "unchanged" : "";
-  $("f-opw-hint").textContent = a.hasOpPw ? "Blank: the BarKeep password stays as it is."
-    : "Lets an operator edit BarKeep's replies from chat. Blank: editing off.";
+  sameView();
+  if (!$("f-same").checked) $("f-opw-hint").textContent = a.hasOpPw ? "Blank: the fserv bot's password stays as it is."
+    : "Lets an operator edit the bot's replies from chat. Blank: editing off.";
   $("f-wpass").placeholder = a.hasWifiPass ? "unchanged" : "Its password";
   fillRadio(a.radioAnswers);
   if (a.chain !== "none" || a.hotspot || a.mode !== "open" || a.greeting) $("f-more").open = true;
@@ -360,7 +405,7 @@ function formFor(a) {
 function answers(editing) {
   return {
     name: $("f-name").value, bot: $("f-bot").value, greeting: $("f-greet").value,
-    pw: $("f-pw").value, pw2: $("f-pw2").value, opw: $("f-opw").value,
+    pw: $("f-pw").value, pw2: $("f-pw2").value, opw: $("f-opw").value, samePw: $("f-same").checked,
     hasPw: !!(editing && editing.hasPw), hasOpPw: !!(editing && editing.hasOpPw), requireAdmin: !editing,
     ssid: $("f-ssid").value, wpass: $("f-wpass").value, keepWifiPass: !!(editing && editing.hasWifiPass),
     radio: val("f-radio"), hhost: $("f-hhost").value,
@@ -368,7 +413,7 @@ function answers(editing) {
     features: qa("input[name=f-feat]:checked").map(function (c) { return c.value; }),
     theme: $("f-theme").value, mode: $("f-mode").value, hotspot: $("f-hotspot").value,
     chain: val("f-chain"), channel: $("f-channel").value, upSsid: $("f-up").value, upPass: $("f-uppass").value,
-    subnet: $("f-subnet").value, secret: $("f-secret").value
+    subnet: $("f-subnet").value, secret: $("f-secret").value, parentIp: $("f-parent").value
   };
 }
 
@@ -422,6 +467,26 @@ async function payload() {
   head.files.forEach(function (f) { files[f[0]] = { data: body.subarray(f[1], f[1] + f[2]), sha256: f[3] }; });
   PAYLOAD = { head: head, files: files };
   return PAYLOAD;
+}
+
+// The Stump images (MicroPython with the Stump built in, 1.0.0-beta.57), in
+// their own block: {head: {release, partitions, offsets}, files: {"s3cam.bin",
+// "wrover.bin"}}, or none (a page built without them: plain MicroPython and
+// the files, the CAM only).
+var IMAGES = null;
+async function images() {
+  if (IMAGES) return IMAGES;
+  var t = $("images").textContent.trim();
+  if (!t) { IMAGES = { head: {}, files: {} }; return IMAGES; }
+  var s = atob(t), u = new Uint8Array(s.length);
+  for (var i = 0; i < s.length; i++) u[i] = s.charCodeAt(i);
+  var raw = new Uint8Array(await new Response(new Blob([u]).stream().pipeThrough(new DecompressionStream("gzip"))).arrayBuffer());
+  var n = raw[0] | (raw[1] << 8) | (raw[2] << 16) | (raw[3] << 24);
+  var head = JSON.parse(new TextDecoder().decode(raw.subarray(4, 4 + n))), body = raw.subarray(4 + n);
+  var files = {};
+  head.files.forEach(function (f) { files[f[0]] = { data: body.subarray(f[1], f[1] + f[2]), sha256: f[3] }; });
+  IMAGES = { head: head, files: files };
+  return IMAGES;
 }
 
 // -- the serial port ----------------------------------------------------------------
@@ -505,8 +570,10 @@ async function hasStump(repl) {
   return /YES/.test(await repl.run("import os\ntry:\n os.stat('config.py')\n print('YES')\nexcept OSError:\n print('NO')\n"));
 }
 
-// -- MicroPython ------------------------------------------------------------------
-async function flashMicroPython(P) {
+// -- writing the board -------------------------------------------------------------
+// The board's loader started (esptool-js): {esp, transport, chip, kind}
+// (kind: "s3cam" or "wrover", the image it takes).
+async function loader() {
   var E = window.esptool;
   var transport = new E.Transport(port, false);
   var esp = new E.ESPLoader({ transport: transport, baudrate: 460800, romBaudrate: 115200,
@@ -515,24 +582,45 @@ async function flashMicroPython(P) {
   try { chip = await esp.main(); }
   catch (e) {
     try { await transport.disconnect(); } catch (x) {}
-    throw new Error("Couldn't start the board's loader (" + e.message + "). Hold its BOOT button, press and release RESET, let go of BOOT, then start again.");
+    throw new Error("Couldn't start the board's loader (" + e.message + "). Hold its BOOT button, press and release RESET (EN), let go of BOOT, then start again.");
   }
   log("chip: " + chip);
-  if (!/ESP32-S3/i.test(String(chip))) {
+  var kind = R.imageForChip(chip);
+  if (!kind) {
     try { await transport.disconnect(); } catch (x) {}
-    throw new Error("This board is a " + chip + ". This page is for the Freenove ESP32-S3-CAM.");
+    throw new Error("This board is a " + chip + ". This page is for the Freenove ESP32-S3-CAM and the ESP32-WROVER.");
   }
+  return { esp: esp, transport: transport, chip: chip, kind: kind };
+}
+async function writeImage(L, data, offset, erase, what) {
+  await L.esp.writeFlash({
+    fileArray: [{ data: data, address: offset }], flashSize: "keep", flashMode: "keep", flashFreq: "keep",
+    eraseAll: erase, compress: true,
+    reportProgress: function (i, written, size) { bar(written / size, what + "… " + Math.round(written / size * 100) + "%"); }
+  });
+  await L.esp.after("hard_reset");
+  await L.transport.disconnect();
+}
+// A new Stump: the board erased, then the Stump image for its chip (the
+// Stump built in), or plain MicroPython on a CAM when the page has no
+// image. Returns the image's name, or null.
+async function flashNew(P, IM) {
+  var L = await loader();
+  var img = IM.files[L.kind + ".bin"];
   step(2);
   bar(0, "Erasing the board (about half a minute)…");
-  var img = P.files["micropython.bin"];
-  await esp.writeFlash({
-    fileArray: [{ data: img.data, address: 0 }], flashSize: "keep", flashMode: "keep", flashFreq: "keep",
-    eraseAll: true, compress: true,
-    reportProgress: function (i, written, size) { bar(written / size, "Writing MicroPython… " + Math.round(written / size * 100) + "%"); }
-  });
+  if (img) {
+    await writeImage(L, img.data, R.IMAGE_FOR[L.kind].offset, true, "Writing the Stump image");
+    step(3);
+    return L.kind;
+  }
+  if (L.kind !== "s3cam") {
+    try { await L.transport.disconnect(); } catch (x) {}
+    throw new Error("This page has no Stump image for " + R.IMAGE_FOR[L.kind].board + " (it was built without them). Use the release's Arborist, or the Provisioner.");
+  }
+  await writeImage(L, P.files["micropython.bin"].data, 0, true, "Writing MicroPython");
   step(3);
-  await esp.after("hard_reset");
-  await transport.disconnect();
+  return null;
 }
 
 // -- Make or update ------------------------------------------------------------------
@@ -549,25 +637,61 @@ async function make() {
     if (s.warn.length && !confirm(s.warn.join("\n") + "\n\nGo ahead anyway?")) return false;
     if (!confirm("This erases everything on the board. Go ahead?")) return false;
   }
-  steps(upd ? "Updating the Stump" : "Making the Stump",
-        upd ? ["Choose the board", "Connect", "Copy the Stump @@RELEASE@@", "Restart"]
-            : ["Choose the board", "Connect", "Erase it, write MicroPython", "Restart", "Copy the Stump", "Its settings", "Restart"]);
-  var P = await payload();
-  step(0);
-  await choosePort();
-  step(1);
-  if (!upd) await flashMicroPython(P);
-  var repl = await readyRepl();
-  var info = await R.boardInfo(repl);
-  log("MicroPython " + info.release + ", .mpy " + info.mpy);
-  if (upd && P.head.mpy && info.mpy !== P.head.mpy)
-    throw new Error("This board has MicroPython " + info.release + "; this Stump needs " + P.head.micropython +
-                    ". Choose “A new Stump” (it erases the board: the Stump gets a new name on the mesh).");
-  if (upd && !(await hasStump(repl))) throw new Error("There's no Stump on this board to update (no config.py). Choose “A new Stump”.");
-  step(upd ? 2 : 4);
-  var files = Object.keys(P.files).filter(function (k) { return k.indexOf("app/") === 0; }).map(function (k) {
+  var P = await payload(), IM = await images();
+  var all = Object.keys(P.files).filter(function (k) { return k.indexOf("app/") === 0; }).map(function (k) {
     return { path: k.slice(4), data: P.files[k].data, sha256: P.files[k].sha256 };
   });
+  var repl, info, files = all, note = null;
+  if (!upd) {
+    steps("Making the Stump", ["Choose the board", "Connect", "Erase it, write the Stump image", "Restart",
+                               "Copy the rest of the Stump", "Its settings", "Restart"]);
+    step(0); await choosePort();
+    step(1);
+    await flashNew(P, IM);
+    repl = await readyRepl();
+    info = await R.boardInfo(repl);
+    log("MicroPython " + info.release + ", .mpy " + info.mpy + ", " + info.machine);
+    var im = await R.imageInfo(repl);
+    if (im) { files = R.notFrozen(all, im.frozen); log("the Stump image " + im.release + ": " + im.frozen.length + " modules built in"); }
+    step(4);
+  } else {
+    steps("Updating the Stump", ["Choose the board", "Connect", "The Stump image @@RELEASE@@", "Copy the rest of the Stump", "Restart"]);
+    step(0); await choosePort();
+    step(1);
+    repl = await readyRepl();
+    info = await R.boardInfo(repl);
+    log("MicroPython " + info.release + ", .mpy " + info.mpy + ", " + info.machine);
+    if (!(await hasStump(repl))) throw new Error("There's no Stump on this board to update (no config.py). Choose “A new Stump”.");
+    var cur = await R.imageInfo(repl), kind = /ESP32S3|ESP32-S3/i.test(info.machine || "") ? "s3cam" : "wrover";
+    var img = IM.files[kind + ".bin"];
+    step(2);
+    if (cur && img && cur.partitions === IM.head.partitions) {
+      // In place: the image's bootloader, partition table and application
+      // written, the filesystem after them (settings, identity, chat) kept.
+      log("the board runs the Stump image " + cur.release + ": the new one written in place");
+      await closePort();
+      var L = await loader();
+      if (L.kind !== kind) throw new Error("This board's chip (" + L.chip + ") isn't the one its MicroPython says. Choose “A new Stump”.");
+      bar(0, "Writing the Stump image…");
+      await writeImage(L, img.data, R.IMAGE_FOR[kind].offset, false, "Writing the Stump image");
+      repl = await readyRepl();
+      var now = await R.imageInfo(repl);
+      files = R.notFrozen(all, now ? now.frozen : []);
+      var gone = await R.removeFrozenCopies(repl, now ? now.frozen : []);
+      if (gone) log(gone + " old copies of built-in modules removed");
+    } else if (cur && img) {
+      throw new Error("This board's Stump image has an older layout (" + cur.partitions + "): updating it means erasing it. " +
+                      "Choose “A new Stump” (it erases the board: the Stump gets a new name on the mesh).");
+    } else {
+      // Plain MicroPython (set up by an older Arborist or the Provisioner
+      // without images): the files copied, as before.
+      if (P.head.mpy && info.mpy !== P.head.mpy)
+        throw new Error("This board has MicroPython " + info.release + "; this Stump needs " + P.head.micropython +
+                        ". Choose “A new Stump” (it erases the board: the Stump gets a new name on the mesh).");
+      if (img) note = "This board runs plain MicroPython, so the Stump was copied file by file. Made again as a new Stump, it gets the Stump image: faster, lighter on memory (it erases the board: a new name on the mesh).";
+    }
+    step(3);
+  }
   var t0 = Date.now();
   await R.upload(repl, files, function (d, total, path) {
     var sec = (Date.now() - t0) / 1000, left = d > 0 && sec > 5 ? Math.round((total - d) / (d / sec)) : null;
@@ -581,7 +705,7 @@ async function make() {
     await R.writeSettings(repl, s.values);
     if (rad && !(await R.writeRadio(repl, rad.values))) log("note: the radio settings weren't saved to the board");
   }
-  step(upd ? 3 : 6);
+  step(upd ? 4 : 6);
   await R.restart(repl);
   await closePort();
   var r = document.createElement("div");
@@ -589,8 +713,11 @@ async function make() {
   else {
     r.appendChild(para("Your Stump is starting (about a minute the first time). On a phone, look for the Wi-Fi “" +
                        (s.values.SSID_NAME || SSID) + "”, join it, and a page opens. Its admin page is /admin, with the password you chose."));
+    if (s.values.HELTEC && s.values.HELTEC.enabled)
+      r.appendChild(para("Its Heltec: at " + s.values.HELTEC.host + ". Give the Heltec that same address in its own setup (the Provisioner: A Heltec for a CAM)."));
     r.appendChild(para("You can unplug it from the computer and power it from any USB charger. To see it start, use Check."));
   }
+  if (note) r.appendChild(para(note, "hint"));
   done(""); $("result").appendChild(r);
   return true;
 }

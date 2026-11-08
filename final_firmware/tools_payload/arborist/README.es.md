@@ -1,7 +1,7 @@
 # Arborist
 
-Convierte una Freenove ESP32-S3-CAM en un Tronco, actualiza uno, cambia
-sus ajustes y lo ve arrancar: una sola página, sin internet y sin nada
+Convierte una Freenove ESP32-S3-CAM o una ESP32-WROVER en un Tronco,
+actualiza uno, cambia sus ajustes y lo ve arrancar: una sola página, sin internet y sin nada
 que instalar.
 
 - `Arborist-<versión>.html` — guárdela en un ordenador y abra el archivo
