@@ -164,8 +164,13 @@ async function run(name, root, simArgs, fill, keep, pageFile, chip) {
     check("... MicroPython written at 0, the board erased first, then reset", fl && fl.addr === 0 && fl.erase && fl.len > 500000
           && (await page.evaluate(() => window.__after)) === "hard_reset", JSON.stringify(fl));
     check("... then the REPL at 115200", (await page.evaluate(() => window.__baud)) === 115200);
-    check("... the Stump's files on the board, compiled", fs.existsSync(path.join(root, "barkeep.mpy")) && fs.existsSync(path.join(root, "main.py"))
-          && fs.existsSync(path.join(root, "urns")) && !fs.existsSync(path.join(root, "barkeep.py")));
+    // A MicroPython with the Stump frozen in (tests/run.py's frozen mode)
+    // is a board running an image: the modules it has built in aren't copied.
+    let simFrozen = false;
+    try { execFileSync(MP, ["-c", "import stump_image"], { cwd: root, stdio: "ignore" }); simFrozen = true; } catch (e) {}
+    check("... the Stump's files on the board, compiled" + (simFrozen ? " (the built-in ones not copied: this MicroPython has them)" : ""),
+          (simFrozen ? !fs.existsSync(path.join(root, "barkeep.mpy")) : fs.existsSync(path.join(root, "barkeep.mpy") ) && fs.existsSync(path.join(root, "urns")))
+          && fs.existsSync(path.join(root, "main.py")) && !fs.existsSync(path.join(root, "barkeep.py")));
     check("... the plugins too (their plugin.json stays on the computer, as with the Provisioner)", fs.existsSync(path.join(root, "stumpid/core.mpy")) && !fs.existsSync(path.join(root, "stumpid/plugin.json")) && fs.existsSync(path.join(root, "fservbot/core.mpy")));
     const cfgPath = path.join(root, "config.py");
     check("... and a config.py", fs.existsSync(cfgPath));
