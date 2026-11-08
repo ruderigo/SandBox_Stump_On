@@ -386,8 +386,8 @@ def _known_name(router, h):
 def _fix_nick(router, h, p):
     """A Stump goes by its name: met before its name was known ("mesh-xxxx"),
     once its announce gives it; renamed (1.0.0-beta.60), its new one; and
-    given a number because its name was taken ("LaBuche1"), the plain name
-    once it's free again (the identity holding it gone). Its lines then show
+    given a tag because its name was taken ("LaBuche-k7q2"), the plain
+    name once it's free again (the identity holding it gone). Its lines then show
     as nick@ThatStump."""
     name = _known_name(router, h)
     if not name:
@@ -395,11 +395,11 @@ def _fix_nick(router, h, p):
     want = rrc.clean_nick(name.strip())[:rrc.MAX_NICK_LEN]
     if not want or p["nick"] == want:
         return
-    # Its name with a number: the plain name only once it's free.
+    # Its name with a tag (or a number, from before): the plain name only once it's free.
     numbered = not p["nick"].startswith("mesh-") and _from_name(p["nick"], want)
     nick = _make_nick(name, h)
     if numbered and nick != want:
-        return                        # its name still taken: keeps its number
+        return                        # its name still taken: keeps its tag
     if nick and nick != p["nick"]:
         old = p["nick"]
         p["nick"] = nick
@@ -418,9 +418,10 @@ def _fix_nick(router, h, p):
 
 
 def _from_name(nick, want):
-    """Is this nick made from that name (itself, or it with a number)?"""
+    """Is this nick made from that name (itself, with a tag, or with a
+    number as before 1.0.0-beta.60)?"""
     base = want[:rrc.MAX_NICK_LEN - 2]
-    return nick == want or (nick.startswith(base) and nick[len(base):].isdigit())
+    return rrc.is_tagged_from(nick, want) or (nick.startswith(base) and nick[len(base):].isdigit())
 
 
 def _from_stump(dest_hash_hex, peer, text, router=None, title=""):
@@ -682,12 +683,9 @@ def _make_nick(display_name, dest_hash_hex):
     """Produce a valid, unique-enough nick from an LXMF display name."""
     raw = (display_name or "").strip() or ("mesh-" + dest_hash_hex[:4])
     nick = rrc.clean_nick(raw)[:rrc.MAX_NICK_LEN] or ("mesh-" + dest_hash_hex[:4])
-    base = nick
-    suffix = 1
-    while _nick_held(nick, dest_hash_hex):
-        nick = (base[: rrc.MAX_NICK_LEN - 2] + str(suffix))
-        suffix += 1
-    return nick
+    # Taken: with a tag from its identity ("LaBuche-k7q2", the same on
+    # every Stump), not a number (1.0.0-beta.60).
+    return rrc.free_nick(nick, dest_hash_hex, _nick_held)
 
 
 # ── Announces: DM reachability only ───────────────────────────────────
@@ -1394,12 +1392,17 @@ def _handle(dest_hash_hex, peer, text):
             return [i18n.t("nick_usage", lang)], None
         if new.lower() == nick.lower():
             return [i18n.t("nick_already", lang)], None
-        if rrc.nick_taken(new, dest_hash_hex):
-            return [i18n.t("nick_taken", lang, nick=new)], None
+        said = []
+        if _nick_held(new, dest_hash_hex):
+            want = new
+            new = rrc.free_nick(new, dest_hash_hex, _nick_held)
+            if new.lower() == nick.lower():
+                return [i18n.t("nick_already", lang)], None
+            said = [i18n.t("nick_tagged", lang, nick=want, tagged=new)]
         old = nick
         peer["nick"] = new
         rrc.system(room, rrc.ev_rename("~" + old, "~" + new))
-        return [], None
+        return said, None
 
     if text.lower() == "/rooms":
         return [rrc.rooms_line(r, len(rrc.names_in_room(r)), rrc.topic(r, lang)) + _tier_suffix(r)

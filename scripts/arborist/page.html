@@ -653,6 +653,23 @@ function showFound(r, out) {
   LOOKED = { stumps: r.stumps, offers: o, home: r.ip };
   out.appendChild(para("On “" + $("f-ssid").value.trim() + "”: the password works (the board got " + r.ip + ").", "ok"));
   if (!r.stumps.length) { out.appendChild(para("No Stump answered on it.")); return; }
+  // A Stump with the name typed above already there: the same board set up
+  // again keeps it (the others give it back once the old one goes quiet);
+  // another Stump takes its own, a tag added as a person would.
+  var mine = $("f-name").value.trim().toLowerCase(), same = r.stumps.filter(function (st) { return (st.name || "").toLowerCase() === mine; });
+  if (mine && same.length) {
+    var tag = "", A = "abcdefghjkmnpqrstuvwxyz23456789", rnd = new Uint8Array(4);
+    crypto.getRandomValues(rnd);
+    for (var i = 0; i < 4; i++) tag += A[rnd[i] % A.length];
+    if (!/\d/.test(tag)) tag = tag.slice(0, 2) + A[23 + (rnd[2] % 8)] + tag[3];
+    var alt = $("f-name").value.trim().slice(0, 15) + "-" + tag;
+    var w = para("A Stump called “" + same[0].name + "” is already on this Wi-Fi (at " + same[0].ip + "). If this board is that one set up again, keep the name: " +
+                 "the others give it back once the old one goes quiet. If it's another Stump, give it its own, like “" + alt + "”.", "warn");
+    var b = document.createElement("button"); b.type = "button"; b.className = "plain small"; b.textContent = "Call it " + alt;
+    b.onclick = function () { $("f-name").value = alt; b.disabled = true; };
+    w.appendChild(document.createTextNode(" ")); w.appendChild(b);
+    out.appendChild(w);
+  }
   var ul = document.createElement("ul");
   r.stumps.forEach(function (st) {
     var li = document.createElement("li");
@@ -1113,22 +1130,20 @@ async function toolsFiles() {
     if (n) { $("card-tools-size").textContent = kb(n); $("card-tools-time").textContent = usbTime(n); }
   } catch (e) {}
 })();
-// The SD card: the S3-CAM has a slot, a WROVER none (its packs and the
-// Tools page go with the Provisioner's computer Stump, or on a CAM).
-async function cardBoard(repl) {
-  var info = await R.boardInfo(repl);
-  if (/ESP32/i.test(info.machine || "") && !/ESP32-?S3/i.test(info.machine || ""))
-    throw new Error("This board is an ESP32-WROVER: it has no SD card slot, so there's no card to look at, packs to put on it or a Tools page. A CAM (the Freenove ESP32-S3-CAM) has one.");
-}
 async function cardRead() {
   steps("Looking at its card", ["Choose the board", "Connect", "Read the card", "Restart"]);
   step(0); await choosePort();
-  step(1); var repl = await readyRepl(); CURRENT = repl; await cardBoard(repl);
+  step(1); var repl = await readyRepl();
   step(2); var st = await R.cardStatus(repl);
   step(3); await R.restart(repl); await closePort();
   var dl = $("card-sum"); dl.innerHTML = ""; dl.classList.remove("hidden");
   function row(k, v, cls) { var dt = document.createElement("dt"), dd = document.createElement("dd"); dt.textContent = k; dd.textContent = v; if (cls) dd.className = cls; dl.appendChild(dt); dl.appendChild(dd); }
-  if (!st.present) { row("Card", "none found (or it can't be read)", "err"); done(""); return; }
+  if (!st.present) {
+    // The Freenove S3-CAM and its ESP32-WROVER board have a slot; some
+    // other boards none (1.0.0-beta.60).
+    row("Card", "none found: is one in the slot? (Some boards have no slot.) Or it can't be read: FAT32, 32 GB or less.", "err");
+    done(""); return;
+  }
   row("Card", kb(st.total) + ", " + kb(st.free) + " free");
   var names = { shared: "Shared files", tools: "Tools page", home: "Home page", lxmf_pn: "Messages kept for others", plugins: "Plugins' data", fw: "Firmware images", about: "About page", "": "Other files" };
   Object.keys(st.dirs).sort().forEach(function (d) {
@@ -1157,7 +1172,7 @@ async function cardPack() {
   if (!PACK) return;
   steps("Installing " + PACK.name + " " + PACK.version, ["Choose the board", "Connect", "Copy it", "Restart"]);
   step(0); await choosePort();
-  step(1); var repl = await readyRepl(); CURRENT = repl; await cardBoard(repl);
+  step(1); var repl = await readyRepl();
   step(2); await R.installPack(repl, PACK, progressTo("Copying"));
   step(3); await R.restart(repl); await closePort();
   done("");
@@ -1170,7 +1185,7 @@ async function cardTools() {
   if (!confirm("Copy the Tools page to its card? " + kb(n) + ", " + usbTime(n) + " over USB. Keep the cable in.")) return false;
   steps("Filling the Tools page", ["Choose the board", "Connect", "Copy it", "Restart"]);
   step(0); await choosePort();
-  step(1); var repl = await readyRepl(); CURRENT = repl; await cardBoard(repl);
+  step(1); var repl = await readyRepl();
   step(2); var r = await R.fillTools(repl, files, progressTo("Copying"));
   step(3); await R.restart(repl); await closePort();
   done("");
@@ -1181,7 +1196,7 @@ async function cardWipe() {
   if ($("card-confirm").value.trim() !== "WIPE") { $("card-err").textContent = "Type WIPE in the box to confirm."; return false; }
   steps(scope === "all" ? "Wiping the whole card" : "Wiping the shared files", ["Choose the board", "Connect", "Wipe", "Restart"]);
   step(0); await choosePort();
-  step(1); var repl = await readyRepl(); CURRENT = repl; await cardBoard(repl);
+  step(1); var repl = await readyRepl();
   step(2); var n = await R.wipeCard(repl, scope);
   step(3); await R.restart(repl); await closePort();
   $("card-confirm").value = "";
