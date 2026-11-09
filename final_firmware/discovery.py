@@ -264,6 +264,7 @@ def caps():
     except Exception:
         out["rad"] = False
     out["lb"] = 1                         # takes #lora-mesh broadcasts (rrc_mesh, 1.0.0-beta.58)
+    out["rs"] = 1                         # rooms with a scope (rooms.py, 1.0.0-beta.62)
     try:
         import fserv
         if fserv.sd_ok:

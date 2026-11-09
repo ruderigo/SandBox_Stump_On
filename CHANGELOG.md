@@ -1,6 +1,8 @@
 # Changelog
 
 ## 1.0.0-beta.62
+- **Rooms with a scope**: any room can now go as far as `#wifi-mesh` or `#lora-mesh` go. `/create <password> #room -local|-wifi|-lora` makes one, `/setchan <password> #room -scope` changes it (with this Stump's /admin password). The chain follows: a scope set on one Stump is set on all of them, and the room's lines (people's and plugin bots', not BarKeep's) go to every Stump of the chain. `-lora` shows a red airtime warning and needs `confirm`; a bot posting in a LoRa room gets a warning from BarKeep. A Stump outside the chain only *offers* its LoRa rooms: they wait as requests (BarKeep says so in `#main`), and `/chanreq <password>` lists them, `-a 1 2` accepts, `-r 3` refuses. Saved across restarts. Stumps say `rs` in their beacon; older ones aren't sent any of it. Before, every room but the three built-in ones stayed on its own Stump: two Bavards on a chain each showed only their own half of the dialogue, and the chained Stumps saw neither.
+- Tests: `pc_room_scopes` (the commands and password, the warning and confirm, the chain both ways, the newest change winning, LoRa offers, requests accepted and refused, bots' lines, a restart).
 - **Bots tell apart**: a plugin bot's name carries its Stump's tag, `Bavard-k7q2`, the same on every Stump (from the Stump's LXMF address), so two Stumps' Bavards (or Taverniers) no longer look like one. BarKeep, the Stump's own voice, isn't tagged.
 
 ## 1.0.0-beta.61

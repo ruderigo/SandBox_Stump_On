@@ -1285,6 +1285,12 @@ def handle_input(client_id, room, text):
     # where every line costs LoRa airtime. Commands that only answer the
     # sender (/help, /names...) aren't counted.
     guard.caller(client_id)
+    if text[:1] == "/":
+        import rooms
+        if rooms.is_command(text):
+            # /create, /setchan, /chanreq: the admin password inside, so
+            # before plugins (they never see it), never posted or logged.
+            return rooms.command(client_id, text, lang)
     if _speaks(text) and not guard.allow("chat", client_id, CHAT_EVERY, CHAT_BURST):
         # Said in the log, so a "too fast" nobody expected can be traced
         # (who, which line).
@@ -1384,8 +1390,13 @@ def _handle_core(client_id, room, text, user, lang):
         return board_command(client_id, cmd, arg, lang), None
 
     if cmd == "rooms":
-        return [rooms_line(r, len(names_in_room(r)), topic(r, lang))
-                + ("  [LoRa]" if r == MESH_ROOM and LORA_LOCKED[0] and not no_lora() else "") for r in room_names()], None
+        import rooms
+        def where(r):
+            if r == MESH_ROOM:
+                return "  [LoRa]" if LORA_LOCKED[0] and not no_lora() else ""
+            sc = rooms.scope(r) if r not in (DEFAULT_ROOM, CHAIN_ROOM) else "local"
+            return {"wifi": "  [Wi-Fi]", "lora": "  [LoRa ⚠]"}.get(sc, "")
+        return [rooms_line(r, len(names_in_room(r)), topic(r, lang)) + where(r) for r in room_names()], None
 
     if cmd == "lora":
         # /lora, /lora invite <nick>, /lora uninvite <nick>: who may use the

@@ -481,6 +481,57 @@ stays on its Stump.
 
 ---
 
+### Rooms with a scope (1.0.0-beta.62)
+
+Every room has a **scope**, which says how far it goes:
+
+| Scope | Like | Goes to |
+|---|---|---|
+| `local` | `#main` | this Stump only (any new room, unless set) |
+| `wifi` | `#wifi-mesh` | every Stump of the chain, over its Wi-Fi, never on the air |
+| `lora` | `#lora-mesh` | the chain, and over LoRa the Stumps outside it that agree |
+
+The three built-in rooms keep theirs. An admin sets the others in the
+chat, with **this Stump's /admin password** (each Stump its own):
+
+```
+/create <password> #bavard -wifi           a new room, shared with the chain
+/setchan <password> #bavard -local         back to this Stump only
+/setchan <password>                        the rooms and their scopes
+/create <password> #club -lora             a warning about airtime, then:
+/create <password> #club -lora confirm     done
+```
+
+- **The chain follows.** A scope set on one Stump is set on every Stump of
+  the chain (they trust each other through the chain secret), including a
+  change back to `local`. A Stump that was off picks it up when it's back
+  (the newest change wins).
+- **`-lora` takes airtime.** Every line goes out on the radio, shared with
+  `#lora-mesh` and everyone in range: the command shows a red warning and
+  is done only when typed again with `confirm`. A plugin bot posting in a
+  LoRa room gets a warning from BarKeep in that room, once.
+- **Outside the chain, a LoRa room is offered, never imposed.** A Stump
+  heard over LoRa that isn't in this chain offers its LoRa rooms; here they
+  wait as requests, and BarKeep says so in `#main`:
+
+  ```
+  /chanreq <password>             the requests, numbered
+  1. #club  Grange  (12 min)
+  2. #rando  Grange  (3 min)
+  /chanreq <password> -a 1        accept #club: shared over LoRa with Grange
+  /chanreq <password> -r 2        refuse #rando (not asked again for a day)
+  ```
+
+  Two Stumps that both set the same room to `-lora` share it without asking.
+- **Bots** in a shared room are seen on every Stump that shares it, with
+  their Stump's tag (`Bavard-k7q2@LaBuche`); BarKeep's own answers stay local.
+- **The password stays private.** These commands are answered only to whoever
+  typed them: not posted, not shown to plugins, not logged. Wrong passwords
+  count toward the same lockout as /admin.
+- **Older Stumps** (before 1.0.0-beta.62) don't take part: they see these
+  rooms as local, and nothing of them is sent to them.
+- `/rooms` marks `[Wi-Fi]` and `[LoRa ⚠]` rooms.
+
 ## Part 4 — BarKeep, the librarian (`/chat` — separate from RRC)
 
 BarKeep answers questions about what's on the node: files on the shelf,
