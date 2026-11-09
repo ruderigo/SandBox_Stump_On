@@ -1,6 +1,6 @@
 {
   "name": "tavern",
-  "version": "1.1",
+  "version": "1.2",
   "author": "Project Stump",
   "license": "MIT",
   "stump_api": 1,
@@ -37,6 +37,6 @@
   },
   "hashes": {},
   "plugin_hashes": {
-    "tavern": "64094169cdc69c00"
+    "tavern": "9a9acd0468ac8dee"
   }
 }

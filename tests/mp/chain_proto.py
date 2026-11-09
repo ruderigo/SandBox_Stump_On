@@ -133,7 +133,8 @@ check("a bot's line is marked", b and b.get("bot") is True and not p_.get("bot")
 lines = rrc_mesh._stump_lines([b, p_])
 check("... and not sent to the other Stumps; a person's is", lines == ["<ann> a person speaks"], lines)
 import plugins
-plugins._post_use.clear()
+import barkeep
+barkeep.plugin_posts_reset()
 m = plugins._post("tavern", "Tavernier", "main", "a plugin speaks")
 last = rrc.since("main", 0)[-1]
 check("a plugin's line is a bot's too", m and last["nick"] == "Tavernier" and last.get("bot") is True, last)

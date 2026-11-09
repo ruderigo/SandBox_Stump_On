@@ -48,7 +48,9 @@ check('vote status', 'yes 0 · 2) no 1 · 3) maybe 1' in say(B, '!vote')[0], say
 check('vote close not yours', 'only alice' in say(B, '!vote close')[0])
 import tavern.install as T
 T._state['polls']['main']['ends'] = 0
+import barkeep; barkeep.plugin_posts_reset()     # (the Tavern's posts so far: a new minute)
 T._tick(); check('timer closes poll (node language)', last()[0][1].startswith('🗳 Résultat : Pizza tonight?') and 'main' not in T._state['polls'], last())
+check('... through BarKeep\'s posting budget (counted for the Tavern)', len(barkeep._plugin_sent.get('tavern', [])) == 1, barkeep._plugin_sent)
 check('saved file', os.listdir(SD + '/plugins/tavern') == ['tavern.json'])
 # flood
 T._flood.clear(); plugins._cmd_use.clear()

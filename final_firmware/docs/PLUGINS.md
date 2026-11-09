@@ -43,6 +43,7 @@ only install plugins you trust.
 | `stump.on_result(fn, priority=50)` | `fn(ctx, replies, new_room)` once a line has been handled (not when a gate stopped it); return `None`, or a new `(replies, new_room)` |
 | `stump.page("votes", fn, nav=None, sub="", raw=False)` | A page at `/p/<plugin>/votes`; `nav="Votes"` also adds a home-page card (`nav` and `sub` can be a string, `{lang: string}` or `fn(lang)`) |
 | `stump.every(60, fn)` | `fn()` every 60 seconds (1 s at the shortest) |
+| `stump.post(text, room="main", wait=True)` | **API 4.** A line in a room, as `stump.nick`, from anywhere (a timer, a poll closing, a bot): BarKeep paces it with `ctx.post()` (below, *Airtime*). `True` if posted or waiting its turn, `False` if refused. `wait=False`: refused at once when over the budget, never queued (for a plugin that counts its refusals) |
 | `stump.provide("name", obj)` / `stump.service("name")` | Share an object with other plugins |
 | `stump.mesh_out(fn, priority=50)` | **API 2.** `fn(dest_hex, text, title)` for each LXMF message the Stump sends to a person's app (never to another Stump); return `None`, or a new `(text, title)` |
 | `stump.on_announce("nomadnetwork", ("node",), fn)` | **API 3.** `fn(dest_hex, app_data)` for each announce of that kind heard |
@@ -84,7 +85,7 @@ Listeners only see plain room lines: never DMs, never voice notes.
 | `ctx.is_mesh` | A LoRa user: keep it short |
 | `ctx.via_propagation` | The line came from a propagation node, not heard live |
 | `ctx.reply(line)` | A line for the sender only |
-| `ctx.post(text, room=None)` | A line in the room, as `stump.nick` |
+| `ctx.post(text, room=None)` | A line in the room (this line's unless given), as `stump.nick`; paced by BarKeep like `stump.post()` |
 | `ctx.t(key, **kw)` | Your string in the sender's language |
 
 A command can also just `return` its reply lines (a string or a list).
@@ -157,8 +158,12 @@ Config keys start with your plugin's name in capitals: `TAVERN_SIDES`,
   holds the event loop. Any callback over 100 ms is logged.
 - **Airtime.** Over the mesh a command answers in one line (ask for up
   to three with `mesh_lines=`), each cut at 200 characters. A plugin
-  posts at most 6 room lines a minute — every room line also goes over
-  LoRa to the mesh users in that room.
+  posts at most 6 room lines in any rolling minute — every room line
+  also goes over LoRa to the mesh users in that room. BarKeep keeps the
+  count for every plugin (`ctx.post()` and `stump.post()` alike): a line
+  over it waits in a short queue (3 lines) and goes out as soon as the
+  minute allows, so don't retry; with the queue full the line is refused
+  (`False`). Post through these two only, never `rrc.post()` directly.
 - **Flood control.** One plugin command per person per 1.5 s, 15 a
   minute; past that the reply is `⧗ — …`.
 - **Storage** goes in `stump.storage()`, nowhere else. It's `None` on a
@@ -222,6 +227,9 @@ file; it also warns about calls that would hold the node
   `door.on_link()` for incoming links).
 - **3** (1.0.0-beta.55): `stump.on_announce()`, `stump.connect()`,
   `stump.admin_panel()`.
+- **4** (1.0.0-beta.61): `stump.post()`, and posting paced by BarKeep
+  (a rolling minute with a short queue; it was a fixed minute, the rest
+  dropped).
 
-A plugin that uses them says `STUMP_API = 2` or `3` (and `"stump_api"`
+A plugin that uses them says `STUMP_API = 2`, `3` or `4` (and `"stump_api"`
 in its pack); older firmware refuses it instead of failing at start.

@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.0-beta.61
+- **BarKeep posts for the plugins** (plugin API 4): `stump.post(text, room)` lets a plugin post from a timer, a poll closing or a bot, through the same budget as `ctx.post()`; before, a plugin had only `rrc.post()` (no budget) or the private `plugins._post()`. BarKeep keeps the count for every plugin: 6 lines in any rolling minute (it was a fixed minute), a line over that waits in a short queue (3) and goes out as soon as the minute allows, instead of being dropped; with the queue full it's refused and logged once. The Tavern pack's poll results go through it now (1.2). (#54)
+- **The pack check doesn't flag `await asyncio.sleep_ms()`**: only `time.sleep_ms()` and a bare `sleep_ms()` stop the node. (#53)
+- Tests: `plugin_api` (the rolling minute, the queue in order, refused when full, `stump.post()` as the plugin's nick and on the same budget), `provisioner_test` (the lint).
+
 ## 1.0.0-beta.60
 - **Arborist looks around with the board, and says how the setup went** (the browser can't see Wi-Fi networks or the local network; the board can, over USB):
   - **Look around with the board**: it lists the Wi-Fi networks it sees, for the home Wi-Fi (2.4 GHz only: a network it can't see is said). With one chosen it joins it, so a wrong password is said there and then, and asks "who's a Stump here?" (discovery's broadcast): the Stumps found are listed, the first Stump of a chain offered ("Join LaBuche's chain": its address filled in), with a free chain number and a free Heltec address (from the numbers and Heltec addresses the Stumps report). A blank board gets the Stump image first, to look with (Make then doesn't write it again).

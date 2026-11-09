@@ -46,6 +46,86 @@ try:
 except ImportError:
     BOT_NAME = "BarKeep"
 
+
+# -- BarKeep posts for the plugins (plugin API 4, 1.0.0-beta.61) --------------
+# Every plugin line to a room goes through here: ctx.post() while a chat
+# line is handled, stump.post() from anywhere (a timer, a poll closing, a
+# bot). Each plugin gets PLUGIN_POSTS_PER_MIN lines in any rolling minute;
+# a line over that waits in a short queue and goes out as soon as the
+# minute allows, so a plugin never has to retry. With the queue full, the
+# new line is refused (False) and logged once. wait=False: refused at once
+# when over the budget, not queued (a plugin counting its refusals, as the
+# Bavard test bench does).
+import time
+PLUGIN_POSTS_PER_MIN = 6
+PLUGIN_POST_QUEUE = 3
+PLUGIN_POST_WINDOW_MS = 60000
+_plugin_sent = {}     # plugin -> [tick_ms of each line in the last minute]
+_plugin_queue = {}    # plugin -> [(nick, room, text)] waiting for the minute
+_plugin_full = {}     # plugin -> True once "queue full" is logged (until it drains)
+
+
+def _plugin_room_free(plugin, now):
+    sent = [t for t in _plugin_sent.get(plugin, ()) if time.ticks_diff(now, t) < PLUGIN_POST_WINDOW_MS]
+    _plugin_sent[plugin] = sent
+    return len(sent) < PLUGIN_POSTS_PER_MIN
+
+
+def _plugin_say(plugin, nick, room, text, now):
+    _plugin_sent.setdefault(plugin, []).append(now)
+    return rrc.post(room, nick, text[:rrc.MAX_MESSAGE_LEN], bot=True) is not None
+
+
+def plugin_post(plugin, nick, room, text, wait=True):
+    """A plugin's line in a room, as nick: True if it was posted or is
+    waiting its turn, False if refused (nothing to say, the plugin's
+    queue full, or over the budget with wait=False)."""
+    text = str(text) if text else ""
+    if not text:
+        return False
+    room = room or rrc.DEFAULT_ROOM
+    now = plugins._now_ms()
+    q = _plugin_queue.get(plugin)
+    if not q and _plugin_room_free(plugin, now):
+        return _plugin_say(plugin, nick, room, text, now)
+    if not wait:
+        return False
+    q = _plugin_queue.setdefault(plugin, [])
+    if len(q) >= PLUGIN_POST_QUEUE:
+        if not _plugin_full.get(plugin):
+            _plugin_full[plugin] = True
+            plugins._log(plugin, "over its posting budget (%d a minute, %d waiting); refusing lines"
+                         % (PLUGIN_POSTS_PER_MIN, PLUGIN_POST_QUEUE))
+        return False
+    q.append((nick, room, text))
+    return True
+
+
+def plugin_posts_tick():
+    """Sends the lines waiting for their minute (plugins.scheduler_loop,
+    once a second)."""
+    if not _plugin_queue:
+        return
+    now = plugins._now_ms()
+    for plugin in list(_plugin_queue):
+        q = _plugin_queue[plugin]
+        while q and _plugin_room_free(plugin, now):
+            nick, room, text = q.pop(0)
+            try:
+                _plugin_say(plugin, nick, room, text, now)
+            except Exception as e:
+                plugins._log(plugin, "a waiting line failed: %r" % e)
+        if not q:
+            del _plugin_queue[plugin]
+            _plugin_full.pop(plugin, None)
+
+
+def plugin_posts_reset():
+    """Forgets every plugin's minute and queue (tests)."""
+    _plugin_sent.clear()
+    _plugin_queue.clear()
+    _plugin_full.clear()
+
 BARKEEP_ART = (
     "    )  (\n"
     "   (    )\n"
