@@ -1,12 +1,12 @@
-misanthrope	Le Misanthrope	641
-tartuffe	Le Tartuffe	773
-avare	L'Avare	1073
-ecole-des-femmes	L'Ecole des Femmes	707
-femmes-savantes	Les Femmes Savantes	804
-malade-imaginaire	Le Malade Imaginaire	1156
-bourgeois-gentilhomme	Le Bourgeois Gentilhomme	1162
-dom-juan	Don Juan ou Le Festin de Pierre	748
-fourberies-de-scapin	Les Fourberies de Scapin	848
-precieuses-ridicules	Les Précieuses Ridicules	335
-medecin-malgre-lui	Le Médecin Malgré Lui	625
-george-dandin	George Dandin	623
+misanthrope	Le Misanthrope	616
+tartuffe	Le Tartuffe	741
+avare	L'Avare	1064
+ecole-des-femmes	L'École des femmes	645
+precieuses-ridicules	Les Précieuses ridicules	334
+dom-juan	Dom Juan ou le Festin de pierre	782
+george-dandin	George Dandin	606
+ecole-des-maris	L'École des maris	447
+amphitryon	Amphitryon	514
+monsieur-de-pourceaugnac	Monsieur de Pourceaugnac	717
+amour-medecin	L'Amour médecin	301
+sganarelle	Sganarelle ou le Cocu imaginaire	220

@@ -1,6 +1,9 @@
 # Bavard pack
 
 A bot that never stops talking, to test a Stump's guardrails for days.
+**A test tool**: it starts paused, and talks only once `BAVARD_ON = "on"`
+is set (the wizard asks) or someone presses *Resume* in `/admin` →
+Bavard (until the next restart).
 
 **Alone**, Bavard posts a line of numbers in `#bavard`, at a pace that
 swings from near-instant to a minute and a half of silence:
@@ -45,14 +48,19 @@ characters; the full play, both sides, is in the transcripts.
 
 If the partner goes quiet for 5 minutes, the bot goes back to numbers;
 when they hear each other again, the play picks up where it stopped.
-One partner at a time (`BAVARD_PARTNER` pins one).
+One partner at a time (`BAVARD_PARTNER` pins one). A Bavard that calls
+proves its Stump's identity on the link, and the one called checks that
+the destination it claims is that identity's, and the pinned partner's
+when there is one: anyone else is refused.
 
 ## What it measures
 
-Bavard never works around a guardrail: every line goes through the
-plugin posting budget (`plugins._post`, 6 room lines a minute). A line
-the budget refuses is counted, logged as `DROP`, and in a duet tried
-again two seconds later, so no réplique is lost. Then:
+Bavard never works around a guardrail: every line goes through BarKeep's
+plugin posting budget (`stump.post()`, 6 room lines in any rolling
+minute), with `wait=False` so a line over the budget is refused there and
+then instead of waiting in BarKeep's queue. A refused line is counted,
+logged as `DROP`, and in a duet tried again two seconds later, so no
+réplique is lost. Then:
 
 - **`/p/bavard/`** (a card on the home page) and **`/p/bavard/stats.json`**:
   lines tried, posted and refused by the budget, the longest silence,
@@ -73,11 +81,9 @@ budget).
 
 For whoever reviews or installs it:
 
-- **Posts** only in its own room, and only through the plugin posting
-  budget. The API has no way for a timer to post (`ctx.post()` needs a
-  chat line), so Bavard calls `plugins._post()`, the function behind
-  `ctx.post()`, with its own name: the same budget, the same log line
-  when it runs over. It never calls `rrc.post()` itself.
+- **Posts** only in its own room, and only with `stump.post()` (plugin
+  API 4), which BarKeep paces like every plugin's lines. It never calls
+  `rrc.post()` itself.
 - **Network**: one Reticulum destination, `bavard.bot`, announced every
   5 minutes; at most one link, to another Bavard, carrying JSON packets
   under 200 bytes. No sockets, no HTTP. The turn-passing packets aren't
@@ -113,10 +119,11 @@ pace played about 21,600 répliques with no errors and flat memory.
 
 ## Settings
 
-All optional, in `config.py` (the wizard asks them under "advanced"):
+All optional, in `config.py` (the wizard asks `BAVARD_ON`, the rest under "advanced"):
 
 | | Default | |
 |---|---|---|
+| `BAVARD_ON` | `off` | `on`: talks from the start. Off, it waits for *Resume* in `/admin` |
 | `BAVARD_ROOM` | `bavard` | The room it talks in (made if missing). `lora-mesh` puts every line on the radio: careful |
 | `BAVARD_PACE` | `variable` | `variable`, `quick`, `burst`, `polite` |
 | `BAVARD_ANNOUNCE` | `300` | Seconds between announces |
@@ -127,35 +134,37 @@ All optional, in `config.py` (the wizard asks them under "advanced"):
 
 ## The plays
 
-Molière's plays are in the public domain. The text comes from the
-Théâtre Classique editions (theatre-classique.fr) as encoded by
-[FreDraCor](https://github.com/dracor-org/fredracor), under **CC BY-NC-SA
-4.0**: the edition, not Molière, carries that licence, so the corpus in
-`tools/` keeps it (credit kept, non-commercial, same licence when
-shared). The code is MIT. For commercial use, rebuild the
-corpus from a public-domain transcription (Wikisource, Gutenberg) or
-check with Théâtre Classique.
+Molière's plays are in the public domain, and so is the text used here:
+Project Gutenberg's French *Œuvres complètes* (Philarète Chasles's
+edition, tomes [1](https://www.gutenberg.org/ebooks/40086),
+[2](https://www.gutenberg.org/ebooks/43535),
+[3](https://www.gutenberg.org/ebooks/50173) and
+[4](https://www.gutenberg.org/ebooks/57270)). Free for any use; the code
+is MIT.
 
-`tools/` holds Le Misanthrope, Le Tartuffe, L'Avare, L'École des
-femmes, Les Femmes savantes, Le Malade imaginaire, Le Bourgeois
-gentilhomme, Dom Juan, Les Fourberies de Scapin, Les Précieuses
-ridicules, Le Médecin malgré lui and George Dandin: about 1.1 MB, a
-quarter of an hour over USB. Stage directions are left out; a long
-speech is cut into several lines of the same character; verse breaks
-show as ` / `.
+The twelve: Le Misanthrope, Le Tartuffe, L'Avare, L'École des femmes,
+Les Précieuses ridicules, Dom Juan, George Dandin, L'École des maris,
+Amphitryon, Monsieur de Pourceaugnac, L'Amour médecin, Sganarelle.
+Stage directions, footnotes and the editor's notices are left out; a
+long speech is cut into several lines of the same character; verse
+breaks show as ` / `.
 
-It goes on the SD card, in `tools/bavard/` (so it is also on the Tools
-page). Without it, or when the two bots' corpora differ, they play the
-first scene of Le Misanthrope, built into the plugin, in a loop.
+They go on the SD card, in `tools/bavard/` (so they're also on the Tools
+page). Without them, or when the two bots' corpora differ, the bots play
+the first scene of Le Misanthrope, built into the plugin, in a loop.
 
-To rebuild it, or to take every play:
+`build_corpus.py` makes them (it downloads the four tomes once, into
+`gutenberg/`):
 
 ```
-git clone --depth 1 https://github.com/dracor-org/fredracor
-python3 build_corpus.py fredracor/tei          # the twelve
-python3 build_corpus.py fredracor/tei --all    # all 34 (about 2.5 MB: by card reader)
+python3 build_corpus.py --list   # the plays it finds in the tomes
+python3 build_corpus.py          # the twelve, into tools/
+python3 build_corpus.py --all    # every play in the four tomes (22)
 python3 ../../provisioner.py --hash-pack .
 ```
+
+`tests/build_corpus_test.py` checks it on a tome laid out like
+Gutenberg's (prose and verse, notes, stage directions).
 
 ## Install
 
@@ -165,6 +174,6 @@ Like the other packs (`PACKS.md`):
 python3 provisioner.py --install-pack PORT packs/bavard-pack
 ```
 
-then restart the node. It needs firmware 1.0.0-beta.55 or later (plugin
-API 3), an SD card for the plays and the transcript, and a second Stump
+then restart the node. It needs firmware 1.0.0-beta.61 or later (plugin
+API 4), an SD card for the plays and the transcript, and a second Stump
 with Bavard for the duet.

@@ -1,0 +1,14 @@
+Molière (1622-1673). The plays are in the public domain, and so is
+this text: free to use, share and change, for any purpose.
+
+Made by build_corpus.py from Project Gutenberg's French edition,
+"Molière - Œuvres complètes", tomes 1 to 4, edited by Philarète Chasles
+(1798-1873):
+  https://www.gutenberg.org/ebooks/40086
+  https://www.gutenberg.org/ebooks/43535
+  https://www.gutenberg.org/ebooks/50173
+  https://www.gutenberg.org/ebooks/57270
+with thanks to Project Gutenberg and its volunteers. The text is reduced
+for chat (stage directions, notes and the editor's notices removed, long
+speeches cut), and Project Gutenberg's licence and name aren't carried:
+only the public-domain text.

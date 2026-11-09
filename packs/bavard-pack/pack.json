@@ -1,34 +1,34 @@
 {
   "name": "bavard",
-  "version": "1.0",
+  "version": "1.1",
   "author": "Claude (independent pack author, not the Stump team)",
-  "license": "MIT (code); CC BY-NC-SA 4.0 (the Molière corpus in tools/)",
-  "stump_api": 3,
-  "description": "A bot that never stops talking, to test a Stump's guardrails for days. Alone, it posts unique lines of numbers with the date and time; when it finds another Bavard on another Stump, the two play Molière in the original French, turn by turn.",
-  "credits": "Molière's plays (public domain), from the Théâtre Classique editions (theatre-classique.fr) as encoded by FreDraCor (github.com/dracor-org/fredracor), CC BY-NC-SA 4.0.",
+  "license": "MIT (code); the plays are in the public domain",
+  "stump_api": 4,
+  "description": "A test tool: a bot that never stops talking, to test a Stump's guardrails for days (it starts paused). Alone, it posts unique lines of numbers with the date and time; when it finds another Bavard on another Stump, the two play Molière in the original French, turn by turn.",
+  "credits": "Molière's plays (public domain), from Project Gutenberg's French Œuvres complètes (Philarète Chasles's edition, tomes 1-4).",
   "ram_kb": 30,
   "plugins": [
     "bavard"
   ],
   "hashes": {
-    "tools/LICENCE-corpus.txt": "d518770133627261",
-    "tools/README.fr.md": "1e0f61206f70650c",
-    "tools/README.md": "d51c0bb2b4e80575",
-    "tools/avare.txt": "4bd3cd642268182f",
-    "tools/bourgeois-gentilhomme.txt": "b21d35be0ba87157",
-    "tools/dom-juan.txt": "bf8751d5898f7e2f",
-    "tools/ecole-des-femmes.txt": "5a869a988767608e",
-    "tools/femmes-savantes.txt": "e3f30e3bf24df789",
-    "tools/fourberies-de-scapin.txt": "80b60269ef8b9289",
-    "tools/george-dandin.txt": "925aa0e4d6c52d98",
-    "tools/malade-imaginaire.txt": "fbe36076db1ed829",
-    "tools/medecin-malgre-lui.txt": "03f35f56f7bbcc42",
-    "tools/misanthrope.txt": "46b9c65f1893849b",
-    "tools/plays.txt": "fd34689766454db2",
-    "tools/precieuses-ridicules.txt": "65d8ce228beccade",
-    "tools/tartuffe.txt": "d19dcde6e845e244"
+    "tools/README.fr.md": "8c969c248c48ad35",
+    "tools/README.md": "a5ca6cc948a6338a",
+    "tools/SOURCES.txt": "860cd4bcfff20aca",
+    "tools/amour-medecin.txt": "a576dfe106d18cf3",
+    "tools/amphitryon.txt": "1818b88588053380",
+    "tools/avare.txt": "cdd65f2badf8cd05",
+    "tools/dom-juan.txt": "60a8bf8e3a9cb66b",
+    "tools/ecole-des-femmes.txt": "b56c207cc08f7e0d",
+    "tools/ecole-des-maris.txt": "03608e99d8a65cae",
+    "tools/george-dandin.txt": "f15a1d758e19795c",
+    "tools/misanthrope.txt": "ca3f535576072e74",
+    "tools/monsieur-de-pourceaugnac.txt": "0035c75aad0f85b8",
+    "tools/plays.txt": "f5a2cdd8b6fbaa27",
+    "tools/precieuses-ridicules.txt": "a59a29b1ad1b2463",
+    "tools/sganarelle.txt": "0afa13a6fdcbf26b",
+    "tools/tartuffe.txt": "7f01f1b9d7db0872"
   },
   "plugin_hashes": {
-    "bavard": "c140e5e4180b7545"
+    "bavard": "7130afe0afb67033"
   }
 }
