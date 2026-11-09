@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.0.0-beta.62
+- **Bots tell apart**: a plugin bot's name carries its Stump's tag, `Bavard-k7q2`, the same on every Stump (from the Stump's LXMF address), so two Stumps' Bavards (or Taverniers) no longer look like one. BarKeep, the Stump's own voice, isn't tagged.
+
 ## 1.0.0-beta.61
 - **BarKeep posts for the plugins** (plugin API 4): `stump.post(text, room)` lets a plugin post from a timer, a poll closing or a bot, through the same budget as `ctx.post()`; before, a plugin had only `rrc.post()` (no budget) or the private `plugins._post()`. BarKeep keeps the count for every plugin: 6 lines in any rolling minute (it was a fixed minute), a line over that waits in a short queue (3) and goes out as soon as the minute allows, instead of being dropped; with the queue full it's refused and logged once. The Tavern pack's poll results go through it now (1.2). (#54)
 - **The pack check doesn't flag `await asyncio.sleep_ms()`**: only `time.sleep_ms()` and a bare `sleep_ms()` stop the node. (#53)

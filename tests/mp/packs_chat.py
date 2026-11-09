@@ -22,7 +22,7 @@ def say(cid, t):
     import tavern.install as T; T._flood.clear()
     r, nr = rrc.handle_input(cid, 'main', t); return r
 def last(n=1): return [(m['nick'], m['body']) for m in rrc.since('main', 0)][-n:]
-r = say(A, '!roll 3d6'); check('roll posts', last()[0][0] == 'Tavernier' and 'alice rolls 3d6' in last()[0][1], last())
+r = say(A, '!roll 3d6'); check('roll posts', last()[0][0] == rrc.bot_nick('Tavernier') and 'alice rolls 3d6' in last()[0][1], last())
 check('roll bad', say(A, '!roll 99d6')[0].startswith('usage'))
 say(A, '!roll 20'); check('roll d20 shorthand', 'rolls 1d20' in last()[0][1], last())
 say(A, '!8ball will it rain?'); check('8ball', last()[0][1].startswith('🎱 alice'), last())
@@ -60,7 +60,7 @@ check('flood guard', rs[:6] == [[]] * 6 and rs[6] and rs[6][0].startswith('⧗')
 CID = 'bagaibqabciqkq6rth6jhr2vkh7c2ip7p6bsmdxmslbia47rjbmwpcz6wwu6veya'
 T._flood.clear()
 say(B, 'grab this: rnfs:' + CID + ' great read')
-check('spotter hint', last()[0][0] == 'Tavernier' or 'rnfs get ' + CID in last()[0][1], last())
+check('spotter hint', last()[0][0] == rrc.bot_nick('Tavernier') or 'rnfs get ' + CID in last()[0][1], last())
 import rnfs.install as R
 check('spotted', R._state['spotted'][0][0] == CID, R._state['spotted'])
 say(B, 'and bafkreigqte4wbglswc74766w445b67scla7kd2wvrqtp6t7a2ofw32znny too')

@@ -41,9 +41,9 @@ def lastlines(n=3):
     return [(m['nick'], m['body']) for m in rrc.since(room, 0)][-n:]
 r, _ = say(A, '/roll 2d6')
 check('/roll reply', r == ['(only you see this)'], r)
-check('/roll posted as plugin nick', lastlines(1) == [('Dé', 'alice rolls 2d6: 4')], lastlines())
+check('/roll posted as plugin nick', lastlines(1) == [(rrc.bot_nick('Dé'), 'alice rolls 2d6: 4')], lastlines())
 r, _ = say(A, '!roll 3d6')
-check('!roll line posted, then bot', lastlines(2) == [('alice', '!roll 3d6'), ('Dé', 'alice rolls 3d6: 4')], lastlines())
+check('!roll line posted, then bot', lastlines(2) == [('alice', '!roll 3d6'), (rrc.bot_nick('Dé'), 'alice rolls 3d6: 4')], lastlines())
 check('!roll reply', r == ['(only you see this)'], r)
 r, _ = say(A, '!nosuch')
 check('unknown !word is just text', r == [] and lastlines(1) == [('alice', '!nosuch')], (r, lastlines()))
@@ -90,7 +90,7 @@ api_ = plugins.Api('crier'); api_.nick = 'Crieur'
 barkeep.plugin_posts_reset()
 r_ = [api_.post('hear %d' % i, room_) for i in range(6)]
 last_ = rrc.since(room_, 0)[-1]
-check('stump.post(): posts as the plugin nick, a bot line', all(r_) and last_['nick'] == 'Crieur' and last_.get('bot') is True
+check('stump.post(): posts as the plugin nick, a bot line', all(r_) and last_['nick'] == rrc.bot_nick('Crieur') and last_.get('bot') is True
       and last_['body'] == 'hear 5', last_)
 check('... and shares the budget: the 7th waits', api_.post('hear 6', room_) is True and len(barkeep._plugin_queue['crier']) == 1)
 check('... no room given: main', plugins.Api('x').post('hi') and rrc.since('main', 0)[-1]['body'] == 'hi')
@@ -99,6 +99,11 @@ r_ = [api_.post('now %d' % i, room_, wait=False) for i in range(7)]
 check('wait=False: over the budget refused at once, nothing queued', r_ == [True] * 6 + [False]
       and 'crier' not in barkeep._plugin_queue, r_)
 check('plugin API 4', plugins.API_VERSION == 4)
+# A bot's name carries this Stump's tag (1.0.0-beta.62): two Stumps' bots tell apart.
+rrc.NODE['lxmf'] = 'ab' * 16
+t1 = rrc.bot_nick('Bavard'); rrc.NODE['lxmf'] = 'cd' * 16; t2 = rrc.bot_nick('Bavard')
+check("bot names: the Stump's tag, different on two Stumps, never twice", t1.startswith('Bavard-') and t1 != t2
+      and rrc.bot_nick(t2) == t2 and len(rrc.bot_nick('x' * 40)) <= rrc.MAX_NICK_LEN, (t1, t2))
 # help
 h = rrc.help_lines('en')
 check('help web', '!roll 2d6 -- throw some dice' in h and '/many -- five lines' in h and '/boom' not in h and '/secret <pw>' in h and h[-1].startswith('✓'), h[-6:])
