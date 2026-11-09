@@ -986,6 +986,16 @@ _LINT_PATTERNS = (
 )
 
 
+def _awaited(code, i):
+    """The call at code[i] is asyncio's, which yields: asyncio.sleep_ms(),
+    uasyncio.sleep_ms(), or anything awaited (await sleep_ms() after
+    "from asyncio import sleep_ms")."""
+    before = code[:i]
+    if before.endswith("asyncio."):
+        return True
+    return before.rstrip().endswith("await")
+
+
 def _sha16(path):
     import hashlib
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()[:16]
@@ -1103,8 +1113,10 @@ def lint_plugin(plugin_dir):
                 # The call itself, not a longer name ending the same way
                 # (handle_input( isn't input(, my_time.sleep( is).
                 i = code.find(pat)
-                while i > 0 and (code[i - 1].isalnum() or code[i - 1] == "_"):
+                while i > 0 and (code[i - 1].isalnum() or code[i - 1] == "_" or _awaited(code, i)):
                     i = code.find(pat, i + 1)
+                if i == 0 and _awaited(code, i):
+                    i = -1
                 if i >= 0:
                     out.append((f.relative_to(Path(plugin_dir).parent).as_posix(), n, why))
     return out
