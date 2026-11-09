@@ -706,6 +706,16 @@ def tagged_nick(nick, client_id, salt=0):
     return nick[:MAX_NICK_LEN - 5] + "-" + nick_tag(client_id, salt)
 
 
+def bot_nick(nick):
+    """A plugin bot's name in the chat: its nick with this Stump's tag,
+    "Bavard-k7q2", the same on every Stump (from this Stump's LXMF
+    address), so two Stumps' bots of the same plugin tell apart
+    (1.0.0-beta.62). BarKeep itself, the Stump's own voice, isn't tagged."""
+    me = (NODE or {}).get("lxmf") or (NODE or {}).get("name") or "stump"
+    tag = "-" + nick_tag(me)
+    return nick if nick.endswith(tag) else nick[:MAX_NICK_LEN - 5] + tag
+
+
 def free_nick(nick, client_id, taken=None):
     """nick if no one else goes by it, else nick-<tag> (another tag in the
     unlikely case that one is taken too)."""

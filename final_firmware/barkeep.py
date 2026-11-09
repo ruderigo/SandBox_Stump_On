@@ -73,7 +73,7 @@ def _plugin_room_free(plugin, now):
 
 def _plugin_say(plugin, nick, room, text, now):
     _plugin_sent.setdefault(plugin, []).append(now)
-    return rrc.post(room, nick, text[:rrc.MAX_MESSAGE_LEN], bot=True) is not None
+    return rrc.post(room, rrc.bot_nick(nick), text[:rrc.MAX_MESSAGE_LEN], bot=True) is not None
 
 
 def plugin_post(plugin, nick, room, text, wait=True):

@@ -137,7 +137,7 @@ import barkeep
 barkeep.plugin_posts_reset()
 m = plugins._post("tavern", "Tavernier", "main", "a plugin speaks")
 last = rrc.since("main", 0)[-1]
-check("a plugin's line is a bot's too", m and last["nick"] == "Tavernier" and last.get("bot") is True, last)
+check("a plugin's line is a bot's too", m and last["nick"] == rrc.bot_nick("Tavernier") and last["nick"].startswith("Tavernier-") and last.get("bot") is True, last)
 
 # 7. Forged beacons: the LXMF address inside must be the beacon's own.
 from urns.identity import Identity
