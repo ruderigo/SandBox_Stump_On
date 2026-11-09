@@ -1,0 +1,91 @@
+{
+  "plugin": "bavard",
+  "title": "Bavard (a bot that never stops talking: guardrail test bench)",
+  "version": "1.0",
+  "plugin_api": 3,
+  "summary": "Posts non-stop in its own room at a variable pace: alone, a unique line of numbers with the UTC date and time; with another Bavard on another Stump, the two play Molière in the original French, each taking half the characters, turn by turn over a Reticulum link. Every line goes through the plugin posting budget; what it refuses is counted and retried. Status at /p/bavard/, numbers at /p/bavard/stats.json, transcript on the SD card.",
+  "modifies_core_files": false,
+  "binds_ports": false,
+  "starts_tasks": false,
+  "hooks": [
+    "/bavard (and !bavard): status",
+    "every 1 s (async): the next line, numbers or Molière",
+    "every BAVARD_ANNOUNCE s: announces bavard.bot",
+    "on_announce bavard.bot: finds other Bavards",
+    "node bavard.bot + connect: the turn-taking link (JSON packets under 200 bytes)",
+    "every 10 s: transcript to the card; every 30 s: saves where the play is",
+    "page /p/bavard/ (home card), /p/bavard/stats.json; an /admin panel (pause, leave duet, rewind)"
+  ],
+  "runtime_storage": {
+    "path": "/sd/plugins/bavard/",
+    "note": "state.json (where the play is) and log-YYYYMMDD.txt (every line tried, OK or DROP, and link events; 7 days kept, 16 MB a day at most). Without an SD card nothing is written and the bots play the built-in scene."
+  },
+  "wizard": {
+    "note": "Everything has a working default.",
+    "prompts": [
+      {
+        "key": "BAVARD_ROOM",
+        "prompt": "Room the bot talks in",
+        "type": "string",
+        "default": "bavard",
+        "advanced": true,
+        "writes_to": "config.py"
+      },
+      {
+        "key": "BAVARD_PACE",
+        "prompt": "Pace",
+        "type": "choice",
+        "options": [
+          "variable",
+          "quick",
+          "burst",
+          "polite"
+        ],
+        "default": "variable",
+        "advanced": true,
+        "writes_to": "config.py"
+      },
+      {
+        "key": "BAVARD_ANNOUNCE",
+        "prompt": "Seconds between announces (how other Bavards find this one)",
+        "type": "int",
+        "default": 300,
+        "advanced": true,
+        "writes_to": "config.py"
+      },
+      {
+        "key": "BAVARD_PARTNER",
+        "prompt": "Only pair with this Bavard (its destination hash; empty = the first one heard)",
+        "type": "string",
+        "default": "",
+        "advanced": true,
+        "writes_to": "config.py"
+      },
+      {
+        "key": "BAVARD_LOG",
+        "prompt": "Transcript on the SD card (on/off)",
+        "type": "choice",
+        "options": [
+          "on",
+          "off"
+        ],
+        "default": "on",
+        "advanced": true,
+        "writes_to": "config.py"
+      }
+    ]
+  },
+  "files": [
+    "bavard/__init__.py",
+    "bavard/install.py",
+    "bavard/strings.py",
+    "bavard/scene.py",
+    "bavard/plugin.json"
+  ],
+  "hashes": {
+    "bavard/__init__.py": "ce40f7f4e3770f39",
+    "bavard/install.py": "3656b5688b6c56bd",
+    "bavard/strings.py": "88925db8b914c708",
+    "bavard/scene.py": "7c8a10686365bf8f"
+  }
+}

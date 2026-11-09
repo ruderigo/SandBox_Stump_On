@@ -15,7 +15,7 @@ tavern-pack/
   home/            optional: a home-page section (SD card, HOME_BRANDING.md)
 ```
 
-Four packs ship in `packs/`:
+Five packs ship in `packs/`:
 
 - **tavern**: `!roll`, `!8ball`, `!slap`, `!seen`, `!quote`, `!vote`, a
   flood guard, a theme and a persona.
@@ -25,6 +25,9 @@ Four packs ship in `packs/`:
   NomadNet and MeshChat users browse its rooms, billboard and files.
 - **simple** (1.0.0-beta.53): plain sentences, on request, for people
   on LXMF apps that don't know Stumps (Sideband, Columba...).
+- **bavard** (1.0.0-beta.55, a test bench): a bot that never stops
+  talking, numbers alone, Molière in French with another Bavard on
+  another Stump, for testing the guardrails over days.
 
 ## Installing a pack (technicians)
 

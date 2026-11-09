@@ -28,6 +28,7 @@ TEST_PLUGINS = [HERE / "plugins" / n for n in ("dice", "crashy", "future")]
 PACK_PLUGINS = [PACKS / "tavern-pack" / "tavern", PACKS / "rnfs-pack" / "rnfs"]
 NOMADNET = [PACKS / "nomadnet-pack" / "nomadnet"]
 SIMPLE = [PACKS / "simple-pack" / "simple"]
+BAVARD = [PACKS / "bavard-pack" / "bavard"]
 
 # name, kind, extra plugin folders
 TESTS = [
@@ -39,6 +40,7 @@ TESTS = [
     ("safe_mode", "safe", TEST_PLUGINS),
     ("fservbot_storage", "snapshot", []),
     ("packs_chat", "assert", PACK_PLUGINS),
+    ("bavard_duet", "assert", BAVARD),
     ("packs_web", "snapshot", PACK_PLUGINS),
     ("relay_fastpath", "assert", []),
     ("chain", "chain", []),

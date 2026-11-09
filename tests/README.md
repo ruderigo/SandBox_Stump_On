@@ -18,6 +18,7 @@ on the board. Each firmware test runs in a fresh copy of
 | `safe_mode` | Boots after a crash while starting, and while running |
 | `fservbot_storage` | Data moved to `/sd/plugins/`, the timer notice |
 | `packs_chat`, `packs_web` | The tavern and rnfs packs, chat and pages |
+| `bavard_duet` | The bavard pack: two bots on a fake clock and a fake Reticulum, through the real posting budget -- numbers, then Molière turn by turn (nothing lost or repeated, each character always the same bot, the next play), a silent link back to numbers and the play resumed |
 | `relay_fastpath` | The relay fast path forwards exactly what the general path does: every packet type, context, direction and hop count |
 | `chain` | Three Stumps chained on loopback addresses (root, middle, end) plus an intruder with the wrong chain secret: the end Stump sends a file to the root through the middle one, which relays it; the intruder is kept out |
 | `chain_config` | Chain settings, interface configs, `/chain.json`, the `/admin` section |

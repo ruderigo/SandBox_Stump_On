@@ -1,0 +1,34 @@
+{
+  "name": "bavard",
+  "version": "1.0",
+  "author": "Project Stump",
+  "license": "MIT (code); CC BY-NC-SA 4.0 (the Molière corpus in tools/)",
+  "stump_api": 3,
+  "description": "A bot that never stops talking, to test a Stump's guardrails for days. Alone, it posts unique lines of numbers with the date and time; when it finds another Bavard on another Stump, the two play Molière in the original French, turn by turn.",
+  "credits": "Molière's plays (public domain), from the Théâtre Classique editions (theatre-classique.fr) as encoded by FreDraCor (github.com/dracor-org/fredracor), CC BY-NC-SA 4.0.",
+  "ram_kb": 30,
+  "plugins": [
+    "bavard"
+  ],
+  "hashes": {
+    "tools/LICENCE-corpus.txt": "d518770133627261",
+    "tools/README.fr.md": "1e0f61206f70650c",
+    "tools/README.md": "d51c0bb2b4e80575",
+    "tools/avare.txt": "4bd3cd642268182f",
+    "tools/bourgeois-gentilhomme.txt": "b21d35be0ba87157",
+    "tools/dom-juan.txt": "bf8751d5898f7e2f",
+    "tools/ecole-des-femmes.txt": "5a869a988767608e",
+    "tools/femmes-savantes.txt": "e3f30e3bf24df789",
+    "tools/fourberies-de-scapin.txt": "80b60269ef8b9289",
+    "tools/george-dandin.txt": "925aa0e4d6c52d98",
+    "tools/malade-imaginaire.txt": "fbe36076db1ed829",
+    "tools/medecin-malgre-lui.txt": "03f35f56f7bbcc42",
+    "tools/misanthrope.txt": "46b9c65f1893849b",
+    "tools/plays.txt": "fd34689766454db2",
+    "tools/precieuses-ridicules.txt": "65d8ce228beccade",
+    "tools/tartuffe.txt": "d19dcde6e845e244"
+  },
+  "plugin_hashes": {
+    "bavard": "c140e5e4180b7545"
+  }
+}
