@@ -434,11 +434,23 @@ def _from_stump(dest_hash_hex, peer, text, router=None, title=""):
     who = peer["nick"]
     me = (rrc.NODE or {}).get("name") or "?"
     t = rrc.canon((title or "").lstrip("#"))
-    room = t if t in (rrc.MESH_ROOM, rrc.CHAIN_ROOM) else (
-        rrc.CHAIN_ROOM if peer.get("room") == rrc.CHAIN_ROOM else rrc.MESH_ROOM)
+    if t in (rrc.MESH_ROOM, rrc.CHAIN_ROOM):
+        room = t
+    elif t and rrc.clean_room(t):
+        # Another room with a scope (1.0.0-beta.62): only if this Stump
+        # shares it with that one; else its lines aren't for here.
+        import rooms
+        room = t if rooms.shares(t, dest_hash_hex, _on_chain(dest_hash_hex)) else None
+    else:
+        room = rrc.CHAIN_ROOM if peer.get("room") == rrc.CHAIN_ROOM else rrc.MESH_ROOM
     for line in text.split("\n"):
         line = line.strip()
         if not line:
+            continue
+        if line.startswith("[ROOM"):
+            _room_ctl(dest_hash_hex, peer, line)
+            continue
+        if room is None and not line.startswith("[DM"):
             continue
         if line.startswith("[NAMES]"):
             # Who's in that room on that Stump (for /names here); each one
@@ -495,7 +507,7 @@ def _from_stump(dest_hash_hex, peer, text, router=None, title=""):
                 _send_queue.append((router, bytes.fromhex(dest_hash_hex), "\n".join(
                     "[DM>%s] <%s> %s" % (nick, me, l) for l in reply.split("\n") if l.strip())))
             continue
-        if room == rrc.MESH_ROOM and line[:1] in ("<", "*") and _seen_line(dest_hash_hex, line):
+        if room != rrc.CHAIN_ROOM and line[:1] in ("<", "*") and _seen_line(dest_hash_hex, line):
             continue
         if line.startswith("<") and "> " in line:
             nick, body = line[1:].split("> ", 1)
@@ -1578,6 +1590,7 @@ def _flush_to_peer(router, dest_hash_hex, peer):
         # (_flush_lora_to_stump), whatever room it sits in here; so its
         # room lines don't go a second time below.
         _flush_lora_to_stump(router, dest_hash_hex, peer)
+        _flush_rooms(router, dest_hash_hex, peer)
         if room == rrc.MESH_ROOM:
             if msgs:
                 peer["last_sent_id"] = msgs[-1]["id"]
@@ -1721,7 +1734,7 @@ def _no_radio(h):
         return False
 
 
-def _queue_lora(router, dest_hash_hex, lines):
+def _queue_lora(router, dest_hash_hex, lines, title=None):
     """#lora-mesh lines for another Stump. Over the chain's Wi-Fi when the
     chain reaches it, over this Stump's radio (single packets) only when
     nothing else does.
@@ -1733,7 +1746,7 @@ def _queue_lora(router, dest_hash_hex, lines):
     computer): its people could write to #lora-mesh, never read the
     answers."""
     dest = bytes.fromhex(dest_hash_hex)
-    title = "#" + rrc.MESH_ROOM
+    title = title or "#" + rrc.MESH_ROOM
     chain_if = _chain_iface(dest)
     r = None if chain_if is not None else _radio()
     if r is None or _no_radio(dest_hash_hex):
@@ -1772,6 +1785,145 @@ def _flush_lora_to_stump(router, dest_hash_hex, peer):
 
 
 NAMES_EVERY = 600
+
+
+# ── Rooms with a scope (rooms.py, 1.0.0-beta.62) ──
+# Between Stumps whose beacon says "rs": each room's scope, "[ROOM] #room
+# scope n" (to the chain: every scope, the newest n wins; outside it: a
+# LoRa room offered), "[ROOMOK] #room" (shared, both agreed) and
+# "[ROOMNO] #room" (refused), then the room's lines in batches titled
+# "#room": a Wi-Fi room over the chain's Wi-Fi only, a LoRa room the
+# #lora-mesh way (the chain's Wi-Fi where it reaches, else the radio).
+# Plugin bots' lines go too (tagged "Bavard-k7q2", rrc.bot_nick), BarKeep's
+# don't. No [NAMES] for these rooms: airtime.
+ROOM_EVERY = 600              # the scopes again to the chain
+OFFER_EVERY = 1800            # a LoRa room offered again outside it, until answered
+REFUSED_S = 86400
+
+
+def _rs_capable(h):
+    try:
+        import discovery
+        v = discovery._known.get(h)
+        c = v.get("caps") if v else None
+        return isinstance(c, dict) and bool(c.get("rs"))
+    except Exception:
+        return False
+
+
+def _room_ctl(h, peer, line):
+    import rooms
+    parts = line.split()
+    if len(parts) < 2:
+        return
+    room = rrc.clean_room(parts[1].lstrip("#"))
+    if not room or room in rooms.builtin():
+        return
+    on = _on_chain(h)
+    if parts[0] == "[ROOM]" and len(parts) >= 4:
+        sc = parts[2]
+        try:
+            n = int(parts[3])
+        except ValueError:
+            return
+        if sc not in rooms.SCOPES:
+            return
+        if on:
+            if (n, sc) > (rooms.version(room), rooms.scope(room)):
+                if rooms.set_scope(room, sc, n):
+                    print("[rrc_mesh] #%s is %s now (from %s)" % (room, sc, peer.get("nick")))
+        elif sc == "lora":
+            res = rooms.offered(room, h, peer.get("nick"))
+            if res in ("ok", "no"):
+                rooms._answers.append((h, room, res))
+        else:
+            rooms.unshare(room, h)
+    elif parts[0] == "[ROOMOK]" and not on:
+        if rooms.scope(room) == "lora":
+            rooms.share(room, h)
+    elif parts[0] == "[ROOMNO]":
+        peer.setdefault("rno", {})[room] = time.time()
+        rooms.unshare(room, h)
+
+
+def _shared_lines(msgs, skip_nick=None):
+    """A room's lines for another Stump: this Stump's people and plugin
+    bots (not BarKeep, not what came from other Stumps, no notices)."""
+    try:
+        import barkeep
+        keeper = barkeep.BOT_NAME
+    except Exception:
+        keeper = "BarKeep"
+    out = []
+    for m in msgs:
+        if m["nick"] == skip_nick or m["kind"] == "system" or m.get("via") or (m.get("bot") and m["nick"] == keeper):
+            continue
+        nick = m["nick"].replace(" ", "_")
+        out.append(("* " + nick + " " if m["kind"] == "action" else "<" + nick + "> ") + m["body"])
+    return out
+
+
+def _flush_rooms(router, h, peer):
+    """The rooms with a scope, with Stump h: what each one is, then its new lines."""
+    import rooms
+    if not _rs_capable(h):
+        return
+    on = _on_chain(h)
+    now = time.time()
+    sent = peer.setdefault("rsent", {})
+    rno = peer.setdefault("rno", {})
+    cur = peer.setdefault("rcur", {})
+    ctl = []
+    for room, sc in rooms.extra().items():
+        n = rooms.version(room)
+        last = sent.get(room)            # (scope, n, when) last told
+        if on:
+            if last is None or last[:2] != (sc, n) or now - last[2] > ROOM_EVERY:
+                ctl.append("[ROOM] #%s %s %d" % (room, sc, n))
+                sent[room] = (sc, n, now)
+        elif sc == "lora":
+            if rooms.shares(room, h, False) or now - rno.get(room, -REFUSED_S) < REFUSED_S:
+                continue
+            if last is None or last[:2] != (sc, n) or now - last[2] > OFFER_EVERY:
+                ctl.append("[ROOM] #%s lora %d" % (room, n))
+                sent[room] = (sc, n, now)
+        elif last is not None and last[0] == "lora":
+            ctl.append("[ROOM] #%s %s %d" % (room, sc, n))     # no longer shared
+            sent[room] = (sc, n, now)
+    for a in [a for a in rooms._answers if a[0] == h]:
+        rooms._answers.remove(a)
+        ctl.append("[ROOM%s] #%s" % ("OK" if a[2] == "ok" else "NO", a[1]))
+    chain_if = None
+    try:
+        chain_if = _chain_iface(bytes.fromhex(h))
+    except Exception:
+        pass
+    if ctl:
+        if on and chain_if is not None:
+            _send_queue.append((router, bytes.fromhex(h), "\n".join(ctl), "", None, chain_if))
+        else:
+            _queue_lora(router, h, ctl, "#" + rrc.MESH_ROOM)
+    for room, sc in rooms.extra().items():
+        if sc == "local" or not rooms.shares(room, h, on) or not rrc.room_exists(room):
+            cur.pop(room, None)
+            continue
+        msgs = rrc.since(room, 0)
+        if room not in cur:
+            cur[room] = msgs[-1]["id"] if msgs else 0      # from now on, not the backlog
+            continue
+        msgs = rrc.since(room, cur[room])
+        if not msgs:
+            continue
+        cur[room] = msgs[-1]["id"]
+        lines = _shared_lines(msgs[-POLL_LIMIT:], peer["nick"])
+        if not lines:
+            continue
+        if sc == "wifi":
+            if chain_if is not None:          # a Wi-Fi room never goes on the air
+                for text in _radio_pieces(lines, 1500):
+                    _send_queue.append((router, bytes.fromhex(h), text, "#" + room, None, chain_if))
+        else:
+            _queue_lora(router, h, lines, "#" + room)
 
 
 def _lora_roster():
@@ -2054,6 +2206,11 @@ async def poll_loop(router):
         install_announce_handler(router)
     except Exception as e:
         print("[rrc_mesh] announce handler not installed:", e)
+    try:
+        import rooms
+        rooms.boot()                    # the rooms with a scope, back after a restart
+    except Exception as e:
+        print("[rrc_mesh] rooms not restored:", e)
 
     while True:
         await asyncio.sleep(5)

@@ -71,8 +71,19 @@ def _plugin_room_free(plugin, now):
     return len(sent) < PLUGIN_POSTS_PER_MIN
 
 
+_lora_warned = {}     # (plugin, room) -> True once BarKeep has warned about it
+
+
 def _plugin_say(plugin, nick, room, text, now):
     _plugin_sent.setdefault(plugin, []).append(now)
+    if (plugin, room) not in _lora_warned and room != rrc.MESH_ROOM:
+        try:
+            import rooms
+            if rooms.scope(room) == "lora":
+                _lora_warned[(plugin, room)] = True
+                rrc.post(room, BOT_NAME, "⚠ " + i18n.t("room_bot_lora", None, bot=rrc.bot_nick(nick), room=room), bot=True)
+        except Exception as e:
+            print("[barkeep] room scope check failed:", e)
     return rrc.post(room, rrc.bot_nick(nick), text[:rrc.MAX_MESSAGE_LEN], bot=True) is not None
 
 

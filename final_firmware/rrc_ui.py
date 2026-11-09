@@ -926,7 +926,7 @@ function send(text){
      } else {
        (d.replies||[]).forEach(function(t){
          if(t==='__CLEAR__'){ log.innerHTML=''; return; }
-         labelled(line(esc(t),'local'), t.charAt(0));
+         labelled(line(esc(t),t.charAt(0)==='\u26a0'?'err':'local'), t.charAt(0));
        });
      }
      if(d.room && d.room!==room){
