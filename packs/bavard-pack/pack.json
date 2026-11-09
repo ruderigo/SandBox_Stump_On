@@ -12,9 +12,23 @@
   ],
   "hashes": {
     "tools/README.fr.md": "8c969c248c48ad35",
-    "tools/README.md": "a5ca6cc948a6338a"
+    "tools/README.md": "a5ca6cc948a6338a",
+    "tools/SOURCES.txt": "860cd4bcfff20aca",
+    "tools/amour-medecin.txt": "a576dfe106d18cf3",
+    "tools/amphitryon.txt": "1818b88588053380",
+    "tools/avare.txt": "cdd65f2badf8cd05",
+    "tools/dom-juan.txt": "60a8bf8e3a9cb66b",
+    "tools/ecole-des-femmes.txt": "b56c207cc08f7e0d",
+    "tools/ecole-des-maris.txt": "03608e99d8a65cae",
+    "tools/george-dandin.txt": "f15a1d758e19795c",
+    "tools/misanthrope.txt": "ca3f535576072e74",
+    "tools/monsieur-de-pourceaugnac.txt": "0035c75aad0f85b8",
+    "tools/plays.txt": "f5a2cdd8b6fbaa27",
+    "tools/precieuses-ridicules.txt": "a59a29b1ad1b2463",
+    "tools/sganarelle.txt": "0afa13a6fdcbf26b",
+    "tools/tartuffe.txt": "7f01f1b9d7db0872"
   },
   "plugin_hashes": {
-    "bavard": "4571face1ce79b1c"
+    "bavard": "7130afe0afb67033"
   }
 }

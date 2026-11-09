@@ -1,0 +1,354 @@
+T	Les Précieuses ridicules
+S	1
+L	DU CROISY	Seigneur la Grange...
+L	LA GRANGE	Quoi?
+L	DU CROISY	Regardez-moi un peu sans rire.
+L	LA GRANGE	Eh bien?
+L	DU CROISY	Que dites-vous de notre visite? En êtes-vous fort satisfait?
+L	LA GRANGE	A votre avis, avons-nous sujet de l'être tous deux?
+L	DU CROISY	Pas tout à fait, à dire vrai.
+L	LA GRANGE	Pour moi, je vous avoue que j'en suis tout scandalisé. A-t-on jamais vu, dites-moi, deux pecques provinciales faire plus les renchéries que celles-là, et deux hommes traités avec plus de mépris que nous? A peine ont-elles pu se résoudre à nous faire donner des siéges.
+L	LA GRANGE	Je n'ai jamais vu tant parler à l'oreille qu'elles ont fait entre elles, tant bâiller, tant se frotter les yeux, et demander tant de fois: Quelle heure est-il? Ont-elles répondu que oui et non à tout ce que nous avons pu leur dire?
+L	LA GRANGE	Et ne m'avouerez-vous pas enfin que, quand nous aurions été les dernières personnes du monde, on ne pouvoit nous faire pis qu'elles ont fait?
+L	DU CROISY	Il me semble que vous prenez la chose fort à cœur.
+L	LA GRANGE	Sans doute, je l'y prends, et de telle façon, que je me veux venger de cette impertinence. Je connois ce qui nous a fait mépriser. L'air précieux n'a pas seulement infecté Paris, il s'est aussi répandu dans les provinces, et nos donzelles ridicules en ont humé leur bonne part.
+L	LA GRANGE	En un mot, c'est un ambigu de précieuse et de coquette que leur personne. Je vois ce qu'il faut être pour en être bien reçu; et, si vous m'en croyez, nous leur jouerons tous deux une pièce qui leur fera voir leur sottise, et pourra leur apprendre à connoître un peu mieux leur monde.
+L	DU CROISY	Et comment, encore?
+L	LA GRANGE	J'ai un certain valet, nommé Mascarille, qui passe, au sentiment de beaucoup de gens, pour une manière de bel esprit; car il n'y a rien à meilleur marché que le bel esprit maintenant. C'est un extravagant qui s'est mis dans la tête de vouloir faire l'homme de condition.
+L	LA GRANGE	Il se pique ordinairement de galanterie et de vers, et dédaigne les autres valets, jusqu'à les appeler brutaux.
+L	DU CROISY	Eh bien, qu'en prétendez-vous faire?
+L	LA GRANGE	Ce que j'en prétends faire? Il faut... Mais sortons d'ici auparavant.
+S	2
+L	GORGIBUS	Eh bien, vous avez vu ma nièce et ma fille. Les affaires iront-elles bien? Quel est le résultat de cette visite?
+L	LA GRANGE	C'est une chose que vous pourrez mieux apprendre d'elles que de nous. Tout ce que nous pouvons vous dire, c'est que nous vous rendons grâce de la faveur que vous nous avez faite, et demeurons vos très-humbles serviteurs.
+L	DU CROISY	Vos très-humbles serviteurs.
+L	GORGIBUS	Ouais! il semble qu'ils sortent mal satisfaits d'ici. D'où pourroit venir leur mécontentement? Il faut savoir un peu ce que c'est. Holà!
+S	3
+L	MAROTTE	Que désirez-vous, monsieur?
+L	GORGIBUS	Où sont vos maîtresses?
+L	MAROTTE	Dans leur cabinet.
+L	GORGIBUS	Que font-elles?
+L	MAROTTE	De la pommade pour les lèvres.
+L	GORGIBUS	C'est trop pommadé; dites-leur qu'elles descendent.
+S	4
+S	5
+L	GORGIBUS	Il est bien nécessaire, vraiment, de faire tant de dépense pour vous graisser le museau! Dites-moi un peu ce que vous avez fait à ces messieurs, que je les vois sortir avec tant de froideur? Vous avois-je pas commandé de les recevoir comme des personnes que je voulois vous donner pour maris?
+L	MADELON	Et quelle estime, mon père, voulez-vous que nous fassions du procédé irrégulier de ces gens-là?
+L	CATHOS	Le moyen, mon oncle, qu'une fille un peu raisonnable se pût accommoder de leur personne?
+L	GORGIBUS	Et qu'y trouvez-vous à redire?
+L	MADELON	La belle galanterie que la leur! Quoi! débuter d'abord par le mariage?
+L	GORGIBUS	Et par où veux-tu donc qu'ils débutent? par le concubinage? N'est-ce pas un procédé dont vous avez sujet de vous louer toutes deux, aussi bien que moi? Est-il rien de plus obligeant que cela? Et ce lien sacré où ils aspirent n'est-il pas un témoignage de l'honnêteté de leurs intentions?
+L	MADELON	Ah! mon père, ce que vous dites là est du dernier bourgeois. Cela me fait honte de vous ouïr parler de la sorte, et vous devriez un peu vous faire apprendre le bel air des choses.
+L	GORGIBUS	Je n'ai que faire ni d'air ni de chanson. Je te dis que le mariage est une chose sainte et sacrée, et que c'est faire en honnêtes gens que de débuter par là.
+L	MADELON	Mon Dieu! que si tout le monde vous ressembloit, un roman seroit bientôt fini! La belle chose que ce seroit, si d'abord Cyrus épousoit Mandane, et qu'Aronce de plain-pied fût marié à Clélie!
+L	GORGIBUS	Que me vient conter celle-ci?
+L	MADELON	Mon père, voilà ma cousine qui vous dira aussi bien que moi que le mariage ne doit jamais arriver qu'après les autres aventures. Il faut qu'un amant, pour être agréable, sache débiter les beaux sentimens, pousser le doux, le tendre et le passionné, et que sa recherche soit dans les formes.
+L	MADELON	Premièrement, il doit voir au temple, ou à la promenade, ou dans quelque cérémonie publique, la personne dont il devient amoureux: ou bien être conduit fatalement chez elle par un parent ou un ami, et sortir de là tout rêveur et mélancolique.
+L	MADELON	Il cache un temps sa passion à l'objet aimé, et cependant lui rend plusieurs visites, où l'on ne manque jamais de mettre sur le tapis une question galante qui exerce les esprits de l'assemblée.
+L	MADELON	Le jour de la déclaration arrive, qui se doit faire ordinairement dans une allée de quelque jardin, tandis que la compagnie s'est un peu éloignée: et cette déclaration est suivie d'un prompt courroux, qui paroît à notre rougeur, et qui, pour un temps, bannit l'amant de notre présence.
+L	MADELON	Ensuite il trouve moyen de nous apaiser, de nous accoutumer insensiblement au discours de sa passion, et de tirer de nous cet aveu qui fait tant de peine.
+L	MADELON	Après cela viennent les aventures, les rivaux qui se jettent à la traverse d'une inclination établie, les persécutions des pères, les jalousies conçues sur de fausses apparences, les plaintes, les désespoirs, les enlèvemens, et ce qui s'ensuit.
+L	MADELON	Voilà comme les choses se traitent dans les belles manières, et ce sont des règles dont, en bonne galanterie, on ne sauroit se dispenser. Mais en venir de but en blanc à l'union conjugale, ne faire l'amour qu'en faisant le contrat du mariage, et prendre justement le roman par la queue;
+L	MADELON	encore un coup, mon père, il ne se peut rien de plus marchand que ce procédé; et j'ai mal au cœur à la seule vision que cela me fait.
+L	GORGIBUS	Quel diable de jargon entends-je ici? Voici bien du haut style.
+L	CATHOS	En effet, mon oncle, ma cousine donne dans le vrai de la chose. Le moyen de bien recevoir des gens qui sont tout à fait incongrus en galanterie! Je m'en vais gager qu'ils n'ont jamais vu la carte de Tendre, et que Billets-Doux, Petits-Soins, Billets-Galans et Jolis-Vers, sont des terres inconnues pour eux.
+L	CATHOS	Ne voyez-vous pas que toute leur personne marque cela, et qu'ils n'ont point cet air qui donne d'abord bonne opinion des gens? Venir en visite amoureuse avec une jambe toute unie, un chapeau désarmé de plumes, une tête irrégulière en cheveux, et un habit qui souffre une indigence de rubans; mon Dieu!
+L	CATHOS	quels amans sont-ce là! Quelle frugalité d'ajustement, et quelle sécheresse de conversation! On n'y dure point, on n'y tient pas. J'ai remarqué encore que leurs rabats ne sont pas de la bonne faiseuse, et qu'il s'en faut plus d'un grand demi-pied que leurs hauts-de-chausses ne soient assez larges.
+L	GORGIBUS	Je pense qu'elles sont folles toutes deux, et je ne puis rien comprendre à ce baragouin. Cathos, et vous, Madelon...
+L	MADELON	Eh! de grâce, mon père, défaites-vous de ces noms étranges, et nous appelez autrement.
+L	GORGIBUS	Comment, ces noms étranges! Ne sont-ce pas vos noms de baptême?
+L	MADELON	Mon Dieu! que vous êtes vulgaire! Pour moi, un de mes étonnemens, c'est que vous ayez pu faire une fille si spirituelle que moi. A-t-on jamais parlé dans le beau style de Cathos ni de Madelon, et ne m'avouerez-vous pas que ce seroit assez d'un de ces noms pour décrier le plus beau roman du monde?
+L	CATHOS	Il est vrai, mon oncle, qu'une oreille un peu délicate pâtit furieusement à entendre prononcer ces mots-là; et le nom de Polixène, que ma cousine a choisi, et celui d'Aminte, que je me suis donné, ont une grâce dont il faut que vous demeuriez d'accord.
+L	GORGIBUS	Écoutez: il n'y a qu'un mot qui serve. Je n'entends point que vous ayez d'autres noms que ceux qui vous ont été donnés par vos parrains et marraines; et pour ces messieurs dont il est question, je connois leurs familles et leurs biens, et je veux résolûment que vous vous disposiez à les recevoir pour maris.
+L	GORGIBUS	Je me lasse de vous avoir sur les bras, et la garde de deux filles est une charge un peu trop pesante pour un homme de mon âge.
+L	CATHOS	Pour moi, mon oncle, tout ce que je puis vous dire, c'est que je trouve le mariage une chose tout à fait choquante. Comment est-ce qu'on peut souffrir la pensée de coucher contre un homme vraiment nu?
+L	MADELON	Souffrez que nous prenions un peu haleine parmi le beau monde de Paris, où nous ne faisons que d'arriver. Laissez-nous faire à loisir le tissu de notre roman, et n'en pressez point tant la conclusion.
+L	GORGIBUS	Il n'en faut point douter, elles sont achevées. Encore un coup, je n'entends rien à toutes ces balivernes! je veux être maître absolu; et, pour trancher toutes sortes de discours, ou vous serez mariées toutes deux avant qu'il soit peu, ou, ma foi, vous serez religieuses; j'en fais un bon serment.
+S	6
+L	CATHOS	Mon Dieu, ma chère, que ton père a la forme enfoncée dans la matière! que son intelligence est épaisse, et qu'il fait sombre dans son âme!
+L	MADELON	Que veux-tu, ma chère? j'en suis en confusion pour lui. J'ai peine à me persuader que je puisse être véritablement sa fille, et je crois que quelque aventure un jour me viendra développer une naissance plus illustre.
+L	CATHOS	Je le croirois bien; oui, il y a toutes les apparences du monde; et pour moi, quand je me regarde aussi...
+S	7
+L	MAROTTE	Voilà un laquais qui demande si vous êtes au logis, et dit que son maître vous veut venir voir.
+L	MADELON	Apprenez, sotte, à vous énoncer moins vulgairement. Dites: Voilà un nécessaire qui demande si vous êtes en commodité d'être visibles.
+L	MAROTTE	Dame! je n'entends point le latin, et je n'ai pas appris, comme vous, la filophie dans le grand Cyre.
+L	MADELON	L'impertinente! Le moyen de souffrir cela! Et qui est-il, le maître de ce laquais?
+L	MAROTTE	Il me l'a nommé le marquis de Mascarille.
+L	MADELON	Ah! ma chère, un marquis! Oui, allez dire qu'on nous peut voir. C'est sans doute un bel esprit qui aura ouï parler de nous.
+L	CATHOS	Assurément, ma chère.
+L	MADELON	Il faut le recevoir dans cette salle basse plutôt qu'en notre chambre. Ajustons un peu nos cheveux au moins, et soutenons notre réputation. Vite, venez nous tendre ici dedans le conseiller des grâces.
+L	MAROTTE	Par ma foi! je ne sais point quelle bête c'est là; il faut parler chrétien, si vous voulez que je vous entende.
+L	CATHOS	Apportez-nous le miroir, ignorante que vous êtes, et gardez-vous bien d'en salir la glace par la communication de votre image. Elles sortent.
+S	8
+L	MASCARILLE	Holà! porteurs, holà! Là, là, là, là, là, là. Je pense que ces marauds-là ont dessein de me briser, à force de heurter contre les murailles et les pavés.
+L	PREMIER PORTEUR	Dame! c'est que la porte est étroite. Vous avez voulu aussi que nous soyons entrés jusqu'ici.
+L	MASCARILLE	Je le crois bien. Voudriez-vous, faquins, que j'exposasse l'embonpoint de mes plumes aux inclémences de la saison pluvieuse, et que j'allasse imprimer mes souliers en boue? Allez, ôtez votre chaise d'ici.
+L	DEUXIÈME PORTEUR	Payez-nous donc, s'il vous plaît, monsieur.
+L	MASCARILLE	Hein?
+L	DEUXIÈME PORTEUR	Je dis, monsieur, que vous nous donniez de l'argent, s'il vous plaît.
+L	MASCARILLE	Comment, coquin! demander de l'argent à une personne de ma qualité!
+L	DEUXIÈME PORTEUR	Est-ce ainsi qu'on paye les pauvres gens? et votre qualité nous donne-t-elle à dîner?
+L	MASCARILLE	Ah! ah! je vous apprendrai à vous connoître! Ces canailles-là s'osent jouer à moi!
+L	PREMIER PORTEUR	Çà, payez-nous vitement!
+L	MASCARILLE	Quoi?
+L	PREMIER PORTEUR	Je dis que je veux avoir de l'argent tout à l'heure.
+L	MASCARILLE	Il est raisonnable, celui-là.
+L	PREMIER PORTEUR	Vite donc.
+L	MASCARILLE	Oui-da! tu parles comme il faut, toi; mais l'autre est un coquin qui ne sait ce qu'il dit. Tiens, es-tu content?
+L	PREMIER PORTEUR	Non, je ne suis pas content; vous avez donné un soufflet à mon camarade, et...
+L	MASCARILLE	Doucement! tiens, voilà pour le soufflet. On obtient tout de moi quand on s'y prend de la bonne façon. Allez, venez me reprendre tantôt pour aller au Louvre, au petit coucher.
+S	9
+L	MAROTTE	Monsieur, voilà mes maîtresses qui vont venir tout à l'heure.
+L	MASCARILLE	Qu'elles ne se pressent point: je suis ici posté commodément pour attendre.
+L	MAROTTE	Les voici.
+S	10
+L	MASCARILLE	Mesdames, vous serez surprises sans doute de l'audace de ma visite; mais votre réputation vous attire cette méchante affaire, et le mérite a pour moi des charmes si puissans, que je cours partout après lui.
+L	MADELON	Si vous poursuivez le mérite, ce n'est pas sur nos terres que vous devez chasser.
+L	CATHOS	Pour voir chez nous le mérite, il a fallu que vous l'y ayez amené.
+L	MASCARILLE	Ah! je m'inscris en faux contre vos paroles. La renommée accuse juste en contant ce que vous valez; et vous allez faire pic, repic et capot tout ce qu'il y a de galant dans Paris.
+L	MADELON	Votre complaisance pousse un peu trop avant la libéralité de ses louanges; et nous n'avons garde, ma cousine et moi, de donner de notre sérieux dans le doux de votre flatterie.
+L	CATHOS	Ma chère, il faudroit faire donner des siéges.
+L	MADELON	Holà! Almanzor!
+L	ALMANZOR	Madame?
+L	MADELON	Vite, voiturez-nous ici les commodités de la conversation.
+L	MASCARILLE	Mais, au moins, y a-t-il sûreté ici pour moi? Almanzor sort.
+L	CATHOS	Que craignez-vous?
+L	MASCARILLE	Quelque vol de mon cœur, quelque assassinat de ma franchise. Je vois ici des yeux qui ont la mine d'être de fort mauvais garçons, de faire insulte aux libertés, et de traiter une âme de Turc à More. Comment, diable! d'abord qu'on les approche, ils se mettent sur leur garde meurtrière. Ah! par ma foi, je m'en défie!
+L	MASCARILLE	et je m'en vais gagner au pied, ou je veux caution bourgeoise qu'ils ne me feront point de mal.
+L	MADELON	Ma chère, c'est le caractère enjoué.
+L	CATHOS	Je vois bien que c'est un Amilcar.
+L	MADELON	Ne craignez rien, nos yeux n'ont point de mauvais desseins, et votre cœur peut dormir en assurance sur leur prud'homie.
+L	CATHOS	Mais de grâce, monsieur, ne soyez pas inexorable à ce fauteuil qui vous tend les bras il y a un quart d'heure; contentez un peu l'envie qu'il a de vous embrasser.
+L	MASCARILLE	Eh bien, mesdames, que dites-vous de Paris?
+L	MADELON	Hélas! qu'en pourrions-nous dire? Il faudroit être l'antipode de la raison, pour ne pas confesser que Paris est le grand bureau des merveilles, le centre du bon goût, du bel esprit et de la galanterie.
+L	MASCARILLE	Pour moi, je tiens que hors de Paris il n'y a point de salut pour les honnêtes gens.
+L	CATHOS	C'est une vérité incontestable.
+L	MASCARILLE	Il y fait un peu crotté; mais nous avons la chaise.
+L	MADELON	Il est vrai que la chaise est un retranchement merveilleux contre les insultes de la boue et du mauvais temps.
+L	MASCARILLE	Vous recevez beaucoup de visites? Quel bel esprit est des vôtres?
+L	MADELON	Hélas! nous ne sommes pas encore connues; mais nous sommes en passe de l'être; et nous avons une amie particulière qui nous a promis d'amener ici tous ces messieurs du Recueil des pièces choisies.
+L	CATHOS	Et certains autres qu'on nous a nommés aussi pour être les arbitres souverains des belles choses.
+L	MASCARILLE	C'est moi qui ferai votre affaire mieux que personne; ils me rendent tous visite; et je puis dire que je ne me lève jamais sans une demi-douzaine de beaux esprits.
+L	MADELON	Eh! mon Dieu! nous vous serons obligées de la dernière obligation, si vous nous faites cette amitié; car enfin il faut avoir la connoissance de tous ces messieurs-là, si l'on veut être du beau monde. Ce sont eux qui donnent le branle à la réputation dans Paris;
+L	MADELON	et vous savez qu'il y en a tel dont il ne faut que la seule fréquentation pour vous donner bruit de connoisseuse, quand il n'y auroit rien autre chose que cela.
+L	MADELON	Mais, pour moi, ce que je considère particulièrement, c'est que, par le moyen de ces visites spirituelles, on est instruit de cent choses qu'il faut savoir de nécessité, et qui sont de l'essence d'un bel esprit. On apprend par là chaque jour les petites nouvelles galantes, les jolis commerces de prose et de vers.
+L	MADELON	On sait à point nommé: un tel a composé la plus jolie pièce du monde sur un tel sujet; une telle a fait des paroles sur un tel air; celui-ci a fait un madrigal sur une jouissance; celui-là a composé des stances sur une infidélité;
+L	MADELON	monsieur un tel écrivit hier au soir un sixain à mademoiselle une telle, dont elle lui a envoyé la réponse ce matin sur les huit heures; un tel auteur a fait un tel dessein; celui-là en est à la troisième partie de son roman; cet autre met ses ouvrages sous la presse.
+L	MADELON	C'est là ce qui vous fait valoir dans les compagnies; et, si l'on ignore ces choses, je ne donnerois pas un clou de tout l'esprit qu'on peut avoir.
+L	CATHOS	En effet, je trouve que c'est renchérir sur le ridicule, qu'une personne se pique d'esprit, et ne sache pas jusqu'au moindre petit quatrain qui se fait chaque jour: et, pour moi, j'aurois toutes les hontes du monde, s'il falloit qu'on vînt à me demander si j'aurois vu quelque chose de nouveau que je n'aurois pas vu.
+L	MASCARILLE	Il est vrai qu'il est honteux de n'avoir pas des premiers tout ce qui se fait; mais ne vous mettez pas en peine: je veux établir chez vous une académie de beaux esprits, et je vous promets qu'il ne se fera pas un bout de vers dans Paris que vous ne sachiez par cœur avant tous les autres.
+L	MASCARILLE	Pour moi, tel que vous me voyez, je m'en escrime un peu quand je veux; et vous verrez courir de ma façon dans les belles ruelles de Paris, deux cents chansons, autant de sonnets, quatre cents épigrammes et plus de mille madrigaux, sans compter les énigmes et les portraits.
+L	MADELON	Je vous avoue que je suis furieusement pour les portraits; je ne vois rien de si galant que cela.
+L	MASCARILLE	Les portraits sont difficiles, et demandent un esprit profond: vous en verrez de ma manière qui ne vous déplairont pas.
+L	CATHOS	Pour moi, j'aime terriblement les énigmes.
+L	MASCARILLE	Cela exerce l'esprit, et j'en ai fait quatre encore ce matin, que je vous donnerai à deviner.
+L	MADELON	Les madrigaux sont agréables quand ils sont bien tournés.
+L	MASCARILLE	C'est mon talent particulier; et je travaille à mettre en madrigaux toute l'Histoire romaine.
+L	MADELON	Ah! certes, cela sera du dernier beau: j'en retiens un exemplaire au moins, si vous le faites imprimer.
+L	MASCARILLE	Je vous en promets à chacune un, et des mieux reliés. Cela est au-dessous de ma condition; mais je le fais seulement pour donner à gagner aux libraires, qui me persécutent.
+L	MADELON	Je m'imagine que le plaisir est grand de se voir imprimé.
+L	MASCARILLE	Sans doute. Mais à propos, il faut que je vous die un impromptu que je fis hier chez une duchesse de mes amies que je fus visiter; car je suis diablement fort sur les impromptus.
+L	CATHOS	L'impromptu est justement la pierre de touche de l'esprit.
+L	MASCARILLE	Écoutez donc.
+L	MADELON	Nous y sommes de toutes nos oreilles.
+L	MASCARILLE	Oh! oh! je n'y prenois pas garde: Tandis que, sans songer à mal, je vous regarde, Votre œil en tapinois me dérobe mon cœur; Au voleur! au voleur! au voleur! au voleur!
+L	CATHOS	Ah! mon Dieu, voilà qui est poussé dans le dernier galant.
+L	MASCARILLE	Tout ce que je fais a l'air cavalier; cela ne sent point le pédant.
+L	MADELON	Il en est éloigné de plus de deux mille lieues.
+L	MASCARILLE	Avez-vous remarqué ce commencement, Oh! oh! voilà qui est extraordinaire, oh! oh! comme un homme qui s'avise tout d'un coup, oh! oh! La surprise, oh! oh!
+L	MADELON	Oui, je trouve ce oh! oh! admirable.
+L	MASCARILLE	Il semble que cela ne soit rien.
+L	CATHOS	Ah! mon Dieu, que dites-vous? Ce sont là de ces sortes de choses qui ne se peuvent payer.
+L	MADELON	Sans doute et j'aimerois mieux avoir fait ce oh! oh! qu'un poëme épique.
+L	MASCARILLE	Tudieu! vous avez le goût bon.
+L	MADELON	Eh! je ne l'ai pas tout à fait mauvais.
+L	MASCARILLE	Mais n'admirez-vous pas aussi je n'y prenois pas garde? Je n'y prenois pas garde, je ne m'apercevois pas de cela; façon de parler naturelle, je n'y prenois pas garde.
+L	MASCARILLE	Tandis que, sans songer à mal, tandis qu'innocemment, sans malice, comme un pauvre mouton, je vous regarde, c'est-à-dire, je m'amuse à vous considérer, je vous observe, je vous contemple; votre œil en tapinois... Que vous semble de ce mot tapinois? n'est-il pas bien choisi?
+L	CATHOS	Tout à fait bien.
+L	MASCARILLE	Tapinois, en cachette; il semble que ce soit un chat qui vienne de prendre une souris, tapinois.
+L	MADELON	Il ne se peut rien de mieux.
+L	MASCARILLE	Me dérobe mon cœur, me l'emporte, me le ravit. Au voleur! au voleur! au voleur! au voleur! Ne diriez-vous pas que c'est un homme qui crie et court après un voleur pour le faire arrêter? Au voleur! au voleur! au voleur! au voleur!
+L	MADELON	Il faut avouer que cela a un tour spirituel et galant.
+L	MASCARILLE	Je veux vous dire l'air que j'ai fait dessus.
+L	CATHOS	Vous avez appris la musique?
+L	MASCARILLE	Moi? Point du tout.
+L	CATHOS	Comment donc cela se peut-il?
+L	MASCARILLE	Les gens de qualité savent tout sans avoir jamais rien appris.
+L	MADELON	Assurément, ma chère.
+L	MASCARILLE	Écoutez si vous trouverez l'air à votre goût: Hem, hem, la, la, la, la, la. La brutalité de la saison a furieusement outragé la délicatesse de ma voix; mais il n'importe, c'est à la cavalière. Il chante. / Oh! oh! je n'y prenois pas garde, etc.
+L	CATHOS	Ah! que voilà un air qui est passionné! Est-ce qu'on n'en meurt point?
+L	MADELON	Il y a de la chromatique là dedans.
+L	MASCARILLE	Ne trouvez-vous pas la pensée bien exprimée dans le chant? Au voleur! au voleur! Et puis, comme si l'on crioit bien fort, au, au, au, au, au voleur! Et tout d'un coup, comme une personne essoufflée, au voleur!
+L	MADELON	C'est là savoir le fin des choses, le grand fin, le fin du fin. Tout est merveilleux, je vous assure; je suis enthousiasmée de l'air et des paroles.
+L	CATHOS	Je n'ai encore rien vu de cette force-là.
+L	MASCARILLE	Tout ce que je fais me vient naturellement, c'est sans étude.
+L	MADELON	La nature vous a traité en vraie mère passionnée, et vous en êtes l'enfant gâté.
+L	MASCARILLE	A quoi donc passez-vous le temps, mesdames?
+L	CATHOS	A rien du tout.
+L	MADELON	Nous avons été jusqu'ici dans un jeûne effroyable de divertissemens.
+L	MASCARILLE	Je m'offre à vous mener l'un de ces jours à la comédie, si vous voulez; aussi bien on en doit jouer une nouvelle que je serai bien aise que nous voyions ensemble.
+L	MADELON	Ce n'est pas de refus.
+L	MASCARILLE	Mais je vous demande d'applaudir comme il faut quand nous serons là; car je me suis engagé de faire valoir la pièce, et l'auteur m'en est venu prier encore ce matin.
+L	MASCARILLE	C'est la coutume ici qu'à nous autres gens de condition les auteurs viennent lire leurs pièces nouvelles, pour nous engager à les trouver belles, et leur donner de la réputation: et je vous laisse à penser si, quand nous disons quelque chose, le parterre ose nous contredire! Pour moi, j'y suis fort exact;
+L	MASCARILLE	et, quand j'ai promis à quelque poëte, je crie toujours: Voilà qui est beau! devant que les chandelles soient allumées.
+L	MADELON	Ne m'en parlez point: c'est un admirable lieu que Paris; il s'y passe cent choses tous les jours, qu'on ignore dans les provinces, quelque spirituelle qu'on puisse être.
+L	CATHOS	C'est assez: puisque nous sommes instruites, nous ferons notre devoir de nous écrier comme il faut sur tout ce qu'on dira.
+L	MASCARILLE	Je ne sais si je me trompe; mais vous avez toute la mine d'avoir fait quelque comédie.
+L	MADELON	Eh! il pourroit être quelque chose de ce que vous dites.
+L	MASCARILLE	Ah! ma foi, il faudra que nous la voyions. Entre nous, j'en ai composé une que je veux faire représenter.
+L	CATHOS	Et à quels comédiens la donnerez-vous?
+L	MASCARILLE	Belle demande! Aux grands comédiens; il n'y a qu'eux qui soient capables de faire valoir les choses; les autres sont des ignorans qui récitent comme l'on parle; ils ne savent pas faire ronfler les vers, et s'arrêter au bel endroit:
+L	MASCARILLE	et le moyen de connoître où est le beau vers, si le comédien ne s'y arrête, et ne vous avertit par là qu'il faut faire le brouhaha?
+L	CATHOS	En effet, il y a manière de faire sentir aux auditeurs les beautés d'un ouvrage; et les choses ne valent que ce qu'on les fait valoir.
+L	MASCARILLE	Que vous semble de ma petite oie? La trouvez-vous congruente à l'habit?
+L	CATHOS	Tout à fait.
+L	MASCARILLE	Le ruban en est bien choisi?
+L	MADELON	Furieusement bien. C'est Perdrigeon tout pur.
+L	MASCARILLE	Que dites-vous de mes canons?
+L	MADELON	Ils ont tout à fait bon air.
+L	MASCARILLE	Je puis me vanter au moins qu'ils ont un grand quartier plus que tous ceux qu'on fait.
+L	MADELON	Il faut avouer que je n'ai jamais vu porter si haut l'élégance de l'ajustement.
+L	MASCARILLE	Attachez un peu sur ces gants la réflexion de votre odorat.
+L	MADELON	Ils sentent terriblement bon.
+L	CATHOS	Je n'ai jamais respiré une odeur mieux conditionnée.
+L	MASCARILLE	Et celle-là? Il donne à sentir les cheveux poudrés de sa perruque.
+L	MADELON	Elle est tout à fait de qualité; le sublime en est touché délicieusement.
+L	MASCARILLE	Vous ne dites rien de mes plumes! Comment les trouvez-vous?
+L	CATHOS	Effroyablement belles.
+L	MASCARILLE	Savez-vous que le brin me coûte un louis d'or? Pour moi, j'ai cette manie de vouloir donner généralement sur tout ce qu'il y a de plus beau.
+L	MADELON	Je vous assure que nous sympathisons vous et moi. J'ai une délicatesse furieuse pour tout ce que je porte; et, jusqu'à mes chaussettes, je ne puis rien souffrir qui ne soit de la bonne faiseuse.
+L	MASCARILLE	Ahi! ahi! ahi! doucement! Dieu me damne, mesdames, c'est fort mal en user; j'ai à me plaindre de votre procédé; cela n'est pas honnête.
+L	CATHOS	Qu'est-ce donc? qu'avez-vous?
+L	MASCARILLE	Quoi! toutes deux contre mon cœur en même temps! M'attaquer à droite et à gauche! Ah! c'est contre le droit des gens: la partie n'est pas égale; et je m'en vais crier au meurtre.
+L	CATHOS	Il faut avouer qu'il dit les choses d'une manière particulière.
+L	MADELON	Il a un tour admirable dans l'esprit.
+L	CATHOS	Vous avez plus de peur que de mal, et votre cœur crie avant qu'on l'écorche.
+L	MASCARILLE	Comment, diable! il est écorché depuis la tête jusqu'aux pieds.
+S	11
+L	MAROTTE	Madame, on demande à vous voir.
+L	MADELON	Qui?
+L	MAROTTE	Le vicomte de Jodelet.
+L	MASCARILLE	Le vicomte de Jodelet?
+L	MAROTTE	Oui, monsieur.
+L	CATHOS	Le connoissez-vous?
+L	MASCARILLE	C'est mon meilleur ami.
+L	MADELON	Faites entrer vitement.
+L	MASCARILLE	Il y a quelque temps que nous ne nous sommes vus, et je suis ravi de cette aventure.
+L	CATHOS	Le voici.
+S	12
+L	MASCARILLE	Ah! vicomte! JODELET. Ah! marquis!
+L	MASCARILLE	Que je suis aise de te rencontrer!
+L	JODELET	Que j'ai de joie de te voir ici!
+L	MASCARILLE	Baise-moi donc encore un peu, je te prie.
+L	MADELON	Ma toute bonne, nous commençons d'être connues; voilà le beau monde qui prend le chemin de nous venir voir.
+L	MASCARILLE	Mesdames, agréez que je vous présente ce gentilhomme-ci: sur ma parole il est digne d'être connu de vous.
+L	JODELET	Il est juste de venir vous rendre ce qu'on vous doit; et vos attraits exigent leurs droits seigneuriaux sur toutes sortes de personnes.
+L	MADELON	C'est pousser vos civilités jusqu'aux derniers confins de la flatterie.
+L	CATHOS	Cette journée doit être marquée dans notre almanach comme une journée bien heureuse.
+L	MADELON	Allons, petit garçon, faut-il toujours vous répéter les choses? Voyez-vous pas qu'il faut le surcroît d'un fauteuil?
+L	MASCARILLE	Ne vous étonnez pas de voir le vicomte de la sorte; il ne fait que sortir d'une maladie qui lui a rendu le visage pâle comme vous le voyez.
+L	JODELET	Ce sont fruits des veilles de la cour et des fatigues de la guerre.
+L	MASCARILLE	Savez-vous, mesdames, que vous voyez dans le vicomte un des vaillants hommes du siècle? C'est un brave à trois poils.
+L	JODELET	Vous ne m'en devez rien, marquis; et nous savons ce que vous savez faire aussi.
+L	MASCARILLE	Il est vrai que nous nous sommes vus tous deux dans l'occasion.
+L	JODELET	Et dans des lieux où il faisoit fort chaud.
+L	MASCARILLE	Oui, mais non pas si chaud qu'ici. Ahi! ahi! ahi!
+L	JODELET	Notre connoissance s'est faite à l'armée; et la première fois que nous nous vîmes, il commandoit un régiment de cavalerie sur les galères de Malte.
+L	MASCARILLE	Il est vrai, mais vous étiez pourtant dans l'emploi avant que j'y fusse; et je me souviens que je n'étois que petit officier encore, que vous commandiez deux mille chevaux.
+L	JODELET	La guerre est une belle chose; mais, ma foi, la cour récompense bien mal aujourd'hui les gens de service comme nous.
+L	MASCARILLE	C'est ce qui fait que je veux pendre l'épée au croc.
+L	CATHOS	Pour moi, j'ai un furieux tendre pour les hommes d'épée.
+L	MADELON	Je les aime aussi; mais je veux que l'esprit assaisonne la bravoure.
+L	MASCARILLE	Te souvient-il, vicomte, de cette demi-lune que nous emportâmes sur les ennemis au siége d'Arras?
+L	JODELET	Que veux-tu dire avec ta demi-lune? C'étoit bien une lune tout entière.
+L	MASCARILLE	Je pense que tu as raison.
+L	JODELET	Il m'en doit bien souvenir, ma foi! j'y fus blessé à la jambe d'un coup de grenade, dont je porte encore les marques. Tâtez un peu, de grâce; vous sentirez quel coup c'étoit là.
+L	CATHOS	Il est vrai que la cicatrice est grande.
+L	MASCARILLE	Donnez-moi un peu votre main, et tâtez celui-ci; là, justement au derrière de la tête. Y êtes-vous?
+L	MADELON	Oui, je sens quelque chose.
+L	MASCARILLE	C'est un coup de mousquet que je reçus, la dernière campagne que j'ai faite.
+L	JODELET	Voici un autre coup qui me perça de part en part à l'attaque de Gravelines.
+L	MASCARILLE	Je vais vous montrer une furieuse plaie.
+L	MADELON	Il n'est pas nécessaire: nous le croyons sans y regarder.
+L	MASCARILLE	Ce sont des marques honorables qui font voir ce qu'on est.
+L	CATHOS	Nous ne doutons pas de ce que vous êtes.
+L	MASCARILLE	Vicomte, as-tu là ton carrosse?
+L	JODELET	Pourquoi?
+L	MASCARILLE	Nous mènerions promener ces dames hors des portes, et leur donnerions un cadeau.
+L	MADELON	Nous ne saurions sortir aujourd'hui.
+L	MASCARILLE	Ayons donc les violons pour danser.
+L	JODELET	Ma foi, c'est bien avisé.
+L	MADELON	Pour cela, nous y consentons: mais il faut donc quelque surcroît de compagnie.
+L	MASCARILLE	Holà! Champagne, Picard, Bourguignon, Cascaret, Basque, la Verdure, Lorrain, Provençal, la Violette! Au diable soient tous les laquais! Je ne pense pas qu'il y ait gentilhomme en France plus mal servi que moi. Ces canailles me laissent toujours seul.
+L	MADELON	Almanzor, dites aux gens de monsieur le marquis qu'ils aillent querir des violons, et nous faites venir ces messieurs et ces dames d'ici près, pour peupler la solitude de notre bal. Almanzor sort.
+L	MASCARILLE	Vicomte, que dis-tu de ces yeux?
+L	JODELET	Mais toi-même, marquis, que t'en semble?
+L	MASCARILLE	Moi, je dis que nos libertés auront peine à sortir d'ici les braies nettes. Au moins, pour moi, je reçois d'étranges secousses, et mon cœur ne tient plus qu'à un filet.
+L	MADELON	Que tout ce qu'il dit est naturel! Il tourne les choses le plus agréablement du monde.
+L	CATHOS	Il est vrai qu'il fait une furieuse dépense en esprit.
+L	MASCARILLE	Pour vous montrer que je suis véritable, je veux faire un impromptu là-dessus. Il médite.
+L	CATHOS	Eh! je vous en conjure de toute la dévotion de mon cœur, que nous oyions quelque chose qu'on ait fait pour nous.
+L	JODELET	J'aurois envie d'en faire autant, mais je me trouve un peu incommodé de la veine poétique, pour la quantité des saignées que j'y ai faites ces jours passés.
+L	MASCARILLE	Que diable est-ce là? Je fais toujours bien le premier vers; mais j'ai peine à faire les autres. Ma foi! ceci est un peu trop pressé; je vous ferai un impromptu à loisir, que vous trouverez le plus beau du monde.
+L	JODELET	Il a de l'esprit comme un démon.
+L	MADELON	Et du galant, et du bien tourné.
+L	MASCARILLE	Vicomte, dis-moi un peu, y a-t-il longtemps que tu n'as vu la comtesse?
+L	JODELET	Il y a plus de trois semaines que je ne lui aie rendu visite.
+L	MASCARILLE	Sais-tu bien que le duc m'est venu voir ce matin, et m'a voulu mener à la campagne courir un cerf avec lui?
+L	MADELON	Voici nos amies qui viennent.
+S	13
+L	MADELON	Mon Dieu, mes chères, nous vous demandons pardon. Ces messieurs ont eu fantaisie de nous donner les âmes des pieds; et nous vous avons envoyé querir pour remplir les vides de notre assemblée.
+L	LUCILE	Vous nous avez obligées, sans doute.
+L	MASCARILLE	Ce n'est ici qu'un bal à la hâte; mais, l'un de ces jours, nous vous en donnerons un dans les formes. Les violons sont-ils venus?
+L	ALMANZOR	Oui, monsieur; ils sont ici.
+L	CATHOS	Allons donc, mes chères, prenez place.
+L	MASCARILLE	La, la, la, la, la, la, la, la.
+L	MADELON	Il a tout à fait la taille élégante.
+L	CATHOS	Et a la mine de danser proprement.
+L	MASCARILLE	Ma franchise va danser la courante aussi bien que mes pieds. En cadence, violons, en cadence! Oh! quels ignorans! Il n'y a pas moyen de danser avec eux. Le diable vous emporte! ne sauriez-vous jouer en mesure? La, la, la, la, la, la, la, la. Ferme! O violons de village!
+L	JODELET	Holà! ne pressez pas si fort la cadence: je ne fais que sortir de maladie.
+S	14
+L	LA GRANGE	Ah! ah! coquins, que faites-vous ici? Il y a trois heures que nous vous cherchons.
+L	MASCARILLE	Ahi! ahi! ahi! vous ne m'aviez pas dit que les coups en seroient aussi.
+L	JODELET	Ahi! ahi! ahi!
+L	LA GRANGE	C'est bien à vous, infâme que vous êtes, à vouloir faire l'homme d'importance!
+L	DU CROISY	Voilà qui vous apprendra à vous connoître.
+S	15
+L	MADELON	Que veut donc dire ceci?
+L	JODELET	C'est une gageure.
+L	CATHOS	Quoi! vous laisser battre de la sorte!
+L	MASCARILLE	Mon Dieu! je n'ai pas voulu faire semblant de rien; car je suis violent, et je me serois emporté.
+L	MADELON	Endurer un affront comme celui-là, en notre présence!
+L	MASCARILLE	Ce n'est rien: ne laissons pas d'achever. Nous nous connoissons il y a longtemps, et entre amis on ne va pas se piquer pour si peu de chose.
+S	16
+L	LA GRANGE	Ma foi, marauds, vous ne vous rirez pas de nous, je vous promets. Entrez, vous autres. Trois ou quatre spadassins entrent.
+L	MADELON	Quelle est donc cette audace, de venir nous troubler de la sorte dans notre maison!
+L	DU CROISY	Comment, mesdames, nous endurerons que nos laquais soient mieux reçus que nous; qu'ils viennent vous faire l'amour à nos dépens, et vous donnent le bal?
+L	MADELON	Vos laquais!
+L	LA GRANGE	Oui, nos laquais: et cela n'est ni beau ni honnête de nous les débaucher comme vous faites.
+L	MADELON	O ciel! quelle insolence!
+L	LA GRANGE	Mais ils n'auront pas l'avantage de se servir de nos habits pour vous donner dans la vue; et, si vous les voulez aimer, ce sera, ma foi, pour leurs beaux yeux. Vite, qu'on les dépouille sur-le-champ.
+L	JODELET	Adieu notre braverie.
+L	MASCARILLE	Voilà le marquisat et la vicomté à bas.
+L	DU CROISY	Ah! ah! coquins, vous avez l'audace d'aller sur nos brisées! vous irez chercher autre part de quoi vous rendre agréables aux yeux de vos belles, je vous en assure.
+L	LA GRANGE	C'est trop que de nous supplanter, et de nous supplanter avec nos propres habits.
+L	MASCARILLE	O fortune! quelle est ton inconstance!
+L	DU CROISY	Vite, qu'on leur ôte jusqu'à la moindre chose.
+L	LA GRANGE	Qu'on emporte toutes ces hardes, dépêchez. Maintenant, mesdames, en l'état qu'ils sont, vous pouvez continuer vos amours avec eux tant qu'il vous plaira; nous vous laissons toute sorte de liberté pour cela, et nous vous protestons, monsieur et moi, que nous n'en serons aucunement jaloux.
+S	17
+L	CATHOS	Ah! quelle confusion!
+L	MADELON	Je crève de dépit!
+L	UN DES VIOLONS	Qu'est-ce donc que ceci? Qui nous payera, nous autres?
+L	MASCARILLE	Demandez à monsieur le vicomte.
+L	UN DES VIOLONS	Qui est-ce qui nous donnera de l'argent?
+L	JODELET	Demandez à monsieur le marquis.
+S	18
+L	GORGIBUS	Ah! coquines que vous êtes! vous nous mettez dans de beaux draps blancs, à ce que je vois; et je viens d'apprendre de belles affaires, vraiment, de ces messieurs et de ces dames qui sortent.
+L	MADELON	Ah! mon père, c'est une pièce sanglante qu'ils nous ont faite.
+L	GORGIBUS	Oui, c'est une pièce sanglante, mais qui est un effet de votre impertinence, infâmes! Ils se sont ressentis du traitement que vous leur avez fait, et cependant, malheureux que je suis, il faut que je boive l'affront.
+L	MADELON	Ah! je jure que nous en serons vengées ou que je mourrai en la peine. Et vous, marauds, osez-vous vous tenir ici après votre insolence?
+L	MASCARILLE	Traiter comme cela un marquis! Voilà ce que c'est que du monde, la moindre disgrâce nous fait mépriser de ceux qui nous chérissoient. Allons, camarade, allons chercher fortune autre part; je vois bien qu'on n'aime ici que la vaine apparence, et qu'on n'y considère point la vertu toute nue.
+S	19
+L	UN DES VIOLONS	Monsieur, nous entendons que vous nous contentiez, à leur défaut, pour ce que nous avons joué ici.
+L	GORGIBUS	Oui, oui, je vais vous contenter, et voici la monnoie dont je vous veux payer. Et vous, pendardes, je ne sais qui me tient que je ne vous en fasse autant; nous allons servir de fable et de risée à tout le monde, et voilà ce que vous vous êtes attiré par vos extravagances.
+L	GORGIBUS	Allez vous cacher, vilaines, allez vous cacher pour jamais! Et vous, qui êtes cause de leur folie, sottes billevesées, pernicieux amusemens des esprits oisifs, romans, vers, chansons, sonnets et sonnettes, puissiez-vous être à tous les diables!
