@@ -61,6 +61,16 @@ f = t['dir'] / 'tavern/install.py'; f.write_text(f.read_text() + '\nimport time\
 r, w = P.check_pack(t, 1)
 check('tamper + lint noticed', any('changed since' in x for x in w) and any('time.sleep' in x for x in w), w)
 P.describe_pack(t, 1)
+# The lint: asyncio's sleep_ms yields, time's doesn't (#53).
+_ld = Path(tempfile.mkdtemp()) / "lintme"; _ld.mkdir()
+def _lint(src):
+    (_ld / "install.py").write_text(src)
+    return [w for _, _, w in P.lint_plugin(_ld)]
+check("lint: await asyncio.sleep_ms() is fine", _lint("async def f():\n    await asyncio.sleep_ms(50)\n") == [])
+check("lint: uasyncio.sleep_ms() and an awaited sleep_ms() are fine",
+      _lint("async def f():\n    await uasyncio.sleep_ms(5)\n    await sleep_ms(5)\n") == [])
+check("lint: time.sleep_ms() is still flagged", any("sleep_ms" in w for w in _lint("import time\ntime.sleep_ms(50)\n")))
+check("lint: a bare sleep_ms() not awaited is still flagged", any("sleep_ms" in w for w in _lint("sleep_ms(50)\n")))
 # fake mpremote for install + upload
 calls = []
 BOARD_CONFIG = ['CONFIG:1 TRACES:1']
