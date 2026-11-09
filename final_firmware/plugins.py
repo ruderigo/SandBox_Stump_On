@@ -34,7 +34,7 @@ try:
 except ImportError:
     import json
 
-API_VERSION = 3
+API_VERSION = 4
 
 # In-house plugins: the only ones loaded in safe mode, and the only ones
 # allowed a gate priority below 20 (the access-control band).
@@ -62,7 +62,8 @@ STABLE_AFTER_S = 60
 # Budgets
 CMD_GAP_MS = 1500             # one plugin command per client per 1.5 s
 CMD_PER_MIN = 15              # and at most 15 a minute
-POSTS_PER_MIN = 6             # room posts per plugin per minute
+# Room posts per plugin: BarKeep's (barkeep.PLUGIN_POSTS_PER_MIN, a rolling
+# minute with a short queue; plugin API 4).
 MESH_LINES_DEFAULT = 1        # reply lines a mesh user gets per command
 MESH_LINES_MAX = 3
 MESH_LINE_CHARS = 200
@@ -92,7 +93,6 @@ DOOR_APPS_RESERVED = ("lxmf", "stump", "rnstransport")
 DOOR_REQUEST_MAX = 4096        # bytes a request to a plugin's destination may carry
 _seq = [0]
 _cmd_use = {}     # client_id -> [last_ms, window_start_ms, count]
-_post_use = {}    # plugin -> [window_start_ms, count]
 _safe = {"on": False, "reason": "", "culprit": None, "stable": False}
 
 
@@ -226,6 +226,14 @@ class Api:
         if nav:
             _cards.append({"plugin": self.name, "href": base + ("/" + path if path else "/"),
                            "label": nav, "sub": sub})
+
+    def post(self, text, room=None, wait=True):
+        """A line in a room ("main" unless given), as self.nick, from
+        anywhere -- a timer, a poll closing: BarKeep paces it like
+        ctx.post(). True if posted or waiting its turn, False if refused.
+        wait=False: refused at once when over the budget (not queued).
+        Plugin API 4 (1.0.0-beta.61)."""
+        return _post(self.name, self.nick, room, text, wait)
 
     def every(self, seconds, fn):
         seconds = max(TIMER_MIN_S, int(seconds))
@@ -411,11 +419,12 @@ class Ctx:
         if line:
             self._replies.append(str(line))
 
-    def post(self, text, room=None):
-        """A line in the room, as the plugin's nick; False if the plugin
-        is over its posting budget."""
+    def post(self, text, room=None, wait=True):
+        """A line in the room (this line's, unless room is given), as the
+        plugin's nick, through BarKeep's posting budget: True if posted or
+        waiting its turn, False if refused (wait=False: not queued)."""
         return _post(self.plugin, self._api.nick if self._api else self.plugin,
-                     room or self.room, text)
+                     room or self.room, text, wait)
 
     def t(self, key, **kw):
         if self._api is not None:
@@ -430,21 +439,11 @@ def _bind(ctx, plugin):
     ctx._api = rec.get("api") if rec else None
 
 
-def _post(plugin, nick, room, text):
-    if not text:
-        return False
-    now = _now_ms()
-    use = _post_use.get(plugin)
-    if use is None or time.ticks_diff(now, use[0]) > 60000:
-        use = _post_use[plugin] = [now, 0]
-    if use[1] >= POSTS_PER_MIN:
-        if use[1] == POSTS_PER_MIN:
-            _log(plugin, "over its posting budget (%d a minute); dropping" % POSTS_PER_MIN)
-        use[1] += 1
-        return False
-    use[1] += 1
-    import rrc
-    return rrc.post(room, nick, str(text)[:rrc.MAX_MESSAGE_LEN], bot=True) is not None
+def _post(plugin, nick, room, text, wait=True):
+    """BarKeep posts it (barkeep.plugin_post): kept for packs written
+    before stump.post() (plugin API 4)."""
+    import barkeep
+    return barkeep.plugin_post(plugin, nick, room, text, wait)
 
 
 def _lines(result):
@@ -766,6 +765,11 @@ async def scheduler_loop():
     import uasyncio as asyncio
     while True:
         await asyncio.sleep(1)
+        try:
+            import barkeep
+            barkeep.plugin_posts_tick()       # plugin lines waiting their minute
+        except Exception as e:
+            _log("barkeep", "posting the waiting lines failed: %r" % e)
         now = _now_ms()
         for t in list(_timers):
             if t["fails"] >= TIMER_MAX_FAILS or not _active(t["plugin"]):

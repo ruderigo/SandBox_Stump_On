@@ -254,11 +254,14 @@ def _close(room, p, ctx=None):
     del _state["history"][:-MAX_HISTORY]
     _dirty[0] = True
     line = _poll_line(ctx or _Quiet(), p, final=True)
-    import rrc
-    try:
-        rrc.post(room, _api[0].nick, line, bot=True)    # a bot's line (1.0.0-beta.36+)
-    except TypeError:
-        rrc.post(room, _api[0].nick, line)              # older firmware
+    if hasattr(_api[0], "post"):
+        _api[0].post(line, room)        # BarKeep paces it with the rest (plugin API 4)
+    else:
+        import rrc                      # older firmware
+        try:
+            rrc.post(room, _api[0].nick, line, bot=True)    # a bot's line (1.0.0-beta.36+)
+        except TypeError:
+            rrc.post(room, _api[0].nick, line)
     return line
 
 

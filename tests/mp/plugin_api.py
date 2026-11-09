@@ -66,9 +66,39 @@ plugins._cmd_use.clear()
 rrc.handle_input(A, 'lobby', '/hi'); r, _ = rrc.handle_input(A, 'lobby', '/hi')
 check('command rate limit', r and r[0].startswith('⧗ — '), r)
 # post budget
-plugins._post_use.clear()
-oks = [plugins._post('dice', 'Dé', rrc.get_user(A)['room'], 'p%d' % i) for i in range(8)]
-check('post budget 6/min', oks == [True] * 6 + [False, False], oks)
+import barkeep, time
+barkeep.plugin_posts_reset()
+room_ = rrc.get_user(A)['room']
+before = len(rrc.since(room_, 0))
+oks = [plugins._post('dice', 'Dé', room_, 'p%d' % i) for i in range(10)]
+check('post budget: 6 a minute posted, 3 wait their turn, the next refused', oks == [True] * 9 + [False], oks)
+check('... only the 6 are in the room yet', [m['body'] for m in rrc.since(room_, 0)[before:]] == ['p%d' % i for i in range(6)])
+barkeep.plugin_posts_tick()
+check('... the minute not over: still waiting', len(barkeep._plugin_queue['dice']) == 3)
+# The minute moves on for the first two lines: two of the waiting ones go out.
+s_ = barkeep._plugin_sent['dice']
+s_[0] = s_[1] = time.ticks_add(time.ticks_ms(), -61000)
+barkeep.plugin_posts_tick()
+check('... a rolling minute: as lines age out, waiting ones go, in order',
+      [m['body'] for m in rrc.since(room_, 0)[before:]][6:] == ['p6', 'p7'] and len(barkeep._plugin_queue['dice']) == 1,
+      [m['body'] for m in rrc.since(room_, 0)[before:]])
+barkeep._plugin_sent['dice'] = []
+barkeep.plugin_posts_tick()
+check('... and the last one; the queue gone', rrc.since(room_, 0)[-1]['body'] == 'p8' and 'dice' not in barkeep._plugin_queue)
+# stump.post(): from a timer, through the same budget (plugin API 4).
+api_ = plugins.Api('crier'); api_.nick = 'Crieur'
+barkeep.plugin_posts_reset()
+r_ = [api_.post('hear %d' % i, room_) for i in range(6)]
+last_ = rrc.since(room_, 0)[-1]
+check('stump.post(): posts as the plugin nick, a bot line', all(r_) and last_['nick'] == 'Crieur' and last_.get('bot') is True
+      and last_['body'] == 'hear 5', last_)
+check('... and shares the budget: the 7th waits', api_.post('hear 6', room_) is True and len(barkeep._plugin_queue['crier']) == 1)
+check('... no room given: main', plugins.Api('x').post('hi') and rrc.since('main', 0)[-1]['body'] == 'hi')
+barkeep.plugin_posts_reset()
+r_ = [api_.post('now %d' % i, room_, wait=False) for i in range(7)]
+check('wait=False: over the budget refused at once, nothing queued', r_ == [True] * 6 + [False]
+      and 'crier' not in barkeep._plugin_queue, r_)
+check('plugin API 4', plugins.API_VERSION == 4)
 # help
 h = rrc.help_lines('en')
 check('help web', '!roll 2d6 -- throw some dice' in h and '/many -- five lines' in h and '/boom' not in h and '/secret <pw>' in h and h[-1].startswith('✓'), h[-6:])
