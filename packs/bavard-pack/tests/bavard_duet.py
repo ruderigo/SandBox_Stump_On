@@ -26,6 +26,7 @@ import config
 config.BAVARD_NICK = 'Bavard'; config.BAVARDB_NICK = 'Bavard2'
 config.BAVARD_ROOM = config.BAVARDB_ROOM = 'bavard'
 config.BAVARD_PACE = config.BAVARDB_PACE = 'quick'
+config.BAVARD_ON = config.BAVARDB_ON = 'on'      # (a test tool: off by default)
 
 SD = os.getcwd() + '/sdx'
 os.system('rm -rf %s && mkdir -p %s/shared %s/tools/bavard %s/home' % (SD, SD, SD, SD))
@@ -71,6 +72,8 @@ class Clock:
     def gmtime(self, s=None): return time.gmtime(self.time() if s is None else s)
 CLOCK = Clock()
 plugins._now_ms = CLOCK.ticks_ms
+import barkeep
+barkeep.plugin_posts_reset()
 
 class FakeAsync:
     async def sleep_ms(self, ms):
@@ -108,7 +111,8 @@ class End:
     def on_packet(self, fn): self.cb = fn
     def on_close(self, fn): self.close_cb = fn
     def is_open(self): return self.open
-    def remote_hex(self): return None
+    ident = None
+    def remote_hex(self): return self.ident
     def close(self):
         if self.open:
             self.open = self.peer.open = False
@@ -119,6 +123,8 @@ def fake_node(self, app, *aspects): return FakeDoor(self.name)
 def fake_on_announce(self, app, aspects, fn): ANN.append((self.name, fn))
 def fake_connect(self, dest_hex, app, aspects, identify=False):
     a, b = End(), End(); a.peer, b.peer = b, a
+    if identify:
+        b.ident = 'id-' + HEX.get(self.name, '??')     # what the called side sees
     door = NET[dest_hex]; LINKS[0] += 1
     QUEUE.append(lambda: door._on_link(b))
     return a
@@ -129,8 +135,8 @@ plugins.Api.connect = fake_connect
 # Every post the budget sees, accepted or not.
 POSTS, REFUSED = [], [0]          # what was posted; how many were refused (the heap)
 _real_post = plugins._post
-def spy(plugin, nick, room, text):
-    ok = _real_post(plugin, nick, room, text)
+def spy(plugin, nick, room, text, wait=True):
+    ok = _real_post(plugin, nick, room, text, wait)
     if ok:
         POSTS.append((CLOCK.t, plugin, text, ok))
     else:
@@ -143,6 +149,7 @@ check('both bots loaded', 'bavard' in running and 'bavardb' in running, (running
 import bavard.install as A
 import bavardb.install as B
 for mod in (A, B):
+    mod._dest_of = lambda rid: rid[3:]       # a fake identity -> its bot's destination
     mod.time = CLOCK
     mod.asyncio = FakeAsync()
     mod._st['started'] = 0
@@ -181,15 +188,11 @@ def window_max(plugin, span_ms=60000):
     return best
 
 def budget_held(since=0):
-    """The budget is 6 a minute in a fixed window that starts with a
-    plugin's first post: any sliding minute can see up to twice that
-    (the end of one window, the start of the next), never more; and over
-    the whole run, no more than 6 a minute on average."""
+    """BarKeep's budget: 6 lines in ANY rolling minute (plugin API 4; a
+    fixed window let 11 through)."""
     ok = True
     for name in ('bavard', 'bavardb'):
-        n = len([1 for t, pl, _, k in POSTS if pl == name and t >= since])
-        mins = (CLOCK.t - since) // 60000 + 1
-        ok = ok and window_max(name) <= 2 * plugins.POSTS_PER_MIN and n <= mins * plugins.POSTS_PER_MIN
+        ok = ok and window_max(name) <= barkeep.PLUGIN_POSTS_PER_MIN
     return ok
 
 def molière(plugin, since=0):
@@ -269,6 +272,34 @@ allsaid = [(w, l) for _, _, w, l in sorted(molière('bavard', t_duet) + molière
 check('the play picks up where it was: still nothing lost or repeated',
       allsaid == (want * (len(allsaid) // len(want) + 2))[:len(allsaid)] and after, (len(allsaid), allsaid[-8:]))
 
+# ── 3b. who may call: the identity proven on the link, and the pin ──
+class Probe(End):
+    pass
+def call_b(claim, ident):
+    """Someone calls B's door claiming to be bot `claim`, having proven `ident`."""
+    a, b = Probe(), Probe(); a.peer, b.peer = b, a; b.ident = ident
+    saved = dict(B._peer)
+    B._peer.clear()
+    NET[HEX['bavardb']]._on_link(b)
+    b.cb(('{"k": "hi", "v": %d, "d": "%s", "nick": "x", "c": "%s", "cur": [0, 0, 0]}'
+          % (B.PROTO, claim, B._signature())).encode())
+    took = B._peer.get('up') is True
+    B._peer.clear(); B._peer.update(saved)
+    return took, b.open
+st_mode = B._st['mode']
+took, still = call_b('cc' * 16, 'id-' + 'dd' * 16)
+check('a caller claiming another bot than the identity it proved: refused, link closed', not took and not still)
+took, still = call_b('cc' * 16, None)
+check('a caller that proved no identity: refused', not took and not still)
+config.BAVARDB_PARTNER = 'ee' * 16
+took, still = call_b('cc' * 16, 'id-' + 'cc' * 16)
+check('BAVARD_PARTNER pinned: an honest caller that isn\'t it is refused', not took and not still)
+took, _ = call_b('ee' * 16, 'id-' + 'ee' * 16)
+check('... the pinned one is taken', took)
+del config.BAVARDB_PARTNER
+B._st['mode'] = st_mode
+check('the real duet carried on', A._peer.get('up') and B._peer.get('up'))
+
 # ── 4. what's left on the card and on the page ──
 A._flush(); B._flush(); A._save_state()
 logs = [n for n in os.listdir(SD + '/plugins/bavard') if n.startswith('log-')]
@@ -288,8 +319,8 @@ html = A._page(Req())
 check('page', 'Bavard' in html and 'Pièce' in html, html[:200])
 code, js, ct = A._stats_json(Req())
 check('stats.json', code == 200 and '"lines_played"' in js and ct == 'application/json')
-print('most lines in a sliding minute: %d (budget %d a fixed minute)' % (
-    max(window_max('bavard'), window_max('bavardb')), plugins.POSTS_PER_MIN))
+print('most lines in a sliding minute: %d (budget %d in any minute)' % (
+    max(window_max('bavard'), window_max('bavardb')), barkeep.PLUGIN_POSTS_PER_MIN))
 print('lines played: %d, posted %d, refused by the budget %d' % (
     st['lines_played'] + B._st['lines_played'], A._st['posted'] + B._st['posted'],
     A._st['dropped'] + B._st['dropped']))

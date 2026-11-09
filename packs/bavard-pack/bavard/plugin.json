@@ -1,9 +1,9 @@
 {
   "plugin": "bavard",
-  "title": "Bavard (a bot that never stops talking: guardrail test bench)",
-  "version": "1.0",
-  "plugin_api": 3,
-  "summary": "Posts non-stop in its own room at a variable pace: alone, a unique line of numbers with the UTC date and time; with another Bavard on another Stump, the two play Molière in the original French, each taking half the characters, turn by turn over a Reticulum link. Every line goes through the plugin posting budget; what it refuses is counted and retried. Status at /p/bavard/, numbers at /p/bavard/stats.json, transcript on the SD card.",
+  "title": "Bavard (a test tool: a bot that never stops talking)",
+  "version": "1.1",
+  "plugin_api": 4,
+  "summary": "Posts non-stop in its own room at a variable pace: alone, a unique line of numbers with the UTC date and time; with another Bavard on another Stump, the two play Molière in the original French, each taking half the characters, turn by turn over a Reticulum link. It starts paused (BAVARD_ON). Every line goes through BarKeep's posting budget; what it refuses is counted and retried. Status at /p/bavard/, numbers at /p/bavard/stats.json, transcript on the SD card.",
   "modifies_core_files": false,
   "binds_ports": false,
   "starts_tasks": false,
@@ -21,8 +21,19 @@
     "note": "state.json (where the play is) and log-YYYYMMDD.txt (every line tried, OK or DROP, and link events; 7 days kept, 16 MB a day at most). Without an SD card nothing is written and the bots play the built-in scene."
   },
   "wizard": {
-    "note": "Everything has a working default.",
+    "note": "A test tool: off unless you say on. The rest has a working default.",
     "prompts": [
+      {
+        "key": "BAVARD_ON",
+        "prompt": "Talk from the start? (a test tool: off waits for Resume in /admin)",
+        "type": "choice",
+        "options": [
+          "off",
+          "on"
+        ],
+        "default": "off",
+        "writes_to": "config.py"
+      },
       {
         "key": "BAVARD_ROOM",
         "prompt": "Room the bot talks in",
@@ -84,8 +95,8 @@
   ],
   "hashes": {
     "bavard/__init__.py": "ce40f7f4e3770f39",
-    "bavard/install.py": "3656b5688b6c56bd",
+    "bavard/install.py": "3bcb2e474d6c8416",
     "bavard/strings.py": "88925db8b914c708",
-    "bavard/scene.py": "7c8a10686365bf8f"
+    "bavard/scene.py": "a7347f306a4d8878"
   }
 }

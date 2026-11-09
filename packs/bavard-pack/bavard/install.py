@@ -14,10 +14,12 @@
 # goes over the link and the whole play is in each node's transcript.
 # Plays loop: the default collection lasts well past 72 hours.
 #
-# Everything goes through the plugin posting budget (6 room lines a
-# minute): what it refuses is counted, logged as DROP and retried, never
-# worked around. That's the point -- see README.md, "What it measures".
-# Plugin API 3 (stump.node / on_announce / connect).
+# Everything goes through BarKeep's plugin posting budget (6 room lines in
+# any rolling minute), with stump.post(..., wait=False): what it refuses is
+# counted, logged as DROP and retried, never worked around. That's the
+# point -- see README.md, "What it measures". A test tool: it starts
+# paused unless BAVARD_ON = "on" (or /admin -> Bavard -> Resume).
+# Plugin API 4 (stump.post; stump.node / on_announce / connect from 3).
 
 import time
 
@@ -36,8 +38,8 @@ try:
 except ImportError:
     import asyncio
 
-VERSION = "1.0"
-STUMP_API = 3
+VERSION = "1.1"
+STUMP_API = 4
 
 APP, ASPECT = "bavard", "bot"
 PROTO = 1
@@ -93,6 +95,7 @@ def setup(stump):
     stump.nick = stump.setting("NICK", "Bavard")
     _st["started"] = _now()
     _st["next_ms"] = time.ticks_add(_now(), 15000)
+    _st["paused"] = str(stump.setting("ON", "off") or "off").lower() not in ("on", "1", "true", "yes")
     _load_state()
     _load_index()
     d = _door[0] = stump.node(APP, ASPECT)
@@ -203,8 +206,8 @@ def _post(text):
         import rrc
         if not rrc.room_exists(room):
             rrc.create_room(room)
-        import plugins
-        ok = bool(plugins._post(s.name, s.nick, room, text))
+        ok = s.post(text, room, wait=False) is True     # refused now, not queued: counted
+
     except Exception as e:
         s.log("post failed:", e)
     now = _now()
@@ -397,13 +400,41 @@ def _dial(dest_hex, nick):
 
 
 def _incoming(session):
-    """The other bot called us. Who it is, its hello says."""
+    """The other bot called us. Who it is, its hello says -- checked
+    against the identity it proved on the link (and BAVARD_PARTNER)."""
     if _peer.get("up"):
         session.close()                         # one partner at a time
         return
-    _peer["link"] = session
-    _peer["last_rx"] = _now()
+    _peer.clear()
+    _peer.update({"link": session, "last_rx": _now(), "incoming": True})
     session.on_packet(_rx)
+
+
+def _dest_of(identity_hex):
+    """The bavard.bot destination of a Stump's identity (hex)."""
+    from urns.identity import Identity
+    from urns import const
+    name = Identity.full_hash((APP + "." + ASPECT).encode())[:const.NAME_HASH_LENGTH // 8]
+    return Identity.full_hash(name + bytes.fromhex(identity_hex))[:const.TRUNCATED_HASHLENGTH // 8].hex()
+
+
+def _caller_ok(claimed):
+    """An incoming link's hello: the destination it claims has to be the
+    one of the identity it proved, and the pinned partner if there is one."""
+    link = _peer.get("link")
+    try:
+        rid = link.remote_hex() if link is not None else None
+        real = _dest_of(rid) if rid else None
+    except Exception:
+        real = None
+    if not real or real != claimed:
+        _note("refused", "a caller that didn't prove it is %s" % str(claimed)[:8])
+        return False
+    pin = str(_api[0].setting("PARTNER", "") or "")
+    if pin and pin != claimed:
+        _note("refused", "%s isn't BAVARD_PARTNER" % claimed[:8])
+        return False
+    return True
 
 
 def _send(obj):
@@ -448,8 +479,11 @@ def _rx(data):
         if m.get("v") != PROTO:
             _note("refused", "protocol %s" % m.get("v"))
             return
-        if m.get("d"):
-            _peer["hex"] = m["d"]
+        if _peer.get("incoming") and not _peer.get("up") and not _caller_ok(m.get("d")):
+            _solo()
+            return
+        if m.get("d") and _peer.get("incoming"):
+            _peer["hex"] = m["d"]               # (proven just above; when we called, we know)
         _peer["nick"] = str(m.get("nick") or "?")[:16]
         first = not _peer.get("up")
         if m.get("c") != _signature() and _plays[0][0]:
