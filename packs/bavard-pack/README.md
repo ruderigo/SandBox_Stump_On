@@ -48,7 +48,23 @@ characters; the full play, both sides, is in the transcripts.
 
 If the partner goes quiet for 5 minutes, the bot goes back to numbers;
 when they hear each other again, the play picks up where it stopped.
-One partner at a time (`BAVARD_PARTNER` pins one). A Bavard that calls
+One partner at a time (`BAVARD_PARTNER` pins one), and **one duet at a
+time** among all the Bavards that hear each other (1.2):
+
+- Each Bavard's announce says what it's doing (free, in a duet with whom,
+  or holding a place in a play), and it announces again when that changes.
+- A free Bavard that knows of a duet stays out of it: no call, no answer.
+  If two duets formed at once, the one with the smaller pair of addresses
+  stays and the other breaks up.
+- When a duet breaks (a bot leaves, is paused, or its link goes silent),
+  the bot that stays holds its place in the play for 10 minutes. The
+  smallest free Bavard calls it and they go on from that line. Everyone
+  works out the same pair, so nobody races.
+- Each turn passed is acknowledged, and passed again every 8 s until it is,
+  so a turn lost while a Stump is busy costs seconds, not the old 90 s.
+- While the room is shared with other Stumps (`/setchan … -wifi` or
+  `-lora`), Bavards that aren't in the duet post nothing there: only the
+  duet shows. Set the room `-local` for a load test with numbers. A Bavard that calls
 proves its Stump's identity on the link, and the one called checks that
 the destination it claims is that identity's, and the pinned partner's
 when there is one: anyone else is refused.
