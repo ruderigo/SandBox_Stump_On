@@ -100,6 +100,7 @@ rrc.touch_user("10.0.0.2", nick="rod", room="main")
 LB = stump("LaBuche", chain_if, {"rs": 1, "rad": False})
 OLD = stump("Vieille", chain_if, {"rad": False})              # an older Stump: no "rs"
 FAR = stump("Loin", radio_if, {"rs": 1, "rad": True})          # outside the chain, over LoRa
+rrc_mesh._peers[FAR].update({"room": rrc.MESH_ROOM, "home_room": rrc.MESH_ROOM})   # (met over the radio)
 radio_bridges = [radio_if]
 import radio
 radio.bridges = lambda: radio_bridges
@@ -130,6 +131,11 @@ check("/rooms marks a Wi-Fi room", any(x.startswith("#bavard") and "[Wi-Fi]" in 
 out = flushed(LB)
 check("to a chain Stump: the scope, over the chain", out and out[0][1] == "[ROOM] #bavard wifi 1" and out[0][2] is chain_if, out)
 check("... an older Stump (no \"rs\"): nothing", flushed(OLD) == [])
+QUIET = stump("Muette", chain_if, {})                        # its beacon not heard (yet)
+check("a Stump whose beacon isn't heard yet: nothing until it shows it takes rooms", flushed(QUIET) == [])
+rrc_mesh._from_stump(QUIET, rrc_mesh._peers[QUIET], "[ROOM] #bavard wifi 1", me, "")
+check("... it sent a room's scope: it takes them, ours go to it", any("[ROOM] #bavard wifi" in o[1] for o in flushed(QUIET)))
+del rrc_mesh._peers[QUIET]
 check("... a Stump outside the chain: a Wi-Fi room isn't offered", flushed(FAR) == [])
 check("... told once, not again each pass", flushed(LB) == [])
 rrc.touch_user("10.0.0.2", room="bavard")
@@ -160,6 +166,52 @@ rrc_mesh._from_stump(LB, rrc_mesh._peers[LB], "[ROOM] #atelier local 4", me, "")
 check("... a newer one does: local again", rooms.scope("atelier") == "local")
 rrc_mesh._from_stump(FAR, rrc_mesh._peers[FAR], "[ROOM] #club wifi 9", me, "")
 check("a Stump outside the chain can't set a scope here", rooms.scope("club") == "local" and not rrc.room_exists("club"))
+
+# ---- 3b. A chain Stump whose route goes over a Heltec for a while (1.0.0-beta.63) ----
+e = Transport.path_table[bytes.fromhex(LB)]
+e[4] = radio_if                                   # its route: LoRa now
+rrc_mesh._from_stump(LB, rrc_mesh._peers[LB], "<ann> par la radio", me, "#bavard")
+check("route over LoRa for now: a chain Stump's #bavard lines still filed", rrc.since("bavard", 0)[-1]["body"] == "par la radio")
+rrc.handle_input("10.0.0.2", "bavard", "pendant ce temps")
+out = flushed(LB)
+check("... and ours still go to it (its route, not dropped)", any(o[0] == "#bavard" and "<rod> pendant ce temps" in o[1] for o in out), out)
+check("... the scopes still go to it", rrc_mesh._room_chain(LB) and rooms.shares("bavard", LB, rrc_mesh._room_chain(LB)))
+e[4] = chain_if
+rrc.handle_input("10.0.0.2", "bavard", "de retour")
+out = flushed(LB)
+check("route back over the chain: over the chain again, nothing skipped", out and out[0][2] is chain_if and "<rod> de retour" in out[0][1], out)
+rrc.post("bavard", "rod", "ok")
+rrc.post("bavard", "rod", "ok")
+out = flushed(LB)
+check("the same words twice in a Wi-Fi room: two lines sent", sum(o[1].count("<rod> ok") for o in out) == 2, out)
+rrc_mesh._from_stump(LB, rrc_mesh._peers[LB], "<ann> oui", me, "#bavard")
+rrc_mesh._from_stump(LB, rrc_mesh._peers[LB], "<ann> oui", me, "#bavard")
+check("... and two received", [m["body"] for m in rrc.since("bavard", 0)][-2:] == ["oui", "oui"])
+# Behind: a chain Stump that tells an older scope gets ours on the next pass.
+flushed(LB)
+rrc_mesh._from_stump(LB, rrc_mesh._peers[LB], "[ROOM] #bavard local 0", me, "")
+out = flushed(LB)
+check("a chain Stump behind on a room's scope: ours to it at once, not in ROOM_EVERY",
+      any("[ROOM] #bavard wifi 1" in o[1] for o in out) and rooms.scope("bavard") == "wifi", out)
+
+# ---- 3c. A chain Stump first heard over the radio: its beacon names the chain (1.0.0-beta.63) ----
+rrc_mesh._my_chain[:] = ["c0ffee123456", time.time() + 10 ** 6]      # (this Stump's chain id)
+for i in range(8):
+    rrc.post("bavard", "rod", "ligne %d" % i)
+NEWC = stump("Grange", radio_if, {"rs": 1, "rad": True, "ch": "c0ffee123456"})
+rrc_mesh._peers[NEWC].update({"room": rrc.MESH_ROOM, "home_room": rrc.MESH_ROOM})    # met over the radio
+check("a Stump met over the radio, its beacon naming this chain: on the chain for the rooms", rrc_mesh._room_chain(NEWC))
+out = flushed(NEWC)
+txt = "\n".join(o[1] for o in out)
+check("... the scopes at once, then the last few lines (not the whole backlog, not nothing)",
+      "[ROOM] #bavard wifi" in txt and "<rod> ligne 7" in txt and "<rod> ligne 3" in txt and "<rod> ligne 2" not in txt, out)
+rrc_mesh._from_stump(NEWC, rrc_mesh._peers[NEWC], "<lea> depuis la Grange", me, "#bavard")
+check("... and its #bavard lines taken", rrc.since("bavard", 0)[-1]["body"] == "depuis la Grange")
+OTHERC = stump("Ailleurs", radio_if, {"rs": 1, "rad": True, "ch": "0123456789ab"})
+rrc_mesh._peers[OTHERC].update({"room": rrc.MESH_ROOM, "home_room": rrc.MESH_ROOM})
+check("... a Stump of another chain isn't", not rrc_mesh._room_chain(OTHERC) and not any("#bavard" in o[1] for o in flushed(OTHERC)))
+del rrc_mesh._peers[NEWC], rrc_mesh._peers[OTHERC]
+rrc_mesh._my_chain[:] = [None, time.time() + 10 ** 6]
 
 # ---- 4. A LoRa room offered from outside the chain ----
 main_before = len(rrc.since("main", 0))

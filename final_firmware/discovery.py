@@ -266,6 +266,13 @@ def caps():
     out["lb"] = 1                         # takes #lora-mesh broadcasts (rrc_mesh, 1.0.0-beta.58)
     out["rs"] = 1                         # rooms with a scope (rooms.py, 1.0.0-beta.62)
     try:
+        import chain
+        cid = chain.chain_id() if chain.settings() else None
+        if cid:
+            out["ch"] = cid               # which chain (its /chain.json id, no secret): shared rooms from the first beacon (1.0.0-beta.63)
+    except Exception:
+        pass
+    try:
         import fserv
         if fserv.sd_ok:
             total, free, _ = fserv.get_storage_stats()
