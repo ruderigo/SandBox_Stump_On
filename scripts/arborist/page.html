@@ -856,9 +856,17 @@ function showFound(r, out) {
   });
   if (!o.roots.length) {
     line(out, "No first Stump answered (found " + r.stumps.map(function (s) { return s.name; }).join(", ") + "). Is it on, and on “" + ssid + "”?", "warn");
-  } else if (o.roots.length === 1 && val("f-chain") !== "first") {
-    useRoot(o.roots[0]);
-    var b1 = out.querySelector(".stumps button"); if (b1) b1.textContent = "✓ Joining";
+  } else if (val("f-chain") === "lan") {
+    // Already chosen to join over the router: the first Stump at the address
+    // typed (or the only one, none typed) is filled in again.
+    var pip = $("f-parent").value.trim(), pick = o.roots.filter(function (x) { return x.ip === pip; })[0] || (!pip && o.roots.length === 1 ? o.roots[0] : null);
+    if (pick) {
+      useRoot(pick);
+      var b1 = tb.rows[r.stumps.indexOf(pick)].querySelector("button"); if (b1) b1.textContent = "\u2713 Joining";
+    }
+  } else {
+    // Never on its own (finding 8): a board set as "Not in a chain" stays so.
+    line(out, "To put this Stump in a chain, press \u201cJoin its chain\u201d. Otherwise it stays on its own (\u201cNot in a chain\u201d, below).", "hint");
   }
   line(out, "Free for this one: number " + o.number + " · Heltec " + o.heltec, "");
   // A Heltec on the router: the next free address offered.
@@ -1061,6 +1069,7 @@ async function make() {
     if (s.warn.length && !confirm(s.warn.join("\n") + "\n\nGo ahead anyway?")) return false;
     var bad = await secretMismatch(s.values);
     if (bad) { $("make-err").textContent = bad; return false; }
+    if (s.values.CHAIN_ENABLED && !confirm(chainSays(s.values) + "\n\nA Stump on its own? Cancel, and choose \u201cNot in a chain\u201d (Chaining settings). Go ahead?")) return false;
     if (!(IMAGED && IMAGED === port) && !confirm("This erases everything on the board. Go ahead?")) return false;
   }
   var P = await payload(), IM = await images();
@@ -1165,7 +1174,25 @@ async function make() {
   r.appendChild(para("So that people can download Arborist from this Stump (its Tools page, /tools): put the SD card in a computer " +
                      "and copy this page, Arborist-@@RELEASE@@.html, into tools/arborist/ on the card. It's too big to copy over USB.", "hint"));
   done(""); $("result").appendChild(r);
+  if (!upd) formForNext();
   return true;
+}
+// What a chain setting means, in a line (Make's confirm).
+function chainSays(v) {
+  if (v.CHAIN_PARENT_IP) return "This Stump joins the chain of the Stump at " + v.CHAIN_PARENT_IP + " (over the home Wi-Fi).";
+  if (v.CHAIN_UPLINK_SSID) return "This Stump joins the chain of the Stump whose Wi-Fi is \u201c" + v.CHAIN_UPLINK_SSID + "\u201d.";
+  return "This Stump starts a chain: it's the first Stump, the others join it.";
+}
+// The next new Stump starts from the defaults: only the home Wi-Fi's name is kept.
+function formForNext() {
+  var ssid = $("f-ssid").value;
+  $("form").dataset.filled = "edit";
+  formFor(null);
+  $("f-ssid").value = ssid;
+  PICKED_ROOT = null; LOOKED = null;
+  $("f-look-out").textContent = ""; $("f-look-out").classList.add("hidden");
+  $("f-secret-hint").textContent = "";
+  chainView(); radioView(); hotspotView(); heltecWifiView();
 }
 
 // -- Settings -------------------------------------------------------------------------
