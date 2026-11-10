@@ -230,6 +230,10 @@
     </div>
     <label class="inline"><input type="checkbox" id="f-hotspot-ip"> Show its address in the Wi-Fi's name, so people know where to go if no page opens</label>
     <p class="hint" id="f-hotspot-count" aria-live="polite"></p>
+    <label for="f-subnet">Its number <span class="hint">· 2 to 254: its Wi-Fi's address is 192.168.&lt;number&gt;.1</span></label>
+    <div class="row" style="margin-top:0"><input type="number" id="f-subnet" min="2" max="254" value="4" style="width:7em">
+      <span class="hint" id="f-subnet-addr"></span></div>
+    <p class="hint">4 suits most. Pick another if your home network already uses 192.168.4.something.</p>
     <label for="f-greet">Greeting <span class="hint">· sent once to each new person on the mesh; blank: none</span></label>
     <input type="text" id="f-greet" maxlength="200">
 
@@ -259,10 +263,7 @@
         <div><label for="f-uppass">Its password <span class="hint">· blank if open</span></label><input type="password" id="f-uppass" maxlength="63"></div>
       </div>
     </div>
-    <div id="f-chain-number" class="hidden">
-      <label for="f-subnet">This Stump's number <span class="hint">· 5 to 254, a different one on each (the first is 4); its Wi-Fi is 192.168.&lt;number&gt;.1</span></label>
-      <input type="number" id="f-subnet" min="5" max="254" value="5" style="width:7em">
-    </div>
+    <p class="hint hidden" id="f-chain-number">Each Stump of a chain needs its own number (set above, with its Wi-Fi's name), different from the Stump it joins and from every other one in the chain.</p>
     <div id="f-chain-secret" class="hidden">
       <label for="f-secret">Chain secret <span class="hint">· the same on every Stump of the chain: note it down</span></label>
       <div class="row" style="margin-top:0"><input type="text" id="f-secret" maxlength="64" style="flex:1"><button type="button" class="plain small" id="f-newsecret">New one</button></div>
@@ -343,11 +344,11 @@ function chainView() {
   $("f-chain-first").classList.toggle("hidden", c !== "first");
   $("f-chain-lan").classList.toggle("hidden", c !== "lan");
   $("f-chain-member").classList.toggle("hidden", c !== "member");
-  $("f-chain-number").classList.toggle("hidden", c !== "member" && c !== "lan");
+  $("f-chain-number").classList.toggle("hidden", c === "none");
   $("f-chain-secret").classList.toggle("hidden", c === "none");
   // A member over the router types the first Stump's secret; the others get one made.
   if ((c === "first" || c === "member") && !$("f-secret").value) $("f-secret").value = R.randomSecret();
-  var n = c === "member" || c === "lan" ? ($("f-subnet").value || "5") : "4";
+  var n = $("f-subnet").value || "4";
   $("f-ap-addr").textContent = "(at 192.168." + n + "." + R.HELTEC_ON_HOTSPOT + ")";
   heltecSuggest();
 }
@@ -378,7 +379,10 @@ function pwChecks() { pairCheck("f-pw", "f-pw2", "f-pw-match", 4); pairCheck("f-
 // The Wi-Fi's name as phones will see it, counted as it's typed (32 at
 // most, the address included when it's shown).
 function hotspotView() {
-  var ch = val("f-chain"), sub = (ch === "member" || ch === "lan") ? (+$("f-subnet").value || 5) : 4;
+  var sub = +$("f-subnet").value || 4;
+  $("f-subnet-addr").textContent = (sub >= 2 && sub <= 254) ? "its Wi-Fi: 192.168." + sub + ".1" : "2 to 254";
+  $("f-subnet-addr").className = (sub >= 2 && sub <= 254) ? "hint" : "err";
+  if ($("f-ap-addr")) $("f-ap-addr").textContent = "(at 192.168." + sub + "." + R.HELTEC_ON_HOTSPOT + ")";
   var n = R.hotspotName($("f-hotspot").value || SSID, $("f-hotspot-ip").checked, sub), el = $("f-hotspot-count");
   if (n.over > 0) { el.textContent = "“" + n.name + "”: " + n.over + " character" + (n.over === 1 ? "" : "s") + " too long (32 at most). Shorten the name, or untick the address."; el.className = "err"; }
   else { el.textContent = "Phones will see “" + n.name + "” · " + (32 - n.length) + " character" + (32 - n.length === 1 ? "" : "s") + " left"; el.className = "hint"; }
@@ -430,7 +434,7 @@ function formFor(a) {
       $("f-hhost").value = ""; setVal("f-radio", "none"); setVal("f-chain", "none"); $("f-hotspot").value = ""; $("f-hotspot-ip").checked = false;
       qa("input[name=f-feat]").forEach(function (c) { c.checked = c.value !== "about"; });
       $("f-theme").value = "paper"; $("f-mode").value = "open"; $("f-channel").value = 11; $("f-up").value = SSID;
-      $("f-uppass").value = ""; $("f-subnet").value = 5; $("f-secret").value = ""; $("f-more").open = false;
+      $("f-uppass").value = ""; $("f-subnet").value = 4; $("f-secret").value = ""; $("f-more").open = false;
       $("f-parent").value = "";
       fillRadio(null);
     }
@@ -817,7 +821,8 @@ function useRoot(rt) {
   setVal("f-chain", "lan");
   $("f-parent").value = rt.ip;
   var taken = LOOKED ? LOOKED.offers.numbers : [];
-  if (!$("f-subnet").value || taken.indexOf(+$("f-subnet").value) >= 0 || +$("f-subnet").value < 5) $("f-subnet").value = LOOKED ? LOOKED.offers.number : 5;
+  if (!$("f-subnet").value || taken.indexOf(+$("f-subnet").value) >= 0) $("f-subnet").value = LOOKED ? LOOKED.offers.number : 5;
+  hotspotView();
   var known = rt.chain && secrets()[rt.chain];
   if (known) $("f-secret").value = known;
   else if (!EDITING) $("f-secret").value = "";

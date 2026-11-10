@@ -172,8 +172,10 @@ The same as the Provisioner:
   bridge's three lines in `CONFIG` (as the Provisioner edits them). A
   result that isn't Python is undone. The rules are `/admin`'s and the
   Provisioner's: a name of 20 characters at most, an admin password on
-  a new Stump, a chain's first Stump is number 4 and sets the channel,
-  the others 5 to 254, a member over the router has `CHAIN_PARENT_IP` and
+  a new Stump, every Stump has a number from 2 to 254 (4 by default; its
+  Wi-Fi is 192.168.<number>.1, in a chain or not, and a different one on
+  each Stump of a chain), a chain's first Stump sets the channel, a
+  member over the router has `CHAIN_PARENT_IP` and
   the home Wi-Fi as its uplink (its password copied on the board when it
   isn't typed again), a Heltec on the Stump's own Wi-Fi is
   192.168.<number>.200 (.2 read from an older one, saved as .200).

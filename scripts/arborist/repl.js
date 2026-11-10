@@ -402,7 +402,11 @@
     var hs = (a.hotspot || "").trim();
     if (hs.length > 32 || ctl(hs)) return no("The Wi-Fi name it shows: at most 32 characters.");
     v.SSID_NAME = hs || null; v.SSID_INCLUDE_IP = !!a.hotspotIp;
-    var subnet = 4;
+    // Its number, in a chain or not (1.0.0-beta.64): its Wi-Fi is 192.168.<number>.1.
+    var subnet = a.subnet === undefined || String(a.subnet).trim() === "" ? 4 : parseInt(a.subnet, 10);
+    if (!(subnet >= 2 && subnet <= 254) || (a.subnet !== undefined && String(a.subnet).trim() !== "" && String(subnet) !== String(a.subnet).trim()))
+      return no("Its number: 2 to 254 (its Wi-Fi is 192.168.<number>.1).");
+    v.CHAIN_SUBNET = subnet;
     if (a.chain === "first" || a.chain === "member") {
       var secret = (a.secret || "").trim();
       if (secret.length > 64 || /['"\\]/.test(secret) || ctl(secret)) return no("The chain secret: at most 64 characters, no quotes or backslashes.");
@@ -411,13 +415,11 @@
       if (a.chain === "first") {
         var ch = parseInt(a.channel, 10);
         if (!(ch >= 1 && ch <= 13)) return no("The chain's Wi-Fi channel: 1 to 13.");
-        v.CHAIN_UPLINK_SSID = ""; v.CHAIN_UPLINK_PASS = ""; v.CHAIN_SUBNET = 4; v.CHAIN_CHANNEL = ch;
+        v.CHAIN_UPLINK_SSID = ""; v.CHAIN_UPLINK_PASS = ""; v.CHAIN_CHANNEL = ch;
       } else {
         var up = (a.upSsid || "").trim();
         if (!up || up.length > 32 || ctl(up)) return no("The Wi-Fi name of the Stump it joins: 1 to 32 characters.");
-        subnet = parseInt(a.subnet, 10);
-        if (!(subnet >= 5 && subnet <= 254) || String(subnet) !== String(a.subnet).trim()) return no("This Stump's number in the chain: 5 to 254, a different one on each Stump.");
-        v.CHAIN_UPLINK_SSID = up; v.CHAIN_UPLINK_PASS = a.upPass || ""; v.CHAIN_SUBNET = subnet; v.CHAIN_CHANNEL = 0;
+        v.CHAIN_UPLINK_SSID = up; v.CHAIN_UPLINK_PASS = a.upPass || ""; v.CHAIN_CHANNEL = 0;
       }
     } else if (a.chain === "lan") {
       // A member over the router (chain.py's CHAIN_PARENT_IP, 1.0.0-beta.57):
@@ -428,10 +430,8 @@
       if (!ssid) return no("Joining over the home Wi-Fi needs the home Wi-Fi's name (above).");
       var pip = (a.parentIp || "").trim();
       if (!isIp(pip)) return no("The first Stump's address on the home Wi-Fi looks like 192.168.0.173.");
-      subnet = parseInt(a.subnet, 10);
-      if (!(subnet >= 5 && subnet <= 254) || String(subnet) !== String(a.subnet).trim()) return no("This Stump's number in the chain: 5 to 254, a different one on each Stump.");
       v.CHAIN_ENABLED = true; v.CHAIN_SECRET = sec2; v.CHAIN_PARENT_IP = pip;
-      v.CHAIN_UPLINK_SSID = ssid; v.CHAIN_UPLINK_PASS = a.wpass || FROM_WIFI_PASS; v.CHAIN_SUBNET = subnet; v.CHAIN_CHANNEL = 0;
+      v.CHAIN_UPLINK_SSID = ssid; v.CHAIN_UPLINK_PASS = a.wpass || FROM_WIFI_PASS; v.CHAIN_CHANNEL = 0;
     } else {
       v.CHAIN_ENABLED = false;
     }
@@ -458,7 +458,7 @@
   // What readSettings found -> the form's answers.
   function answersFrom(c) {
     var chain = !c.CHAIN_ENABLED ? "none" : c.CHAIN_PARENT_IP ? "lan" : c.CHAIN_UPLINK_SSID ? "member" : "first";
-    var subnet = chain === "member" || chain === "lan" ? c.CHAIN_SUBNET : 4, h = c.HELTEC || {};
+    var subnet = c.CHAIN_SUBNET || 4, h = c.HELTEC || {};
     // On its hotspot: .200, or .2 as before 1.0.0-beta.58 (saved again as .200).
     var radio = !h.enabled ? "none" : (h.host === "192.168." + subnet + "." + HELTEC_ON_HOTSPOT
                                        || h.host === "192.168." + subnet + ".2") ? "ap" : "lan";
@@ -468,7 +468,7 @@
       features: Array.isArray(c.FEATURES) ? c.FEATURES : FEATURES.slice(0, 3), theme: c.THEME || "paper",
       mode: c.AUTH_MODE || "open", hotspot: c.SSID_NAME || "", hotspotIp: !!c.SSID_INCLUDE_IP, chain: chain,
       channel: c.CHAIN_CHANNEL || 11, upSsid: c.CHAIN_UPLINK_SSID || "", upPass: c.CHAIN_UPLINK_PASS || "",
-      subnet: c.CHAIN_SUBNET || 5, secret: c.CHAIN_SECRET || "", parentIp: c.CHAIN_PARENT_IP || "",
+      subnet: c.CHAIN_SUBNET || 4, secret: c.CHAIN_SECRET || "", parentIp: c.CHAIN_PARENT_IP || "",
       hasPw: !!c.HAS_ADMIN_PASSWORD, hasOpPw: !!c.HAS_OP_PASSWORD, hasWifiPass: !!c.HAS_WIFI_PASS
     };
   }

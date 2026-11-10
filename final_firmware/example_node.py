@@ -388,7 +388,7 @@ def main():
     # broadcast in the network name any more.
     ap_ip = captive_portal.setup_ap(
         SSID_NAME, include_ip=SSID_INCLUDE_IP,
-        ap_ip=chain.ap_ip(CHAIN) if CHAIN else None,
+        ap_ip=chain.ap_ip(CHAIN) if (CHAIN or not RESCUE) else None,     # its number, in a chain or not (rescue: the default)
         # The root sets the chain's channel; a member's access point
         # follows its uplink's channel whatever it's told.
         channel=CHAIN["channel"] if CHAIN and chain.is_root(CHAIN) else None)

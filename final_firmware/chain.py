@@ -18,7 +18,7 @@
 #   CHAIN_ENABLED     = True
 #   CHAIN_UPLINK_SSID = ""      # the neighbour Stump's Wi-Fi; "" = this is the root
 #   CHAIN_UPLINK_PASS = ""
-#   CHAIN_SUBNET      = 4       # this Stump's Wi-Fi is 192.168.<n>.1 (4..254, unique per Stump)
+#   CHAIN_SUBNET      = 4       # this Stump's Wi-Fi is 192.168.<n>.1 (2..254, unique per Stump; in a chain or not)
 #   CHAIN_CHANNEL     = 11      # root only: the Wi-Fi channel the whole chain uses
 #   CHAIN_SECRET      = ""      # the same on every Stump of the chain (strongly advised)
 #   CHAIN_PORT        = 4242
@@ -145,7 +145,7 @@ def settings():
         subnet = int(getattr(c, "CHAIN_SUBNET", DEFAULT_SUBNET))
     except (TypeError, ValueError):
         subnet = DEFAULT_SUBNET
-    if not 1 <= subnet <= 254:
+    if not 2 <= subnet <= 254:
         subnet = DEFAULT_SUBNET
     try:
         channel = int(getattr(c, "CHAIN_CHANNEL", 0) or 0)
@@ -177,7 +177,19 @@ def ap_ip(s=None):
     except ImportError:
         pass
     s = s or settings()
-    return "192.168.%d.1" % (s["subnet"] if s else DEFAULT_SUBNET)
+    return "192.168.%d.1" % (s["subnet"] if s else own_subnet())
+
+
+def own_subnet():
+    """This Stump's number (CHAIN_SUBNET, 2 to 254): its Wi-Fi is at
+    192.168.<number>.1, in a chain or not (1.0.0-beta.64; on its own it
+    used to be 192.168.4.1 whatever the number said)."""
+    try:
+        import config as c
+        n = int(getattr(c, "CHAIN_SUBNET", DEFAULT_SUBNET))
+    except (ImportError, TypeError, ValueError):
+        return DEFAULT_SUBNET
+    return n if 2 <= n <= 254 else DEFAULT_SUBNET
 
 
 def ap_prefix():
