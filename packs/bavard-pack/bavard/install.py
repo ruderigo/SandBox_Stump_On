@@ -38,16 +38,20 @@ try:
 except ImportError:
     import asyncio
 
-VERSION = "1.1"
+VERSION = "1.2"
 STUMP_API = 4
 
 APP, ASPECT = "bavard", "bot"
-PROTO = 1
+PROTO = 2              # 1.2: turns acknowledged ("ga"); one duet at a time
 ANNOUNCE_TAG = b"bavard/1"
 
 STALL_S = 90           # no word from the partner on their turn: nudge them
 DEAD_S = 300           # nothing at all for this long: back to numbers
 PING_S = 30
+GO_RESEND_S = 8        # a turn passed and not acknowledged: passed again
+HOLD_S = 600           # a bot whose duet broke offers its place in the play this long
+FAILED_S = 120         # a bot that didn't answer a call isn't called again for this long
+HELLO_S = 30           # a call (either way) with no hello after this long is given up
 FLUSH_S = 10
 KEEP_DAYS = 7          # transcript files kept on the card
 LOG_DAY_MAX = 16 * 1024 * 1024
@@ -78,7 +82,9 @@ _st = {
 }
 _cur = {"p": 0, "i": 0, "n": 0}     # play, line in the play, lines played in all
 _peer = {}                           # the partner: hex, nick, link, side...
-_heard = {}                          # door hex -> [nick, last heard ms]
+_heard = {}                          # door hex -> [nick, last heard ms, state ("f", "h", "d")]
+_duets = {}                          # "hexA+hexB" (sorted) -> last heard ms: duets going elsewhere
+_failed = {}                         # door hex -> when a call to it failed
 _door = [None]
 _plays = []                          # [(slug, title, lines)]
 _play = {}                           # the loaded play
@@ -351,12 +357,47 @@ def _my_side():
 
 # ── the partner ──────────────────────────────────────────────────────
 
+# One duet at a time, among all the Bavards that hear each other (1.2).
+# Each one's announce says what it's doing: "f" free, "h<p>,<i>,<n>" free
+# and holding a place in a play (its duet just broke), "d<hexA><hexB>" in
+# a duet (the two, sorted). It announces again whenever that changes.
+#  - A free bot that knows of a duet elsewhere stays out (no call, no answer).
+#  - Two duets that formed at once: the one with the smaller pair stays,
+#    the other breaks up.
+#  - Who plays next is worked out the same way by everyone: a bot holding a
+#    place first (the smallest), with the smallest other free bot; else the
+#    two smallest free bots. The smaller of the two calls. So nobody races,
+#    and a duet whose bot dropped goes on, with another, from where it was.
+
+def _state():
+    if _st["mode"] == "duet" and _peer.get("up"):
+        return "d" + _pair()
+    if _holding():
+        return "h%d,%d,%d" % (_cur["p"], _cur["i"], _cur["n"])
+    return "f"
+
+
+def _pair(a=None, b=None):
+    a = a or _my_hex() or ""
+    b = b or _peer.get("hex") or ""
+    return min(a, b) + max(a, b)
+
+
+def _holding():
+    h = _st.get("hold_until")
+    return bool(h) and time.ticks_diff(h, _now()) > 0
+
+
+def _seen_s():
+    return 2 * int(_api[0].setting("ANNOUNCE", 300) or 300) + 60
+
+
 def _announce():
     d = _door[0]
     if d is None or _st["paused"]:
         return
     nick = (_api[0].nick or "Bavard")[:16]
-    d.announce(ANNOUNCE_TAG + b"|" + nick.encode("utf-8"))
+    d.announce(ANNOUNCE_TAG + b"|" + nick.encode("utf-8") + b"|" + _state().encode())
 
 
 def _announce_heard(dest_hex, app_data):
@@ -366,23 +407,81 @@ def _announce_heard(dest_hex, app_data):
     data = bytes(app_data or b"")
     if not data.startswith(ANNOUNCE_TAG):
         return
-    nick = data.split(b"|", 1)[1].decode("utf-8")[:16] if b"|" in data else "?"
+    parts = data.split(b"|")
+    nick = parts[1].decode("utf-8")[:16] if len(parts) > 1 else "?"
+    state = parts[2].decode() if len(parts) > 2 else "f"      # (1.1: no state)
     if dest_hex not in _heard:
         _st["peers_heard"] += 1
         _note("heard", "%s (%s)" % (nick, dest_hex[:8]))
-    _heard[dest_hex] = [nick, _now()]
-    pin = str(_api[0].setting("PARTNER", "") or "")
-    if pin and pin != dest_hex:
-        return
-    if _peer.get("up") or _peer.get("hex") not in (None, dest_hex):
-        return                                  # already with someone
-    if (me or "") < dest_hex:
-        _dial(dest_hex, nick)                   # the smaller hash calls
+    now = _now()
+    _heard[dest_hex] = [nick, now, state]
+    if state.startswith("d") and len(state) == 65:
+        pair = state[1:]
+        _duets[pair] = now
+        if _st["mode"] == "duet" and _peer.get("up") and pair != _pair() and pair < _pair():
+            _note("duet", "another duet (%s+%s) was first: ours stops" % (pair[:8], pair[32:40]))
+            _send({"k": "bye"})
+            _solo(hold=False)
     else:
-        if _peer.get("hex") != dest_hex:
+        for pr in [pr for pr in _duets if dest_hex in (pr[:32], pr[32:])]:
+            del _duets[pr]                      # its duet is over
+
+
+def _duet_elsewhere():
+    me, now, lim = _my_hex() or "", _now(), _seen_s() * 1000
+    for pr, at in list(_duets.items()):
+        if time.ticks_diff(now, at) > lim:
+            del _duets[pr]
+        elif me not in (pr[:32], pr[32:]):
+            return True
+    return False
+
+
+def _next_pair():
+    """(caller, called) for the next duet, the same for every bot that
+    heard the same announces; None if there's none to make."""
+    me, now, lim = _my_hex() or "", _now(), _seen_s() * 1000
+    pin = str(_api[0].setting("PARTNER", "") or "")
+    free, holders = [me], ([me] if _holding() else [])
+    for h, v in _heard.items():
+        st = v[2] if len(v) > 2 else "f"
+        if time.ticks_diff(now, v[1]) > lim or st.startswith("d"):
+            continue
+        if h in _failed and time.ticks_diff(now, _failed[h]) < FAILED_S * 1000:
+            continue
+        if pin and h != pin:
+            continue
+        free.append(h)
+        if st.startswith("h"):
+            holders.append(h)
+    if len(free) < 2:
+        return None
+    free.sort()
+    if holders:
+        a = min(holders)
+        b = [h for h in free if h != a][0]
+    else:
+        a, b = free[0], free[1]
+    return (min(a, b), max(a, b))
+
+
+def _match():
+    """Called every second while solo: call the partner, or wait for its call."""
+    if _st["paused"] or _st["mode"] == "duet" or _peer.get("link") is not None or _duet_elsewhere():
+        return
+    pr = _next_pair()
+    me = _my_hex()
+    if not pr or me not in pr:
+        if _peer.get("waiting_since"):
             _peer.clear()
-            _peer.update({"hex": dest_hex, "waiting_since": _now()})
-        _peer["nick"] = nick
+        return
+    other = pr[1] if pr[0] == me else pr[0]
+    nick = (_heard.get(other) or ["?"])[0]
+    if pr[0] == me:
+        _dial(other, nick)                      # the smaller one calls
+    elif _peer.get("hex") != other:
+        _peer.clear()
+        _peer.update({"hex": other, "nick": nick, "waiting_since": _now()})
 
 
 def _dial(dest_hex, nick):
@@ -402,8 +501,11 @@ def _dial(dest_hex, nick):
 def _incoming(session):
     """The other bot called us. Who it is, its hello says -- checked
     against the identity it proved on the link (and BAVARD_PARTNER)."""
-    if _peer.get("up"):
-        session.close()                         # one partner at a time
+    if _peer.get("up") or _peer.get("link") is not None or _duet_elsewhere() or _st["paused"]:
+        # One partner at a time; a call of ours under way isn't dropped
+        # for it (it used to be, its link left open and still talking);
+        # and no second duet.
+        session.close()
         return
     _peer.clear()
     _peer.update({"link": session, "last_rx": _now(), "incoming": True})
@@ -491,21 +593,32 @@ def _rx(data):
             _builtin_only()
         _adopt(m.get("cur") or ())
         if first:
+            if _duet_elsewhere():
+                _note("refused", "a duet is going elsewhere")
+                _send({"k": "bye"})
+                _solo(hold=False)
+                return
             _peer["up"] = True
             _st["links"] += 1
             _st["mode"] = "duet"
+            _st["hold_until"] = 0
+            _failed.pop(_peer.get("hex"), None)
             _note("duet", "with %s (%s)" % (_peer["nick"], (_peer.get("hex") or "")[:8]))
             _hello()                            # so they have our cursor too
+            _announce()                         # the others: a duet is going
         _peer["kick"] = True                    # whoever's turn it is, goes
     elif k == "go":
         if not _peer.get("up"):
             return
+        _send({"k": "ga", "n": (m.get("cur") or (0, 0, 0))[2]})     # got it
         if not _adopt(m.get("cur") or ()) and int((m.get("cur") or (0, 0, 0))[2]) < _cur["n"]:
             _peer["resend"] = True              # they're behind: our last turn was lost
         _peer["kick"] = True
     elif k == "bye":
         _note("link", "the partner left; numbers again")
         _solo()
+    elif k == "ga":
+        _peer["go_acked"] = True
     elif k == "pg":
         _send({"k": "po", "t": m.get("t")})
     elif k == "po":
@@ -519,10 +632,15 @@ def _closed():
     if _peer.get("up"):
         _st["link_drops"] += 1
         _note("link", "closed; numbers again")
+    elif _peer.get("dialled") and _peer.get("hex"):
+        _failed[_peer["hex"]] = _now()          # it didn't take the call: someone else next
     _solo()
 
 
-def _solo():
+def _solo(hold=True):
+    """Back to numbers. A duet that broke: this bot holds its place in the
+    play for HOLD_S, so another bot takes over from there."""
+    was = _st["mode"] == "duet"
     link = _peer.get("link")
     _peer.clear()
     if link is not None:
@@ -532,11 +650,18 @@ def _solo():
             pass
     _st["mode"] = "solo"
     _st["next_ms"] = time.ticks_add(_now(), _delay())
+    if was:
+        _st["hold_until"] = time.ticks_add(_now(), HOLD_S * 1000) if hold else 0
+        try:
+            _announce()                         # the others: free again
+        except Exception:
+            pass
 
 
 def _pass_turn():
     _send({"k": "go", "cur": [_cur["p"], _cur["i"], _cur["n"]], "t": _now()})
     _peer["sent_go"] = _now()
+    _peer["go_acked"] = False
 
 
 # ── the clock ────────────────────────────────────────────────────────
@@ -561,11 +686,32 @@ async def _tick():
         _st["busy"] = False
 
 
+def _room_shared():
+    try:
+        import rooms
+        return rooms.scope(_room()) != "local"
+    except Exception:
+        return False
+
+
 async def _solo_tick():
     now = _now()
+    if _peer.get("link") is not None and not _peer.get("up"):
+        since = _peer.get("dialled") or _peer.get("last_rx") or now
+        if time.ticks_diff(now, since) > HELLO_S * 1000:
+            if _peer.get("dialled") and _peer.get("hex"):
+                _failed[_peer["hex"]] = now
+            _note("call", "no answer from %s" % (_peer.get("hex") or "?")[:8])
+            _solo()                             # (it used to wait on that link for ever)
+    _match()
     w = _peer.get("waiting_since")
     if w and not _peer.get("link") and time.ticks_diff(now, w) > 180000 and _peer.get("hex"):
         _dial(_peer["hex"], _peer.get("nick", "?"))    # they never called: we do
+    if _room_shared():
+        # The room goes to other Stumps: only the duet shows there, not
+        # every bot's numbers (set it -local for a load test).
+        _st["next_ms"] = time.ticks_add(_now(), _delay())
+        return
     for _ in range(MAX_BURST):
         wait = time.ticks_diff(_st["next_ms"], _now())
         if wait > 1000 or _st["mode"] != "solo":
@@ -605,6 +751,9 @@ async def _duet():
         return
     if _peer.pop("resend", False) or (_peer.pop("kick", False) and not _peer.get("sent_go")):
         _pass_turn()
+    elif _peer.get("sent_go") and not _peer.get("go_acked") and \
+            time.ticks_diff(now, _peer["sent_go"]) > GO_RESEND_S * 1000:
+        _pass_turn()                             # not acknowledged: lost on the way
     elif quiet > STALL_S * 1000 and time.ticks_diff(now, _peer.get("sent_go", 0)) > STALL_S * 1000:
         _pass_turn()                             # nudge: maybe our last go was lost
 
@@ -801,10 +950,14 @@ def _panel_post(fields, lang):
     s = _api[0]
     do = (fields.get("do") or "").strip()
     if do == "pause":
+        if _st["mode"] == "duet":
+            _send({"k": "bye"})                 # the partner holds the place: another bot takes over
+        _solo(hold=False)
         _st["paused"] = True
     elif do == "resume":
         _st["paused"] = False
         _st["next_ms"] = _now()
+        _announce()
     elif do == "solo":
         _send({"k": "bye"})
         _solo()

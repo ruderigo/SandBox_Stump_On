@@ -21,12 +21,17 @@ if not (FW / "plugins.py").is_file():
     sys.exit("no Stump firmware at %s (give its folder)" % FW)
 work = Path(tempfile.mkdtemp(prefix="bavard-test-"))
 try:
-    shutil.copytree(FW, work / "fw")
-    shutil.copytree(PACK / "bavard", work / "fw" / "bavard")
-    r = subprocess.run([MP, "-X", "heapsize=4M", str(HERE / "bavard_duet.py")],
-                       cwd=work / "fw", capture_output=True, text=True, timeout=600)
-    out = r.stdout + r.stderr
-    print("\n".join(l for l in out.splitlines() if not l.startswith("[")))
-    sys.exit(0 if "FAILURES: []" in out else 1)
+    ok = True
+    for test in ("bavard_duet.py", "bavard_four.py"):
+        shutil.rmtree(work / "fw", ignore_errors=True)
+        shutil.copytree(FW, work / "fw")
+        shutil.copytree(PACK / "bavard", work / "fw" / "bavard")
+        r = subprocess.run([MP, "-X", "heapsize=4M", str(HERE / test)],
+                           cwd=work / "fw", capture_output=True, text=True, timeout=900)
+        out = r.stdout + r.stderr
+        print("== " + test)
+        print("\n".join(l for l in out.splitlines() if not l.startswith("[")))
+        ok = ok and "FAILURES: []" in out
+    sys.exit(0 if ok else 1)
 finally:
     shutil.rmtree(work, ignore_errors=True)

@@ -266,7 +266,7 @@ check('numbers again', [p for p in POSTS if p[0] > t_cut and '#' in p[2] and p[3
 WIRE[0] = True
 t_back = CLOCK.t
 asyncio.run(run(900))
-check('together again', A._st['mode'] == 'duet' and B._st['mode'] == 'duet' and LINKS[0] == 2)
+check('together again', A._st['mode'] == 'duet' and B._st['mode'] == 'duet' and LINKS[0] >= 2, LINKS)
 after = sorted(molière('bavard', t_back) + molière('bavardb', t_back))
 allsaid = [(w, l) for _, _, w, l in sorted(molière('bavard', t_duet) + molière('bavardb', t_duet))]
 check('the play picks up where it was: still nothing lost or repeated',

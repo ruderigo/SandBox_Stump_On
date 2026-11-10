@@ -1,6 +1,6 @@
 {
   "name": "bavard",
-  "version": "1.1",
+  "version": "1.2",
   "author": "Claude (independent pack author, not the Stump team)",
   "license": "MIT (code); the plays are in the public domain",
   "stump_api": 4,
@@ -29,6 +29,6 @@
     "tools/tartuffe.txt": "7f01f1b9d7db0872"
   },
   "plugin_hashes": {
-    "bavard": "7130afe0afb67033"
+    "bavard": "570f467c9f52be09"
   }
 }
