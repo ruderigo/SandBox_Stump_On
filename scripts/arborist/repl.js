@@ -374,7 +374,8 @@
     }
     if (a.samePw && v.AUTH_ADMIN_PASSWORD) {
       v.FSERVBOT_OP_PASSWORD = v.AUTH_ADMIN_PASSWORD;      // the fserv bot's, the same (the Provisioner's default)
-    } else if (a.opw && !a.samePw) {
+    } else if ((a.opw || a.opw2) && !a.samePw) {
+      if (a.opw2 !== undefined && a.opw !== a.opw2) return no("The two fserv bot's passwords aren't the same.");
       if (a.opw.length < 4 || a.opw.length > 64) return no("The fserv bot's password: 4 to 64 characters.");
       v.FSERVBOT_OP_PASSWORD = a.opw;
     }
@@ -592,6 +593,70 @@
   // big for USB], theme}.
   var RESERVED = ["urns", "lib", "peripherals", "web", "docs", "third_party", "tools_payload", "sd", "rns", "tls",
                   "plugins_state", "boot", "main", "config"];
+  // A plugin's setup questions (plugin.json "wizard", as the Provisioner
+  // asks them, 1.0.0-beta.64): only settings of its own -- its name in
+  // capitals first (BAVARD_...), into config.py, never one of the Stump's
+  // (passwords, Wi-Fi, chain); the others are refused, said, not asked.
+  var NEVER_KEYS = /^(AUTH_|WIFI_|CHAIN_|FSERVBOT_OP|NODE_NAME$|ADMIN|STUMP_)/;
+  function packQuestions(pn, ps) {
+    var w = (ps && ps.wizard) || {}, own = pn.toUpperCase() + "_", out = { plugin: pn, title: ps.title || pn, note: w.note || "", prompts: [], refused: [] };
+    (Array.isArray(w.prompts) ? w.prompts : []).forEach(function (q) {
+      if (!q || typeof q.key !== "string") return;
+      var k = q.key;
+      if (!/^[A-Z][A-Z0-9_]{1,47}$/.test(k) || k.indexOf(own) !== 0 || NEVER_KEYS.test(k) || (q.writes_to || "config.py") !== "config.py") {
+        out.refused.push(k); return;
+      }
+      var type = q.type === "choice" || q.type === "int" ? q.type : "string";
+      var options = type === "choice" ? (Array.isArray(q.options) ? q.options.map(String) : []).concat([]) : null;
+      if (type === "choice" && !options.length) options = [String(q["default"] === undefined ? "" : q["default"])];
+      out.prompts.push({ key: k, prompt: String(q.prompt || k), type: type, options: options,
+                         "default": q["default"] === undefined ? (type === "int" ? 0 : "") : q["default"],
+                         min: typeof q.min === "number" ? q.min : null, max: typeof q.max === "number" ? q.max : null,
+                         advanced: !!q.advanced });
+    });
+    return out;
+  }
+
+  // The values to write for a pack's questions. answers: {KEY: {value,
+  // touched}}; current: what the board's config.py has. A setting already
+  // on the board stays unless it was changed here; a question not marked
+  // optional, missing on the board, gets its answer (or default). Checked
+  // by type: a choice from its options, a whole number in its range.
+  function packValues(questions, answers, current) {
+    var v = {}, cur = current || {};
+    for (var i = 0; i < questions.length; i++) {
+      for (var j = 0; j < questions[i].prompts.length; j++) {
+        var q = questions[i].prompts[j], a = (answers || {})[q.key] || {}, has = Object.prototype.hasOwnProperty.call(cur, q.key);
+        if (!a.touched && (has || q.advanced)) continue;
+        var raw = a.touched ? a.value : q["default"], val;
+        if (q.type === "choice") {
+          val = String(raw);
+          if (q.options.indexOf(val) < 0) return { error: q.key + ": one of " + q.options.join(", ") + "." };
+        } else if (q.type === "int") {
+          if (!/^-?\d+$/.test(String(raw).trim())) return { error: q.key + ": a whole number." };
+          val = parseInt(String(raw).trim(), 10);
+          if ((q.min !== null && val < q.min) || (q.max !== null && val > q.max))
+            return { error: q.key + ": " + (q.min !== null ? q.min : "…") + " to " + (q.max !== null ? q.max : "…") + "." };
+        } else {
+          val = String(raw);
+          if (val.length > 200 || /[\n\r]/.test(val)) return { error: q.key + ": one line, 200 characters at most." };
+        }
+        if (has && cur[q.key] === val) continue;
+        v[q.key] = val;
+      }
+    }
+    return { values: v };
+  }
+
+  // What the board's config.py has for these keys (as Python values).
+  async function packCurrent(repl, keys) {
+    if (!keys.length) return {};
+    var out = await repl.run("import json\ntry:\n import config\n c={k:getattr(config,k) for k in json.loads(" + py(JSON.stringify(keys)) +
+                             ") if hasattr(config,k)}\nexcept Exception:\n c={}\nprint('J'+json.dumps(c))\n", 15000);
+    var m = /J(\{.*\})/.exec(out);
+    try { return m ? JSON.parse(m[1]) : {}; } catch (e) { return {}; }
+  }
+
   async function packFrom(zip, known) {
     function no(e) { return { error: e }; }
     var names = Object.keys(zip), base = null;
@@ -603,7 +668,8 @@
     if (miss.length) return no("Its pack.json has no " + miss.join(", ") + ".");
     if (!/^[a-z][a-z0-9_-]{0,31}$/.test(spec.name)) return no("The pack's name isn't a plain name.");
     known = known || {};
-    var plan = { name: spec.name, version: spec.version, plugins: [], card: [], byReader: [], theme: spec.theme || null };
+    var plan = { name: spec.name, version: spec.version, plugins: [], card: [], byReader: [], theme: spec.theme || null,
+                 questions: [], refused: [] };
     var plugins = spec.plugins || [];
     for (var i = 0; i < plugins.length; i++) {
       var pn = plugins[i];
@@ -616,6 +682,9 @@
       if (!want || (await shaHex(pj)).slice(0, 16) !== want) return no(pn + "/plugin.json doesn't match the pack's hash.");
       var ps;
       try { ps = JSON.parse(dec.decode(pj)); } catch (e) { return no(pn + "/plugin.json won't read."); }
+      var qs = packQuestions(pn, ps);
+      if (qs.prompts.length) plan.questions.push(qs);
+      plan.refused = plan.refused.concat(qs.refused);
       var hashes = ps.hashes || {}, files;
       if (Array.isArray(ps.files) && ps.files.length)
         files = ps.files.filter(function (f) { return typeof f === "string" && f.indexOf(pn + "/") === 0 && !/(^|\/)\.\.?(\/|$)/.test(f) && zip[base + f]; });
@@ -817,7 +886,8 @@
               removeFrozenCopies: removeFrozenCopies, HELTEC_ON_HOTSPOT: HELTEC_ON_HOTSPOT, HELTEC_FIRST: HELTEC_FIRST,
               CARD: CARD, USB_MAX: USB_MAX, cardStatus: cardStatus, wipeCard: wipeCard, toCard: toCard,
               readZip: readZip, packFrom: packFrom, installPack: installPack, fillTools: fillTools, shaHex: shaHex,
-              readSettings: readSettings, writeSettings: writeSettings, readConfigFile: readConfigFile, putConfigFile: putConfigFile,
+              readSettings: readSettings, writeSettings: writeSettings,
+              packQuestions: packQuestions, packValues: packValues, packCurrent: packCurrent, readConfigFile: readConfigFile, putConfigFile: putConfigFile,
               settingsFrom: settingsFrom, answersFrom: answersFrom, bootSummary: bootSummary, randomSecret: function () { return hex(8); },
               readRadio: readRadio, writeRadio: writeRadio, radioFrom: radioFrom, radioAnswers: radioAnswers,
               RADIO_BW: RADIO_BW, RADIO_DEFAULT: RADIO_DEFAULT,

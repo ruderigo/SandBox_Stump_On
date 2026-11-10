@@ -115,6 +115,8 @@ async function scenario(name, extra, chunk) {
   check("settings: the same password for the fserv bot", !r.error && r.values.FSERVBOT_OP_PASSWORD === "s3cret", JSON.stringify(r));
   r = S({ pw: "", pw2: "", opw: "" });
   check("settings: a new Stump with neither password: refused", /admin password|BarKeep/.test(r.error || ""), JSON.stringify(r));
+  r = S({ opw: "barkeep99", opw2: "barkeep98" });
+  check("the fserv bot's password typed twice differently: refused", r.error && /aren't the same/.test(r.error), r.error);
   r = S({ opw: "ab" });
   check("settings: too-short fserv bot password: refused", /fserv bot's password/.test(r.error || ""), JSON.stringify(r));
   const errs = [
@@ -303,7 +305,14 @@ def make(name, plugin, tamper=False):
     (d / "home").mkdir()
     (d / plugin / "install.py").write_text("def setup(stump):\\n    pass\\n")
     (d / plugin / "README.md").write_text("# readme\\n")
-    (d / plugin / "plugin.json").write_text(json.dumps({"plugin": plugin, "title": plugin, "version": "1.0"}))
+    pre = plugin.upper() + "_"
+    (d / plugin / "plugin.json").write_text(json.dumps({"plugin": plugin, "title": plugin, "version": "1.0", "wizard": {"note": "n", "prompts": [
+        {"key": pre + "ON", "prompt": "On?", "type": "choice", "options": ["off", "on"], "default": "off", "writes_to": "config.py"},
+        {"key": pre + "ROOM", "prompt": "Room", "type": "string", "default": "lobby", "writes_to": "config.py", "advanced": True},
+        {"key": pre + "EVERY", "prompt": "Every", "type": "int", "default": 60, "min": 10, "max": 3600, "writes_to": "config.py", "advanced": True},
+        {"key": "CHAIN_SECRET", "prompt": "x", "type": "string", "default": "pwned", "writes_to": "config.py"},
+        {"key": "WIFI_PASS", "prompt": "x", "type": "string", "default": "pwned", "writes_to": "config.py"},
+        {"key": "OTHER_THING", "prompt": "x", "type": "string", "default": "x", "writes_to": "config.py"}]}}))
     (d / "tools" / "README.md").write_text("# " + name + " tools\\n")
     (d / "tools" / "thing.bin").write_bytes(bytes(range(256)) * 20)
     (d / "home" / "banner.txt").write_text("hello")
@@ -343,10 +352,35 @@ with zipfile.ZipFile(out / "climb.zip", "w") as zf:
       let zerr = null;
       try { await R.readZip(zipOf("climb.zip")); } catch (e) { zerr = e; }
       check("a zip with a path that climbs out: refused whole", zerr && /climbs out/.test(zerr.message), zerr && zerr.message);
+      const Q = demo.plan.questions;
+      check("a pack's questions: its own settings only (DEMO_...), the Stump's refused (CHAIN_SECRET, WIFI_PASS, another prefix)",
+            Q.length === 1 && Q[0].prompts.map((q) => q.key).join() === "DEMO_ON,DEMO_ROOM,DEMO_EVERY"
+            && demo.plan.refused.sort().join() === "CHAIN_SECRET,OTHER_THING,WIFI_PASS", JSON.stringify([Q, demo.plan.refused]));
+      let pv = R.packValues(Q, {}, {});
+      check("... nothing changed, nothing on the board: the shown one's default written, the optional ones left to the plugin",
+            JSON.stringify(pv.values) === '{"DEMO_ON":"off"}', JSON.stringify(pv));
+      pv = R.packValues(Q, { DEMO_ON: { value: "on", touched: true } }, { DEMO_ON: "off", DEMO_ROOM: "kept" });
+      check("... changed here: written; one already on the board and not changed: kept", JSON.stringify(pv.values) === '{"DEMO_ON":"on"}', JSON.stringify(pv));
+      pv = R.packValues(Q, {}, { DEMO_ON: "on" });
+      check("... a reinstall with nothing changed: nothing written (on stays on)", JSON.stringify(pv.values) === "{}", JSON.stringify(pv));
+      check("... checked: a choice from its options, a whole number in its range",
+            /one of off, on/.test(R.packValues(Q, { DEMO_ON: { value: "maybe", touched: true } }, {}).error || "")
+            && /whole number/.test(R.packValues(Q, { DEMO_EVERY: { value: "ten", touched: true } }, {}).error || "")
+            && /10 to 3600/.test(R.packValues(Q, { DEMO_EVERY: { value: "5", touched: true } }, {}).error || "")
+            && R.packValues(Q, { DEMO_EVERY: { value: "120", touched: true } }, { DEMO_ON: "on" }).values.DEMO_EVERY === 120);
       fs.mkdirSync(path.join(root, "demo"), { recursive: true });
       fs.writeFileSync(path.join(root, "demo/install.mpy"), "stale compiled copy");
       await R.installPack(repl, demo.plan);
       const th = JSON.parse(fs.readFileSync(path.join(root, "themes.json"), "utf8"));
+      fs.writeFileSync(path.join(root, "config.py"), "NODE_NAME = 'Demo'\nDEMO_ROOM = 'kept'\n");
+      for (const f of ["settings.py", "store.py", "lora_boards.py"]) fs.copyFileSync(path.join(FW, f), path.join(root, f));
+      const cur = await R.packCurrent(repl, ["DEMO_ON", "DEMO_ROOM", "DEMO_EVERY"]);
+      check("its settings on the board read (only what's there)", JSON.stringify(cur) === '{"DEMO_ROOM":"kept"}', JSON.stringify(cur));
+      const wv = R.packValues(Q, { DEMO_ON: { value: "on", touched: true } }, cur);
+      await R.writeSettings(repl, wv.values);
+      const cfgD = fs.readFileSync(path.join(root, "config.py"), "utf8");
+      check("... the answer written into config.py, what was there kept, nothing of the Stump's touched",
+            /DEMO_ON = 'on'/.test(cfgD) && /DEMO_ROOM = 'kept'/.test(cfgD) && /NODE_NAME = 'Demo'/.test(cfgD) && !/pwned|CHAIN_SECRET|WIFI_PASS/.test(cfgD), cfgD);
       check("installed: the plugin on the flash (no README, no plugin.json), an old compiled copy gone",
             fs.existsSync(path.join(root, "demo/install.py")) && !fs.existsSync(path.join(root, "demo/README.md"))
             && !fs.existsSync(path.join(root, "demo/plugin.json")) && !fs.existsSync(path.join(root, "demo/install.mpy")));

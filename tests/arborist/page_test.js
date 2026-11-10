@@ -95,10 +95,20 @@ async function run(name, root, simArgs, fill, keep, pageFile, chip) {
     check("an empty password: the form says so", /password/i.test(await page.textContent("#make-err")), await page.textContent("#make-err"));
     await page.uncheck("#f-same");
     await page.fill("#f-opw", "botonly1");
+    check("the fserv bot's password typed once: asks for it again, as it's typed", /once more/i.test(await page.textContent("#f-opw-match")),
+          await page.textContent("#f-opw-match"));
+    await page.fill("#f-opw2", "botonly2");
+    check("... typed differently: \"not the same\", in red, at once", /Not the same/.test(await page.textContent("#f-opw-match"))
+          && (await page.getAttribute("#f-opw-match", "class")) === "err" && /mismatch/.test(await page.getAttribute("#f-opw2", "class")));
+    await page.click("#make-go");
+    check("... and Make refuses it", /aren't the same/.test(await page.textContent("#make-err")), await page.textContent("#make-err"));
+    await page.fill("#f-opw2", "botonly1");
+    check("... the same: says so, the red gone", /are the same/.test(await page.textContent("#f-opw-match"))
+          && !/mismatch/.test(await page.getAttribute("#f-opw2", "class") || ""));
     await page.click("#make-go");
     check("the fserv bot's password alone: not enough, the admin one is needed", /admin password/i.test(await page.textContent("#make-err")),
           await page.textContent("#make-err"));
-    await page.fill("#f-opw", "");
+    await page.fill("#f-opw", ""); await page.fill("#f-opw2", "");
     await page.click("#f-more summary");
     await page.check("input[name=f-chain][value=lan]");
     check("joining over the router: the first Stump's address and this one's number asked, no secret made up",
@@ -112,10 +122,15 @@ async function run(name, root, simArgs, fill, keep, pageFile, chip) {
     await page.check("input[name=f-chain][value=none]");
     await page.check("input[name=f-radio][value=none]");
     await page.click("#f-more summary");
-    await page.fill("#f-pw", "secret1"); await page.fill("#f-pw2", "secret2");
+    await page.fill("#f-pw", "secret1"); await page.fill("#f-pw2", "sec");
+    check("the admin password typed again: \"so far so good\" while it matches the start", /So far/.test(await page.textContent("#f-pw-match")));
+    await page.fill("#f-pw2", "secret2");
+    check("... then \"not the same\", in red, before anything is pressed", /Not the same/.test(await page.textContent("#f-pw-match"))
+          && /mismatch/.test(await page.getAttribute("#f-pw2", "class")));
     await page.click("#make-go");
     check("two passwords that differ: says so", /aren't the same/.test(await page.textContent("#make-err")), await page.textContent("#make-err"));
     await page.fill("#f-pw2", "secret1");
+    check("... the same: a tick", /are the same/.test(await page.textContent("#f-pw-match")));
     await page.check("input[name=f-radio][value=lan]");
     await page.fill("#f-hhost", "not an address");
     await page.click("#make-go");
@@ -149,7 +164,7 @@ async function run(name, root, simArgs, fill, keep, pageFile, chip) {
     check("the fserv bot: the same password by default (the Provisioner's), its own field hidden",
           (await page.isChecked("#f-same")) && !(await page.isVisible("#f-opw")));
     await page.uncheck("#f-same");
-    await page.fill("#f-opw", "barkeep55");
+    await page.fill("#f-opw", "barkeep55"); await page.fill("#f-opw2", "barkeep55");
     await page.fill("#f-ssid", "Home \"Net\""); await page.fill("#f-wpass", "pa'ss1234");
     await page.check("input[name=f-radio][value=ap]");
     check("a Heltec on its hotspot: at .200, past the addresses the hotspot hands out", /192\.168\.4\.200/.test(await page.textContent("#f-ap-addr")),
@@ -215,7 +230,7 @@ async function run(name, root, simArgs, fill, keep, pageFile, chip) {
     await page.check("input[name=f-chain][value=member]");
     await page.fill("#f-up", "First-Stump");
     await page.fill("#f-subnet", "6");
-    await page.fill("#f-opw", "newbar42");            // change only the BarKeep password
+    await page.fill("#f-opw", "newbar42"); await page.fill("#f-opw2", "newbar42");            // change only the BarKeep password
     check("a chain member: a secret made for it", /^[0-9a-f]{16}$/.test(await page.inputValue("#f-secret")));
     await page.click("#set-save");
     title = await wait();
@@ -305,6 +320,23 @@ for name, swap in (("good.zip", False), ("bad.zip", True)):
     const info = await page.textContent("#card-pack-info");
     check("a pack chosen: checked, what it brings and how long", /tavern .*checked/.test(info) && /a theme/.test(info)
           && !(await page.isDisabled("#card-pack-go")), info);
+    check("... the Tavern's settings: all optional, under \"More settings\" with their defaults",
+          (await page.isVisible("#card-pack-qs fieldset")) && !(await page.isVisible("#pq-TAVERN_NICK"))
+          && (await page.inputValue("#pq-TAVERN_NICK")).length > 0);
+    execFileSync("python3", ["-c", `
+import sys, zipfile
+from pathlib import Path
+pack = Path(sys.argv[1]); out = Path(sys.argv[2])
+with zipfile.ZipFile(out / "bavard.zip", "w", zipfile.ZIP_DEFLATED) as zf:
+    for f in sorted(pack.rglob("*")):
+        if f.is_file() and "__pycache__" not in f.parts and "tests" not in f.parts and "gutenberg" not in f.parts:
+            zf.writestr(pack.name + "/" + f.relative_to(pack).as_posix(), f.read_bytes())
+`, path.join(__dirname, "../../packs/bavard-pack"), zips]);
+    await page.setInputFiles("#card-pack", path.join(zips, "bavard.zip"));
+    await page.waitForFunction(() => /bavard/.test(document.getElementById("card-pack-info").textContent), null, { timeout: 30000 });
+    check("Bavard's zip: its question shown (talk from the start?), off by default", (await page.isVisible("#pq-BAVARD_ON"))
+          && (await page.inputValue("#pq-BAVARD_ON")) === "off" && !(await page.isVisible("#pq-BAVARD_ROOM")),
+          await page.textContent("#card-pack-qs"));
     await page.setInputFiles("#card-pack", path.join(zips, "bad.zip"));
     await page.waitForFunction(() => document.getElementById("card-pack-info").className === "err", null, { timeout: 15000 });
     const bad = await page.textContent("#card-pack-info");
