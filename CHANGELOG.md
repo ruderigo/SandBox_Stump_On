@@ -1,5 +1,10 @@
 # Changelog
 
+## Next (Arborist only; the firmware is unchanged)
+- **Arborist asks a pack's setup questions**: once a pack's zip is checked, its questions from `plugin.json` are shown as the Provisioner asks them (Bavard's "Talk from the start?"; the optional ones under *More settings*, with their defaults), checked by type, and written into `config.py` after the copy. A setting already on the board stays unless changed (a reinstall keeps Bavard on). A pack can only set its own settings (`BAVARD_...`): one asking for `CHAIN_SECRET`, `WIFI_PASS` or another pack's is refused and said.
+- **Passwords typed twice are checked as you type**: under the admin password and its "Once more", the page says whether the two match while you type (✓ the same / so far so good / ✗ not the same, in red), not only when Make or Save is pressed. The fserv bot's own password gets a "Once more" field too (it had none) and the same check.
+- Tests: `arborist` (a pack's questions: own settings only, the Stump's refused, defaults, kept on a reinstall, checked by type, written on the board; Bavard's question shown; the live password checks and the fserv bot's second field).
+
 ## 1.0.0-beta.63
 - **Shared rooms hold on when a route goes over LoRa.** A Stump took another for "on its chain" only while its route went over the chain's Wi-Fi; with Heltecs on several Stumps, a route to a chain Stump can go over LoRa for a while, and then a Wi-Fi room (#bavard) wasn't shared with it either way: an observer saw one Bavard and not the other, and some lines were never passed on. Now a chain Stump stays one for the shared rooms (as #wifi-mesh always did), its lines are taken, and ours go to it by its route of the moment until the chain's Wi-Fi is back.
 - **On the chain from the first beacon**: each Stump's beacon now carries its chain's id (the one in `/chain.json`, no secret in it), so a Stump of the same chain shares the rooms at once, even when the first route to it is a Heltec's LoRa. A Stump newly sharing a room (just joined, just updated) gets its last 5 lines, not the middle of a dialogue.

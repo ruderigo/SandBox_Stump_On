@@ -39,7 +39,9 @@ release is offered.
    Edge. (Opened from a web address it can't reach the board: browsers
    only allow USB from a secure page, and a saved file counts as one.)
 2. Choose **A new Stump** and fill in its name, an admin password
-   (needed; the fserv bot takes the same one unless you untick it), and,
+   (needed, typed twice: the page says as you type whether the two
+   match; the fserv bot takes the same one unless you untick it, and its
+   own is typed twice too), and,
    only if you have them, the home Wi-Fi, the LoRa radio (a Heltec
    running RNode: set it up with the Provisioner) and a chain.
 3. **Make my Stump**, pick the board in the browser's list. A few
@@ -121,6 +123,17 @@ long it takes:
   `themes.json`. It starts with the Stump. A file over 1 MB is left for
   a card reader, and the page lists it. tavern: about a minute; rnfs:
   about 17 minutes (its 1 MB of tools).
+  The pack's setup questions (its `plugin.json`, as the Provisioner asks
+  them) are shown once the zip is checked: the ones not marked optional
+  (Bavard's "Talk from the start?"), the others under *More settings*
+  with their working defaults. Each answer is checked by type (a choice
+  from its options, a whole number in its range) and written into the
+  board's `config.py` after the copy, the way *Save* writes (a backup
+  first, undone if it isn't Python). A setting already on the board
+  stays unless it's changed here, so a reinstall or an update keeps it.
+  A pack only sets settings of its own (its name in capitals first,
+  `BAVARD_...`): anything else it asks for (`CHAIN_SECRET`, `WIFI_PASS`,
+  another pack's) is refused and said, not asked.
 - *Fill the Tools page*: what visitors download with no internet: the
   Provisioner, its README and licence, the firmware zip, the FireFly
   handheld app, and each section's description, as the Provisioner puts
