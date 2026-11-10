@@ -234,6 +234,7 @@
     <div class="row" style="margin-top:0"><input type="number" id="f-subnet" min="2" max="254" value="4" style="width:7em">
       <span class="hint" id="f-subnet-addr"></span></div>
     <p class="hint">4 suits most. Pick another if your home network already uses 192.168.4.something.</p>
+    <p class="warn hidden" id="f-heltec-pair" aria-live="polite"></p>
     <label for="f-greet">Greeting <span class="hint">· sent once to each new person on the mesh; blank: none</span></label>
     <input type="text" id="f-greet" maxlength="200">
 
@@ -378,7 +379,14 @@ function pwChecks() { pairCheck("f-pw", "f-pw2", "f-pw-match", 4); pairCheck("f-
 ["f-pw", "f-pw2", "f-opw", "f-opw2"].forEach(function (id) { $(id).addEventListener("input", pwChecks); });
 // The Wi-Fi's name as phones will see it, counted as it's typed (32 at
 // most, the address included when it's shown).
+function heltecPairText(br) {
+  return "Its Heltec joins this Stump's Wi-Fi by its name and number, so changing " + br.join(", ") +
+         " stops the radio until the Heltec is set up again (on USB, with the Provisioner: A Heltec for a CAM).";
+}
 function hotspotView() {
+  var br = TAB === "settings" && EDITING ? R.heltecPairBreaks(EDITING, answers(EDITING), SSID) : [];
+  $("f-heltec-pair").classList.toggle("hidden", !br.length);
+  $("f-heltec-pair").textContent = br.length ? "⚠ " + heltecPairText(br) : "";
   var sub = +$("f-subnet").value || 4;
   $("f-subnet-addr").textContent = (sub >= 2 && sub <= 254) ? "its Wi-Fi: 192.168." + sub + ".1" : "2 to 254";
   $("f-subnet-addr").className = (sub >= 2 && sub <= 254) ? "hint" : "err";
@@ -392,6 +400,7 @@ function hotspotView() {
 $("f-hotspot-ip").addEventListener("change", hotspotView);
 hotspotView();
 qa("input[name=f-chain]").forEach(function (r) { r.addEventListener("change", hotspotView); });
+qa("input[name=f-radio]").forEach(function (r) { r.addEventListener("change", hotspotView); });
 function sameView() {
   var same = $("f-same").checked;
   $("f-opw-box").classList.toggle("hidden", same);
@@ -1124,6 +1133,8 @@ async function saveIt() {
     if (rad.error) { $("set-err").textContent = rad.error; return false; }
   }
   if (s.warn.length && !confirm(s.warn.join("\n") + "\n\nSave anyway?")) return false;
+  var br = R.heltecPairBreaks(SETTINGS.answers, a, SSID);
+  if (br.length && !confirm(heltecPairText(br) + "\n\nSave anyway?")) return false;
   steps("Saving its settings", ["Choose the board", "Connect", "Save", "Restart, and listen to it start"]);
   step(0); await choosePort();
   step(1); var repl = await readyRepl();
