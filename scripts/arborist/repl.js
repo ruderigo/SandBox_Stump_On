@@ -671,6 +671,20 @@
     return { name: full, length: full.length, over: full.length - 32 };
   }
 
+  // A Heltec on the Stump's own Wi-Fi was set up (rnodeconf -w STATION)
+  // to join that Wi-Fi by its name, at 192.168.<number>.200. Changing the
+  // name (the address shown in it too) or the number leaves it behind: the
+  // radio stops until the Heltec is set up again. What would change, said
+  // before saving (1.0.0-beta.64).
+  function heltecPairBreaks(before, a, defaultSsid) {
+    if (!before || before.radio !== "ap" || (a.radio || "none") !== "ap") return [];
+    var out = [], n0 = (before.hotspot || "").trim() || defaultSsid || "", n1 = (a.hotspot || "").trim() || defaultSsid || "";
+    if (n0 !== n1) out.push("its Wi-Fi's name");
+    if (!!before.hotspotIp !== !!a.hotspotIp) out.push("whether its address shows in the Wi-Fi's name");
+    if (String(before.subnet || 4) !== String(a.subnet || 4).trim()) out.push("its number (the Heltec stays at 192.168." + (before.subnet || 4) + ".200)");
+    return out;
+  }
+
   async function packFrom(zip, known) {
     function no(e) { return { error: e }; }
     var names = Object.keys(zip), base = null;
@@ -902,7 +916,7 @@
               readZip: readZip, packFrom: packFrom, installPack: installPack, fillTools: fillTools, shaHex: shaHex,
               readSettings: readSettings, writeSettings: writeSettings,
               packQuestions: packQuestions, packValues: packValues, packCurrent: packCurrent,
-              apAddress: apAddress, hotspotName: hotspotName, readConfigFile: readConfigFile, putConfigFile: putConfigFile,
+              apAddress: apAddress, hotspotName: hotspotName, heltecPairBreaks: heltecPairBreaks, readConfigFile: readConfigFile, putConfigFile: putConfigFile,
               settingsFrom: settingsFrom, answersFrom: answersFrom, bootSummary: bootSummary, randomSecret: function () { return hex(8); },
               readRadio: readRadio, writeRadio: writeRadio, radioFrom: radioFrom, radioAnswers: radioAnswers,
               RADIO_BW: RADIO_BW, RADIO_DEFAULT: RADIO_DEFAULT,

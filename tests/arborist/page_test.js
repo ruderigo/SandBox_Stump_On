@@ -253,6 +253,13 @@ async function run(name, root, simArgs, fill, keep, pageFile, chip) {
     const copy = fs.readFileSync(await dl.path());
     check("a copy of its config.py, as on the board", copy.equals(fs.readFileSync(cfgPath)) && /^config-Caf.*\.py$/.test(dl.suggestedFilename()), dl.suggestedFilename());
     await page.fill("#f-name", "Le Coin");
+    check("Settings, its Heltec on its Wi-Fi: no warning while what pairs them is unchanged", !(await page.isVisible("#f-heltec-pair")));
+    await page.evaluate(() => { document.getElementById("f-more").open = true; });
+    await page.fill("#f-hotspot", "Un autre nom");
+    check("... its Wi-Fi's name changed: the radio would stop, said at once", (await page.isVisible("#f-heltec-pair"))
+          && /stops the radio until the Heltec is set up again/.test(await page.textContent("#f-heltec-pair")), await page.textContent("#f-heltec-pair"));
+    await page.fill("#f-hotspot", (await page.evaluate(() => EDITING.hotspot)));
+    check("... put back: the warning goes", !(await page.isVisible("#f-heltec-pair")));
     await page.evaluate(() => { document.getElementById("f-more").open = true; });   // (open already when it has a Wi-Fi name)
     await page.check("input[name=f-chain][value=member]");
     await page.fill("#f-up", "First-Stump");

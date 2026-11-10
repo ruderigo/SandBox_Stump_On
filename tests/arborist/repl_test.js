@@ -113,6 +113,14 @@ async function scenario(name, extra, chunk) {
   check("settings: a name too long with its address: refused, how much too long", r.error && /7 characters too long/.test(r.error), r.error);
   r = S({ hotspot: "A very long café name here!", hotspotIp: false });
   check("... the same name without the address: fine", !r.error, r.error);
+  const B0 = { radio: "ap", hotspot: "Café", hotspotIp: false, subnet: 4 };
+  check("a Heltec on its Wi-Fi, nothing that pairs it changed: no warning",
+        R.heltecPairBreaks(B0, { radio: "ap", hotspot: "Café", hotspotIp: false, subnet: "4", ssid: "New home" }, "Stump").length === 0);
+  const brk = R.heltecPairBreaks(B0, { radio: "ap", hotspot: "Café 2", hotspotIp: true, subnet: "9" }, "Stump");
+  check("... its Wi-Fi's name, the address in it, its number changed: each said", brk.length === 3 && /192\.168\.4\.200/.test(brk[2]), JSON.stringify(brk));
+  check("... a Heltec on the router, or none: no warning (it doesn't join this Wi-Fi)",
+        R.heltecPairBreaks({ radio: "lan", hotspot: "Café", subnet: 4 }, { radio: "lan", hotspot: "Other", subnet: "9" }, "Stump").length === 0
+        && R.heltecPairBreaks({ radio: "none", hotspot: "Café", subnet: 4 }, { radio: "none", hotspot: "Other", subnet: "9" }, "Stump").length === 0);
   r = S({ subnet: "7" });
   check("its number on a Stump on its own (1.0.0-beta.64): written, the address follows it", !r.error && r.values.CHAIN_SUBNET === 7
         && r.values.CHAIN_ENABLED === false, JSON.stringify(r.error || r.values.CHAIN_SUBNET));
