@@ -1059,6 +1059,10 @@ async function make() {
     r.appendChild(para("You can unplug it from the computer and power it from any USB charger."));
   }
   if (note) r.appendChild(para(note, "hint"));
+  // Arborist itself isn't copied to the card: about 11 MB with the Stump
+  // images, hours over USB. A card reader does it in seconds.
+  r.appendChild(para("So that people can download Arborist from this Stump (its Tools page, /tools): put the SD card in a computer " +
+                     "and copy this page, Arborist-@@RELEASE@@.html, into tools/arborist/ on the card. It's too big to copy over USB.", "hint"));
   done(""); $("result").appendChild(r);
   return true;
 }
