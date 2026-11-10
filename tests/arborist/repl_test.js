@@ -431,6 +431,65 @@ with zipfile.ZipFile(out / "climb.zip", "w") as zf:
     } finally { repl.stop(); R.CARD.root = "/sd"; }
   }
 
+  // -- the Heltec's Wi-Fi: RNode serial commands, to a fake RNode ---------------
+  {
+    function fakeRNode(opts) {
+      opts = opts || {};
+      const eeprom = new Uint8Array(256).fill(0xFF), cfg = new Uint8Array(0x50).fill(0xFF), sent = [];
+      eeprom[0xBA] = 0x00;
+      const out = new R.KissReader();
+      const io = { sent: sent, reader: new R.KissReader(), sleep: (ms) => R.sleep(Math.min(ms, 5)), reset: false };
+      function reply(cmd, data) { io.reader.feed(R.kissFrame(cmd, Array.from(data))); }
+      const handle = new R.KissReader();
+      handle._got = function (f) {
+        sent.push(f);
+        const d = f.data;
+        if (opts.silent) return;
+        if (f.cmd === 0x08 && d[0] === 0x73) reply(0x08, [0x46]);
+        else if (f.cmd === 0x50) reply(0x50, [1, 82]);
+        else if (f.cmd === 0x51) reply(0x51, eeprom);
+        else if (f.cmd === 0x6D) { if (!opts.old) reply(0x6D, cfg); }
+        else if (f.cmd === 0x6B) { cfg.fill(0xFF, 0x00, 0x21); d.forEach((b, i) => { if (i < 33) cfg[i] = b; }); }
+        else if (f.cmd === 0x6C) { cfg.fill(0xFF, 0x21, 0x42); d.forEach((b, i) => { if (i < 33) cfg[0x21 + i] = b; }); }
+        else if (f.cmd === 0x84) { if (!opts.dropIp) d.forEach((b, i) => { cfg[0x42 + i] = b; }); }
+        else if (f.cmd === 0x85) d.forEach((b, i) => { cfg[0x46 + i] = b; });
+        else if (f.cmd === 0x6A) eeprom[0xBA] = d[0];
+        else if (f.cmd === 0x55 && d[0] === 0xF8) io.reset = true;
+      };
+      io.write = async (u8) => { handle.feed(u8); };
+      return io;
+    }
+    check("KISS frames: FEND and FESC in the data escaped", Buffer.from(R.kissFrame(0x6B, [0x41, 0xC0, 0xDB])).toString("hex") === "c06b41dbdcdbddc0");
+    let plan = R.heltecWifiPlan({ ssid: "Café du Coin 192.168.4.1", psk: "", ip: "192.168.4.200" });
+    check("the Heltec's Wi-Fi: an open Wi-Fi, its name (UTF-8) and address (192 escaped: it is the frame marker), as rnodeconf sends them",
+          !plan.error && plan.open && plan.frames.length === 5 && plan.frames[0][1] === 0x6B && plan.frames[1][1] === 0x6C
+          && Buffer.from(plan.frames[1]).toString("hex") === "c06c00c0" && Buffer.from(plan.frames[2]).toString("hex") === "c084dbdca804c8c0"
+          && Buffer.from(plan.frames[4]).toString("hex") === "c06a01c0", JSON.stringify(plan.error));
+    check("... checked: a name too long, a short password, an address that isn't one",
+          /1 to 32/.test(R.heltecWifiPlan({ ssid: "x".repeat(33), ip: "192.168.4.200" }).error)
+          && /8 to 32/.test(R.heltecWifiPlan({ ssid: "Home", psk: "short", ip: "192.168.0.222" }).error)
+          && /looks like/.test(R.heltecWifiPlan({ ssid: "Home", ip: "192.168.4" }).error));
+    let io = fakeRNode();
+    let res = await R.heltecSetWifi(io, plan);
+    check("set up on an RNode: it said hello, kept the name, the address, open, station mode; then restarted",
+          res.ok && res.fw === "1.82" && res.after.ssid === "Café du Coin 192.168.4.1" && res.after.ip === "192.168.4.200"
+          && res.after.hasPsk === false && res.after.mode === "station" && res.after.nm === "255.255.255.0" && io.reset
+          && res.before.ssid === "" && res.before.mode === "off", JSON.stringify(res));
+    plan = R.heltecWifiPlan({ ssid: "Home Net", psk: "pa'ss1234", ip: "192.168.0.222" });
+    io = fakeRNode();
+    res = await R.heltecSetWifi(io, plan);
+    check("... the home Wi-Fi, with its password", res.ok && res.after.hasPsk === true && res.after.ip === "192.168.0.222");
+    io = fakeRNode({ dropIp: true });
+    res = await R.heltecSetWifi(io, R.heltecWifiPlan({ ssid: "X", ip: "192.168.4.200" }));
+    check("... settings that didn't stick: not ok, no restart", !res.ok && !io.reset, JSON.stringify(res.after));
+    let err = null;
+    try { await R.heltecSetWifi(fakeRNode({ old: true }), R.heltecWifiPlan({ ssid: "X", ip: "192.168.4.200" })); } catch (e) { err = e; }
+    check("an RNode firmware without Wi-Fi settings: says to update it first", err && /doesn't take Wi-Fi settings/.test(err.message), err && err.message);
+    err = null;
+    try { await R.heltecSetWifi(fakeRNode({ silent: true }), R.heltecWifiPlan({ ssid: "X", ip: "192.168.4.200" })); } catch (e) { err = e; }
+    check("something else on the port (no RNode hello): says which board to choose", err && /No answer from an RNode/.test(err.message), err && err.message);
+  }
+
   const sum = R.bootSummary("ESP-ROM\r\nMicroPython v1.28.0 on 2026\r\nProject Stump -- Beta A (1.0.0-beta.38)\r\n[watchdog] armed: x\r\n" +
                             "WiFi unavailable (no AP)\r\nTraceback (most recent call last):\r\nOSError: [Errno 19] ENODEV\r\n[web] serving on 192.168.4.1:80\r\n");
   check("what it said at start, summed up", sum.release === "1.0.0-beta.38" && sum.micropython === "v1.28.0" && sum.serving

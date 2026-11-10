@@ -197,7 +197,12 @@
   <label class="choice"><input type="radio" name="f-radio" value="ap"> <span>It joins this Stump's Wi-Fi <span class="hint" id="f-ap-addr">(at 192.168.4.200)</span></span></label>
   <label class="choice"><input type="radio" name="f-radio" value="lan"> <span>It's on the home Wi-Fi, at <input type="text" id="f-hhost" placeholder="192.168.0.222" style="width:11em;padding:3px 6px"></span></label>
   <p class="hint" id="f-hhost-hint">On the home Wi-Fi each Heltec needs its own address, one the router doesn't hand out (often past .200): .222 for the first, .223 for the next, and so on. Give the Heltec the same one in its own setup.</p>
-  <p class="hint">The Heltec itself is set up with the Provisioner (<code>rnodeconf</code>); this page only does the Stump.</p>
+  <div id="f-heltec-wifi" class="hidden">
+    <label>The Heltec's Wi-Fi <span class="hint">· which Wi-Fi it joins, at which address</span></label>
+    <p class="hint" id="f-hw-what"></p>
+    <div class="row" style="margin-top:0"><button type="button" class="plain small" id="f-hw-go">Set up the Heltec over USB</button></div>
+    <p class="hint">Plug the Heltec itself into this computer (not the Stump) and press the button. It must already run the RNode firmware (the Provisioner flashes it once). Then put it back with the Stump.</p>
+  </div>
 
   <div id="f-radio-params" class="hidden">
     <label>Radio settings <span class="hint">· the CAM sets these on the Heltec</span></label>
@@ -288,6 +293,7 @@
 
 <details class="card"><summary>About this page</summary>
 <p>Everything is in this one file: nothing is downloaded or sent anywhere. It holds the Stump @@RELEASE@@: its images for the ESP32-S3-CAM and the ESP32-WROVER (MicroPython @@MICROPYTHON@@, MIT licence, micropython.org, with the Stump built in) when the release has them, the Stump's files, MicroPython for the ESP32-S3 with octal PSRAM, and esptool-js (Apache-2.0, Espressif), which writes them. Each file's SHA-256 is checked on the board after it's copied. Settings are written by the Stump's own <code>settings.py</code>, as from <code>/admin</code>.</p>
+<p>The Heltec's Wi-Fi is set up by sending the RNode firmware its documented serial commands (KISS frames). This page contains none of the RNode firmware (GPLv3, Mark Qvist / unsigned.io) nor of <code>rnodeconf</code> (Reticulum License): the Heltec must already run that firmware, flashed once with the Provisioner.</p>
 <details><summary>esptool-js licence</summary><pre>@@ESPTOOL_LICENSE@@</pre></details>
 </details>
 
@@ -381,7 +387,67 @@ function pwChecks() { pairCheck("f-pw", "f-pw2", "f-pw-match", 4); pairCheck("f-
 // most, the address included when it's shown).
 function heltecPairText(br) {
   return "Its Heltec joins this Stump's Wi-Fi by its name and number, so changing " + br.join(", ") +
-         " stops the radio until the Heltec is set up again (on USB, with the Provisioner: A Heltec for a CAM).";
+         " stops the radio until the Heltec is set up again: after saving, plug the Heltec into this computer and press " +
+         "\u201cSet up the Heltec over USB\u201d (with the radio settings).";
+}
+// The Heltec's Wi-Fi, from the form: this Stump's own (by its name as
+// phones see it, open, at 192.168.<number>.200), or the home Wi-Fi at the
+// address typed for it.
+function heltecTarget() {
+  var r = val("f-radio"), sub = +$("f-subnet").value || 4;
+  if (r === "ap") return { ssid: R.hotspotName($("f-hotspot").value || SSID, $("f-hotspot-ip").checked, sub).name, psk: "",
+                           ip: "192.168." + sub + "." + R.HELTEC_ON_HOTSPOT, nm: "255.255.255.0", where: "this Stump's Wi-Fi" };
+  if (r === "lan") return { ssid: $("f-ssid").value.trim(), psk: $("f-wpass").value, ip: $("f-hhost").value.trim(), nm: "255.255.255.0",
+                            where: "the home Wi-Fi" };
+  return null;
+}
+function heltecWifiView() {
+  var t = heltecTarget();
+  $("f-heltec-wifi").classList.toggle("hidden", !t);
+  if (!t) return;
+  $("f-hw-what").textContent = t.ssid ? "It joins " + t.where + ", \u201c" + t.ssid + "\u201d" + (t.psk ? " (with its password)" : val("f-radio") === "ap" ? " (open)" : "") +
+                                        ", at " + (t.ip || "\u2026") + "."
+                                      : "Fill in the home Wi-Fi above first.";
+}
+// Sets up the Heltec's Wi-Fi over USB: its own port, the RNode's serial
+// commands (repl.js heltecSetWifi), read back, then it restarts.
+async function heltecWifi() {
+  var t = heltecTarget(), errId = TAB === "settings" ? "set-err" : "make-err";
+  if (!t) return false;
+  if (val("f-radio") === "lan" && !t.psk && EDITING && EDITING.hasWifiPass) {
+    $(errId).textContent = "Type the home Wi-Fi's password above: the Heltec needs it too (the Stump's isn't read back)."; return false;
+  }
+  var plan = R.heltecWifiPlan(t);
+  if (plan.error) { $(errId).textContent = plan.error; return false; }
+  if (!confirm("Plug the Heltec (not the Stump) into this computer by USB now, then choose its port.")) return false;
+  steps("Setting up the Heltec's Wi-Fi", ["Choose the Heltec", "Connect", "Write its Wi-Fi and check it", "Restart it"]);
+  step(0);
+  var hp = await navigator.serial.requestPort(), kr = new R.KissReader(), w = null, rd = null;
+  step(1);
+  try {
+    await hp.open({ baudRate: 115200 });
+  } catch (e) {
+    throw new Error(/already open/i.test(e.message) ? "That port is already open here: is it the Stump? Choose the Heltec." : PORT_BUSY);
+  }
+  try {
+    w = hp.writable.getWriter(); rd = hp.readable.getReader();
+    (async function () { try { for (;;) { var x = await rd.read(); if (x.done) break; kr.feed(x.value); } } catch (e) {} })();
+    step(2);
+    var r = await R.heltecSetWifi({ write: function (u8) { return w.write(u8); }, reader: kr, sleep: R.sleep }, plan, log);
+    if (!r.ok) throw new Error("The Heltec didn't keep the settings (it has \u201c" + (r.after.ssid || "") + "\u201d at " + (r.after.ip || "no address") +
+                               "). Unplug it, plug it in again, and try once more.");
+    step(3);
+    await R.sleep(500);
+    done("");
+    $("result").appendChild(para("The Heltec joins \u201c" + plan.ssid + "\u201d" + (plan.open ? " (open)" : "") + " at " + plan.ip +
+      ", and restarted with it" + (r.fw ? " (RNode firmware " + r.fw + ")" : "") + ". It had \u201c" + (r.before.ssid || "nothing") +
+      "\u201d" + (r.before.ip ? " at " + r.before.ip : "") + ". Put it back with the Stump: they find each other within a minute."));
+    return true;
+  } finally {
+    try { if (rd) { await rd.cancel(); rd.releaseLock(); } } catch (e) {}
+    try { if (w) w.releaseLock(); } catch (e) {}
+    try { await hp.close(); } catch (e) {}
+  }
 }
 function hotspotView() {
   var br = TAB === "settings" && EDITING ? R.heltecPairBreaks(EDITING, answers(EDITING), SSID) : [];
@@ -400,7 +466,9 @@ function hotspotView() {
 $("f-hotspot-ip").addEventListener("change", hotspotView);
 hotspotView();
 qa("input[name=f-chain]").forEach(function (r) { r.addEventListener("change", hotspotView); });
-qa("input[name=f-radio]").forEach(function (r) { r.addEventListener("change", hotspotView); });
+qa("input[name=f-radio]").forEach(function (r) { r.addEventListener("change", hotspotView); r.addEventListener("change", heltecWifiView); });
+["f-hotspot", "f-subnet", "f-ssid", "f-wpass", "f-hhost"].forEach(function (id) { $(id).addEventListener("input", heltecWifiView); });
+$("f-hotspot-ip").addEventListener("change", heltecWifiView);
 function sameView() {
   var same = $("f-same").checked;
   $("f-opw-box").classList.toggle("hidden", same);
@@ -455,7 +523,7 @@ function formFor(a) {
     }
     $("f-pw-hint").textContent = "Unlocks /admin (needed). Keep it somewhere.";
     $("f-wpass").placeholder = "Its password";
-    chainView(); radioView(); sameView(); hotspotView();
+    chainView(); radioView(); sameView(); hotspotView(); heltecWifiView();
     return;
   }
   $("form").dataset.filled = "edit";
@@ -480,7 +548,7 @@ function formFor(a) {
   $("f-wpass").placeholder = a.hasWifiPass ? "unchanged" : "Its password";
   fillRadio(a.radioAnswers);
   if (a.chain !== "none" || a.hotspot || a.mode !== "open" || a.greeting) $("f-more").open = true;
-  chainView(); radioView(); hotspotView();
+  chainView(); radioView(); hotspotView(); heltecWifiView();
 }
 function answers(editing) {
   return {
@@ -1154,6 +1222,8 @@ async function saveIt() {
   $("result").appendChild(para("Saved, and it's running with them; the old settings are on it as config.py.bak."));
   var hn2 = R.hotspotName(s.values.SSID_NAME || SSID, s.values.SSID_INCLUDE_IP, s.values.CHAIN_SUBNET || 4);
   $("result").appendChild(para("Its Wi-Fi: “" + hn2.name + "”. On it, the Stump is at http://" + R.apAddress(s.values.CHAIN_SUBNET || 4) + "."));
+  if (br.length) $("result").appendChild(para("Now its Heltec: plug it into this computer and press “Set up the Heltec over USB” (with the radio settings), " +
+                                              "so it joins “" + hn2.name + "” again.", "warn"));
   startReport(heard, nowCfg, $("result"));
   return true;
 }
@@ -1440,6 +1510,7 @@ async function act(fn, errId) {
 }
 $("make-go").onclick = function () { act(make, "make-err"); };
 $("f-look").onclick = function () { act(lookIt, "make-err"); };
+$("f-hw-go").onclick = function () { act(heltecWifi, TAB === "settings" ? "set-err" : "make-err"); };
 $("f-find-first").onclick = function () { act(findFirst, "make-err"); };
 $("set-read").onclick = function () { act(readIt, "set-err"); };
 $("set-save").onclick = function () { act(saveIt, "set-err"); };
