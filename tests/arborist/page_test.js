@@ -170,6 +170,17 @@ async function run(name, root, simArgs, fill, keep, pageFile, chip) {
     await page.check("#f-hotspot-ip");
     check("... with the address ticked: too long, said at once, in red", /6 characters too long/.test(await page.textContent("#f-hotspot-count"))
           && (await page.getAttribute("#f-hotspot-count", "class")) === "err", await page.textContent("#f-hotspot-count"));
+    check("its number, with its Wi-Fi's name: 4 by default, 2 to 254, its address shown", (await page.inputValue("#f-subnet")) === "4"
+          && (await page.getAttribute("#f-subnet", "min")) === "2" && /192\.168\.4\.1/.test(await page.textContent("#f-subnet-addr"))
+          && !(await page.isVisible("#f-chain-number")));
+    await page.fill("#f-subnet", "12");
+    check("... changed: the address and the name follow it", /192\.168\.12\.1/.test(await page.textContent("#f-subnet-addr"))
+          && /192\.168\.12\.1/.test(await page.textContent("#f-hotspot-count")));
+    await page.check("input[name=f-chain][value=member]");
+    check("... a chain points to that number (no second selector)", (await page.isVisible("#f-chain-number"))
+          && /set above, with its Wi-Fi's name/.test(await page.textContent("#f-chain-number")) && (await page.$$("#f-subnet")).length === 1);
+    await page.check("input[name=f-chain][value=none]");
+    await page.fill("#f-subnet", "4");
     await page.fill("#f-hotspot", "Café du Coin");
     check("... shortened: fits, the address shown", /Phones will see “Café du Coin 192\.168\.4\.1”/.test(await page.textContent("#f-hotspot-count")),
           await page.textContent("#f-hotspot-count"));

@@ -13,6 +13,15 @@ def check(n, c, i=''):
 
 
 check("off by default", chain.settings() is None and chain.status() == {"enabled": False})
+# Its number on a Stump on its own (1.0.0-beta.64): its Wi-Fi is 192.168.<number>.1 too.
+check("on its own, no number set: 192.168.4.1", chain.ap_ip() == "192.168.4.1")
+config.CHAIN_SUBNET = 12
+check("on its own, number 12: its Wi-Fi on 192.168.12.1", chain.settings() is None and chain.ap_ip() == "192.168.12.1" and chain.own_subnet() == 12)
+config.CHAIN_SUBNET = 1
+check("... a number out of range (1): 4", chain.ap_ip() == "192.168.4.1")
+config.CHAIN_SUBNET = 2
+check("... 2 is fine (2 to 254)", chain.ap_ip() == "192.168.2.1")
+config.CHAIN_SUBNET = 4
 s, ct, b = admin_page()
 check("no chain section when off", "Stump chain" not in b and "Chaîne de Bûches" not in b)
 

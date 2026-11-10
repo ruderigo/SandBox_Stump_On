@@ -79,7 +79,8 @@ chain?":
   suggests.
 - **Every other Stump:** the Wi-Fi name of the Stump it joins (the
   wizard lists the networks in range: pick it by number), its own
-  number (5, 6, 7… different on each), and the same chain secret. Then
+  number (2 to 254, different on each: the first Stump is usually 4, so
+  5, 6, 7…), and the same chain secret. Then
   say whether it has its own Heltec. Without one, it reaches the LoRa
   mesh through the chain.
 

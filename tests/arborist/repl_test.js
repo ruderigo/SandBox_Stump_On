@@ -113,7 +113,11 @@ async function scenario(name, extra, chunk) {
   check("settings: a name too long with its address: refused, how much too long", r.error && /7 characters too long/.test(r.error), r.error);
   r = S({ hotspot: "A very long café name here!", hotspotIp: false });
   check("... the same name without the address: fine", !r.error, r.error);
-  check("the address follows the chain number (192.168.<number>.1)", R.apAddress(9) === "192.168.9.1" && R.hotspotName("X", true, 9).name === "X 192.168.9.1");
+  r = S({ subnet: "7" });
+  check("its number on a Stump on its own (1.0.0-beta.64): written, the address follows it", !r.error && r.values.CHAIN_SUBNET === 7
+        && r.values.CHAIN_ENABLED === false, JSON.stringify(r.error || r.values.CHAIN_SUBNET));
+  check("... no number given: 4, as before", S({}).values.CHAIN_SUBNET === 4);
+  check("the address follows the number (192.168.<number>.1)", R.apAddress(9) === "192.168.9.1" && R.hotspotName("X", true, 9).name === "X 192.168.9.1");
   r = S({ opw: "barkeep99" });
   check("settings: both passwords, independent (as the Provisioner)", !r.error && r.values.AUTH_ADMIN_PASSWORD === "s3cret"
         && r.values.FSERVBOT_OP_PASSWORD === "barkeep99", JSON.stringify(r));
@@ -133,7 +137,7 @@ async function scenario(name, extra, chunk) {
     [{ wpass: "longenough" }, /no Wi-Fi name/], [{ ssid: "Home", wpass: "short" }, /8 to 63/],
     [{ radio: "lan", hhost: "300.1.1.1", ssid: "Home" }, /address/], [{ radio: "lan", hhost: "192.168.1.50" }, /home Wi-Fi/],
     [{ chain: "first", channel: "14", secret: "s" }, /channel/], [{ chain: "member", upSsid: "", subnet: "5" }, /joins/],
-    [{ chain: "member", upSsid: "LaBuche-Stump.web.app", subnet: "4" }, /5 to 254/], [{ chain: "first", channel: "6", secret: "a'b" }, /quotes/],
+    [{ chain: "member", upSsid: "LaBuche-Stump.web.app", subnet: "1" }, /2 to 254/], [{ subnet: "255" }, /2 to 254/], [{ chain: "first", channel: "6", secret: "a'b" }, /quotes/],
     [{ greeting: "x".repeat(201) }, /greeting/], [{ theme: "neon" }, /theme/],
   ];
   const bad = errs.filter(([o, re]) => !re.test(S(o).error || ""));
@@ -157,7 +161,7 @@ async function scenario(name, extra, chunk) {
   const lanErrs = [[{ chain: "lan", ssid: "Home", parentIp: "192.168.0.173", subnet: "8", secret: "" }, /secret/],
                    [{ chain: "lan", ssid: "", parentIp: "192.168.0.173", subnet: "8", secret: "s" }, /home Wi-Fi/],
                    [{ chain: "lan", ssid: "Home", parentIp: "nope", subnet: "8", secret: "s" }, /address/],
-                   [{ chain: "lan", ssid: "Home", parentIp: "192.168.0.173", subnet: "3", secret: "s" }, /5 to 254/]];
+                   [{ chain: "lan", ssid: "Home", parentIp: "192.168.0.173", subnet: "1", secret: "s" }, /2 to 254/]];
   const lanBad = lanErrs.filter(([o, re]) => !re.test(S(o).error || ""));
   check("settings: a router member's wrong answers refused (no secret, no home Wi-Fi, an address, the number)", !lanBad.length,
         JSON.stringify(lanBad.map(([o]) => [o, S(o)])));
@@ -210,8 +214,8 @@ async function scenario(name, extra, chunk) {
       await R.writeSettings(repl, again.values);
       const py2 = (await repl.run("import config as c\nb=[i for i in c.CONFIG['interfaces'] if i['name']=='Heltec Bridge'][0]\n" +
                                   "print(repr((c.WIFI_PASS, c.AUTH_ADMIN_PASSWORD, c.FSERVBOT_OP_PASSWORD, c.CHAIN_ENABLED, b['target_host'], b['enabled'])))\n")).trim();
-      check("changed again: admin + Wi-Fi kept, BarKeep changed, out of the chain, Heltec on its Wi-Fi",
-            py2 === "(\"pa'ss\\\\word\", 's3cret', 'newbar', False, '192.168.4.200', True)", py2);
+      check("changed again: admin + Wi-Fi kept, BarKeep changed, out of the chain (its number kept: its Wi-Fi stays 192.168.9.1), Heltec on its Wi-Fi",
+            py2 === "(\"pa'ss\\\\word\", 's3cret', 'newbar', False, '192.168.9.200', True)", py2);
       // A member over the router, its Wi-Fi password not typed again: the
       // home Wi-Fi's copied into CHAIN_UPLINK_PASS on the board.
       const lan = R.settingsFrom(Object.assign({}, a, { requireAdmin: false, keepWifiPass: true, pw: "", pw2: "", opw: "",
