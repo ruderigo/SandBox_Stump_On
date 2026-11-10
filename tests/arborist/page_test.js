@@ -160,6 +160,20 @@ async function run(name, root, simArgs, fill, keep, pageFile, chip) {
     const t = await run("new", root, []);
     const { page } = t;
     await page.fill("#f-name", "Café du Coin");
+    await page.click("#f-more summary");
+    check("chains explained: what they're for, that one Stump leaves it as is, and that it can change later",
+          /links several Stumps/.test(await page.textContent("#form")) && /With one Stump, leave it/.test(await page.textContent("#form"))
+          && /later, from the Settings tab/.test(await page.textContent("#form")) && await page.isChecked("input[name=f-chain][value=none]"));
+    await page.fill("#f-hotspot", "Le Café du Coin de la Gare");
+    check("the Wi-Fi's name as phones will see it, counted as it's typed", /Phones will see “Le Café du Coin de la Gare” · 6 characters left/.test(await page.textContent("#f-hotspot-count")),
+          await page.textContent("#f-hotspot-count"));
+    await page.check("#f-hotspot-ip");
+    check("... with the address ticked: too long, said at once, in red", /6 characters too long/.test(await page.textContent("#f-hotspot-count"))
+          && (await page.getAttribute("#f-hotspot-count", "class")) === "err", await page.textContent("#f-hotspot-count"));
+    await page.fill("#f-hotspot", "Café du Coin");
+    check("... shortened: fits, the address shown", /Phones will see “Café du Coin 192\.168\.4\.1”/.test(await page.textContent("#f-hotspot-count")),
+          await page.textContent("#f-hotspot-count"));
+    await page.click("#f-more summary");
     await page.fill("#f-pw", "s3cret!"); await page.fill("#f-pw2", "s3cret!");
     check("the fserv bot: the same password by default (the Provisioner's), its own field hidden",
           (await page.isChecked("#f-same")) && !(await page.isVisible("#f-opw")));
@@ -176,6 +190,8 @@ async function run(name, root, simArgs, fill, keep, pageFile, chip) {
     try { await page.waitForSelector("#worktitle .ok, #worktitle .err", { timeout: 240000 }); } catch (e) {}
     const title = await page.textContent("#worktitle"), result = await page.textContent("#result");
     check("a new Stump: done", /Done/.test(title), title + " | " + result + " | " + (await page.textContent("#log")).slice(-800));
+    check("... the result gives the address to open on its Wi-Fi, and its name with the address", /If it doesn't, go to http:\/\/192\.168\.4\.1/.test(result)
+          && /Café du Coin 192\.168\.4\.1/.test(result), result);
     const fl = await page.evaluate(() => window.__flashed);
     check("... MicroPython written at 0, the board erased first, then reset", fl && fl.addr === 0 && fl.erase && fl.len > 500000
           && (await page.evaluate(() => window.__after)) === "hard_reset", JSON.stringify(fl));
@@ -226,7 +242,7 @@ async function run(name, root, simArgs, fill, keep, pageFile, chip) {
     const copy = fs.readFileSync(await dl.path());
     check("a copy of its config.py, as on the board", copy.equals(fs.readFileSync(cfgPath)) && /^config-Caf.*\.py$/.test(dl.suggestedFilename()), dl.suggestedFilename());
     await page.fill("#f-name", "Le Coin");
-    await page.click("#f-more summary");
+    await page.evaluate(() => { document.getElementById("f-more").open = true; });   // (open already when it has a Wi-Fi name)
     await page.check("input[name=f-chain][value=member]");
     await page.fill("#f-up", "First-Stump");
     await page.fill("#f-subnet", "6");

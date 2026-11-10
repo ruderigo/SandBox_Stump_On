@@ -105,6 +105,15 @@ async function scenario(name, extra, chunk) {
   check("settings: a plain new Stump (admin password set, BarKeep's left off)", !r.error && r.values.NODE_NAME === "Café du Coin"
         && r.values.AUTH_ADMIN_PASSWORD === "s3cret" && !("FSERVBOT_OP_PASSWORD" in r.values) && r.values.CHAIN_ENABLED === false
         && r.values.HELTEC.enabled === false && r.values.SSID_NAME === null, JSON.stringify(r));
+  check("settings: the address not in the Wi-Fi's name by default", r.values.SSID_INCLUDE_IP === false);
+  r = S({ hotspot: "Café du Coin", hotspotIp: true, defaultSsid: "Stump" });
+  check("settings: the address in the Wi-Fi's name when ticked (it fits)", !r.error && r.values.SSID_INCLUDE_IP === true
+        && R.hotspotName("Café du Coin", true, 4).name === "Café du Coin 192.168.4.1", JSON.stringify(r.error || r.values.SSID_INCLUDE_IP));
+  r = S({ hotspot: "A very long café name here!", hotspotIp: true });
+  check("settings: a name too long with its address: refused, how much too long", r.error && /7 characters too long/.test(r.error), r.error);
+  r = S({ hotspot: "A very long café name here!", hotspotIp: false });
+  check("... the same name without the address: fine", !r.error, r.error);
+  check("the address follows the chain number (192.168.<number>.1)", R.apAddress(9) === "192.168.9.1" && R.hotspotName("X", true, 9).name === "X 192.168.9.1");
   r = S({ opw: "barkeep99" });
   check("settings: both passwords, independent (as the Provisioner)", !r.error && r.values.AUTH_ADMIN_PASSWORD === "s3cret"
         && r.values.FSERVBOT_OP_PASSWORD === "barkeep99", JSON.stringify(r));
