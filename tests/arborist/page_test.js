@@ -383,6 +383,58 @@ with zipfile.ZipFile(out / "bavard.zip", "w", zipfile.ZIP_DEFLATED) as zf:
     await t.browser.close(); t.sim.kill();
   }
 
+  // -- the Heltec's Wi-Fi, set up over USB (a fake RNode on the port) -----------------
+  {
+    const root = path.join(SCRATCH, "page_heltec");
+    const t = await run("heltec", root, []);
+    const page = t.page;
+    check("no Heltec chosen: nothing about its Wi-Fi", !(await page.isVisible("#f-heltec-wifi")));
+    await page.click("#f-more summary");
+    await page.fill("#f-hotspot", "Café du Coin"); await page.check("#f-hotspot-ip"); await page.fill("#f-subnet", "7");
+    await page.check("input[name=f-radio][value=ap]");
+    check("a Heltec on this Stump's Wi-Fi: what it will join, by the name phones see, at .200",
+          (await page.isVisible("#f-heltec-wifi")) && /“Café du Coin 192\.168\.7\.1” \(open\), at 192\.168\.7\.200/.test(await page.textContent("#f-hw-what")),
+          await page.textContent("#f-hw-what"));
+    // In the page, a fake RNode in place of the board: it answers its serial commands.
+    await page.evaluate(() => {
+      const frames = [], eeprom = new Uint8Array(256).fill(255), cfg = new Uint8Array(80).fill(255);
+      eeprom[0xBA] = 0;
+      const reply = (cmd, data) => {
+        const b = [0xC0, cmd]; data.forEach((x) => { if (x === 0xC0) b.push(0xDB, 0xDC); else if (x === 0xDB) b.push(0xDB, 0xDD); else b.push(x); }); b.push(0xC0);
+        setTimeout(() => window.__simFeed(btoa(String.fromCharCode.apply(null, b))), 5);
+      };
+      let cur = null, esc = false;
+      window.__rnode = { frames: frames, reset: false };
+      window.__simWrite = (b64) => {
+        const s = atob(b64);
+        for (let i = 0; i < s.length; i++) {
+          const x = s.charCodeAt(i);
+          if (x === 0xC0) {
+            if (cur && cur.length) {
+              const c = cur[0], d = cur.slice(1); frames.push([c, d]);
+              if (c === 0x08) reply(0x08, [0x46]); else if (c === 0x50) reply(0x50, [1, 82]);
+              else if (c === 0x51) reply(0x51, Array.from(eeprom)); else if (c === 0x6D) reply(0x6D, Array.from(cfg));
+              else if (c === 0x6B) { cfg.fill(255, 0, 33); d.forEach((v, j) => { cfg[j] = v; }); }
+              else if (c === 0x6C) { cfg.fill(255, 33, 66); d.forEach((v, j) => { cfg[33 + j] = v; }); }
+              else if (c === 0x84) d.forEach((v, j) => { cfg[66 + j] = v; }); else if (c === 0x85) d.forEach((v, j) => { cfg[70 + j] = v; });
+              else if (c === 0x6A) eeprom[0xBA] = d[0]; else if (c === 0x55) window.__rnode.reset = true;
+            }
+            cur = []; esc = false;
+          } else if (cur) { if (esc) { cur.push(x === 0xDC ? 0xC0 : 0xDD === x ? 0xDB : x); esc = false; } else if (x === 0xDB) esc = true; else cur.push(x); }
+        }
+      };
+    });
+    await page.click("#f-hw-go");
+    try { await page.waitForSelector("#worktitle .ok, #worktitle .err", { timeout: 60000 }); } catch (e) {}
+    const res = await page.textContent("#result");
+    const rn = await page.evaluate(() => window.__rnode);
+    check("set up over USB: it joins “Café du Coin 192.168.7.1” (open) at 192.168.7.200, checked, then restarted",
+          /Done/.test(await page.textContent("#worktitle")) && /joins “Café du Coin 192\.168\.7\.1” \(open\) at 192\.168\.7\.200/.test(res)
+          && /RNode firmware 1\.82/.test(res) && rn.reset && rn.frames.some((f) => f[0] === 0x6A && f[1][0] === 1),
+          res + " | " + (await page.textContent("#log")).slice(-400));
+    await t.browser.close(); t.sim.kill();
+  }
+
   // -- updating a board with no Stump: refused ---------------------------------------
   {
     const root = path.join(SCRATCH, "page_update_none");

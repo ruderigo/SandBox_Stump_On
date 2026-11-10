@@ -685,6 +685,132 @@
     return out;
   }
 
+  // -- the Heltec's Wi-Fi (1.0.0-beta.64) ---------------------------------------
+  // The Heltec runs the RNode firmware (GPLv3, Mark Qvist / unsigned.io):
+  // this page contains none of it, and none of rnodeconf (Reticulum
+  // License). It only sends the firmware its documented serial commands,
+  // in KISS frames, as rnodeconf -w STATION --ssid --psk --ip --nm does:
+  // join this Wi-Fi by its name, with this password (none: an open one),
+  // at this fixed address. Then it reads the settings back to check them,
+  // and restarts the Heltec so they take effect.
+  var KISS = { FEND: 0xC0, FESC: 0xDB, TFEND: 0xDC, TFESC: 0xDD };
+  var RN = { DETECT: 0x08, DETECT_REQ: 0x73, DETECT_RESP: 0x46, FW_VERSION: 0x50, ROM_READ: 0x51, RESET: 0x55, RESET_HARD: 0xF8,
+             WIFI_MODE: 0x6A, WIFI_SSID: 0x6B, WIFI_PSK: 0x6C, CFG_READ: 0x6D, WIFI_IP: 0x84, WIFI_NM: 0x85,
+             ROM_WIFI: 0xBA, CFG_SSID: 0x00, CFG_PSK: 0x21, CFG_IP: 0x42, CFG_NM: 0x46 };
+  function kissFrame(cmd, data) {
+    var out = [KISS.FEND, cmd];
+    (data || []).forEach(function (b) {
+      if (b === KISS.FEND) out.push(KISS.FESC, KISS.TFEND);
+      else if (b === KISS.FESC) out.push(KISS.FESC, KISS.TFESC);
+      else out.push(b);
+    });
+    out.push(KISS.FEND);
+    return new Uint8Array(out);
+  }
+  // Frames out of the bytes as they come: {cmd, data}; next(cmd, ms) waits for one.
+  function KissReader() {
+    this.frames = []; this.cur = null; this.esc = false; this.waiting = [];
+  }
+  KissReader.prototype.feed = function (u8) {
+    for (var i = 0; i < u8.length; i++) {
+      var b = u8[i];
+      if (b === KISS.FEND) {
+        if (this.cur && this.cur.length) this._got({ cmd: this.cur[0], data: this.cur.slice(1) });
+        this.cur = []; this.esc = false;
+      } else if (this.cur) {
+        if (this.esc) { this.cur.push(b === KISS.TFEND ? KISS.FEND : b === KISS.TFESC ? KISS.FESC : b); this.esc = false; }
+        else if (b === KISS.FESC) this.esc = true;
+        else this.cur.push(b);
+      }
+    }
+  };
+  KissReader.prototype._got = function (f) {
+    for (var i = 0; i < this.waiting.length; i++) {
+      if (this.waiting[i].cmd === f.cmd) { var w = this.waiting.splice(i, 1)[0]; clearTimeout(w.t); w.ok(f); return; }
+    }
+    this.frames.push(f);
+  };
+  KissReader.prototype.next = function (cmd, ms) {
+    var self = this;
+    for (var i = 0; i < this.frames.length; i++) if (this.frames[i].cmd === cmd) return Promise.resolve(this.frames.splice(i, 1)[0]);
+    return new Promise(function (ok) {
+      var w = { cmd: cmd, ok: ok };
+      w.t = setTimeout(function () { var j = self.waiting.indexOf(w); if (j >= 0) self.waiting.splice(j, 1); ok(null); }, ms || 1500);
+      self.waiting.push(w);
+    });
+  };
+  function utf8(s) { return Array.prototype.slice.call(new TextEncoder().encode(s)); }
+  function ipBytes(ip) { return ip.split(".").map(function (x) { return parseInt(x, 10); }); }
+  // What to send for: {ssid, psk ("" = open), ip, nm}. Checked first: a name
+  // of 1 to 32 bytes, a password of 8 to 32 or none, addresses as 4 numbers.
+  function heltecWifiPlan(o) {
+    var ssid = o.ssid || "", psk = o.psk || "", ip = (o.ip || "").trim(), nm = (o.nm || "255.255.255.0").trim();
+    var sb = utf8(ssid), pb = utf8(psk);
+    if (!sb.length || sb.length > 32) return { error: "The Wi-Fi's name for the Heltec: 1 to 32 characters." };
+    if (pb.length && (pb.length < 8 || pb.length > 32)) return { error: "The Wi-Fi's password for the Heltec: 8 to 32 characters, or none for an open Wi-Fi." };
+    if (!isIp(ip)) return { error: "The Heltec's address looks like 192.168.4.200." };
+    if (!isIp(nm)) return { error: "The network mask looks like 255.255.255.0." };
+    return { ssid: ssid, open: !pb.length, ip: ip, nm: nm, frames: [
+      kissFrame(RN.WIFI_SSID, sb.concat([0])),
+      kissFrame(RN.WIFI_PSK, pb.length ? pb.concat([0]) : [0]),
+      kissFrame(RN.WIFI_IP, ipBytes(ip)),
+      kissFrame(RN.WIFI_NM, ipBytes(nm)),
+      kissFrame(RN.WIFI_MODE, [0x01])                 // station: it joins that Wi-Fi
+    ] };
+  }
+  // The Wi-Fi settings out of the RNode's EEPROM and config sector.
+  function rnodeWifi(eeprom, cfg) {
+    function str(at) {
+      var b = [];
+      for (var i = 0; i < 32 && cfg && at + i < cfg.length; i++) { var c = cfg[at + i]; if (c === 0 || c === 0xFF) break; b.push(c); }
+      try { return new TextDecoder().decode(new Uint8Array(b)); } catch (e) { return ""; }
+    }
+    function quad(at) {
+      if (!cfg || cfg.length < at + 4) return null;
+      var q = [cfg[at], cfg[at + 1], cfg[at + 2], cfg[at + 3]].join(".");
+      return q === "255.255.255.255" || q === "0.0.0.0" ? null : q;
+    }
+    var m = eeprom && eeprom.length > RN.ROM_WIFI ? eeprom[RN.ROM_WIFI] : null;
+    return { mode: m === 1 ? "station" : m === 2 ? "access point" : "off", ssid: cfg ? str(RN.CFG_SSID) : null,
+             hasPsk: cfg ? !!str(RN.CFG_PSK) : null, ip: quad(RN.CFG_IP), nm: quad(RN.CFG_NM) };
+  }
+  function concatU8(list) {
+    var n = list.reduce(function (a, u) { return a + u.length; }, 0), out = new Uint8Array(n), o = 0;
+    list.forEach(function (u) { out.set(u, o); o += u.length; });
+    return out;
+  }
+  // io: {write(u8) -> Promise, reader: KissReader, sleep(ms)}. Returns
+  // {fw, before, after, ok} or throws with what to check.
+  async function heltecSetWifi(io, plan, say) {
+    say = say || function () {};
+    var hello = false, fw = null;
+    for (var t = 0; t < 4 && !hello; t++) {
+      await io.write(concatU8([kissFrame(RN.DETECT, [RN.DETECT_REQ]), kissFrame(RN.FW_VERSION, [0])]));
+      var d = await io.reader.next(RN.DETECT, 1500);
+      hello = !!(d && d.data[0] === RN.DETECT_RESP);
+      if (!hello) await io.sleep(1000);              // (it may be starting: opening the port restarts some boards)
+    }
+    if (!hello) throw new Error("No answer from an RNode on that port: is it the Heltec (not the Stump), on the RNode firmware, and not held by another program?");
+    var v = await io.reader.next(RN.FW_VERSION, 800);
+    if (v && v.data.length >= 2) fw = v.data[0] + "." + (v.data[1] < 10 ? "0" : "") + v.data[1];
+    say("an RNode" + (fw ? ", firmware " + fw : ""));
+    async function read() {
+      await io.write(kissFrame(RN.ROM_READ, [0]));
+      var e = await io.reader.next(RN.ROM_READ, 2000);
+      await io.write(kissFrame(RN.CFG_READ, [0]));
+      var c = await io.reader.next(RN.CFG_READ, 2000);
+      return { eeprom: e && e.data, cfg: c && c.data };
+    }
+    var r0 = await read();
+    if (!r0.cfg) throw new Error("This Heltec's RNode firmware" + (fw ? " (" + fw + ")" : "") + " doesn't take Wi-Fi settings: update it with the Provisioner (A Heltec for a CAM) first.");
+    var before = rnodeWifi(r0.eeprom, r0.cfg);
+    for (var i = 0; i < plan.frames.length; i++) { await io.write(plan.frames[i]); await io.sleep(250); }
+    var r1 = await read(), after = rnodeWifi(r1.eeprom, r1.cfg);
+    var ok = after.ssid === plan.ssid && after.ip === plan.ip && after.hasPsk === !plan.open && (r1.eeprom ? after.mode === "station" : true);
+    if (ok) await io.write(kissFrame(RN.RESET, [RN.RESET_HARD]));     // restarts with them
+    return { fw: fw, before: before, after: after, ok: ok };
+  }
+
   async function packFrom(zip, known) {
     function no(e) { return { error: e }; }
     var names = Object.keys(zip), base = null;
@@ -916,7 +1042,9 @@
               readZip: readZip, packFrom: packFrom, installPack: installPack, fillTools: fillTools, shaHex: shaHex,
               readSettings: readSettings, writeSettings: writeSettings,
               packQuestions: packQuestions, packValues: packValues, packCurrent: packCurrent,
-              apAddress: apAddress, hotspotName: hotspotName, heltecPairBreaks: heltecPairBreaks, readConfigFile: readConfigFile, putConfigFile: putConfigFile,
+              apAddress: apAddress, hotspotName: hotspotName, heltecPairBreaks: heltecPairBreaks,
+              kissFrame: kissFrame, KissReader: KissReader, heltecWifiPlan: heltecWifiPlan, rnodeWifi: rnodeWifi,
+              heltecSetWifi: heltecSetWifi, RN: RN, readConfigFile: readConfigFile, putConfigFile: putConfigFile,
               settingsFrom: settingsFrom, answersFrom: answersFrom, bootSummary: bootSummary, randomSecret: function () { return hex(8); },
               readRadio: readRadio, writeRadio: writeRadio, radioFrom: radioFrom, radioAnswers: radioAnswers,
               RADIO_BW: RADIO_BW, RADIO_DEFAULT: RADIO_DEFAULT,
