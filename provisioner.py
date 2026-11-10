@@ -356,7 +356,7 @@ EXPECTED_FILE_HASHES = {
     "_sd_web/billboard.txt": "e3b0c44298fc1c14",
     "admin_web.py": "e363683af126836f",
     "announcer.py": "555c52b729947a67",
-    "barkeep.py": "11d59ffd5a4ca08c",
+    "barkeep.py": "8947dd7b2ae632d4",
     "billboard.py": "73e95795f9430ea5",
     "boot_common.py": "dc95827c3989d1ca",
     "captive_portal.py": "5a89b67f2c47bdba",

@@ -690,8 +690,9 @@ def home_tile_items(lang, all=False):
     return [items[k] for k in layout.tiles(keys, all=all)]
 
 
-def _page(body):
-    return ("<!DOCTYPE html>" + theme.html_open() + "<head><meta name='viewport' "
+def _page(body, title=None):
+    return ("<!DOCTYPE html>" + theme.html_open() + "<head>"
+             + ("<title>" + webtext.esc(title) + "</title>" if title else "") + "<meta name='viewport' "
              "content='width=device-width, initial-scale=1'>"
              "<style>" + STYLE + "</style>"
              "<script>" + theme.startup_script() + "</script>"
@@ -911,6 +912,11 @@ def _process_command(text, identifier, lang):
     return _librarian(cmd, lang)[0]
 
 
+def _stump_name():
+    """The name given to this Stump, for the home page's title and tab."""
+    return (rrc.NODE or {}).get("name") or "Stump"
+
+
 def _render_chat_page(lang):
     """The home page: logo, title, language switcher, and a tile for
     each feature this node offers (see features.py). The Concierge chat
@@ -923,7 +929,7 @@ def _render_chat_page(lang):
     if brand is None:
         return (
             "<div id='site-logo'><pre>" + BARKEEP_ART + "</pre></div>"
-            "<h1>Stump</h1>"
+            "<h1>" + webtext.esc(_stump_name()) + "</h1>"     # its own name (1.0.0-beta.64)
             + _lang_switcher(lang, "/")
             + _home_tiles(lang)
         )
@@ -3344,7 +3350,7 @@ async def _r_plugin_page(reader, writer, method, path, headers, ip, identifier, 
 async def _r_default(reader, writer, method, path, headers, ip, identifier, secure):
     lang = i18n.get_lang(identifier)
     await _send(writer, "200 OK", _page(_render_chat_page(lang) + (
-        _ask_drawer(lang) if features.enabled("files") or features.enabled("billboard") else "")))
+        _ask_drawer(lang) if features.enabled("files") or features.enabled("billboard") else ""), _stump_name()))
 
 
 
