@@ -217,8 +217,33 @@ iface.PROBE_EVERY, iface.PROBE_WAIT = 10.0, 4.0
 got.clear()
 iface.retry_now()
 check("retry: offline at once", not iface.online)
-asyncio.run(run(1.5))
-check("retry: handshake and set-up again, online", iface.online and [c for c, p in frames(got)][:3] == [0x08, 0x50, 0x48],
+
+
+def setup_order(raw):
+    """The commands sent, a repeat of the one before folded: a slow
+    computer (CI's macOS) can send the handshake twice before the radio
+    answers -- [8, 8, 80, 72] is the same set-up as [8, 80, 72]."""
+    out = []
+    for c, _ in frames(raw):
+        if not out or out[-1] != c:
+            out.append(c)
+    return out
+
+
+async def until_online(limit):
+    """Runs the interface until it's online again (or `limit` seconds):
+    no fixed wait that a slow computer can miss."""
+    t = asyncio.create_task(iface.poll_loop())
+    waited = 0.0
+    while waited < limit and not iface.online:
+        await asyncio.sleep(0.1)
+        waited += 0.1
+    await asyncio.sleep(0.3)                     # (the set-up after the handshake)
+    t.cancel()
+
+
+asyncio.run(until_online(8))
+check("retry: handshake and set-up again, online", iface.online and setup_order(got)[:3] == [0x08, 0x50, 0x48],
       frames(got)[:4])
 
 # A board that doesn't answer the handshake (not the RNode firmware): never
