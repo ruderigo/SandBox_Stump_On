@@ -230,7 +230,7 @@
   // it was, a temporary file then a rename -- plus the Heltec bridge's
   // three lines inside CONFIG (as the Provisioner edits them). The old
   // file is kept as config.py.bak; a result that isn't Python is undone.
-  var KEYS = ["NODE_NAME", "BOT_NAME", "MESH_GREETING", "WIFI_SSID", "AUTH_MODE", "FEATURES", "THEME", "SSID_NAME",
+  var KEYS = ["NODE_NAME", "BOT_NAME", "MESH_GREETING", "WIFI_SSID", "AUTH_MODE", "FEATURES", "THEME", "SSID_NAME", "SSID_INCLUDE_IP",
               "CHAIN_ENABLED", "CHAIN_UPLINK_SSID", "CHAIN_UPLINK_PASS", "CHAIN_SUBNET", "CHAIN_CHANNEL", "CHAIN_SECRET",
               "CHAIN_PARENT_IP"];
   // A Heltec on the Stump's own hotspot: .200, past the addresses the
@@ -401,7 +401,7 @@
     v.AUTH_MODE = a.mode || "open";
     var hs = (a.hotspot || "").trim();
     if (hs.length > 32 || ctl(hs)) return no("The Wi-Fi name it shows: at most 32 characters.");
-    v.SSID_NAME = hs || null; v.SSID_INCLUDE_IP = false;
+    v.SSID_NAME = hs || null; v.SSID_INCLUDE_IP = !!a.hotspotIp;
     var subnet = 4;
     if (a.chain === "first" || a.chain === "member") {
       var secret = (a.secret || "").trim();
@@ -435,6 +435,11 @@
     } else {
       v.CHAIN_ENABLED = false;
     }
+    // The name with its address: 32 characters at most, or the Stump cuts it.
+    var shown = hotspotName(hs || a.defaultSsid || "", v.SSID_INCLUDE_IP, subnet);
+    if (shown.over > 0)
+      return no("The Wi-Fi's name with its address is " + shown.over + " character" + (shown.over === 1 ? "" : "s") +
+                " too long (32 at most): shorten the name, or untick showing the address.");
     var onAp = "192.168." + subnet + "." + HELTEC_ON_HOTSPOT;
     if (a.radio === "lan") {
       var host = (a.hhost || "").trim();
@@ -461,7 +466,7 @@
       name: c.NODE_NAME || "", bot: c.BOT_NAME || "BarKeep", greeting: c.MESH_GREETING || "",
       ssid: c.WIFI_SSID || "", radio: radio, hhost: radio === "lan" ? h.host : "",
       features: Array.isArray(c.FEATURES) ? c.FEATURES : FEATURES.slice(0, 3), theme: c.THEME || "paper",
-      mode: c.AUTH_MODE || "open", hotspot: c.SSID_NAME || "", chain: chain,
+      mode: c.AUTH_MODE || "open", hotspot: c.SSID_NAME || "", hotspotIp: !!c.SSID_INCLUDE_IP, chain: chain,
       channel: c.CHAIN_CHANNEL || 11, upSsid: c.CHAIN_UPLINK_SSID || "", upPass: c.CHAIN_UPLINK_PASS || "",
       subnet: c.CHAIN_SUBNET || 5, secret: c.CHAIN_SECRET || "", parentIp: c.CHAIN_PARENT_IP || "",
       hasPw: !!c.HAS_ADMIN_PASSWORD, hasOpPw: !!c.HAS_OP_PASSWORD, hasWifiPass: !!c.HAS_WIFI_PASS
@@ -655,6 +660,15 @@
                              ") if hasattr(config,k)}\nexcept Exception:\n c={}\nprint('J'+json.dumps(c))\n", 15000);
     var m = /J(\{.*\})/.exec(out);
     try { return m ? JSON.parse(m[1]) : {}; } catch (e) { return {}; }
+  }
+
+  // The Stump's own Wi-Fi: its address (192.168.4.1, or 192.168.<number>.1
+  // in a chain), and its name as phones will see it -- with the address
+  // when it's shown -- and how far over 32 characters that is.
+  function apAddress(subnet) { return "192.168." + (subnet || 4) + ".1"; }
+  function hotspotName(name, withIp, subnet) {
+    var full = (name || "").trim() + (withIp ? " " + apAddress(subnet) : "");
+    return { name: full, length: full.length, over: full.length - 32 };
   }
 
   async function packFrom(zip, known) {
@@ -887,7 +901,8 @@
               CARD: CARD, USB_MAX: USB_MAX, cardStatus: cardStatus, wipeCard: wipeCard, toCard: toCard,
               readZip: readZip, packFrom: packFrom, installPack: installPack, fillTools: fillTools, shaHex: shaHex,
               readSettings: readSettings, writeSettings: writeSettings,
-              packQuestions: packQuestions, packValues: packValues, packCurrent: packCurrent, readConfigFile: readConfigFile, putConfigFile: putConfigFile,
+              packQuestions: packQuestions, packValues: packValues, packCurrent: packCurrent,
+              apAddress: apAddress, hotspotName: hotspotName, readConfigFile: readConfigFile, putConfigFile: putConfigFile,
               settingsFrom: settingsFrom, answersFrom: answersFrom, bootSummary: bootSummary, randomSecret: function () { return hex(8); },
               readRadio: readRadio, writeRadio: writeRadio, radioFrom: radioFrom, radioAnswers: radioAnswers,
               RADIO_BW: RADIO_BW, RADIO_DEFAULT: RADIO_DEFAULT,

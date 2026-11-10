@@ -228,11 +228,16 @@
       <div><label for="f-bot">The bot's name</label><input type="text" id="f-bot" maxlength="24" value="BarKeep"></div>
       <div><label for="f-hotspot">Its Wi-Fi's name <span class="hint">· blank: @@SSID@@</span></label><input type="text" id="f-hotspot" maxlength="32"></div>
     </div>
+    <label class="inline"><input type="checkbox" id="f-hotspot-ip"> Show its address in the Wi-Fi's name, so people know where to go if no page opens</label>
+    <p class="hint" id="f-hotspot-count" aria-live="polite"></p>
     <label for="f-greet">Greeting <span class="hint">· sent once to each new person on the mesh; blank: none</span></label>
     <input type="text" id="f-greet" maxlength="200">
 
-    <h3>A chain of Stumps <span class="hint">· linked over Wi-Fi, files go between them</span></h3>
-    <label class="choice"><input type="radio" name="f-chain" value="none" checked> <span>Not in a chain</span></label>
+    <h3>A chain of Stumps <span class="hint">· optional</span></h3>
+    <p class="hint">A chain links several Stumps over Wi-Fi, so their #wifi-mesh chat, their shared rooms and their files go between them.
+      <b>With one Stump, leave it on “Not in a chain”:</b> nothing else is needed, and the Stump works fully on its own.
+      You can make it part of a chain later, from the Settings tab, without losing its name, its chat or its files.</p>
+    <label class="choice"><input type="radio" name="f-chain" value="none" checked> <span>Not in a chain <span class="hint">· a Stump on its own</span></span></label>
     <label class="choice"><input type="radio" name="f-chain" value="first"> <span>The first Stump (the others join it)</span></label>
     <label class="choice"><input type="radio" name="f-chain" value="lan"> <span>It joins the first Stump over the home Wi-Fi <span class="hint">· the router: like your other Stumps</span></span></label>
     <label class="choice"><input type="radio" name="f-chain" value="member"> <span>It joins another Stump's Wi-Fi <span class="hint">· no router: its hotspot</span></span></label>
@@ -370,6 +375,19 @@ function pairCheck(a, b, out, min) {
 }
 function pwChecks() { pairCheck("f-pw", "f-pw2", "f-pw-match", 4); pairCheck("f-opw", "f-opw2", "f-opw-match", 4); }
 ["f-pw", "f-pw2", "f-opw", "f-opw2"].forEach(function (id) { $(id).addEventListener("input", pwChecks); });
+// The Wi-Fi's name as phones will see it, counted as it's typed (32 at
+// most, the address included when it's shown).
+function hotspotView() {
+  var ch = val("f-chain"), sub = (ch === "member" || ch === "lan") ? (+$("f-subnet").value || 5) : 4;
+  var n = R.hotspotName($("f-hotspot").value || SSID, $("f-hotspot-ip").checked, sub), el = $("f-hotspot-count");
+  if (n.over > 0) { el.textContent = "“" + n.name + "”: " + n.over + " character" + (n.over === 1 ? "" : "s") + " too long (32 at most). Shorten the name, or untick the address."; el.className = "err"; }
+  else { el.textContent = "Phones will see “" + n.name + "” · " + (32 - n.length) + " character" + (32 - n.length === 1 ? "" : "s") + " left"; el.className = "hint"; }
+  $("f-hotspot").classList.toggle("mismatch", n.over > 0);
+}
+["f-hotspot", "f-subnet"].forEach(function (id) { $(id).addEventListener("input", hotspotView); });
+$("f-hotspot-ip").addEventListener("change", hotspotView);
+hotspotView();
+qa("input[name=f-chain]").forEach(function (r) { r.addEventListener("change", hotspotView); });
 function sameView() {
   var same = $("f-same").checked;
   $("f-opw-box").classList.toggle("hidden", same);
@@ -409,7 +427,7 @@ function formFor(a) {
   if (!a) {
     if ($("form").dataset.filled === "edit") {          // from a Stump's settings back to a new one: its defaults
       $("f-name").value = "Stump"; $("f-bot").value = "BarKeep"; $("f-greet").value = ""; $("f-ssid").value = "";
-      $("f-hhost").value = ""; setVal("f-radio", "none"); setVal("f-chain", "none"); $("f-hotspot").value = "";
+      $("f-hhost").value = ""; setVal("f-radio", "none"); setVal("f-chain", "none"); $("f-hotspot").value = ""; $("f-hotspot-ip").checked = false;
       qa("input[name=f-feat]").forEach(function (c) { c.checked = c.value !== "about"; });
       $("f-theme").value = "paper"; $("f-mode").value = "open"; $("f-channel").value = 11; $("f-up").value = SSID;
       $("f-uppass").value = ""; $("f-subnet").value = 5; $("f-secret").value = ""; $("f-more").open = false;
@@ -424,7 +442,7 @@ function formFor(a) {
     }
     $("f-pw-hint").textContent = "Unlocks /admin (needed). Keep it somewhere.";
     $("f-wpass").placeholder = "Its password";
-    chainView(); radioView(); sameView();
+    chainView(); radioView(); sameView(); hotspotView();
     return;
   }
   $("form").dataset.filled = "edit";
@@ -433,7 +451,7 @@ function formFor(a) {
   qa("input[name=f-feat]").forEach(function (c) { c.checked = a.features.indexOf(c.value) >= 0; });
   $("f-theme").value = R.THEMES.indexOf(a.theme) >= 0 ? a.theme : "paper";
   $("f-mode").value = R.MODES.indexOf(a.mode) >= 0 ? a.mode : "open";
-  $("f-hotspot").value = a.hotspot; setVal("f-chain", a.chain);
+  $("f-hotspot").value = a.hotspot; $("f-hotspot-ip").checked = !!a.hotspotIp; setVal("f-chain", a.chain);
   $("f-channel").value = a.channel; $("f-up").value = a.upSsid || SSID; $("f-uppass").value = a.upPass;
   $("f-subnet").value = a.subnet; $("f-secret").value = a.secret; $("f-parent").value = a.parentIp || "";
   ["f-pw", "f-pw2", "f-opw", "f-opw2", "f-wpass"].forEach(function (id) { $(id).value = ""; });
@@ -449,7 +467,7 @@ function formFor(a) {
   $("f-wpass").placeholder = a.hasWifiPass ? "unchanged" : "Its password";
   fillRadio(a.radioAnswers);
   if (a.chain !== "none" || a.hotspot || a.mode !== "open" || a.greeting) $("f-more").open = true;
-  chainView(); radioView();
+  chainView(); radioView(); hotspotView();
 }
 function answers(editing) {
   return {
@@ -460,7 +478,7 @@ function answers(editing) {
     radio: val("f-radio"), hhost: $("f-hhost").value,
     freqMhz: $("f-freq").value, bandwidth: $("f-bw").value, sf: $("f-sf").value, cr: $("f-cr").value, txpower: $("f-txp").value,
     features: qa("input[name=f-feat]:checked").map(function (c) { return c.value; }),
-    theme: $("f-theme").value, mode: $("f-mode").value, hotspot: $("f-hotspot").value,
+    theme: $("f-theme").value, mode: $("f-mode").value, hotspot: $("f-hotspot").value, hotspotIp: $("f-hotspot-ip").checked, defaultSsid: SSID,
     chain: val("f-chain"), channel: $("f-channel").value, upSsid: $("f-up").value, upPass: $("f-uppass").value,
     subnet: $("f-subnet").value, secret: $("f-secret").value, parentIp: $("f-parent").value
   };
@@ -1053,8 +1071,9 @@ async function make() {
     // home Wi-Fi or why it isn't on it, the chain, its Heltec.
     if (s.values.CHAIN_SECRET) await rememberSecret(s.values.CHAIN_SECRET);
     var heard = await listenStart(repl, START_LISTEN_MS, enoughFor(s.values));
-    r.appendChild(para("Your Stump is running. On a phone, join the Wi-Fi “" + (s.values.SSID_NAME || SSID) +
-                       "” and a page opens. Its admin page is /admin, with the password you chose."));
+    var hn = R.hotspotName(s.values.SSID_NAME || SSID, s.values.SSID_INCLUDE_IP, s.values.CHAIN_SUBNET || 4), ap = "http://" + R.apAddress(s.values.CHAIN_SUBNET || 4);
+    r.appendChild(para("Your Stump is running. On a phone, join the Wi-Fi “" + hn.name + "” and a page opens. If it doesn't, go to " +
+                       ap + ". Its admin page is " + ap + "/admin, with the password you chose."));
     startReport(heard, s.values, r);
     r.appendChild(para("You can unplug it from the computer and power it from any USB charger."));
   }
@@ -1117,6 +1136,8 @@ async function saveIt() {
   c2.hasPw = c2.hasPw || "AUTH_ADMIN_PASSWORD" in s.values; c2.hasWifiPass = c2.hasWifiPass || !!s.values.WIFI_PASS;
   done("");
   $("result").appendChild(para("Saved, and it's running with them; the old settings are on it as config.py.bak."));
+  var hn2 = R.hotspotName(s.values.SSID_NAME || SSID, s.values.SSID_INCLUDE_IP, s.values.CHAIN_SUBNET || 4);
+  $("result").appendChild(para("Its Wi-Fi: “" + hn2.name + "”. On it, the Stump is at http://" + R.apAddress(s.values.CHAIN_SUBNET || 4) + "."));
   startReport(heard, nowCfg, $("result"));
   return true;
 }
