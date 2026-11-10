@@ -129,10 +129,11 @@ rrc.NODE = {"name": "Café <du> Coin"}
 home = req("/")[2]
 home = home.decode() if isinstance(home, bytes) else home
 check("home page: its name as the title, not \"Stump\"", "<h1>Café &lt;du&gt; Coin</h1>" in home and "<h1>Stump</h1>" not in home, home[:400])
+check("... and in the browser tab", "<title>Café &lt;du&gt; Coin</title>" in home, home[:400])
 rrc.NODE = {}
 home = req("/")[2]
 home = home.decode() if isinstance(home, bytes) else home
-check("... no name yet: \"Stump\"", "<h1>Stump</h1>" in home, home[:400])
+check("... no name yet: \"Stump\"", "<h1>Stump</h1>" in home and "<title>Stump</title>" in home, home[:400])
 rrc.NODE = saved_node
 
 # 6. A bot's line stays on its Stump (it looked like a person elsewhere,
