@@ -440,7 +440,8 @@ def _from_stump(dest_hash_hex, peer, text, router=None, title=""):
         # Another room with a scope (1.0.0-beta.62): only if this Stump
         # shares it with that one; else its lines aren't for here.
         import rooms
-        room = t if rooms.shares(t, dest_hash_hex, _on_chain(dest_hash_hex)) else None
+        peer["rs"] = True
+        room = t if rooms.shares(t, dest_hash_hex, _room_chain(dest_hash_hex, peer)) else None
     else:
         room = rrc.CHAIN_ROOM if peer.get("room") == rrc.CHAIN_ROOM else rrc.MESH_ROOM
     for line in text.split("\n"):
@@ -507,7 +508,7 @@ def _from_stump(dest_hash_hex, peer, text, router=None, title=""):
                 _send_queue.append((router, bytes.fromhex(dest_hash_hex), "\n".join(
                     "[DM>%s] <%s> %s" % (nick, me, l) for l in reply.split("\n") if l.strip())))
             continue
-        if room != rrc.CHAIN_ROOM and line[:1] in ("<", "*") and _seen_line(dest_hash_hex, line):
+        if line[:1] in ("<", "*") and _twice_possible(room) and _seen_line(dest_hash_hex + room, line):
             continue
         if line.startswith("<") and "> " in line:
             nick, body = line[1:].split("> ", 1)
@@ -914,6 +915,8 @@ def _note_stump_beacon(router, app_data, packet):
         own = router.delivery_destination
         if own is None or lxmf_hash != bytes(own.hash):
             h = lxmf_hash.hex()
+            if answer and h in _peers:
+                _peers[h].pop("rsent", None)    # it forgot the rooms' scopes: told again next pass
             if answer or not rrc.is_stump(h):
                 # A Stump new to this one (or new again, above): answer with
                 # this one's beacon, so it learns this Stump too (over the
@@ -1796,12 +1799,70 @@ NAMES_EVERY = 600
 # #lora-mesh way (the chain's Wi-Fi where it reaches, else the radio).
 # Plugin bots' lines go too (tagged "Bavard-k7q2", rrc.bot_nick), BarKeep's
 # don't. No [NAMES] for these rooms: airtime.
-ROOM_EVERY = 600              # the scopes again to the chain
+ROOM_EVERY = 120              # the scopes again to the chain (Wi-Fi: cheap)
 OFFER_EVERY = 1800            # a LoRa room offered again outside it, until answered
 REFUSED_S = 86400
+CATCH_UP = 5                  # lines a Stump newly sharing a room gets from before
+
+
+_my_chain = [None, -999]      # this Stump's chain id, and when it was read
+
+
+def _same_chain_id(h):
+    """Stump h's beacon names this Stump's chain ("ch": its chain id)."""
+    now = time.time()
+    if now - _my_chain[1] > 60:
+        try:
+            import chain
+            _my_chain[0] = chain.chain_id() if chain.settings() else None
+        except Exception:
+            _my_chain[0] = None
+        _my_chain[1] = now
+    if not _my_chain[0]:
+        return False
+    try:
+        import discovery
+        v = discovery._known.get(h)
+        c = v.get("caps") if v else None
+        return isinstance(c, dict) and c.get("ch") == _my_chain[0]
+    except Exception:
+        return False
+
+
+def _room_chain(h, peer=None):
+    """A Stump of this chain, for the rooms with a scope: its route over
+    the chain now, known as a chain Stump before (#wifi-mesh's peer
+    record keeps that: a route that went over a Heltec's LoRa for a while
+    doesn't make it a stranger), or its beacon naming this chain -- from
+    the first beacon, whatever the route: a Stump first heard over the
+    radio is on the chain at once (1.0.0-beta.63)."""
+    if not rrc.room_exists(rrc.CHAIN_ROOM):
+        return False
+    if _on_chain(h) or _same_chain_id(h):
+        return True
+    p = peer if peer is not None else _peers.get(h)
+    return bool(p) and p.get("home_room") == rrc.CHAIN_ROOM
+
+
+def _twice_possible(room):
+    """A line that can arrive twice (over the radio and over Wi-Fi):
+    #lora-mesh and the LoRa rooms. Elsewhere the same words twice are two
+    lines."""
+    if room == rrc.MESH_ROOM:
+        return True
+    if room == rrc.CHAIN_ROOM or room == rrc.DEFAULT_ROOM:
+        return False
+    try:
+        import rooms
+        return rooms.scope(room) == "lora"
+    except Exception:
+        return False
 
 
 def _rs_capable(h):
+    p = _peers.get(h)
+    if p and p.get("rs"):
+        return True               # it sent us a room's scope or lines: it takes them (its beacon may not be heard yet)
     try:
         import discovery
         v = discovery._known.get(h)
@@ -1817,9 +1878,10 @@ def _room_ctl(h, peer, line):
     if len(parts) < 2:
         return
     room = rrc.clean_room(parts[1].lstrip("#"))
+    peer["rs"] = True
     if not room or room in rooms.builtin():
         return
-    on = _on_chain(h)
+    on = _room_chain(h, peer)
     if parts[0] == "[ROOM]" and len(parts) >= 4:
         sc = parts[2]
         try:
@@ -1829,9 +1891,14 @@ def _room_ctl(h, peer, line):
         if sc not in rooms.SCOPES:
             return
         if on:
-            if (n, sc) > (rooms.version(room), rooms.scope(room)):
+            mine = (rooms.version(room), rooms.scope(room))
+            if (n, sc) > mine:
                 if rooms.set_scope(room, sc, n):
                     print("[rrc_mesh] #%s is %s now (from %s)" % (room, sc, peer.get("nick")))
+            elif (n, sc) < mine:
+                # It's behind (it was off, or just updated): ours goes to it
+                # on the next pass, not in ROOM_EVERY.
+                peer.setdefault("rsent", {}).pop(room, None)
         elif sc == "lora":
             res = rooms.offered(room, h, peer.get("nick"))
             if res in ("ok", "no"):
@@ -1868,7 +1935,7 @@ def _flush_rooms(router, h, peer):
     import rooms
     if not _rs_capable(h):
         return
-    on = _on_chain(h)
+    on = _room_chain(h, peer)
     now = time.time()
     sent = peer.setdefault("rsent", {})
     rno = peer.setdefault("rno", {})
@@ -1901,16 +1968,22 @@ def _flush_rooms(router, h, peer):
     if ctl:
         if on and chain_if is not None:
             _send_queue.append((router, bytes.fromhex(h), "\n".join(ctl), "", None, chain_if))
+        elif on:
+            _send_queue.append((router, bytes.fromhex(h), "\n".join(ctl), ""))   # its route, whatever it is now
         else:
             _queue_lora(router, h, ctl, "#" + rrc.MESH_ROOM)
     for room, sc in rooms.extra().items():
-        if sc == "local" or not rooms.shares(room, h, on) or not rrc.room_exists(room):
+        if sc == "local" or not rrc.room_exists(room):
             cur.pop(room, None)
             continue
-        msgs = rrc.since(room, 0)
+        if not rooms.shares(room, h, on):
+            continue                          # (its mark kept: back, it gets what it missed)
         if room not in cur:
-            cur[room] = msgs[-1]["id"] if msgs else 0      # from now on, not the backlog
-            continue
+            # Newly shared with it (it just joined, or was just updated): the
+            # last few lines, so it doesn't start in the middle of a dialogue
+            # -- then on from there.
+            msgs = rrc.since(room, 0)
+            cur[room] = msgs[-CATCH_UP - 1]["id"] if len(msgs) > CATCH_UP else 0
         msgs = rrc.since(room, cur[room])
         if not msgs:
             continue
@@ -1919,9 +1992,13 @@ def _flush_rooms(router, h, peer):
         if not lines:
             continue
         if sc == "wifi":
-            if chain_if is not None:          # a Wi-Fi room never goes on the air
-                for text in _radio_pieces(lines, 1500):
+            for text in _radio_pieces(lines, 1500):
+                if chain_if is not None:
                     _send_queue.append((router, bytes.fromhex(h), text, "#" + room, None, chain_if))
+                else:
+                    # A chain Stump whose route went over a Heltec for now:
+                    # its route anyway, rather than lose the line.
+                    _send_queue.append((router, bytes.fromhex(h), text, "#" + room))
         else:
             _queue_lora(router, h, lines, "#" + room)
 
