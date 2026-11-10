@@ -738,8 +738,12 @@ def status():
         "below": sorted(set(ip for h in (_state["hubs"] or ([hub] if hub else [])) for ip in h.peers)),
         # Who tried to join with another chain secret, lately.
         "refused": [r for h in (_state["hubs"] or ([hub] if hub else [])) for r in h.refusals()],
-        # The other Stumps, from their beacons: release, chain protocol, what they have.
-        "stumps": _stumps(),
+        # The other Stumps of this chain, from their beacons (same chain id):
+        # release, chain protocol, what they have. Stumps heard that aren't
+        # in it (none, another chain, or a release before 1.0.0-beta.63 that
+        # doesn't say) are under "nearby" instead (1.0.0-beta.64).
+        "stumps": [x for x in _stumps() if x.get("chain") == chain_id(s)],
+        "nearby": [x for x in _stumps() if x.get("chain") != chain_id(s)],
         "proto": PROTO,
     }
 

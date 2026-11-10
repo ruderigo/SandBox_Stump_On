@@ -226,6 +226,12 @@ async function run(name, root, simArgs, fill, keep, pageFile, chip) {
       check("... with the answers (the two passwords independent), as MicroPython reads them", out === "('Caf\u00e9 du Coin', 's3cret!', 'barkeep55', 'Home \"Net\"', \"pa'ss1234\", True, '192.168.4.200', 7633, False, '', 'BarKeep')", out);
       check("... nothing of LaBuche's own config.py", !/LaBuche'|TeK|SalutComment|Bob's Glitch|Concierge/.test(cfg));
     }
+    // Finding 8: the next board doesn't take this one's settings, only the home Wi-Fi's name.
+    check("after it, the form for the next Stump: the defaults (name, hotspot, radio, chain, passwords), the home Wi-Fi's name kept",
+          (await page.inputValue("#f-name")) === "Stump" && (await page.inputValue("#f-hotspot")) === ""
+          && (await page.isChecked("input[name=f-radio][value=none]")) && (await page.isChecked("input[name=f-chain][value=none]"))
+          && (await page.inputValue("#f-pw")) === "" && (await page.inputValue("#f-wpass")) === "" && (await page.inputValue("#f-secret")) === ""
+          && (await page.inputValue("#f-ssid")) === 'Home "Net"', await page.inputValue("#f-name") + " / " + await page.inputValue("#f-ssid"));
     check("... no errors in the page", t.errors.length === 0, t.errors.join("\n"));
     await t.browser.close(); t.sim.kill();
   }
@@ -649,7 +655,11 @@ async function lookTests() {
     check("look: the password works, the first Stump in the table", /password works/.test(out) && row.length === 1
           && /LaBuche/.test(row[0]) && /127\.0\.0\.1/.test(row[0]) && /first Stump/.test(row[0]) && /number 4/.test(row[0]), JSON.stringify(row) + out);
     check("... what's free for this one said in one line", /Free for this one: number 5 · Heltec 127\.0\.0\.223/.test(out), out);
-    check("... offered: joining LaBuche's chain over the router, its address filled in",
+    check("... offered, not chosen: the board stays on its own until \"Join its chain\" is pressed (finding 8)",
+          (await page.isChecked("input[name=f-chain][value=none]")) && (await page.inputValue("#f-parent")) === ""
+          && /Join its chain/.test(await page.textContent("#f-look-out table.stumps button")) && /stays on its own/.test(out), out);
+    await page.click("#f-look-out table.stumps button");
+    check("... pressed: joining LaBuche's chain over the router, its address filled in",
           (await page.isChecked("input[name=f-chain][value=lan]")) && (await page.inputValue("#f-parent")) === "127.0.0.1"
           && /Joining/.test(await page.textContent("#f-look-out table.stumps button")), await page.inputValue("#f-parent"));
     check("... a free chain number (4 and 8 taken: 5)", (await page.inputValue("#f-subnet")) === "5", await page.inputValue("#f-subnet"));

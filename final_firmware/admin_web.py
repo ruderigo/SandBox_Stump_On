@@ -400,6 +400,10 @@ def _render_admin_chain_section(lang):
         rows.append(row)
     if rows:
         lines.append(i18n.t("admin_chain_stumps", lang) + "<br>" + "<br>".join(rows))
+    # Stumps heard nearby that aren't in this chain (1.0.0-beta.64): only named.
+    near = [e(s["name"] or s["lxmf"][:8]) for s in st.get("nearby", [])[:12]]
+    if near:
+        lines.append(i18n.t("admin_chain_nearby", lang) + " " + ", ".join(near))
     return ("<h2 class='sub'>" + i18n.t("admin_chain_header", lang) + "</h2>"
             "<p class='sub'>" + "<br>".join(lines) + "</p>")
 

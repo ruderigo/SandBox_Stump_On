@@ -406,6 +406,8 @@ def chain_stumps():
                     "has_radio": bool(c.get("rh") or c.get("rad")),
                     "storage": {"kind": str(s[0])[:8], "free_mb": max(0, _int(s[1], 0))} if s else None,
                     "plugins": [str(p)[:24] for p in pl][:8],
+                    # its chain id (beacon "ch", 1.0.0-beta.63), None if in none or older
+                    "chain": str(c.get("ch"))[:16] if c.get("ch") else None,
                     "heard_s": int(now - v["at"])})
     return out
 

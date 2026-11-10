@@ -110,15 +110,27 @@ config.CHAIN_SECRET = SECRET
 chain._state["hubs"] = [hub]
 chain._state["hub"] = hub
 hub.accept(bad, ("192.168.4.66", 4242))
-discovery.heard("dd" * 16, "Newer", [], {"p": 3, "r": "1.0.0-beta.40"})
+OURS = chain.chain_id()
+discovery.heard("aa" * 16, "Bravo", ["http://192.168.5.1/"], {"p": 2, "r": "1.0.0-beta.35", "ch": OURS})
+discovery.heard("bb" * 16, "Oldie", ["http://192.168.6.1/"], {"ch": OURS})
+discovery.heard("dd" * 16, "Newer", [], {"p": 3, "r": "1.0.0-beta.40", "ch": OURS})
+# Heard, but not in this chain (finding 8, 1.0.0-beta.64): in none, another one.
+discovery.heard("ee" * 16, "Loner", [], {"p": 2, "r": "1.0.0-beta.64"})
+discovery.heard("ff" * 16, "Elsewhere", [], {"p": 2, "r": "1.0.0-beta.64", "ch": "abcdef123456"})
 import admin_web
 html = admin_web._render_admin_chain_section("en")
+inch = html.split("in this chain:")[1].split("not in this chain")[0] if "in this chain:" in html else ""
+check("/admin: Stumps not in this chain aren't listed as in it", "Bravo" in inch and "Loner" not in inch and "Elsewhere" not in inch, html[-600:])
+near = html.split("not in this chain:")[1] if "not in this chain:" in html else ""
+check("/admin: ... they're under 'heard nearby, not in this chain'", "Loner" in near and "Elsewhere" in near and "Bravo" not in near, html[-600:])
 check("/admin: who tried with another secret", "192.168.4.66" in html and "another chain secret" in html, html[-600:])
 check("/admin: the other Stumps with their release", "Bravo" in html and "1.0.0-beta.35" in html, html[-600:])
 check("/admin: an older one, to update", "Oldie" in html and "update it" in html, html[-600:])
 check("/admin: a newer one: update this one", "Newer" in html and "update this one" in html, html[-600:])
 d = json.loads(req("/chain.json")[2])
 check("/chain.json: proto, stumps, refused", d["proto"] == 2 and any(s["name"] == "Bravo" for s in d["stumps"])
+      and not any(s["name"] in ("Loner", "Elsewhere") for s in d["stumps"])
+      and sorted(s["name"] for s in d["nearby"]) == ["Elsewhere", "Junk", "Loner"]
       and any(x["ip"] == "192.168.4.66" for x in d["refused"]), d)
 d = json.loads(req("/node.json")[2])
 check("/node.json: the chain protocol", d.get("proto") == 2, d)
