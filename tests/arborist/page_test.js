@@ -283,6 +283,7 @@ async function run(name, root, simArgs, fill, keep, pageFile, chip) {
     try { await page.waitForSelector("#worktitle .ok, #worktitle .err", { timeout: 240000 }); } catch (e) {}
     const title = await page.textContent("#worktitle");
     check("update: done (the running Stump stopped first)", /Done/.test(title), title + " | " + (await page.textContent("#result")) + " | " + (await page.textContent("#log")).slice(-600));
+    check("... and says to copy Arborist itself onto the card by card reader", /tools\/arborist\//.test(await page.textContent("#result")), await page.textContent("#result"));
     check("... nothing flashed", (await page.evaluate(() => window.__flashed)) === null);
     check("... its config.py and identity kept", fs.readFileSync(path.join(root, "config.py"), "utf8") === "NODE_NAME = 'Mine'\n"
           && fs.readFileSync(path.join(root, "rns/identity"), "utf8") === "its identity");
