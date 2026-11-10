@@ -923,7 +923,7 @@ def _render_chat_page(lang):
     if brand is None:
         return (
             "<div id='site-logo'><pre>" + BARKEEP_ART + "</pre></div>"
-            "<h1>Stump</h1>"
+            "<h1>" + webtext.esc((rrc.NODE or {}).get("name") or "Stump") + "</h1>"     # its own name (1.0.0-beta.64)
             + _lang_switcher(lang, "/")
             + _home_tiles(lang)
         )
