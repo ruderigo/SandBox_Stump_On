@@ -917,6 +917,13 @@ def _note_stump_beacon(router, app_data, packet):
             h = lxmf_hash.hex()
             if answer and h in _peers:
                 _peers[h].pop("rsent", None)    # it forgot the rooms' scopes: told again next pass
+                # ... and who's here (/names): sent again next pass, not up
+                # to NAMES_EVERY later -- until then its /names listed only
+                # its own people (1.0.0-beta.64).
+                for k in ("lora_roster", "wifi_roster"):
+                    _peers[h].pop(k, None)
+            if answer:
+                _lb["roster"] = None            # the radio broadcast's list too (a Stump new to it)
             if answer or not rrc.is_stump(h):
                 # A Stump new to this one (or new again, above): answer with
                 # this one's beacon, so it learns this Stump too (over the
