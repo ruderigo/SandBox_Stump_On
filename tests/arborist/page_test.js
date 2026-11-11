@@ -438,6 +438,33 @@ with zipfile.ZipFile(out / "bavard.zip", "w", zipfile.ZIP_DEFLATED) as zf:
           /Done/.test(await page.textContent("#worktitle")) && /joins “Café du Coin 192\.168\.7\.1” \(open\) at 192\.168\.7\.200/.test(res)
           && /RNode firmware 1\.82/.test(res) && rn.reset && rn.frames.some((f) => f[0] === 0x6A && f[1][0] === 1),
           res + " | " + (await page.textContent("#log")).slice(-400));
+    // Its own choice under Make or update (finding 9): only what the Heltec needs.
+    await page.check("input[name=mode][value=heltec]");
+    check("\"Set up a Heltec V3\": its own short form, not the Stump's; the button says so",
+          (await page.isVisible("#hel")) && !(await page.isVisible("#f-name")) && /Set up the Heltec/.test(await page.textContent("#make-go")));
+    await page.fill("#hel-ssid", "La Buche"); await page.uncheck("#hel-ip"); await page.fill("#hel-num", "9");
+    check("... a Stump's Wi-Fi: what it joins, said as it's typed", /“La Buche” \(open\), at 192\.168\.9\.200/.test(await page.textContent("#hel-what")),
+          await page.textContent("#hel-what"));
+    await page.fill("#hel-num", "300");
+    check("... a number past 254: said", /2 to 254/.test(await page.textContent("#hel-what")));
+    await page.fill("#hel-num", "9");
+    await page.evaluate(() => { window.__rnode.frames.length = 0; window.__rnode.reset = false; });
+    await page.click("#make-go");
+    try { await page.waitForFunction(() => /joins “La Buche”/.test(document.querySelector("#result").textContent), null, { timeout: 60000 }); } catch (e) {}
+    const res2 = await page.textContent("#result"), rn2 = await page.evaluate(() => window.__rnode);
+    check("... set up: it joins “La Buche” (open) at 192.168.9.200, then restarted",
+          /joins “La Buche” \(open\) at 192\.168\.9\.200/.test(res2) && rn2.reset, res2 + " | " + (await page.textContent("#log")).slice(-300));
+    await page.check("input[name=hel-where][value=home]");
+    await page.fill("#hel-hssid", "Home"); await page.fill("#hel-hpass", "homepass1"); await page.fill("#hel-hpass2", "homepass2");
+    await page.fill("#hel-hip", "192.168.0.222");
+    check("... the home Wi-Fi: its password typed twice, checked as it's typed", /Not the same/.test(await page.textContent("#hel-hpass-match")));
+    await page.click("#make-go");
+    check("... two passwords that differ: stopped before the Heltec is asked for", /aren't the same/.test(await page.textContent("#make-err")),
+          await page.textContent("#make-err"));
+    await page.fill("#hel-hpass2", "homepass1");
+    check("... the same: it joins “Home” (with its password) at 192.168.0.222", /“Home” \(with its password\), at 192\.168\.0\.222/.test(await page.textContent("#hel-what")),
+          await page.textContent("#hel-what"));
+    check("... no errors in the page", t.errors.length === 0, t.errors.join("\n"));
     await t.browser.close(); t.sim.kill();
   }
 
