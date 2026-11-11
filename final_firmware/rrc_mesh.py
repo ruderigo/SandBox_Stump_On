@@ -917,6 +917,8 @@ def _note_stump_beacon(router, app_data, packet):
             h = lxmf_hash.hex()
             if answer and h in _peers:
                 _peers[h].pop("rsent", None)    # it forgot the rooms' scopes: told again next pass
+            if answer:
+                _names_soon(h)
             if answer or not rrc.is_stump(h):
                 # A Stump new to this one (or new again, above): answer with
                 # this one's beacon, so it learns this Stump too (over the
@@ -1581,6 +1583,8 @@ def _flush_to_peer(router, dest_hash_hex, peer):
     # list only who had spoken, so someone quiet on a Stump in the middle
     # was nobody's contact elsewhere.
     names_line = None
+    if _names_due:
+        _names_check(time.time())
     if peer.get("stump") and room == rrc.CHAIN_ROOM:
         roster = " ".join(_room_roster(rrc.CHAIN_ROOM))
         now = time.time()
@@ -1788,6 +1792,35 @@ def _flush_lora_to_stump(router, dest_hash_hex, peer):
 
 
 NAMES_EVERY = 600
+
+# A Stump that restarted (or is new): who's here (/names) goes to it next
+# pass, and once more NAMES_AGAIN_S later -- not up to NAMES_EVERY later,
+# which left its /names with only its own people meanwhile. Twice: the
+# first may go before it knows this Stump again (a radio broadcast it
+# can't check yet is dropped), or be lost on the air (1.0.0-beta.64).
+NAMES_AGAIN_S = 30
+_names_due = {}           # Stump LXMF hex -> when to send its names list again
+
+
+def _names_soon(h):
+    _names_resend(h)
+    _names_due[h] = time.time() + NAMES_AGAIN_S
+    if len(_names_due) > 32:
+        _names_due.pop(min(_names_due, key=_names_due.get))
+
+
+def _names_resend(h):
+    p = _peers.get(h)
+    if p is not None:
+        for k in ("lora_roster", "wifi_roster"):
+            p.pop(k, None)
+    _lb["roster"] = None                  # the radio broadcast's list too
+
+
+def _names_check(now):
+    for h in [h for h, t in _names_due.items() if now >= t]:
+        _names_due.pop(h)
+        _names_resend(h)
 
 
 # ── Rooms with a scope (rooms.py, 1.0.0-beta.62) ──
