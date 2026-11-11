@@ -2685,7 +2685,9 @@ async def _r_get_rrc_poll(reader, writer, method, path, headers, ip, identifier,
     # both need to be reflected back rather than silently
     # leaving the client polling a room it isn't in.
     actual = user["room"]
-    if not rrc.room_exists(actual) or not rrc.room_allows(identifier, actual):
+    import mods
+    if (not rrc.room_exists(actual) or not rrc.room_allows(identifier, actual)
+            or mods.join_refusal(identifier, actual)):         # banned or kicked: back to #main
         actual = rrc.DEFAULT_ROOM
         rrc.touch_user(identifier, room=actual)
     if actual != q_room:

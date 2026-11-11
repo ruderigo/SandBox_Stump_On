@@ -1,6 +1,16 @@
 # Changelog
 
 ## Next
+- **Ops and mods** (`mods.py`), modelled on rrcd, the RRC hub NomadNet's Channels and MeshChatX speak (same names, same meanings):
+  - The admin names ops (`/op <password> #room|-stump <who>`). An op names mods (`/mod`). In one room, or in every room of the Stump.
+  - Ops and mods `/kick` (out for a minute) and `/mute` (optionally for some minutes). Ops `/ban`, and set `/mode #room +t` (the topic by ops and mods only).
+  - `/bans` and `/roles` list them; `/names` marks `@op` and `%mod`; `/help mods` shows the commands.
+  - Held by an identity (an app's, the same on LoRa and the web) or a registered profile, never a nick. A guest can be kicked, muted or banned, never named.
+  - Someone on another Stump can be muted or banned here: their lines are hidden here.
+  - An op can't act on another op, and a mod only on people without a role. #main stays open to everyone.
+  - The admin password stays private and counts toward the lockout. A ban never locks the admin out. Kept across a restart.
+  - Not across a chain (pinned).
+- Tests: `mods_room` (who may do what to whom, scopes, the same person on LoRa and the web, guests, people on other Stumps, +t, kept across a restart, the password never posted, a forgotten room not taken as a wrong password).
 - **A new Stump's form no longer sets up the Heltec in the middle** (kit finding 11): with a Heltec chosen, it says to set it up afterwards with "Set up a Heltec V3" (filled in from the Stump), instead of showing the Heltec's Wi-Fi and its button. In Settings, the button shows only once something the Heltec joins by has changed (beside the warning), and the end of a Save points to "Set up a Heltec V3". "Radio settings" says the Stump sets them on the Heltec (it said "the CAM", wrong on a WROVER).
 - **"Set up a Heltec V3", a choice of its own** (kit finding 9): under Make or update, beside "A new Stump" and "Update a Stump", with only what the Heltec needs: a Stump's Wi-Fi (its name, whether its address is shown in it, its number) or the home Wi-Fi (its name, its password typed twice, the Heltec's address), what it will join said as you type, and one button. The last Stump made, read or saved on the page fills it in. The Heltec must already run the RNode firmware. The button in a Stump's radio settings stays.
 - **The home page shows the Stump's name**: its title is the name given to the Stump ("Café du Coin") instead of "Stump" (still "Stump" until it has one), and so does the browser tab. A card's own branding, when set, still replaces it.

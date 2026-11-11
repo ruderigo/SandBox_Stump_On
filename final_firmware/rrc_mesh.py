@@ -1397,6 +1397,10 @@ def _handle(dest_hash_hex, peer, text):
         refused = _tier_refusal(dest_hash_hex, target, lang)
         if refused:
             return [refused], None
+        import mods
+        no = mods.join_refusal(dest_hash_hex, target, lang)
+        if no:
+            return ["✗ " + no], None          # banned or kicked (mods.py)
         rrc.system(room, rrc.ev_leave("~" + nick))
         rrc.system(target, rrc.ev_join("~" + nick))
         return [rrc.moved(target)], target
@@ -1424,7 +1428,7 @@ def _handle(dest_hash_hex, peer, text):
                 for r in rrc.room_names()], None
 
     if text.lower() in ("/names", "/who"):
-        names = rrc.names_in_room(room)
+        names = rrc.names_marked(room)
         return [rrc.names_line(room, names)], None
 
     if text.lower() == "/part":
