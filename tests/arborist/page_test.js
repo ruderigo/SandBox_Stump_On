@@ -264,7 +264,6 @@ async function run(name, root, simArgs, fill, keep, pageFile, chip) {
     await page.fill("#f-hotspot", "Un autre nom");
     check("... its Wi-Fi's name changed: the radio would stop, said at once", (await page.isVisible("#f-heltec-pair"))
           && /stops the radio until the Heltec is set up again/.test(await page.textContent("#f-heltec-pair")), await page.textContent("#f-heltec-pair"));
-    await page.fill("#f-hotspot", (await page.evaluate(() => EDITING.hotspot)));
     check("... and the button to set the Heltec up again, beside it", (await page.isVisible("#f-hw-go"))
           && /“Un autre nom/.test(await page.textContent("#f-hw-what")), await page.textContent("#f-hw-what"));
     await page.fill("#f-hotspot", (await page.evaluate(() => EDITING.hotspot)));
