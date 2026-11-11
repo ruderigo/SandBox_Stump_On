@@ -182,4 +182,13 @@ say(DEE, "/ban -stump Cat", room="main")
 r = say(CAT, "/unban pw -stump Cat", room="main")
 check("banned, the admin (the password) still unbans -- even themselves", not mods.banned(CAT, "main"), r)
 
+# -- a nick taken over: the role stays with its identity ----------------------------------
+rrc._users.pop(ADA, None)
+rrc._users.pop("web-ada", None)
+rrc.touch_user("web-imp", nick="Ada", room="bavard")
+r = say("web-imp", "/ban #bavard Ben")
+check("Ada gone, a guest takes the nick \"Ada\": none of her powers", "✗" in r and not mods.banned(BEN, "bavard")
+      and mods.rank("web-imp", "bavard") is None, r)
+check("... and /names doesn't mark the impostor", "@Ada" not in say(CAT, "/names"))
+
 print("FAILURES", FAIL)
