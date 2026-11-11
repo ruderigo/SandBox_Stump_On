@@ -265,7 +265,11 @@ async function run(name, root, simArgs, fill, keep, pageFile, chip) {
     check("... its Wi-Fi's name changed: the radio would stop, said at once", (await page.isVisible("#f-heltec-pair"))
           && /stops the radio until the Heltec is set up again/.test(await page.textContent("#f-heltec-pair")), await page.textContent("#f-heltec-pair"));
     await page.fill("#f-hotspot", (await page.evaluate(() => EDITING.hotspot)));
+    check("... and the button to set the Heltec up again, beside it", (await page.isVisible("#f-hw-go"))
+          && /“Un autre nom/.test(await page.textContent("#f-hw-what")), await page.textContent("#f-hw-what"));
+    await page.fill("#f-hotspot", (await page.evaluate(() => EDITING.hotspot)));
     check("... put back: the warning goes", !(await page.isVisible("#f-heltec-pair")));
+    check("... and the button too (finding 11)", !(await page.isVisible("#f-hw-go")));
     await page.evaluate(() => { document.getElementById("f-more").open = true; });   // (open already when it has a Wi-Fi name)
     await page.check("input[name=f-chain][value=member]");
     await page.fill("#f-up", "First-Stump");
@@ -394,13 +398,16 @@ with zipfile.ZipFile(out / "bavard.zip", "w", zipfile.ZIP_DEFLATED) as zf:
     const root = path.join(SCRATCH, "page_heltec");
     const t = await run("heltec", root, []);
     const page = t.page;
-    check("no Heltec chosen: nothing about its Wi-Fi", !(await page.isVisible("#f-heltec-wifi")));
-    await page.click("#f-more summary");
-    await page.fill("#f-hotspot", "Café du Coin"); await page.check("#f-hotspot-ip"); await page.fill("#f-subnet", "7");
+    check("no Heltec chosen: nothing about its Wi-Fi", !(await page.isVisible("#f-heltec-wifi")) && !(await page.isVisible("#f-heltec-next")));
     await page.check("input[name=f-radio][value=ap]");
-    check("a Heltec on this Stump's Wi-Fi: what it will join, by the name phones see, at .200",
-          (await page.isVisible("#f-heltec-wifi")) && /“Café du Coin 192\.168\.7\.1” \(open\), at 192\.168\.7\.200/.test(await page.textContent("#f-hw-what")),
-          await page.textContent("#f-hw-what"));
+    check("a new Stump with a Heltec: no Heltec button in the form, only what comes after (finding 11)",
+          !(await page.isVisible("#f-heltec-wifi")) && (await page.isVisible("#f-heltec-next"))
+          && /Set up a Heltec V3/.test(await page.textContent("#f-heltec-next")));
+    check("... the radio settings: set by the Stump (not \"the CAM\")", /the Stump sets these/.test(await page.textContent("#f-radio-params")));
+    await page.check("input[name=mode][value=heltec]");
+    await page.fill("#hel-ssid", "Café du Coin"); await page.check("#hel-ip"); await page.fill("#hel-num", "7");
+    check("a Heltec on a Stump's Wi-Fi: what it will join, by the name phones see, at .200",
+          /“Café du Coin 192\.168\.7\.1” \(open\), at 192\.168\.7\.200/.test(await page.textContent("#hel-what")), await page.textContent("#hel-what"));
     // In the page, a fake RNode in place of the board: it answers its serial commands.
     await page.evaluate(() => {
       const frames = [], eeprom = new Uint8Array(256).fill(255), cfg = new Uint8Array(80).fill(255);
@@ -430,7 +437,7 @@ with zipfile.ZipFile(out / "bavard.zip", "w", zipfile.ZIP_DEFLATED) as zf:
         }
       };
     });
-    await page.click("#f-hw-go");
+    await page.click("#make-go");
     try { await page.waitForSelector("#worktitle .ok, #worktitle .err", { timeout: 60000 }); } catch (e) {}
     const res = await page.textContent("#result");
     const rn = await page.evaluate(() => window.__rnode);
@@ -439,6 +446,7 @@ with zipfile.ZipFile(out / "bavard.zip", "w", zipfile.ZIP_DEFLATED) as zf:
           && /RNode firmware 1\.82/.test(res) && rn.reset && rn.frames.some((f) => f[0] === 0x6A && f[1][0] === 1),
           res + " | " + (await page.textContent("#log")).slice(-400));
     // Its own choice under Make or update (finding 9): only what the Heltec needs.
+    await page.check("input[name=mode][value=new]");
     await page.check("input[name=mode][value=heltec]");
     check("\"Set up a Heltec V3\": its own short form, not the Stump's; the button says so",
           (await page.isVisible("#hel")) && !(await page.isVisible("#f-name")) && /Set up the Heltec/.test(await page.textContent("#make-go")));
