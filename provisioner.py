@@ -367,7 +367,7 @@ EXPECTED_FILE_HASHES = {
     "docs/ARBORIST.md": "6240e877bfe0fe7c",
     "docs/CHAIN.md": "ef67046589363f45",
     "docs/CLIENT_QUICKSTART.md": "3c1616f8b440b666",
-    "docs/COMMANDS.md": "7e93c87c52827ad3",
+    "docs/COMMANDS.md": "ae64bd9b986792f6",
     "docs/ENGINEERING_NOTES.md": "72f7d19d7c5f03a4",
     "docs/FIELD_TEST.md": "e7f7b3878fda4de3",
     "docs/HIDDEN_FEATURES.md": "568bc132ab83a91b",
