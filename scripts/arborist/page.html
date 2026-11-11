@@ -229,9 +229,10 @@
     <div class="row" style="margin-top:0"><button type="button" class="plain small" id="f-hw-go">Set up the Heltec over USB</button></div>
     <p class="hint">Plug the Heltec itself into this computer (not the Stump) and press the button. It must already run the RNode firmware (the Provisioner flashes it once). Then put it back with the Stump.</p>
   </div>
+  <p class="hint hidden" id="f-heltec-next">After the Stump is made, set up its Heltec: choose “Set up a Heltec V3” above. It's filled in from this Stump.</p>
 
   <div id="f-radio-params" class="hidden">
-    <label>Radio settings <span class="hint">· the CAM sets these on the Heltec</span></label>
+    <label>Radio settings <span class="hint">· the Stump sets these on the Heltec</span></label>
     <div class="two">
       <div><label for="f-freq" class="hint">Frequency (MHz)</label><input type="text" id="f-freq" inputmode="decimal" value="868.8"></div>
       <div><label for="f-bw" class="hint">Bandwidth (kHz)</label><select id="f-bw"></select></div>
@@ -415,8 +416,8 @@ function pwChecks() { pairCheck("f-pw", "f-pw2", "f-pw-match", 4); pairCheck("f-
 // most, the address included when it's shown).
 function heltecPairText(br) {
   return "Its Heltec joins this Stump's Wi-Fi by its name and number, so changing " + br.join(", ") +
-         " stops the radio until the Heltec is set up again: after saving, plug the Heltec into this computer and press " +
-         "\u201cSet up the Heltec over USB\u201d (with the radio settings).";
+         " stops the radio until the Heltec is set up again. Save the Stump first, then the Heltec: the button below, or " +
+         "\u201cSet up a Heltec V3\u201d in Make or update (filled in from this Stump).";
 }
 // The Heltec's Wi-Fi, from the form: this Stump's own (by its name as
 // phones see it, open, at 192.168.<number>.200), or the home Wi-Fi at the
@@ -429,10 +430,18 @@ function heltecTarget() {
                             where: "the home Wi-Fi" };
   return null;
 }
+// A new Stump: its Heltec comes after ("Set up a Heltec V3"), only said.
+// Settings: the button only once something the Heltec joins by has changed.
 function heltecWifiView() {
-  var t = heltecTarget();
-  $("f-heltec-wifi").classList.toggle("hidden", !t);
-  if (!t) return;
+  var t = heltecTarget(), editing = TAB === "settings" && !!EDITING, need = false;
+  if (t && editing) {
+    if (val("f-radio") === "ap") need = EDITING.radio !== "ap" || R.heltecPairBreaks(EDITING, answers(EDITING), SSID).length > 0;
+    else need = EDITING.radio !== "lan" || $("f-ssid").value.trim() !== (EDITING.ssid || "") || !!$("f-wpass").value ||
+                $("f-hhost").value.trim() !== (EDITING.hhost || "");
+  }
+  $("f-heltec-wifi").classList.toggle("hidden", !need);
+  $("f-heltec-next").classList.toggle("hidden", !(t && !editing));
+  if (!need) return;
   $("f-hw-what").textContent = t.ssid ? "It joins " + t.where + ", \u201c" + t.ssid + "\u201d" + (t.psk ? " (with its password)" : val("f-radio") === "ap" ? " (open)" : "") +
                                         ", at " + (t.ip || "\u2026") + "."
                                       : "Fill in the home Wi-Fi above first.";
@@ -1320,8 +1329,8 @@ async function saveIt() {
   $("result").appendChild(para("Saved, and it's running with them; the old settings are on it as config.py.bak."));
   var hn2 = R.hotspotName(s.values.SSID_NAME || SSID, s.values.SSID_INCLUDE_IP, s.values.CHAIN_SUBNET || 4);
   $("result").appendChild(para("Its Wi-Fi: “" + hn2.name + "”. On it, the Stump is at http://" + R.apAddress(s.values.CHAIN_SUBNET || 4) + "."));
-  if (br.length) $("result").appendChild(para("Now its Heltec: plug it into this computer and press “Set up the Heltec over USB” (with the radio settings), " +
-                                              "so it joins “" + hn2.name + "” again.", "warn"));
+  if (br.length) $("result").appendChild(para("Now its Heltec, so it joins “" + hn2.name + "” again: in Make or update, choose “Set up a Heltec V3” " +
+                                              "(filled in from this Stump), plug the Heltec into this computer and press “Set up the Heltec”.", "warn"));
   startReport(heard, nowCfg, $("result"));
   return true;
 }
