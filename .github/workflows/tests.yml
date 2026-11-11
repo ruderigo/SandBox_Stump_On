@@ -119,6 +119,9 @@ jobs:
           python tests/pc/pc_nomadnet_test.py
       - name: Found with no setup on a shared network (AutoInterface, two network namespaces)
         run: sudo "$(which python)" tests/pc/pc_autointerface_test.py
+      - name: "/names in #lora-mesh on the kit bench (a chain with and without a radio, two Stumps on their own), and after a restart"
+        if: matrix.rns == 'latest'
+        run: python tests/pc/pc_lora_names_test.py
 
   # Stump on a computer (docs/PC.md) on the systems people will run it on:
   # a Stump folder made by the Provisioner, started, every page checked.
