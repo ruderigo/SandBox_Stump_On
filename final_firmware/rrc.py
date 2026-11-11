@@ -312,6 +312,10 @@ def send_voice(client_id, to_nick, mode, audio):
     target = (to_nick or "").lstrip("~")
     if target.lower() == user["nick"].lower():
         return [i18n.t("msg_self", lang)]
+    import mods
+    no = mods.total_refusal(client_id, lang)
+    if no:
+        return ["✗ " + no]
     label = voice_label_ms(ms)
     ok, info = send_dm(user["nick"], target, label, audio=[mode, audio, ms])
     if not ok:
@@ -841,8 +845,10 @@ def release_registered_nicks():
 def users_in_room(room):
     _prune_users()
     room = canon(room)
+    import mods
     return sorted(set(u["nick"] for cid, u in _users.items()
-                      if u["room"] == room and same_web(cid) is None and cid not in _hidden))
+                      if u["room"] == room and same_web(cid) is None and cid not in _hidden
+                      and not mods.total(cid)))
 
 
 # Who is in a shared room on the OTHER Stumps (#lora-mesh), as each told
@@ -901,7 +907,7 @@ def names_marked(room):
     room = canon(room)
     here = {}
     for cid, u in _users.items():
-        if u["room"] == room and same_web(cid) is None and cid not in _hidden:
+        if u["room"] == room and same_web(cid) is None and cid not in _hidden and not mods.total(cid):
             here[u["nick"]] = mods.mark(cid, room) + u["nick"]
     return [here[n] for n in sorted(here)] + sorted(remote_names(room))
 
@@ -1313,6 +1319,10 @@ def handle_input(client_id, room, text):
             # /op /mod /kick /mute /ban /mode...: the admin password may be
             # inside, so the same way: never posted, never seen by plugins.
             return mods.command(client_id, room, text, lang)
+    import mods
+    no = mods.total_refusal(client_id, lang)
+    if no and text.lower().split(" ", 1)[0] not in ("/help", "/?"):
+        return ["✗ " + no], DEFAULT_ROOM if room != DEFAULT_ROOM else None
     if _speaks(text) and not guard.allow("chat", client_id, CHAT_EVERY, CHAT_BURST):
         # Said in the log, so a "too fast" nobody expected can be traced
         # (who, which line).

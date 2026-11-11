@@ -191,4 +191,32 @@ check("Ada gone, a guest takes the nick \"Ada\": none of her powers", "✗" in r
       and mods.rank("web-imp", "bavard") is None, r)
 check("... and /names doesn't mark the impostor", "@Ada" not in say(CAT, "/names"))
 
+# -- a total ban: in #main or "-stump", out of the chat altogether ---------------------------
+rrc.touch_user(GUEST, nick="Gus", room="main")
+rrc.touch_user(CAT, nick="Cat", room="bavard")
+r = say(CAT, "/ban pw #main Gus", room="bavard")
+check("banned in #main: a total ban, off the lists at once", mods.total(GUEST) and "Gus" not in rrc.users_in_room("main"), r)
+check("... can't write in #main", say(GUEST, "anyone?", room="main").startswith("✗") and "anyone?" not in bodies("main"))
+check("... nor any other command: /names, /rooms, /nick, /join, /msg",
+      all(say(GUEST, c, room="main").startswith("✗") for c in ("/names", "/rooms", "/nick Gusto", "/join bavard", "/msg Cat hi")))
+check("... /help still answers", not say(GUEST, "/help", room="main").startswith("✗"))
+rrc.touch_user(GUEST, room="main")
+check("... and isn't listed even if it polls again", "Gus" not in rrc.users_in_room("main") and "Gus" not in say(CAT, "/names", room="main"))
+say(CAT, "/unban pw #main Gus", room="main")
+check("/unban: back in", not mods.total(GUEST) and not say(GUEST, "back", room="main").startswith("✗"))
+
+# ... on the mesh: answered once, then quiet (LoRa airtime), nothing sent to them
+import rrc_mesh
+say(CAT, "/ban pw -stump Dee", room="main")
+peer = {"room": "main", "home_room": "main", "nick": "Dee", "last_sent_id": 0, "last_dm_id": 0}
+r1, _ = rrc_mesh._handle(DEE, peer, "hello")
+r2, _ = rrc_mesh._handle(DEE, peer, "hello again")
+check("on the mesh, banned -stump: told once, then nothing (each answer is airtime)", r1 and r1[0].startswith("✗") and r2 == [], (r1, r2))
+rrc.post("main", "Cat", "a line Dee mustn't get")
+before = len(rrc_mesh._send_queue)
+rrc_mesh._flush_to_peer(None, DEE, peer)
+check("... nothing of the rooms sent to them, and their marks move on", len(rrc_mesh._send_queue) == before
+      and peer["last_sent_id"] == rrc.since("main", 0)[-1]["id"])
+say(CAT, "/unban pw -stump Dee", room="main")
+
 print("FAILURES", FAIL)

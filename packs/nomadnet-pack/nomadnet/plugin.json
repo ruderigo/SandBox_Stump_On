@@ -1,7 +1,7 @@
 {
   "plugin": "nomadnet",
   "title": "NomadNet (the Stump as a Nomad Network node and RRC hub)",
-  "version": "1.1",
+  "version": "1.2",
   "plugin_api": 3,
   "summary": "NomadNet and MeshChat browse the Stump like any Nomad Network node, over Wi-Fi or LoRa, and NomadNet's chat joins its rooms live (the Stump is an RRC hub). The other way too: people on the Stump browse the NomadNet nodes it hears, and the admin can bridge other communities' hubs into rooms here. People heard by their LXMF announce are listed. Writing takes an identity the app proves.",
   "modifies_core_files": false,
@@ -49,7 +49,7 @@
     "nomadnet/__init__.py": "2d75e659e253ac99",
     "nomadnet/install.py": "87ebfaab76845f17",
     "nomadnet/strings.py": "a1d282c91aa3f278",
-    "nomadnet/hub.py": "c929a15159f73f3c",
+    "nomadnet/hub.py": "e2e7e298f6b7a925",
     "nomadnet/cbor.py": "e1ebc15689dfb4cc",
     "nomadnet/browse.py": "95419dbebae9a239",
     "nomadnet/hubs.py": "55f5b934c532cc3e"

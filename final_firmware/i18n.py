@@ -203,6 +203,7 @@ STRINGS = {
     "mod_usage_bans": {"fr": "/bans [#salle|-stump] : les bannis et les muets", "en": "/bans [#room|-stump]: who's banned or muted", "es": "/bans [#sala|-stump]: vetados y silenciados"},
     "mod_usage_mode": {"fr": "/mode <#salle> [+t|-t] : +t, le sujet par les ops et modérateurs seulement", "en": "/mode <#room> [+t|-t]: +t, the topic by ops and mods only", "es": "/mode <#sala> [+t|-t]: +t, el tema solo por ops y moderadores"},
     "mod_usage_roles": {"fr": "/roles [#salle|-stump] : les ops et modérateurs", "en": "/roles [#room|-stump]: the ops and mods", "es": "/roles [#sala|-stump]: los ops y moderadores"},
+    "mod_you_banned_all": {"fr": "tu es banni du chat de cette Bûche", "en": "you're banned from this Stump's chat", "es": "estás vetado del chat de este Tronco"},
     "mod_you_banned": {"fr": "tu es banni de #{room}", "en": "you're banned from #{room}", "es": "estás vetado de #{room}"},
     "mod_you_kicked": {"fr": "tu as été sorti de #{room} : réessaie dans une minute", "en": "you were kicked from #{room}: try again in a minute", "es": "te sacaron de #{room}: vuelve a intentarlo en un minuto"},
     "mod_you_muted": {"fr": "tu ne peux pas écrire dans #{room} pour l'instant", "en": "you can't write in #{room} for now", "es": "no puedes escribir en #{room} por ahora"},

@@ -7,7 +7,8 @@
   - `/bans` and `/roles` list them; `/names` marks `@op` and `%mod`; `/help mods` shows the commands.
   - Held by an identity (an app's, the same on LoRa and the web) or a registered profile, never a nick. A guest can be kicked, muted or banned, never named.
   - Someone on another Stump can be muted or banned here: their lines are hidden here.
-  - An op can't act on another op, and a mod only on people without a role. #main stays open to everyone.
+  - An op can't act on another op, and a mod only on people without a role. No one is kicked out of #main.
+  - A ban in #main or with `-stump` is a total ban: no room, nothing to read, no line or private message, not listed. It covers the web, the mesh (told once every 10 minutes at most, nothing sent to them) and NomadNet through the hub (the NomadNet pack 1.2).
   - The admin password stays private and counts toward the lockout. A ban never locks the admin out. Kept across a restart.
   - Not across a chain (pinned).
 - Tests: `mods_room` (who may do what to whom, scopes, the same person on LoRa and the web, guests, people on other Stumps, +t, kept across a restart, the password never posted, a forgotten room not taken as a wrong password).

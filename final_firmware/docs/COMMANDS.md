@@ -569,9 +569,12 @@ Stump (`-stump`).
   another name, in another browser) but never made op or mod.
 - **People on other Stumps** (`zoe@aleph`) can be muted or banned here:
   their lines don't show here. They can't be kicked (they're not here).
-- **#main** is everyone's way back in: no one is kicked out of it. Banned
-  there (or `-stump`), they stay in #main but can't write; /mute works
-  there too.
+- **A total ban:** banned in #main or with `-stump` (#main is the way in),
+  they're out of this Stump's chat altogether: no room, nothing to read,
+  no line, no private message, not listed; only /help answers. On the
+  mesh they're told once every 10 minutes at most (airtime), and nothing
+  of the rooms is sent to them; a NomadNet user gets nothing from the hub.
+  No one is kicked out of #main (/mute or a total ban instead).
 - **/names** marks ops `@Ada` and mods `%Ben`. Every action is said in its
   room (`⊖ Cat ⟵ Ben: reason`, `⊘`, `⧗`, `@`, `%`).
 - **The password stays private**, as for /setchan: answered only to

@@ -235,11 +235,30 @@ def kicked(cid, room, now=None):
     return False
 
 
+def total(cid, now=None):
+    """Banned from this Stump's chat altogether: banned in #main or with
+    "-stump" (#main is the way in). No room, nothing to read, no line, no
+    private message -- only /help, and the admin's own commands."""
+    now = time.time() if now is None else now
+    for k in _keys_of(cid):
+        if _listed("bans", k, STUMP, now) or _listed("bans", k, rrc.DEFAULT_ROOM, now):
+            return True
+    return False
+
+
+def total_refusal(cid, lang="en"):
+    if total(cid):
+        return i18n.t("mod_you_banned_all", lang)
+    return None
+
+
 def join_refusal(cid, room, lang="en"):
     """Why this person can't be in this room now, or None."""
     room = rrc.canon(room)
+    if total(cid):
+        return i18n.t("mod_you_banned_all", lang)
     if room == rrc.DEFAULT_ROOM:
-        return None                     # #main: everyone's way back in
+        return None                     # #main: everyone's way back in (but a total ban)
     if banned(cid, room):
         return i18n.t("mod_you_banned", lang, room=room)
     if kicked(cid, room):
@@ -417,6 +436,21 @@ def _move_out(cid, room):
         pass
 
 
+def _shut_out(cid):
+    """Out of every room and off the lists (a total ban)."""
+    u = rrc._users.get(cid)
+    if u:
+        rrc.system(u["room"], rrc.ev_leave(u["nick"]))
+        rrc._users.pop(cid, None)
+    try:
+        import rrc_mesh
+        p = rrc_mesh._peers.get(cid)
+        if p is not None and not p.get("stump"):
+            p["room"] = rrc.DEFAULT_ROOM
+    except Exception:
+        pass
+
+
 def _tell(cid, text):
     """A private word to the person acted on (on the mesh: as a DM)."""
     if rrc._is_lxmf(str(cid)):
@@ -568,9 +602,10 @@ def _list_add(what, key, label, cid, scope, by, rest, lang):
         entries[key]["until"] = int(until)
     _save()
     if what == "ban" and cid is not None:
-        for r in ([scope] if scope != STUMP else list(rrc._rooms)):
-            if r != rrc.DEFAULT_ROOM:
-                _move_out(cid, r)
+        if scope in (STUMP, rrc.DEFAULT_ROOM):
+            _shut_out(cid)               # a total ban: out of the chat altogether
+        else:
+            _move_out(cid, scope)
     mins = (" (%d min)" % int(rest[0])) if until else ""
     _note(scope, ("⊘ " if what == "ban" else "⧗ ") + label + " ⟵ " + by + mins + (" (-stump)" if scope == STUMP else ""))
     if cid is not None:

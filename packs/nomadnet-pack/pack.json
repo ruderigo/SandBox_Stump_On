@@ -1,6 +1,6 @@
 {
   "name": "nomadnet",
-  "version": "1.1",
+  "version": "1.2",
   "author": "Project Stump",
   "license": "MIT",
   "stump_api": 3,
@@ -11,6 +11,6 @@
   ],
   "hashes": {},
   "plugin_hashes": {
-    "nomadnet": "b7c060d5cab8ce46"
+    "nomadnet": "172c22e5f3c08e72"
   }
 }
