@@ -586,6 +586,12 @@ def _render_admin_setup_section(lang, pw, notice=""):
              + "' required value='" + esc(s["BOT_NAME"]) + "'></label>"
              "<label>" + T("admin_setup_greeting", n=S.GREETING_MAX) + "<br><textarea name='greeting' rows='3' maxlength='"
              + str(S.GREETING_MAX) + "'>" + esc(s["MESH_GREETING"]) + "</textarea></label></details>")
+    # This Stump's language (1.0.0-beta.67): for visitors who haven't
+    # picked one, and what's posted for everyone (the fserv bot).
+    names += ("<details class='inner'><summary>" + T("admin_setup_lang") + " <span class='pk'>"
+              + esc(i18n.LANGUAGE_NAMES.get(s["DEFAULT_LANG"], s["DEFAULT_LANG"])) + "</span></summary>"
+              + "".join(radio_row("default_lang", l, s["DEFAULT_LANG"] == l, esc(i18n.LANGUAGE_NAMES[l])) for l in i18n.LANGUAGES)
+              + "<p class='sub'><small>" + T("admin_setup_lang_note") + "</small></p></details>")
     # Announcing: the timer (minutes here, seconds in config.py), and
     # "Announce now" (a button of this form sent to /admin/announce).
     import announcer
@@ -1101,7 +1107,7 @@ async def _r_post_admin_setup(reader, writer, method, path, headers, ip, identif
         changes, bad = stump_settings.parse_form(fields)
         later = []
         if bad:
-            label = {"node_name": "admin_setup_node", "bot_name": "admin_setup_bot",
+            label = {"node_name": "admin_setup_node", "bot_name": "admin_setup_bot", "default_lang": "admin_setup_lang",
                      "greeting": "admin_setup_names", "economy": "admin_setup_files",
                      "auth_mode": "admin_setup_access",
                      "storage_mb": "admin_setup_storage", "announce_min": "admin_setup_announce"}.get(bad) or "admin_setup_w_" + bad[2:]
