@@ -354,17 +354,17 @@ DEFAULT_CREDIT_WEIGHTS = {"video": 3, "music": 2, "document": 1, "other": 1}
 #    for f in sorted(Path('final_firmware').rglob('*')) if f.is_file()]"
 EXPECTED_FILE_HASHES = {
     "_sd_web/billboard.txt": "e3b0c44298fc1c14",
-    "admin_web.py": "e363683af126836f",
+    "admin_web.py": "c43fa2ed89af1eca",
     "announcer.py": "555c52b729947a67",
-    "barkeep.py": "2b532989380fbc5f",
+    "barkeep.py": "5b6645874154f28f",
     "billboard.py": "73e95795f9430ea5",
     "boot_common.py": "dc95827c3989d1ca",
-    "captive_portal.py": "5a89b67f2c47bdba",
+    "captive_portal.py": "d1820b686ce5364b",
     "chain.py": "0aaf1cffd20c1c6c",
     "config.py": "08b6cf9329480308",
     "conn.py": "b17cf4fb4f80fbbf",
     "discovery.py": "98c590d6744b1e1b",
-    "docs/ARBORIST.md": "6240e877bfe0fe7c",
+    "docs/ARBORIST.md": "7d73cd2d70114a14",
     "docs/CHAIN.md": "ef67046589363f45",
     "docs/CLIENT_QUICKSTART.md": "3c1616f8b440b666",
     "docs/COMMANDS.md": "6e7a758629ad38f8",
@@ -376,16 +376,15 @@ EXPECTED_FILE_HASHES = {
     "docs/PACKS.md": "acb8642931a96b42",
     "docs/PC.md": "e90244ab4b47d68e",
     "docs/PLUGINS.md": "47274e7b6c1fa4ad",
-    "example_node.py": "b34e8c4e973cd08d",
+    "example_node.py": "f49701b248eb90ae",
     "features.py": "81e8af361c64a911",
     "fserv.py": "06b87b1d6fb95eb4",
     "fservbot/plugin.json": "12b3c544160411e3",
     "guard.py": "526fac7536abfe7f",
-    "i18n.py": "181c2c5c989c3c58",
+    "i18n.py": "a08082ed827931b1",
     "keepalive.py": "482058c9e1eb17fa",
     "layout.py": "48b030ed144b50fd",
     "lib/bz2_fast_xtensawin.mpy": "ac55d9eda2126432",
-    "lib/ed25519_fast_xtensawin.mpy": "96e74dac45f91687",
     "lib/ed25519_iram.mpy": "96e74dac45f91687",
     "librarian.py": "1d92d849fe11b612",
     "lora_boards.py": "d60ef896cd1a0ff9",
@@ -395,13 +394,13 @@ EXPECTED_FILE_HASHES = {
     "peripherals/__init__.py": "d2bdac4de6de79de",
     "peripherals/adc_reader.py": "50a393bfa61641d4",
     "plugins.py": "e8a81c14338636e2",
-    "profiles.py": "af13b5e91b83d004",
+    "profiles.py": "b11d21c24fe0659d",
     "propagation.py": "b346921a495ce1bd",
     "qr.py": "7f8550209d5f6abd",
     "radio.py": "56e01b273ceaab68",
     "rooms.py": "7b0188b528a9084d",
-    "rrc.py": "5fd9b2c6d4c42ca8",
-    "rrc_mesh.py": "777a36bbcf3a4713",
+    "rrc.py": "e648200706723e00",
+    "rrc_mesh.py": "755f3bf4d3ff39ca",
     "rrc_ui.py": "bac6f49ea930a979",
     "settings.py": "1c9b13ede00d7cb7",
     "store.py": "625ba090410222cf",
@@ -551,7 +550,7 @@ EXPECTED_FILE_HASHES = {
     "urns/const.py": "4d9daaabfbbd93d7",
     "urns/crypto/__init__.py": "dec8540a87c232a4",
     "urns/crypto/aes.py": "274f35d97de9d852",
-    "urns/crypto/ed25519.py": "38fc5b3f532c9186",
+    "urns/crypto/ed25519.py": "406f3558d5ac83b6",
     "urns/crypto/hashes.py": "4c44d02dbdf161c9",
     "urns/crypto/hkdf.py": "a42c6930a4ffcdfa",
     "urns/crypto/hmac.py": "ae46b89b811c2511",
@@ -2764,7 +2763,7 @@ def resolve_path(default_path, description, remember_key=None, is_dir=True,
             # an earlier beta stayed valid-looking forever (main.py was
             # still there), so it silently beat the folder actually being
             # asked for, and old files went onto a freshly flashed board.
-            print(f"\n  Ignoring remembered location -- it no longer qualifies:")
+            print("\n  Ignoring remembered location -- it no longer qualifies:")
             print(f"    {remembered}")
             print(f"    ({_describe_folder(remembered)})")
             _forget_path(remember_key)
@@ -3257,7 +3256,7 @@ def pick_board_firmware(port, firmware_path=None):
         print("  (no 'spiram_oct' in the filename). This board needs that variant --")
         print("  the plain build tends to boot into a broken/crashing REPL instead")
         print("  of failing cleanly. Continuing anyway since you pointed at it")
-        print(f"  directly, but if the board misbehaves after flashing, get:")
+        print("  directly, but if the board misbehaves after flashing, get:")
         print(f"  {CAM_FIRMWARE_LATEST_URL}")
     return chip, resolved
 
@@ -3798,7 +3797,7 @@ def upload_stump_app(port, app_dir=None):
     print("\n  Verifying upload...")
     device_sizes = _get_device_file_sizes(port)
     if device_sizes is None:
-        print(f"  Could not verify (couldn't list device files) -- check manually with:")
+        print("  Could not verify (couldn't list device files) -- check manually with:")
         print(f"    mpremote connect {port} fs ls")
     else:
         problems = _diff_against_device(pairs, device_sizes)

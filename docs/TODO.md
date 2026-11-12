@@ -5,6 +5,10 @@ we think the fix is.
 
 ## Provisioner: uploads to a CAM restart the board now and then
 
+*Still open for the Provisioner (Nov 2026). Arborist doesn't hit it: it keeps
+one port open for the whole job, and with the Stump images most of the
+Stump is in the image, not copied file by file.*
+
 **Seen** (LaBuche, 20-21 Oct, beta.30-34): during `--upload-app`, a file
 fails with `could not complete raw paste: b"ESP-ROM:esp32s3..."` -- the
 board restarted mid-copy. It happens most during the slow Tools copy to

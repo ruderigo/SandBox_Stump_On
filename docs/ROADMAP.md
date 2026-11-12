@@ -90,12 +90,14 @@ Done in 1.0.0-beta.37.
 - [ ] Storage layer (M-L): one place for SD, the board's flash, none,
       and the chain; storage profiles in features.py; files stored on a
       chain Stump that has room (needs 2)
-- [ ] NomadNet pack (L): shelved for now
+- [x] NomadNet pack (L): NomadNet's Channels through an RRC hub on the
+      Stump, and its pages (packs/nomadnet-pack, 1.2)
 - [x] Browser flasher back, as Arborist: one page saved on the computer,
-      opened from file:// (Web Serial, no certificate). CAM only
-      (MicroPython is MIT; RNode is GPL-3, the Heltec stays with the
-      Provisioner). The old on-device /flash flasher (HF-001) retired in
-      beta.41. final_firmware/docs/ARBORIST.md
+      opened from file:// (Web Serial, no certificate). The S3-CAM and the
+      WROVER (beta.59), and the Heltec's Wi-Fi (beta.64: its serial
+      commands, none of the RNode firmware; flashing it stays with the
+      Provisioner, GPL-3). The old on-device /flash flasher (HF-001)
+      retired in beta.41. final_firmware/docs/ARBORIST.md
   - [x] Arborist-<release>.html: MicroPython 1.28, the Stump
         compiled, a setup form (name, admin password, home Wi-Fi, the
         Heltec), or an update that keeps the settings
@@ -110,7 +112,10 @@ Done in 1.0.0-beta.37.
   - [x] On the bench: a Stump updated with it (1.0.0-beta.38, 2026-10-25)
   - [x] On the bench: Settings read from a Stump (2026-10-25)
   - [x] On the bench: a new Stump made with it (beta.39, Chrome on macOS)
-  - [ ] On the bench: Settings changed and saved; Check (BENCH.md, 1)
+  - [x] On the bench: Settings changed and saved (the kit, beta.63-64)
+  - [ ] On the bench: Check (BENCH.md, 1)
+  - [x] On the bench: WROVER Stumps made and their Heltecs set up (the kit, beta.64)
+  - [ ] On the bench: Update a Stump on a full WROVER (beta.65)
   - [ ] Windows: serial-check.html, then Arborist
   - [x] MicroPython's SHA-256 pinned in build_arborist.py (as micropython.org served it to CI)
   - [x] Radio settings (freq/bw/SF/CR/TX power) via the firmware's
@@ -141,7 +146,28 @@ Done in 1.0.0-beta.37.
         non-interactive options worked out and a real Heltec on the
         bench
 
-## 5. Pentest preparation
+## 5. The kit and its pentest (now, November 2026)
+
+A WROVER + Heltec V3 kit, preflashed, for eKoms and BGARE to pentest. The
+hardware checklist and its findings live in the team's pre-ship test
+document; every fix or enhancement is its own beta until the pentest is
+done (1.0.0-beta.64 onwards).
+
+- [x] Arborist for the kit: the Wi-Fi name and number, Set up a Heltec V3,
+      chains never chosen on their own, the form reset after each Stump
+      (beta.64), updates that fit a full WROVER (beta.65)
+- [x] `/names` in #lora-mesh right after a restart; a Stump's bot answers in
+      its thread (beta.64)
+- [x] Ops and mods on rrcd's rules, total bans (beta.64)
+- [ ] Ops and mods across a chain (`-chain`): pinned
+- [ ] On the kit: findings 12 to 15 retested
+- [ ] After the pentest: the versioning (a `-dev` marker on main, "Beta A"
+      retired or kept as a nickname, "final" = passed the kit checklist)
+- [ ] The old room names `#lxmf` and `#lora` (before beta.4): removed
+      once the FireFly apps are known not to send them
+- [ ] demo.gif re-recorded (pinned)
+
+## 6. Pentest preparation
 
 From the checklist made with Gemini (2026-10-25, for 1.0.0-beta.38),
 sections I to IV, each against the code. Its section V (how the

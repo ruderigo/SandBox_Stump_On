@@ -33,7 +33,6 @@
 
 from urns.mem import collect as _gc_collect
 import socket
-import gc
 import uasyncio as asyncio
 
 

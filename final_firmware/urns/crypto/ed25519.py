@@ -30,7 +30,11 @@ def _try_native():
         name = "iram"
     except (ImportError, MemoryError, ValueError, OSError):
         pass
-    # 2. Built-in / platform C modules (flash XIP on esp32 — slow but present)
+    # 2. Built-in / platform C modules (flash XIP on esp32 — slow but present).
+    #    No file copy of ed25519_fast_xtensawin ships any more (1.0.0-beta.66):
+    #    it was byte for byte lib/ed25519_iram.mpy, so it failed exactly when
+    #    that did, for 49 KB of a WROVER's 1 MB. A firmware that builds it in
+    #    still finds it here.
     if mod is None:
         try:
             if sys.platform == "esp32":
