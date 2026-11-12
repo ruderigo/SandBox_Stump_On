@@ -56,7 +56,6 @@ def _rand_hex(n):
 
 
 def _file():
-    global _path
     if _path:
         return _path
     try:

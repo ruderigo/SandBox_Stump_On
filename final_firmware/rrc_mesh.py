@@ -2356,7 +2356,6 @@ async def _drain(what):
 async def poll_loop(router):
     """Drain _send_queue and push pending room messages to subscribed peers."""
     import uasyncio as asyncio
-    import gc
 
     try:
         install_announce_handler(router)

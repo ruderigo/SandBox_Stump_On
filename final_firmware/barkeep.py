@@ -35,7 +35,6 @@ import guard     # ("settings" is a local name in places here)
 import conn      # the connections' deadlines and limits
 import ubinascii
 import keepalive  # a rescue start, the watchdog's last restart
-import propagation
 import stump_tls as tls  # not "tls": MicroPython has a built-in module by that name
 import webtext
 

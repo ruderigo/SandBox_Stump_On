@@ -2,7 +2,8 @@
 
 One HTML page for a **Freenove ESP32-S3-CAM** or an **ESP32-WROVER** (since
 1.0.0-beta.59) on a computer's USB, from Chrome or Edge: it makes the
-board a Stump, updates one, changes its settings and watches it start. Nothing to install, no certificate, no
+board a Stump, updates one, changes its settings, sets up its Heltec V3
+and watches it start. Nothing to install, no certificate, no
 terminal: save the page, open the saved file, plug the board in.
 
 It's `Arborist-<release>.html` on each release (the version is in
@@ -42,13 +43,38 @@ release is offered.
    (needed, typed twice: the page says as you type whether the two
    match; the fserv bot takes the same one unless you untick it, and its
    own is typed twice too), and,
-   only if you have them, the home Wi-Fi, the LoRa radio (a Heltec
-   running RNode: set it up with the Provisioner) and a chain.
+   only if you have them, the home Wi-Fi, the LoRa radio (a Heltec V3
+   running the RNode firmware: set up just after, see below) and a chain.
+   The Stump's Wi-Fi name, whether its address shows in the name
+   ("Stump 192.168.4.1": the page counts the 32 characters as you type),
+   and its number (2 to 254: its Wi-Fi is 192.168.<number>.1) are under
+   *More settings*. A chain is for linking Stumps; on its own, leave it at
+   *Not in a chain* (it can be changed later in Settings).
 3. **Make my Stump**, pick the board in the browser's list. A few
    minutes: it reads the chip, erases the board, writes the Stump image
    for it (the S3-CAM's or the WROVER's), copies the rest of the Stump,
    writes its settings and restarts it.
-4. Its Wi-Fi appears: join it from a phone.
+4. Its Wi-Fi appears: join it from a phone. The result says its name and
+   the address to open on it.
+5. **Set up a Heltec V3** (the third choice; since 1.0.0-beta.64): it's
+   filled in from the Stump just made, read or saved on the page. Plug
+   the Heltec itself in (not the Stump) and press **Set up the Heltec**.
+
+After each new Stump the form goes back to its defaults (only the home
+Wi-Fi's name is kept), so the next board doesn't take the last one's
+chain, name or passwords.
+
+**Set up a Heltec V3** writes which Wi-Fi the Heltec joins: a Stump's own
+(its name as phones see it, open, at 192.168.<number>.200) or the home
+Wi-Fi (its name, its password typed twice, the Heltec's address there).
+What it will join is said as you type. It sends the RNode firmware its
+documented serial commands (KISS frames), reads them back to check, then
+restarts the Heltec. The page contains none of the RNode firmware (GPLv3)
+or of `rnodeconf` (Reticulum License): the Heltec must already run that
+firmware, flashed once with the Provisioner (*A Heltec for a CAM*). The
+same button is in a Stump's radio settings, shown in Settings once
+something the Heltec joins by has changed; do the Stump first, then the
+Heltec.
 
 **Update a Stump** puts the new release on a Stump and keeps everything
 else: its settings (`config.py`), its identity on the mesh, what's on its
@@ -59,13 +85,21 @@ with an older layout is told to use *A new Stump* (an erase: a new
 identity). One on plain MicroPython (an earlier Arborist) is updated file
 by file as before, and told that *A new Stump* would give it the image.
 A Stump on an older MicroPython is told to use *A new Stump*.
+Since 1.0.0-beta.65, files already on the board and the same aren't
+written again, and the room an update needs is worked out first: a
+WROVER has about 1 MB of storage. Short of it, the safe leftovers go (a
+write cut short, an old `.py` beside its `.mpy`); still short, it stops
+before writing anything and says what takes the room.
 
 **Look around with the board** (since 1.0.0-beta.60): the board, over
 USB, lists the Wi-Fi networks it sees (it only sees 2.4 GHz), and with one
 chosen joins it -- a wrong password is said there -- and asks "who's a
 Stump here?" (the Stumps' discovery broadcast). The Stumps found are
-listed; the first Stump of a chain is offered, its address filled in, with
-a free chain number and a free Heltec address. A chain secret typed in is
+listed; the first Stump of a chain is offered with **Join its chain**, its
+address filled in, with a free chain number and a free Heltec address --
+never chosen on its own (since 1.0.0-beta.64): a board left at *Not in a
+chain* stays so, and Make asks once before writing a Stump that's in a
+chain. A chain secret typed in is
 checked against that first Stump (its chain id) before anything is
 written; the secrets of the chains this browser made or read are
 remembered (in its storage only) and filled in. A blank board gets the
@@ -91,7 +125,7 @@ Provisioner. On the home Wi-Fi, each Heltec needs its own address, one
 the router doesn't hand out: the page suggests .222 on the home network
 (from the first Stump's address when it knows it) -- it can't see which
 are taken, so the next Heltec takes .223, and so on. The result says
-which address to give the Heltec in its own setup.
+which address to give the Heltec in its own setup (*Set up a Heltec V3*).
 
 **Settings** reads a Stump's settings into the same form -- its name,
 admin password, Wi-Fi, the radio, what it offers, its look, who may come

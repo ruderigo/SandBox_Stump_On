@@ -19,7 +19,6 @@ import rrc
 import settings as stump_settings
 import stump_tls as tls
 import theme
-import uasyncio as asyncio
 import ujson as json
 
 import webtext
@@ -406,10 +405,6 @@ def _render_admin_chain_section(lang):
         lines.append(i18n.t("admin_chain_nearby", lang) + " " + ", ".join(near))
     return ("<h2 class='sub'>" + i18n.t("admin_chain_header", lang) + "</h2>"
             "<p class='sub'>" + "<br>".join(lines) + "</p>")
-
-
-def _ago(s, lang):
-    return i18n.t("admin_chain_ago_min", lang, n=s // 60) if s >= 60 else i18n.t("admin_chain_ago_s", lang, n=s)
 
 
 def _render_admin_plugins_section(lang, pw):

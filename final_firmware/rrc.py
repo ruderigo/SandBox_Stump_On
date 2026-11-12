@@ -97,10 +97,6 @@ def no_lora():
         return False
 
 
-def _is_lxmf(cid):
-    return len(cid) == 32 and all(c in "0123456789abcdef" for c in cid)
-
-
 def lora_allows(client_id):
     """May this client be in #lora-mesh? Always, unless it's locked, or
     there's no LoRa on the mesh: then no one (an app reaching this Stump

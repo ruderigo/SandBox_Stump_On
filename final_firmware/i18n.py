@@ -289,11 +289,6 @@ STRINGS = {
         "en": "Direct Messages",
         "es": "Mensajes directos",
     },
-    "rrc_not_sent": {
-        "fr": "non envoyé — problème de connexion",
-        "en": "not sent — connection problem",
-        "es": "no enviado — problema de conexión",
-    },
 
     # ---- rrc.py command replies ----
     "help_msg": {
@@ -588,8 +583,6 @@ STRINGS = {
     "admin_chain_update_me": {"fr": "plus récent que celui-ci : mettez celui-ci à jour",
                               "en": "newer than this one: update this one",
                               "es": "más reciente que este: actualiza este"},
-    "admin_chain_ago_s": {"fr": "{n} s", "en": "{n} s", "es": "{n} s"},
-    "admin_chain_ago_min": {"fr": "{n} min", "en": "{n} min", "es": "{n} min"},
     "admin_chain_nosecret": {"fr": "Pas de secret de chaîne : n'importe qui sur ce Wi-Fi pourrait s'y joindre. Réglez CHAIN_SECRET.", "en": "No chain secret: anyone on this Wi-Fi could join the chain. Set CHAIN_SECRET.", "es": "Sin secreto de cadena: cualquiera en este Wi-Fi podría unirse. Configure CHAIN_SECRET."},
     "help_legend": {
         "fr": "✓ arrivé · ✗ parti · ✎ changé · → vers · ⊖ personne de ce nom · ~ sur le maillage · [DM] message privé · = déjà là · ? commande inconnue · ⊘ refusé · ♪ note vocale · ⧗ ralentis",
