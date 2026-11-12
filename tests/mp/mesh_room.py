@@ -234,6 +234,23 @@ check("the other Stump's answer reaches bob in his thread with that Stump (Lapto
       any(d["nick"] == "Laptop" and d["body"] == "Files: !list" for d in got)
       and "Laptop@Laptop" not in rrc.reachable_nicks(), (got, rrc.reachable_nicks()))
 check("... privately", not any("Files: !list" in x["body"] for r in ("wifi-mesh", "lora-mesh") for x in rrc.since(r, 0)))
+# Kit finding 12: a Stump whose name isn't a nick as typed ("LaBuche-Stump-eK0ms",
+# 19 characters: known here as "LaBuche-Stump-eK") answers under its name as
+# typed -- still in the thread with that Stump, not a new "name@nick".
+real_nick = rrc_mesh._peers[LAPTOP]["nick"]
+for typed, known in (("LaBuche-Stump-eK0ms", "LaBuche-Stump-eK"), ("Café du Coin", "Caf--du-Coin"), ("Bob's Glitch", "Bob-s-Glitch")):
+    rrc_mesh._peers[LAPTOP]["nick"] = known
+    rrc_mesh.on_message(R, Msg("[DM>bob] <%s> pong %s" % (typed, known)))
+    got = rrc.dms_since(W, 0)
+    check("a Stump answering under its name as typed (%s, known as %s): in its thread" % (typed, known),
+          any(d["nick"] == known and d["body"] == "pong " + known for d in got)
+          and (typed + "@" + known) not in rrc.reachable_nicks(), [(d["nick"], d["body"]) for d in got][-3:])
+rrc_mesh._peers[LAPTOP]["nick"] = "LaBuche-Stump-eK"
+rrc_mesh.on_message(R, Msg("[DM>bob] <LaBuche-fan> hi bob"))
+got = rrc.dms_since(W, 0)
+check("... a person on it whose nick starts the same: still themselves (nick@stump)",
+      any(d["nick"] == "LaBuche-fan@LaBuche-Stump-eK" for d in got), [(d["nick"], d["body"]) for d in got][-2:])
+rrc_mesh._peers[LAPTOP]["nick"] = real_nick
 
 # No announce heard yet (no path): the link the message came in on decides
 EARLY = '9a' * 16

@@ -424,6 +424,19 @@ def _from_name(nick, want):
     return rrc.is_tagged_from(nick, want) or (nick.startswith(base) and nick[len(base):].isdigit())
 
 
+def _is_itself(nick, who):
+    """Is this "<nick>" the Stump known here as `who` answering itself? Its
+    nick, or its name as typed, which a Stump puts in its own answers: `who`
+    is made from it (cleaned, cut to MAX_NICK_LEN, maybe tagged), so
+    "LaBuche-Stump-eK0ms" is "LaBuche-Stump-eK" (1.0.0-beta.64). Only a
+    name that isn't a nick itself (too long, or with a space...) is matched
+    that way: a person's nick is already clean, so it can't pass for it."""
+    if nick == who:
+        return True
+    c = rrc.clean_nick(nick)
+    return bool(c) and c != nick and (c == who or _from_name(who, c))
+
+
 def _from_stump(dest_hash_hex, peer, text, router=None, title=""):
     """Lines from another Stump of the chain: "<nick> text" into #wifi-mesh
     as nick@thatstump, "* nick text" as an action, "[DM>rod] <nick> text"
@@ -483,9 +496,10 @@ def _from_stump(dest_hash_hex, peer, text, router=None, title=""):
         if line.startswith("[DM>") and "] <" in line and "> " in line:
             to, rest = line[4:].split("] <", 1)
             nick, body = rest.split("> ", 1)
-            if nick == who:
-                # That Stump itself answering (its BarKeep, a "no one by that
-                # name"): in the thread with the Stump, not "who@who".
+            if _is_itself(nick, who):
+                # That Stump itself answering (its BarKeep, its fserv bot, a
+                # "no one by that name"): in the thread with the Stump, not
+                # "who@who" -- also under its name as typed (kit finding 12).
                 frm = who
             else:
                 _remote_seen(dest_hash_hex, nick, who)
