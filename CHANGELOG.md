@@ -1,5 +1,12 @@
 # Changelog
 
+## Next
+- **Updating a Stump on a full board** (kit finding 15): "Update a Stump" sometimes stopped with `OSError: 28`, a board's storage full. On a WROVER, the Stump image leaves about 1 MB of storage, and the voice notes' codecs alone take 540 KB of it (opus.wasm 333 KB). An update rewrote every file, each beside the old one before the swap, so writing opus.wasm needed 333 KB free; with packs installed, there wasn't. Now:
+  - a file already on the board and the same isn't written again, so updates are faster too;
+  - the room an update needs is worked out first; short, the safe leftovers go (a write cut short, an old .py beside its .mpy); still short, it stops before writing anything and says what takes the room;
+  - full while writing: plain words, which file, the old one kept.
+- Tests: `arborist` (the same files again: none written; one changed: only it; leftovers cleared, config.py and main.py kept; an update's room worked out; a full board stopped before writing, with what takes the room; OSError 28 while writing, in plain words).
+
 ## 1.0.0-beta.64
 - **A Stump's bot answers in the thread with that Stump** (kit finding 12): a Stump answers DMs under its name as typed, but other Stumps know it by its nick (cleaned, 16 characters at most, maybe tagged). So "LaBuche-Stump-eK0ms" (19 characters, known as "LaBuche-Stump-eK") came back as a new person, "LaBuche-Stump-eK0ms@LaBuche-Stump-eK". Now an answer under any form of a Stump's name stays in its thread. Only the receiving side changes, so it also works with older Stumps. A person whose nick starts the same is still themselves.
 - **Ops and mods** (`mods.py`), modelled on rrcd, the RRC hub NomadNet's Channels and MeshChatX speak (same names, same meanings):

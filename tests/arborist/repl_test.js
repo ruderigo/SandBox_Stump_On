@@ -62,6 +62,23 @@ async function scenario(name, extra, chunk) {
     const left = [];
     (function walk(d) { for (const n of fs.readdirSync(d)) { const p = path.join(d, n); fs.statSync(p).isDirectory() ? walk(p) : left.push(path.relative(root, p)); } })(root);
     check(name + ": no .part left", !left.some((p) => p.endsWith(".part")), left);
+    // Kit finding 15: the same files again -- none written (a WROVER's 1 MB
+    // couldn't take opus.wasm twice); one changed -- only that one.
+    const mt = fs.statSync(path.join(root, files[0].path)).mtimeMs;
+    const again = await R.upload(repl, files, null, chunk);
+    check(name + ": the same files again: none written, all skipped (and left as they were)",
+          again.written === 0 && again.skipped === files.length && fs.statSync(path.join(root, files[0].path)).mtimeMs === mt, JSON.stringify(again));
+    const changed = files.map((f, i) => i ? f : Object.assign({}, f, { data: new Uint8Array(Buffer.from("changed\n")), sha256: sha(Buffer.from("changed\n")) }));
+    const one = await R.upload(repl, changed, null, chunk);
+    check(name + ": one changed: only that one written", one.written === 1 && one.skipped === files.length - 1
+          && fs.readFileSync(path.join(root, files[0].path), "utf8") === "changed\n", JSON.stringify(one));
+    await R.upload(repl, files, null, chunk);
+    fs.writeFileSync(path.join(root, "half.mpy.part"), "a write cut short");
+    fs.writeFileSync(path.join(root, "pair.py"), "old"); fs.writeFileSync(path.join(root, "pair.mpy"), "new");
+    const cleared = await R.clearLeftovers(repl);
+    check(name + ": leftovers cleared when the room is short: a .part, a .py beside its .mpy; config.py and main.py kept",
+          cleared >= 2 && !fs.existsSync(path.join(root, "half.mpy.part")) && !fs.existsSync(path.join(root, "pair.py"))
+          && fs.existsSync(path.join(root, "pair.mpy")) && fs.existsSync(path.join(root, "main.py")), cleared);
     check(name + ": the .py a .mpy replaces is gone, and the .mpy a .py replaces",
           !fs.existsSync(path.join(root, "rrc.py")) && !fs.existsSync(path.join(root, "urns/__init__.mpy")), left);
     const total = files.reduce((a, f) => a + f.data.length, 0);
@@ -494,6 +511,42 @@ with zipfile.ZipFile(out / "climb.zip", "w") as zf:
                             "WiFi unavailable (no AP)\r\nTraceback (most recent call last):\r\nOSError: [Errno 19] ENODEV\r\n[web] serving on 192.168.4.1:80\r\n");
   check("what it said at start, summed up", sum.release === "1.0.0-beta.38" && sum.micropython === "v1.28.0" && sum.serving
         && sum.problems.length === 2 && sum.notes.some((n) => /WiFi unavailable/.test(n)), JSON.stringify(sum));
+  
+  // -- the room an update takes (kit finding 15) -------------------------------
+  {
+    const f = (p, n, h) => ({ path: p, data: new Uint8Array(n), sha256: h || "a".repeat(64) });
+    const files = [f("web/opus.wasm", 333000, "1".repeat(64)), f("rrc.mpy", 20000, "2".repeat(64)), f("new.mpy", 5000, "3".repeat(64))];
+    const have = { files: { "web/opus.wasm": ["1".repeat(64), 333000], "rrc.mpy": ["9".repeat(64), 18000] }, free: 60000 };
+    const plan = R.uploadPlan(files, have);
+    check("an update's plan: opus.wasm already there and the same is skipped; the room it needs: what it adds + the largest + a margin",
+          plan.skip.length === 1 && plan.write.length === 2 && plan.need === (2000 + 5000) + 20000 + 16384 && !plan.short, JSON.stringify({ need: plan.need, short: plan.short }));
+    const fresh = R.uploadPlan(files, { files: {}, free: 300000 });
+    check("... with nothing there and 300 KB free: short (opus.wasm alone needs 333 KB)", fresh.short && fresh.need > 300000, fresh.need);
+    // Not enough room even after the leftovers: said before anything is written.
+    const said = [];
+    const stub = { run: async (code) => {
+      said.push(code);
+      if (/print\('HAVE'/.test(code)) return 'HAVE{"files":{},"free":100000}';
+      if (/GONE/.test(code)) return "GONE3";
+      if (/print\('USE'/.test(code)) return 'USE{"bavard/":250000,"web/":540000,"rns/":90000,"config.py":4000}';
+      throw new Error("wrote something: " + code.slice(0, 60));
+    } };
+    let err = null;
+    try { await R.upload(stub, files); } catch (e) { err = e; }
+    check("a full board: stopped before writing anything, and says what takes the room",
+          err && /storage is full/.test(err.message) && /Nothing was written/.test(err.message) && /web\/ 527 KB/.test(err.message)
+          && /bavard\/ 244 KB/.test(err.message) && /3 leftovers/.test(err.message) && !said.some((c) => /a2b_base64/.test(c)), err && err.message);
+    // Filling up while writing (a board fuller than it said): plain words, the old one kept.
+    const stub2 = { run: async (code) => {
+      if (/print\('HAVE'/.test(code)) return 'HAVE{"files":{},"free":10000000}';
+      if (/a2b_base64/.test(code)) throw new Error("Traceback (most recent call last):\nOSError: 28");
+      return "";
+    } };
+    err = null;
+    try { await R.upload(stub2, [f("web/opus.wasm", 4000, "1".repeat(64))]); } catch (e) { err = e; }
+    check("OSError 28 while writing: \"the board's storage filled up\", which file, the old one still there",
+          err && /storage filled up while writing web\/opus\.wasm/.test(err.message) && /old one is still there/.test(err.message), err && err.message);
+  }
   console.log("FAILURES: " + JSON.stringify(FAIL));
   process.exit(FAIL.length ? 1 : 0);
 })();

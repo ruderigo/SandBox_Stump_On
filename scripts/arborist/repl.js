@@ -184,10 +184,85 @@
     return { release: m[1], mpy: m[2], machine: (m[3] || "").replace(/_/g, " ") };
   }
 
+  // What's on the board already, for these paths: {files: {path: [sha256, size]},
+  // free: bytes free where they go}.
+  async function haveOnBoard(repl, paths) {
+    var root = paths.length && paths[0].indexOf(CARD.root + "/") === 0 ? CARD.root : "/";
+    var out = await repl.run(
+      "import os,hashlib,binascii,json\nr={}\nfor p in " + JSON.stringify(paths) + ":\n try:\n  n=os.stat(p)[6]\n" +
+      "  h=hashlib.sha256()\n  f=open(p,'rb')\n  while 1:\n   b=f.read(2048)\n   if not b:\n    break\n   h.update(b)\n  f.close()\n" +
+      "  r[p]=[binascii.hexlify(h.digest()).decode(),n]\n except OSError:\n  pass\n" +
+      "s=os.statvfs(" + py(root) + ")\nprint('HAVE'+json.dumps({'files':r,'free':(s[1] or s[0])*s[3]}))\n", 180000);
+    var m = /HAVE(\{.*\})/.exec(out);
+    return m ? JSON.parse(m[1]) : { files: {}, free: null };
+  }
+
+  // Which files to write, and the room it takes (1.0.0-beta.65, kit finding
+  // 15): a file already there and the same is skipped; each one written goes
+  // next to the old one before the swap, so the largest needs its room on
+  // top of what the update adds. have: haveOnBoard()'s.
+  var SPACE_MARGIN = 16384;
+  function uploadPlan(files, have) {
+    var write = [], skip = [], grow = 0, biggest = 0;
+    files.forEach(function (f) {
+      var h = have.files[f.path];
+      if (h && h[0] === f.sha256 && h[1] === f.data.length) { skip.push(f); return; }
+      write.push(f);
+      grow += f.data.length - (h ? h[1] : 0);
+      biggest = Math.max(biggest, f.data.length);
+    });
+    var need = write.length ? Math.max(0, grow) + biggest + SPACE_MARGIN : 0;
+    return { write: write, skip: skip, need: need, free: have.free, short: have.free !== null && need > have.free };
+  }
+
+  // Leftovers that are safe to remove when the room is short: a write cut
+  // short before (*.part), an old .py beside its .mpy. Never config, the
+  // identity, settings or data. Returns how many.
+  async function clearLeftovers(repl) {
+    var out = await repl.run(
+      "import os\nn=0\ndef walk(d,k):\n global n\n try:\n  es=list(os.ilistdir(d))\n except OSError:\n  return\n" +
+      " names=[e[0] for e in es]\n for e in es:\n  q=(d+'/' if d!='/' else '/')+e[0]\n" +
+      "  if e[1]==0x4000:\n   if k<3 and e[0] not in ('sd','rns'):\n    walk(q,k+1)\n   continue\n" +
+      "  if e[0].endswith('.part') or (e[0].endswith('.py') and e[0][:-3]+'.mpy' in names and e[0] not in ('boot.py','main.py','config.py')):\n" +
+      "   try:\n    os.remove(q)\n    n+=1\n   except OSError:\n    pass\nwalk('/',0)\nprint('GONE%d' % n)\n", 60000);
+    var m = /GONE(\d+)/.exec(out);
+    return m ? +m[1] : 0;
+  }
+
+  // What takes the room on the board: [[folder, bytes]], the biggest first.
+  async function flashUse(repl) {
+    var out = await repl.run(
+      "import os,json\ndef size(p):\n t=0\n try:\n  es=list(os.ilistdir(p))\n except OSError:\n  return 0\n" +
+      " for e in es:\n  q=p+'/'+e[0]\n  if e[1]==0x4000:\n   t+=size(q)\n  else:\n   try:\n    t+=os.stat(q)[6]\n   except OSError:\n    pass\n return t\n" +
+      "d={}\nfor e in os.ilistdir('/'):\n if e[0]=='sd':\n  continue\n q='/'+e[0]\n" +
+      " d[e[0]+('/' if e[1]==0x4000 else '')]=size(q) if e[1]==0x4000 else os.stat(q)[6]\nprint('USE'+json.dumps(d))\n", 60000);
+    var m = /USE(\{.*\})/.exec(out), d = m ? JSON.parse(m[1]) : {}, files = 0, list = [];
+    Object.keys(d).forEach(function (k) { if (/\/$/.test(k)) list.push([k, d[k]]); else files += d[k]; });
+    if (files) list.push(["(files at the top)", files]);
+    return list.sort(function (a, b) { return b[1] - a[1]; });
+  }
+  function kb(n) { return Math.round(n / 1024) + " KB"; }
+
   // files: [{path, data: Uint8Array, sha256: hex}]. progress(done, total, path) in bytes.
+  // Returns {written, skipped}: a file already on the board and the same
+  // isn't written again; not enough room is said before anything is.
   async function upload(repl, files, progress, chunk) {
     chunk = chunk || 3072;
     progress = progress || function () {};
+    var plan = uploadPlan(files, await haveOnBoard(repl, files.map(function (f) { return f.path; })));
+    if (plan.short) {
+      var gone = await clearLeftovers(repl);
+      plan = uploadPlan(files, await haveOnBoard(repl, files.map(function (f) { return f.path; })));
+      if (plan.short) {
+        var use = files[0] && files[0].path.indexOf(CARD.root + "/") === 0 ? [] : await flashUse(repl);
+        throw new Error("The board's storage is full: this needs about " + kb(plan.need) + " free, it has " + kb(plan.free) +
+                        (gone ? " (after removing " + gone + " leftovers)" : "") + ". Nothing was written." +
+                        (use.length ? " What takes the room: " + use.slice(0, 6).map(function (u) { return u[0] + " " + kb(u[1]); }).join(", ") + "." : "") +
+                        " An installed pack can be removed to make room, or the Stump made again as new (it erases the board).");
+      }
+    }
+    var skipped = plan.skip.length, all = files;
+    files = plan.write;
     var dirs = {}, total = 0, done = 0;
     files.forEach(function (f) {
       total += f.data.length;
@@ -202,8 +277,15 @@
       progress(done, total, f.path);
       if (!f.data.length) await repl.run("open(" + py(tmp) + ",'wb').close()\n");
       for (var off = 0; off < f.data.length; off += chunk) {
-        await repl.run("import binascii\nf=open(" + py(tmp) + ",'" + (off ? "ab" : "wb") + "')\n" +
-                       "f.write(binascii.a2b_base64('" + b64(f.data.subarray(off, off + chunk)) + "'))\nf.close()\n");
+        try {
+          await repl.run("import binascii\nf=open(" + py(tmp) + ",'" + (off ? "ab" : "wb") + "')\n" +
+                         "f.write(binascii.a2b_base64('" + b64(f.data.subarray(off, off + chunk)) + "'))\nf.close()\n");
+        } catch (e) {
+          if (!/OSError: 28\b|ENOSPC/.test(e.message)) throw e;
+          try { await repl.run("import os\ntry:\n os.remove(" + py(tmp) + ")\nexcept OSError:\n pass\n"); } catch (e2) {}
+          throw new Error("The board's storage filled up while writing " + f.path + " (" + kb(f.data.length) + "). " +
+                          "The old one is still there. An installed pack can be removed to make room, or the Stump made again as new.");
+        }
         done += Math.min(chunk, f.data.length - off);
         progress(done, total, f.path);
       }
@@ -214,13 +296,14 @@
         "try:\n os.remove(" + py(f.path) + ")\nexcept OSError:\n pass\nos.rename(" + py(tmp) + "," + py(f.path) + ")\n", 60000);
     }
     var gone = [];
-    files.forEach(function (f) {
+    all.forEach(function (f) {                       // (skipped ones too: an old .py beside a .mpy already there)
       if (/\.mpy$/.test(f.path)) gone.push(f.path.slice(0, -4) + ".py");
       else if (/\.py$/.test(f.path) && !/(^|\/)(boot|main|config)\.py$/.test(f.path)) gone.push(f.path.slice(0, -3) + ".mpy");
     });
     if (gone.length)
       await repl.run("import os\nfor p in " + JSON.stringify(gone) + ":\n try:\n  os.remove(p)\n except OSError:\n  pass\n");
     progress(total, total, "");
+    return { written: files.length, skipped: skipped };
   }
 
   // -- settings: the board's config.py -------------------------------------
@@ -1034,7 +1117,8 @@
     return Array.from(d.subarray(0, 6)).map(function (b) { return ("0" + b.toString(16)).slice(-2); }).join("");
   }
 
-  var api = { Repl: Repl, prepare: prepare, restart: restart, upload: upload, boardInfo: boardInfo, memory: memory,
+  var api = { Repl: Repl, prepare: prepare, restart: restart, upload: upload, uploadPlan: uploadPlan, haveOnBoard: haveOnBoard,
+              clearLeftovers: clearLeftovers, flashUse: flashUse, boardInfo: boardInfo, memory: memory,
               scanWifi: scanWifi, lookAround: lookAround, offers: offers, chainIdOf: chainIdOf, wifiPass: wifiPass,
               IMAGE_FOR: IMAGE_FOR, imageForChip: imageForChip, imageInfo: imageInfo, notFrozen: notFrozen,
               removeFrozenCopies: removeFrozenCopies, HELTEC_ON_HOTSPOT: HELTEC_ON_HOTSPOT, HELTEC_FIRST: HELTEC_FIRST,
