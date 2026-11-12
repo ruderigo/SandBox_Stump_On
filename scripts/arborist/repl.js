@@ -221,10 +221,10 @@
   async function clearLeftovers(repl) {
     var out = await repl.run(
       "import os\nn=0\ndef walk(d,k):\n global n\n try:\n  es=list(os.ilistdir(d))\n except OSError:\n  return\n" +
-      " names=[e[0] for e in es]\n for e in es:\n  q=(d+'/' if d!='/' else '/')+e[0]\n" +
+      " names=[e[0] for e in es]\n for e in es:\n  q=(d+'/' if d!='.' else '')+e[0]\n" +
       "  if e[1]==0x4000:\n   if k<3 and e[0] not in ('sd','rns'):\n    walk(q,k+1)\n   continue\n" +
       "  if e[0].endswith('.part') or (e[0].endswith('.py') and e[0][:-3]+'.mpy' in names and e[0] not in ('boot.py','main.py','config.py')):\n" +
-      "   try:\n    os.remove(q)\n    n+=1\n   except OSError:\n    pass\nwalk('/',0)\nprint('GONE%d' % n)\n", 60000);
+      "   try:\n    os.remove(q)\n    n+=1\n   except OSError:\n    pass\nwalk('.',0)\nprint('GONE%d' % n)\n", 60000);
     var m = /GONE(\d+)/.exec(out);
     return m ? +m[1] : 0;
   }
@@ -234,7 +234,7 @@
     var out = await repl.run(
       "import os,json\ndef size(p):\n t=0\n try:\n  es=list(os.ilistdir(p))\n except OSError:\n  return 0\n" +
       " for e in es:\n  q=p+'/'+e[0]\n  if e[1]==0x4000:\n   t+=size(q)\n  else:\n   try:\n    t+=os.stat(q)[6]\n   except OSError:\n    pass\n return t\n" +
-      "d={}\nfor e in os.ilistdir('/'):\n if e[0]=='sd':\n  continue\n q='/'+e[0]\n" +
+      "d={}\nfor e in os.ilistdir('.'):\n if e[0]=='sd':\n  continue\n q=e[0]\n" +
       " d[e[0]+('/' if e[1]==0x4000 else '')]=size(q) if e[1]==0x4000 else os.stat(q)[6]\nprint('USE'+json.dumps(d))\n", 60000);
     var m = /USE(\{.*\})/.exec(out), d = m ? JSON.parse(m[1]) : {}, files = 0, list = [];
     Object.keys(d).forEach(function (k) { if (/\/$/.test(k)) list.push([k, d[k]]); else files += d[k]; });
