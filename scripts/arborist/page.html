@@ -1216,11 +1216,12 @@ async function make() {
     step(3);
   }
   var t0 = Date.now();
-  await R.upload(repl, files, function (d, total, path) {
+  var up = await R.upload(repl, files, function (d, total, path) {
     var sec = (Date.now() - t0) / 1000, left = d > 0 && sec > 5 ? Math.round((total - d) / (d / sec)) : null;
     bar(d / total, Math.round(d / 1024) + " of " + Math.round(total / 1024) + " KB" +
         (left !== null ? " · about " + (left > 90 ? Math.round(left / 60) + " min" : left + " s") + " left" : "") + (path ? " · " + path : ""));
   });
+  if (up && up.skipped) log(up.skipped + " files already the same on the board: not written again");
   if (!upd) {
     step(5);
     var tpl = new TextEncoder().encode(P.head.config_template);
