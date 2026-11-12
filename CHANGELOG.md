@@ -1,6 +1,6 @@
 # Changelog
 
-## Next
+## 1.0.0-beta.65
 - **Updating a Stump on a full board** (kit finding 15): "Update a Stump" sometimes stopped with `OSError: 28`, a board's storage full. On a WROVER, the Stump image leaves about 1 MB of storage, and the voice notes' codecs alone take 540 KB of it (opus.wasm 333 KB). An update rewrote every file, each beside the old one before the swap, so writing opus.wasm needed 333 KB free; with packs installed, there wasn't. Now:
   - a file already on the board and the same isn't written again, so updates are faster too;
   - the room an update needs is worked out first; short, the safe leftovers go (a write cut short, an old .py beside its .mpy); still short, it stops before writing anything and says what takes the room;
