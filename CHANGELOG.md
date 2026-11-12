@@ -1,6 +1,6 @@
 # Changelog
 
-## Next
+## 1.0.0-beta.64
 - **A Stump's bot answers in the thread with that Stump** (kit finding 12): a Stump answers DMs under its name as typed, but other Stumps know it by its nick (cleaned, 16 characters at most, maybe tagged). So "LaBuche-Stump-eK0ms" (19 characters, known as "LaBuche-Stump-eK") came back as a new person, "LaBuche-Stump-eK0ms@LaBuche-Stump-eK". Now an answer under any form of a Stump's name stays in its thread. Only the receiving side changes, so it also works with older Stumps. A person whose nick starts the same is still themselves.
 - **Ops and mods** (`mods.py`), modelled on rrcd, the RRC hub NomadNet's Channels and MeshChatX speak (same names, same meanings):
   - The admin names ops (`/op <password> #room|-stump <who>`). An op names mods (`/mod`). In one room, or in every room of the Stump.
