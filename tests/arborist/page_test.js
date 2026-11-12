@@ -227,6 +227,7 @@ async function run(name, root, simArgs, fill, keep, pageFile, chip) {
       check("... nothing of LaBuche's own config.py", !/LaBuche'|TeK|SalutComment|Bob's Glitch|Concierge/.test(cfg));
     }
     // Finding 8: the next board doesn't take this one's settings, only the home Wi-Fi's name.
+    check("the Stump's language in the form (1.0.0-beta.67): French by default", (await page.inputValue("#f-lang")) === "fr");
     check("after it, the form for the next Stump: the defaults (name, hotspot, radio, chain, passwords), the home Wi-Fi's name kept",
           (await page.inputValue("#f-name")) === "Stump" && (await page.inputValue("#f-hotspot")) === ""
           && (await page.isChecked("input[name=f-radio][value=none]")) && (await page.isChecked("input[name=f-chain][value=none]"))

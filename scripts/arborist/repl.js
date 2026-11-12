@@ -313,7 +313,7 @@
   // it was, a temporary file then a rename -- plus the Heltec bridge's
   // three lines inside CONFIG (as the Provisioner edits them). The old
   // file is kept as config.py.bak; a result that isn't Python is undone.
-  var KEYS = ["NODE_NAME", "BOT_NAME", "MESH_GREETING", "WIFI_SSID", "AUTH_MODE", "FEATURES", "THEME", "SSID_NAME", "SSID_INCLUDE_IP",
+  var KEYS = ["NODE_NAME", "BOT_NAME", "MESH_GREETING", "WIFI_SSID", "AUTH_MODE", "FEATURES", "THEME", "DEFAULT_LANG", "SSID_NAME", "SSID_INCLUDE_IP",
               "CHAIN_ENABLED", "CHAIN_UPLINK_SSID", "CHAIN_UPLINK_PASS", "CHAIN_SUBNET", "CHAIN_CHANNEL", "CHAIN_SECRET",
               "CHAIN_PARENT_IP"];
   // A Heltec on the Stump's own hotspot: .200, past the addresses the
@@ -324,7 +324,7 @@
   // CHAIN_UPLINK_PASS for a member over the router: the home Wi-Fi's
   // password, which the page never reads back -- copied on the board.
   var FROM_WIFI_PASS = "\u0000WIFI_PASS";
-  var FEATURES = ["chat", "billboard", "files", "about"], THEMES = ["paper", "amber", "phosphor", "oled"],
+  var FEATURES = ["chat", "billboard", "files", "about"], THEMES = ["paper", "amber", "phosphor", "oled"], LANGS = ["fr", "en", "es"],
       MODES = ["open", "hybrid", "mandatory"];
 
   async function readSettings(repl) {
@@ -480,6 +480,8 @@
     v.FEATURES = feats;
     if (THEMES.indexOf(a.theme || "paper") < 0) return no("Unknown theme.");
     v.THEME = a.theme || "paper";
+    if (LANGS.indexOf(a.lang || "fr") < 0) return no("Unknown language.");
+    v.DEFAULT_LANG = a.lang || "fr";                 // the Stump's language (1.0.0-beta.67)
     if (MODES.indexOf(a.mode || "open") < 0) return no("Unknown access mode.");
     v.AUTH_MODE = a.mode || "open";
     var hs = (a.hotspot || "").trim();
@@ -549,6 +551,7 @@
       name: c.NODE_NAME || "", bot: c.BOT_NAME || "BarKeep", greeting: c.MESH_GREETING || "",
       ssid: c.WIFI_SSID || "", radio: radio, hhost: radio === "lan" ? h.host : "",
       features: Array.isArray(c.FEATURES) ? c.FEATURES : FEATURES.slice(0, 3), theme: c.THEME || "paper",
+      lang: LANGS.indexOf(c.DEFAULT_LANG) >= 0 ? c.DEFAULT_LANG : "fr",
       mode: c.AUTH_MODE || "open", hotspot: c.SSID_NAME || "", hotspotIp: !!c.SSID_INCLUDE_IP, chain: chain,
       channel: c.CHAIN_CHANNEL || 11, upSsid: c.CHAIN_UPLINK_SSID || "", upPass: c.CHAIN_UPLINK_PASS || "",
       subnet: c.CHAIN_SUBNET || 4, secret: c.CHAIN_SECRET || "", parentIp: c.CHAIN_PARENT_IP || "",
@@ -1132,7 +1135,7 @@
               settingsFrom: settingsFrom, answersFrom: answersFrom, bootSummary: bootSummary, randomSecret: function () { return hex(8); },
               readRadio: readRadio, writeRadio: writeRadio, radioFrom: radioFrom, radioAnswers: radioAnswers,
               RADIO_BW: RADIO_BW, RADIO_DEFAULT: RADIO_DEFAULT,
-              FEATURES: FEATURES, THEMES: THEMES, MODES: MODES, sleep: sleep, b64: b64 };
+              FEATURES: FEATURES, THEMES: THEMES, LANGS: LANGS, MODES: MODES, sleep: sleep, b64: b64 };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.StumpRepl = api;
 })(typeof window !== "undefined" ? window : globalThis);

@@ -38,8 +38,20 @@
 
 LANGUAGES = ("fr", "en", "es")
 DEFAULT_LANG = "fr"
+# This Stump's default language (config.py's DEFAULT_LANG, 1.0.0-beta.67;
+# /admin and Arborist set it): for a visitor who hasn't picked one, and
+# for what's posted for everyone (the fserv bot, room notices). Read as
+# i18n.DEFAULT_LANG wherever it's needed, so a change from /admin applies
+# at once (settings.apply).
+try:
+    from config import DEFAULT_LANG as _configured
+    if _configured in LANGUAGES:
+        DEFAULT_LANG = _configured
+except ImportError:
+    pass
 
 LANGUAGE_LABELS = {"fr": "FR", "en": "EN", "es": "ES"}
+LANGUAGE_NAMES = {"fr": "Français", "en": "English", "es": "Español"}
 
 _prefs = {}   # client_id -> lang, memory-only
 
@@ -203,6 +215,10 @@ STRINGS = {
     "mod_usage_bans": {"fr": "/bans [#salle|-stump] : les bannis et les muets", "en": "/bans [#room|-stump]: who's banned or muted", "es": "/bans [#sala|-stump]: vetados y silenciados"},
     "mod_usage_mode": {"fr": "/mode <#salle> [+t|-t] : +t, le sujet par les ops et modérateurs seulement", "en": "/mode <#room> [+t|-t]: +t, the topic by ops and mods only", "es": "/mode <#sala> [+t|-t]: +t, el tema solo por ops y moderadores"},
     "mod_usage_roles": {"fr": "/roles [#salle|-stump] : les ops et modérateurs", "en": "/roles [#room|-stump]: the ops and mods", "es": "/roles [#sala|-stump]: los ops y moderadores"},
+    "admin_setup_lang": {"fr": "Langue de la Bûche", "en": "This Stump's language", "es": "Idioma del Tronco"},
+    "admin_setup_lang_note": {"fr": "Pour les visiteurs qui n'en ont pas choisi, et ce qui est publié pour tous (le bot de fichiers). Chacun peut toujours changer la sienne (FR · EN · ES).",
+                              "en": "For visitors who haven't picked one, and what's posted for everyone (the fserv bot). Anyone can still pick their own (FR · EN · ES).",
+                              "es": "Para quienes no han elegido uno, y lo que se publica para todos (el bot de archivos). Cada quien puede elegir el suyo (FR · EN · ES)."},
     "mod_you_banned_all": {"fr": "tu es banni du chat de cette Bûche", "en": "you're banned from this Stump's chat", "es": "estás vetado del chat de este Tronco"},
     "mod_you_banned": {"fr": "tu es banni de #{room}", "en": "you're banned from #{room}", "es": "estás vetado de #{room}"},
     "mod_you_kicked": {"fr": "tu as été sorti de #{room} : réessaie dans une minute", "en": "you were kicked from #{room}: try again in a minute", "es": "te sacaron de #{room}: vuelve a intentarlo en un minuto"},

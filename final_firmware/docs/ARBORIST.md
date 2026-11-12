@@ -48,7 +48,9 @@ release is offered.
    The Stump's Wi-Fi name, whether its address shows in the name
    ("Stump 192.168.4.1": the page counts the 32 characters as you type),
    and its number (2 to 254: its Wi-Fi is 192.168.<number>.1) are under
-   *More settings*. A chain is for linking Stumps; on its own, leave it at
+   *More settings*, with *Its language* (French, English or Spanish: for
+   visitors who haven't picked one and the bot's posts; also in `/admin`,
+   since 1.0.0-beta.67). A chain is for linking Stumps; on its own, leave it at
    *Not in a chain* (it can be changed later in Settings).
 3. **Make my Stump**, pick the board in the browser's list. A few
    minutes: it reads the chip, erases the board, writes the Stump image

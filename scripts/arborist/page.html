@@ -257,6 +257,9 @@
       <div><label for="f-mode">Who may come in</label><select id="f-mode"><option value="open">Anyone</option><option value="hybrid">Anyone; some rooms for verified people</option><option value="mandatory">Verified people only</option></select></div>
     </div>
     <div class="two">
+      <div><label for="f-lang">Its language <span class="hint">· for visitors who haven't picked one, and the bot's posts; anyone can pick their own</span></label><select id="f-lang"><option value="fr">Français</option><option value="en">English</option><option value="es">Español</option></select></div>
+    </div>
+    <div class="two">
       <div><label for="f-bot">The bot's name</label><input type="text" id="f-bot" maxlength="24" value="BarKeep"></div>
       <div><label for="f-hotspot">Its Wi-Fi's name <span class="hint">· blank: @@SSID@@</span></label><input type="text" id="f-hotspot" maxlength="32"></div>
     </div>
@@ -587,7 +590,7 @@ function formFor(a) {
       $("f-name").value = "Stump"; $("f-bot").value = "BarKeep"; $("f-greet").value = ""; $("f-ssid").value = "";
       $("f-hhost").value = ""; setVal("f-radio", "none"); setVal("f-chain", "none"); $("f-hotspot").value = ""; $("f-hotspot-ip").checked = false;
       qa("input[name=f-feat]").forEach(function (c) { c.checked = c.value !== "about"; });
-      $("f-theme").value = "paper"; $("f-mode").value = "open"; $("f-channel").value = 11; $("f-up").value = SSID;
+      $("f-theme").value = "paper"; $("f-lang").value = "fr"; $("f-mode").value = "open"; $("f-channel").value = 11; $("f-up").value = SSID;
       $("f-uppass").value = ""; $("f-subnet").value = 4; $("f-secret").value = ""; $("f-more").open = false;
       $("f-parent").value = "";
       fillRadio(null);
@@ -608,6 +611,7 @@ function formFor(a) {
   $("f-ssid").value = a.ssid; $("f-hhost").value = a.hhost; setVal("f-radio", a.radio);
   qa("input[name=f-feat]").forEach(function (c) { c.checked = a.features.indexOf(c.value) >= 0; });
   $("f-theme").value = R.THEMES.indexOf(a.theme) >= 0 ? a.theme : "paper";
+  $("f-lang").value = R.LANGS.indexOf(a.lang) >= 0 ? a.lang : "fr";
   $("f-mode").value = R.MODES.indexOf(a.mode) >= 0 ? a.mode : "open";
   $("f-hotspot").value = a.hotspot; $("f-hotspot-ip").checked = !!a.hotspotIp; setVal("f-chain", a.chain);
   $("f-channel").value = a.channel; $("f-up").value = a.upSsid || SSID; $("f-uppass").value = a.upPass;
@@ -636,7 +640,7 @@ function answers(editing) {
     radio: val("f-radio"), hhost: $("f-hhost").value,
     freqMhz: $("f-freq").value, bandwidth: $("f-bw").value, sf: $("f-sf").value, cr: $("f-cr").value, txpower: $("f-txp").value,
     features: qa("input[name=f-feat]:checked").map(function (c) { return c.value; }),
-    theme: $("f-theme").value, mode: $("f-mode").value, hotspot: $("f-hotspot").value, hotspotIp: $("f-hotspot-ip").checked, defaultSsid: SSID,
+    theme: $("f-theme").value, lang: $("f-lang").value, mode: $("f-mode").value, hotspot: $("f-hotspot").value, hotspotIp: $("f-hotspot-ip").checked, defaultSsid: SSID,
     chain: val("f-chain"), channel: $("f-channel").value, upSsid: $("f-up").value, upPass: $("f-uppass").value,
     subnet: $("f-subnet").value, secret: $("f-secret").value, parentIp: $("f-parent").value
   };

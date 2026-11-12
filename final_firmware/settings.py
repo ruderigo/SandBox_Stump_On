@@ -28,7 +28,7 @@ WEIGHT_MAX = 99
 
 # Applied to the running Stump at once; the others need a restart.
 LIVE = ("CREDITS_ENABLED", "CREDIT_WEIGHTS", "AUTH_MODE", "FEATURES", "LIBRARIAN", "PC_STORAGE_MB",
-        "PC_KEEP_AWAKE", "REANNOUNCE_INTERVAL", "LXMF_STAMPS")
+        "PC_KEEP_AWAKE", "REANNOUNCE_INTERVAL", "LXMF_STAMPS", "DEFAULT_LANG")
 
 # A computer's "card": the sd/ folder, PC_STORAGE_MB in size (never more
 # than the disk has free). Uploads fill it to fserv.MAX_SD_RATIO, then the
@@ -120,6 +120,8 @@ def current():
             "MESH_GREETING": g("MESH_GREETING", "") or "", "CREDITS_ENABLED": bool(credits),
             "CREDIT_WEIGHTS": weights, "AUTH_MODE": mode if mode in MODES else "open", "FEATURES": feats,
             "LIBRARIAN": librarian_on()}
+    import i18n
+    out["DEFAULT_LANG"] = i18n.DEFAULT_LANG        # the one in use (1.0.0-beta.67)
     try:
         import announcer
         out["REANNOUNCE_INTERVAL"] = announcer.every()
@@ -184,6 +186,11 @@ def parse_form(fields):
     if len(greeting) > GREETING_MAX:
         return None, "greeting"
     out["MESH_GREETING"] = greeting
+    if "default_lang" in fields:
+        import i18n
+        if fields["default_lang"] not in i18n.LANGUAGES:
+            return None, "default_lang"
+        out["DEFAULT_LANG"] = fields["default_lang"]
     eco = fields.get("economy")
     if eco == "free":
         out["CREDITS_ENABLED"] = False
@@ -363,6 +370,10 @@ def apply(changes):
             lxmf.STAMPS[0] = bool(changed["LXMF_STAMPS"])
         except ImportError:
             later.append("LXMF_STAMPS")
+    if "DEFAULT_LANG" in changed:
+        import i18n
+        if changed["DEFAULT_LANG"] in i18n.LANGUAGES:
+            i18n.DEFAULT_LANG = changed["DEFAULT_LANG"]
     if "PC_KEEP_AWAKE" in changed:
         try:
             import stump_host

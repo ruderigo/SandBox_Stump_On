@@ -123,6 +123,10 @@ async function scenario(name, extra, chunk) {
         && r.values.AUTH_ADMIN_PASSWORD === "s3cret" && !("FSERVBOT_OP_PASSWORD" in r.values) && r.values.CHAIN_ENABLED === false
         && r.values.HELTEC.enabled === false && r.values.SSID_NAME === null, JSON.stringify(r));
   check("settings: the address not in the Wi-Fi's name by default", r.values.SSID_INCLUDE_IP === false);
+  check("settings: the Stump's language, French unless chosen (1.0.0-beta.67)", r.values.DEFAULT_LANG === "fr"
+        && S({ lang: "en" }).values.DEFAULT_LANG === "en" && /Unknown language/.test(S({ lang: "de" }).error || ""));
+  check("... read back from config.py (an older one without it: French)", R.answersFrom({ DEFAULT_LANG: "es" }).lang === "es"
+        && R.answersFrom({}).lang === "fr" && R.answersFrom({ DEFAULT_LANG: "xx" }).lang === "fr");
   r = S({ hotspot: "Café du Coin", hotspotIp: true, defaultSsid: "Stump" });
   check("settings: the address in the Wi-Fi's name when ticked (it fits)", !r.error && r.values.SSID_INCLUDE_IP === true
         && R.hotspotName("Café du Coin", true, 4).name === "Café du Coin 192.168.4.1", JSON.stringify(r.error || r.values.SSID_INCLUDE_IP));

@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.0-beta.67
+- **This Stump's language** (`DEFAULT_LANG` in config.py: fr, en or es; French as before): the language for visitors who haven't picked one, and for what's posted for everyone (the fserv bot's answers, room notices). Set in Arborist (*Its language*) and in `/admin` (Stump settings → This Stump's language), where it applies at once, no restart. Anyone can still pick their own (FR · EN · ES). For the kits: English for English-speaking recipients.
+- Tests: `default_lang` (French by default; /admin's form; refused if unknown; saved and applied at once; visitors with and without their own; the fserv bot; /admin shows it; read at start-up), `arborist` (the form, saved and read back).
+
 ## 1.0.0-beta.66
 Housekeeping: no change in behaviour.
 - **README** shortened to what a newcomer needs: what a Stump is, who connects, a quick start with Arborist first (the Provisioner second), what's tested (with the kit), where to read more, the layout, testing and credits. Its long reference sections moved, unchanged, to `docs/REFERENCE.md`.

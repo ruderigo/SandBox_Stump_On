@@ -186,3 +186,7 @@ FEATURES = ['chat', 'billboard', 'files']
 
 # ---- Site theme: amber, phosphor, oled or paper (added by the Provisioner) ----
 THEME = 'paper'
+
+# ---- This Stump's language: fr, en or es (1.0.0-beta.67; Arborist and /admin set it) ----
+# For visitors who haven't picked one, and what's posted for everyone (the fserv bot).
+DEFAULT_LANG = 'fr'
