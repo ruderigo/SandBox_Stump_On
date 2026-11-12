@@ -532,6 +532,58 @@ chat, with **this Stump's /admin password** (each Stump its own):
   rooms as local, and nothing of them is sent to them.
 - `/rooms` marks `[Wi-Fi]` and `[LoRa ⚠]` rooms.
 
+### Ops and mods (1.0.0-beta.64)
+
+Room moderation, modelled on rrcd, the RRC hub NomadNet's Channels and
+MeshChatX use (github.com/kc1awv/rrcd): the same command names and
+meanings. Each role is in one room (`#room`) or in every room of this
+Stump (`-stump`).
+
+```
+/op <password> #bavard Ada        the admin: Ada is op in #bavard
+/op <password> -stump Ada         ... in every room of this Stump
+/deop <password> #bavard Ada
+/mod #bavard Ben                  an op: Ben is mod in #bavard (in the op's own rooms)
+/demod #bavard Ben
+/kick #bavard Cat [reason]        an op or mod: out of #bavard, not back for a minute
+/mute #bavard Cat [minutes]       an op or mod: can't write there (until /unmute, or those minutes)
+/unmute #bavard Cat
+/ban #bavard Cat                  an op: out, and not back in
+/unban #bavard Cat
+/bans [#room]                     an op or mod: who's banned or muted
+/mode #bavard +t                  an op: the topic by ops and mods only (-t: anyone)
+/roles [#room]                    anyone: who's op or mod
+/help mods                        these commands
+```
+
+- **Who does what:** the admin (the password first) does everything, on
+  anyone. An op: /mod and /demod, /kick, /mute, /ban, /mode, the topic
+  under +t, in their room (or every room, `-stump`), on mods and people
+  without a role, not on another op. A mod: /kick, /mute and the topic
+  under +t, on people without a role. A mod names no one.
+- **Held by an identity, never a nick:** an app's identity (Sideband,
+  MeshChat, NomadNet, MeshChatX, a FireFly after /auth: the same on LoRa
+  and on the web), or a registered profile (logged in on the web). Name
+  someone by nick, or by the start of their hash when two share a nick.
+  A guest can be kicked, muted and banned (until they come back under
+  another name, in another browser) but never made op or mod.
+- **People on other Stumps** (`zoe@aleph`) can be muted or banned here:
+  their lines don't show here. They can't be kicked (they're not here).
+- **A total ban:** banned in #main or with `-stump` (#main is the way in),
+  they're out of this Stump's chat altogether: no room, nothing to read,
+  no line, no private message, not listed; only /help answers. On the
+  mesh they're told once every 10 minutes at most (airtime), and nothing
+  of the rooms is sent to them; a NomadNet user gets nothing from the hub.
+  No one is kicked out of #main (/mute or a total ban instead).
+- **/names** marks ops `@Ada` and mods `%Ben`. Every action is said in its
+  room (`⊖ Cat ⟵ Ben: reason`, `⊘`, `⧗`, `@`, `%`).
+- **The password stays private**, as for /setchan: answered only to
+  whoever typed it, not posted, not shown to plugins, not logged; wrong
+  ones count toward the lockout. "/kick Cat", a room forgotten, is not
+  taken as a wrong password. A ban never locks the admin out.
+- **Kept** across a restart (mods.json, on the card if there is one).
+- Not shared across a chain: each Stump's own (`-chain` is pinned).
+
 ## Part 4 — BarKeep, the librarian (`/chat` — separate from RRC)
 
 BarKeep answers questions about what's on the node: files on the shelf,

@@ -1372,10 +1372,26 @@ def _tier_suffix(room):
         return ""
 
 
+BANNED_TELL_S = 600
+_banned_told = {}
+
+
 def _handle(dest_hash_hex, peer, text):
     """Parse text and act on it. Returns (reply_lines, new_room_or_None)."""
     room = peer["room"]
     lang = i18n.get_lang(dest_hash_hex)
+    import mods
+    if not peer.get("stump") and mods.total(dest_hash_hex) and not (
+            text[:1] == "/" and (mods.is_command(text) or text[:9].lower().startswith(("/create ", "/setchan", "/chanreq")))):
+        # Banned from the chat altogether (mods.py): told so at most every
+        # BANNED_TELL_S (each answer is LoRa airtime), nothing else.
+        now = time.time()
+        if now - _banned_told.get(dest_hash_hex, 0) < BANNED_TELL_S:
+            return [], None
+        _banned_told[dest_hash_hex] = now
+        if len(_banned_told) > 64:
+            _banned_told.pop(min(_banned_told, key=_banned_told.get))
+        return ["✗ " + mods.total_refusal(dest_hash_hex, lang)], None
     if text.startswith(ROOM_PREFIX) and not text.startswith("/#"):
         parts = text.split(None, 1)
         candidate = parts[0][1:]   # strip leading #
@@ -1399,6 +1415,10 @@ def _handle(dest_hash_hex, peer, text):
         refused = _tier_refusal(dest_hash_hex, target, lang)
         if refused:
             return [refused], None
+        import mods
+        no = mods.join_refusal(dest_hash_hex, target, lang)
+        if no:
+            return ["✗ " + no], None          # banned or kicked (mods.py)
         rrc.system(room, rrc.ev_leave("~" + nick))
         rrc.system(target, rrc.ev_join("~" + nick))
         return [rrc.moved(target)], target
@@ -1426,7 +1446,7 @@ def _handle(dest_hash_hex, peer, text):
                 for r in rrc.room_names()], None
 
     if text.lower() in ("/names", "/who"):
-        names = rrc.names_in_room(room)
+        names = rrc.names_marked(room)
         return [rrc.names_line(room, names)], None
 
     if text.lower() == "/part":
@@ -1568,6 +1588,18 @@ def _take_profiles(message):
 
 def _flush_to_peer(router, dest_hash_hex, peer):
     """Forward any new RRC messages in this peer's room to them."""
+    if not peer.get("stump"):
+        import mods
+        if mods.total(dest_hash_hex):
+            # Banned from the chat altogether: nothing goes to them (their
+            # marks move on, so an unban doesn't send what they missed).
+            m = rrc.since(peer["room"], peer["last_sent_id"])
+            if m:
+                peer["last_sent_id"] = m[-1]["id"]
+            d = rrc.dms_since(dest_hash_hex, peer.get("last_dm_id", 0))
+            if d:
+                peer["last_dm_id"] = d[-1]["id"]
+            return
     room    = peer["room"]
     last_id = peer["last_sent_id"]
     msgs    = rrc.since(room, last_id)

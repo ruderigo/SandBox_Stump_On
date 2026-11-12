@@ -312,6 +312,10 @@ def send_voice(client_id, to_nick, mode, audio):
     target = (to_nick or "").lstrip("~")
     if target.lower() == user["nick"].lower():
         return [i18n.t("msg_self", lang)]
+    import mods
+    no = mods.total_refusal(client_id, lang)
+    if no:
+        return ["✗ " + no]
     label = voice_label_ms(ms)
     ok, info = send_dm(user["nick"], target, label, audio=[mode, audio, ms])
     if not ok:
@@ -841,8 +845,10 @@ def release_registered_nicks():
 def users_in_room(room):
     _prune_users()
     room = canon(room)
+    import mods
     return sorted(set(u["nick"] for cid, u in _users.items()
-                      if u["room"] == room and same_web(cid) is None and cid not in _hidden))
+                      if u["room"] == room and same_web(cid) is None and cid not in _hidden
+                      and not mods.total(cid)))
 
 
 # Who is in a shared room on the OTHER Stumps (#lora-mesh), as each told
@@ -892,6 +898,18 @@ def remote_names(room):
 def names_in_room(room):
     """Who's in a room: here, then on the other Stumps (nick@stump)."""
     return users_in_room(room) + sorted(remote_names(room))
+
+
+def names_marked(room):
+    """names_in_room for /names: an op as "@nick", a mod as "%nick" (mods.py)."""
+    import mods
+    _prune_users()
+    room = canon(room)
+    here = {}
+    for cid, u in _users.items():
+        if u["room"] == room and same_web(cid) is None and cid not in _hidden and not mods.total(cid):
+            here[u["nick"]] = mods.mark(cid, room) + u["nick"]
+    return [here[n] for n in sorted(here)] + sorted(remote_names(room))
 
 
 # ---------------------------------------------------------------------
@@ -956,6 +974,11 @@ def post(room, nick, body, kind="msg", via=None, bot=False):
     body = _clean(body, MAX_MESSAGE_LEN)
     if not body:
         return None
+    if via and "@" in str(nick) and kind != "system":
+        # Someone on another Stump, muted or banned here (mods.py): not shown.
+        import mods
+        if mods.remote_hidden(room, nick, via):
+            return None
     msg = {"id": _next_id[0], "ts": time.time(), "nick": nick,
            "body": body, "kind": kind}
     if via:
@@ -1291,6 +1314,15 @@ def handle_input(client_id, room, text):
             # /create, /setchan, /chanreq: the admin password inside, so
             # before plugins (they never see it), never posted or logged.
             return rooms.command(client_id, text, lang)
+        import mods
+        if mods.is_command(text):
+            # /op /mod /kick /mute /ban /mode...: the admin password may be
+            # inside, so the same way: never posted, never seen by plugins.
+            return mods.command(client_id, room, text, lang)
+    import mods
+    no = mods.total_refusal(client_id, lang)
+    if no and text.lower().split(" ", 1)[0] not in ("/help", "/?"):
+        return ["✗ " + no], DEFAULT_ROOM if room != DEFAULT_ROOM else None
     if _speaks(text) and not guard.allow("chat", client_id, CHAT_EVERY, CHAT_BURST):
         # Said in the log, so a "too fast" nobody expected can be traced
         # (who, which line).
@@ -1316,6 +1348,10 @@ def _handle_core(client_id, room, text, user, lang):
             # In #lora-mesh from before the LoRa went (or a client that
             # didn't ask): not posted.
             return [lora_refusal(lang)], None
+        import mods
+        no = mods.write_refusal(client_id, room, lang)
+        if no:
+            return ["✗ " + no], None       # banned, muted or kicked (mods.py)
         touch_user(client_id, room=room)
         posted = post(room, user["nick"], text)
         if posted is None:
@@ -1329,6 +1365,9 @@ def _handle_core(client_id, room, text, user, lang):
     arg = parts[1].strip() if len(parts) > 1 else ""
 
     if cmd == "help":
+        if arg.lower().lstrip("/") in ("mods", "mod", "op", "ops"):
+            import mods
+            return [i18n.t("mod_usage_" + c, lang) for c in mods.COMMANDS], None
         return help_lines(lang), None
 
     if cmd == "nick":
@@ -1371,6 +1410,10 @@ def _handle_core(client_id, room, text, user, lang):
             return [err], None
         if target == room:
             return [tok_already(target, i18n.t("join_already", lang, room=target))], None
+        import mods
+        no = mods.join_refusal(client_id, target, lang)
+        if no:
+            return ["✗ " + no], None
         if not room_allows(client_id, target):
             return [lora_refusal(lang)], None
         system(room, ev_leave(user["nick"]))
@@ -1423,12 +1466,16 @@ def _handle_core(client_id, room, text, user, lang):
         return [i18n.t("lora_room_" + sub + "d", lang, nick=who.strip())], None
 
     if cmd == "names":
-        return [names_line(room, names_in_room(room))], None
+        return [names_line(room, names_marked(room))], None
 
     if cmd == "topic":
         if not arg:
             t = topic(room, lang) or i18n.t("topic_none", lang)
             return [i18n.t("topic_show", lang, room=room, topic=t)], None
+        import mods
+        no = mods.write_refusal(client_id, room, lang) or mods.topic_refusal(client_id, room, lang)
+        if no:
+            return ["✗ " + no], None
         set_topic(room, arg)
         system(room, ev_topic(room, topic(room)))
         return [], None
@@ -1466,6 +1513,10 @@ def _handle_core(client_id, room, text, user, lang):
     if cmd == "me":
         if not arg:
             return [i18n.t("me_usage", lang)], None
+        import mods
+        no = mods.write_refusal(client_id, room, lang)
+        if no:
+            return ["✗ " + no], None
         touch_user(client_id, room=room)
         post(room, user["nick"], arg, kind="action")
         return [], None

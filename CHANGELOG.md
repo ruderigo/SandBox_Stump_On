@@ -1,6 +1,17 @@
 # Changelog
 
 ## Next
+- **Ops and mods** (`mods.py`), modelled on rrcd, the RRC hub NomadNet's Channels and MeshChatX speak (same names, same meanings):
+  - The admin names ops (`/op <password> #room|-stump <who>`). An op names mods (`/mod`). In one room, or in every room of the Stump.
+  - Ops and mods `/kick` (out for a minute) and `/mute` (optionally for some minutes). Ops `/ban`, and set `/mode #room +t` (the topic by ops and mods only).
+  - `/bans` and `/roles` list them; `/names` marks `@op` and `%mod`; `/help mods` shows the commands.
+  - Held by an identity (an app's, the same on LoRa and the web) or a registered profile, never a nick. A guest can be kicked, muted or banned, never named.
+  - Someone on another Stump can be muted or banned here: their lines are hidden here.
+  - An op can't act on another op, and a mod only on people without a role. No one is kicked out of #main.
+  - A ban in #main or with `-stump` is a total ban: no room, nothing to read, no line or private message, not listed. It covers the web, the mesh (told once every 10 minutes at most, nothing sent to them) and NomadNet through the hub (the NomadNet pack 1.2).
+  - The admin password stays private and counts toward the lockout. A ban never locks the admin out. Kept across a restart.
+  - Not across a chain (pinned).
+- Tests: `mods_room` (who may do what to whom, scopes, the same person on LoRa and the web, guests, people on other Stumps, +t, kept across a restart, the password never posted, a forgotten room not taken as a wrong password).
 - **/names in #lora-mesh right after a Stump restarts**: a restarted Stump listed only its own people (and the other Stumps' names) for up to 10 minutes, until each other Stump's next names list. Now, hearing that a Stump restarted or is new, each Stump sends it who's here at once and again 30 seconds later (the first can go before it knows that Stump again, or be lost on the air), the radio broadcast too. Seen on the kit bench: three Stumps with radios, one chained Stump without.
 - Tests: `pc_lora_names_test` (the kit bench: a chain of a Stump with a radio and one without, two Stumps on their own with radios, three radios on one simulated air; /names the same on all four, and after one restarts).
 - **A new Stump's form no longer sets up the Heltec in the middle** (kit finding 11): with a Heltec chosen, it says to set it up afterwards with "Set up a Heltec V3" (filled in from the Stump), instead of showing the Heltec's Wi-Fi and its button. In Settings, the button shows only once something the Heltec joins by has changed (beside the warning), and the end of a Save points to "Set up a Heltec V3". "Radio settings" says the Stump sets them on the Heltec (it said "the CAM", wrong on a WROVER).

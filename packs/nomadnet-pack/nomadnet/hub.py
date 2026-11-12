@@ -171,6 +171,14 @@ def _join(hs, room):
     if not nn._on("chat") or room not in nn._room_list() or not nn._may_read(hs.cid):
         hs.error(_t("no_room"), room)
         return
+    try:
+        import mods
+        no = mods.join_refusal(hs.cid, room)
+    except Exception:
+        no = None
+    if no:
+        hs.error(no, room)                       # banned or kicked (mods.py)
+        return
     if room not in hs.rooms and len(hs.rooms) >= MAX_ROOMS:
         hs.error(_t("hub_too_many"), room)
         return
@@ -255,6 +263,21 @@ def tick():
         if not hs.welcomed:
             if now - hs.seen > 60:
                 _drop(hs)
+            continue
+        try:
+            import mods
+            out = mods.total(hs.cid)
+        except Exception:
+            out = False
+        if out:
+            # Banned from the Stump's chat altogether (mods.py): nothing goes to them.
+            for room in list(hs.rooms):
+                m = rrc.since(room, hs.rooms[room])
+                if m:
+                    hs.rooms[room] = m[-1]["id"]
+            d = rrc.dms_since(hs.cid, hs.last_dm)
+            if d:
+                hs.last_dm = d[-1]["id"]
             continue
         if now - hs.seen > 30 and hs.rooms:
             rrc.touch_user(hs.cid, nick=hs.nick)       # still here: kept on the roster

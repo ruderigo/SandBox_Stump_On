@@ -77,6 +77,7 @@ TESTS = [
     ("heltec_connect", "assert", []),
     ("mem_low", "assert", []),
     ("simple_pack", "assert", SIMPLE),
+    ("mods_room", "assert", []),
 ]
 
 _NORM = [

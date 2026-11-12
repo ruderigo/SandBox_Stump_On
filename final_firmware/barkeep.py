@@ -2679,13 +2679,25 @@ async def _r_get_rrc_poll(reader, writer, method, path, headers, ip, identifier,
             "hello": "required",
             "topic": i18n.t("hello_required", i18n.get_lang(identifier))}), "application/json")
         return
+    import mods
+    no = mods.total_refusal(identifier, i18n.get_lang(identifier))
+    if no:
+        # Banned from the chat altogether (mods.py): nothing to read.
+        rrc._users.pop(identifier, None)
+        await _send(writer, "200 OK", json.dumps({
+            "room": rrc.DEFAULT_ROOM, "nick": "", "rooms": [], "messages": [], "dms": [],
+            "users": [], "stumps": [], "node": rrc.NODE, "registered": False, "renamed": {},
+            "banned": True, "topic": no}), "application/json")
+        return
     user = rrc.touch_user(identifier)
     # The server's idea of which room this client is in wins --
     # /join from another tab, or a room that has since vanished,
     # both need to be reflected back rather than silently
     # leaving the client polling a room it isn't in.
     actual = user["room"]
-    if not rrc.room_exists(actual) or not rrc.room_allows(identifier, actual):
+    import mods
+    if (not rrc.room_exists(actual) or not rrc.room_allows(identifier, actual)
+            or mods.join_refusal(identifier, actual)):         # banned or kicked: back to #main
         actual = rrc.DEFAULT_ROOM
         rrc.touch_user(identifier, room=actual)
     if actual != q_room:
