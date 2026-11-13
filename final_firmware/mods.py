@@ -382,20 +382,20 @@ def _stored(tok, table):
 
 
 def _target(tok, table, lang):
-    """(key, label, cid or None) or (None, error lines)."""
+    """(key, label, cid or None) or (None, error lines, None)."""
     cid, info = _resolve(tok)
     if cid is not None:
         return _key(cid), info, cid
     if info:
         return None, [i18n.t("mod_ambiguous", lang, who=tok,
-                             list=", ".join("%s (%s)" % (n, _short(_key(c))) for c, n in info))]
+                             list=", ".join("%s (%s)" % (n, _short(_key(c))) for c, n in info))], None
     ks = _stored(tok, table)
     if len(ks) == 1:
         k = ks[0]
         return k, _label_of(k) or tok, None
     if len(ks) > 1:
-        return None, [i18n.t("mod_ambiguous", lang, who=tok, list=", ".join(_short(k) for k in ks))]
-    return None, [rrc.no_such(tok)]
+        return None, [i18n.t("mod_ambiguous", lang, who=tok, list=", ".join(_short(k) for k in ks))], None
+    return None, [rrc.no_such(tok)], None
 
 
 def _label_of(key):
@@ -508,8 +508,11 @@ def command(client_id, room, text, lang):
         return label, None
     if cid is not None and cid == client_id and not admin:
         return [i18n.t("mod_not_self", lang)], None
-    # Not on someone of the same rank or above (the admin: anyone).
-    if not admin:
+    # Not on someone of the same rank or above (the admin: anyone) -- for
+    # what acts against them (kick, mute, ban). Naming a mod, or lifting a
+    # mute or a ban, harms no one: an op of every room may make a mod of
+    # someone who's op in one room (1.0.0-beta.69).
+    if not admin and cmd in ("kick", "mute", "ban"):
         theirs = _rank_key(key, scope)
         if scope == STUMP:
             # Every room: not on anyone who's op or mod in any of them.
