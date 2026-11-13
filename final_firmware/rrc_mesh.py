@@ -989,6 +989,7 @@ def _note_stump_beacon(router, app_data, packet):
                 except Exception:
                     pass
             rrc.mark_stump(h)
+            _lb_release(h)
         return True
     except Exception:
         return False
@@ -1336,6 +1337,7 @@ def on_message(router, message):
                 title = ""
             if title.startswith("#") or text0.startswith("[DM"):
                 rrc.mark_stump(dest_hash_hex)
+                _lb_release(dest_hash_hex)
                 peer["stump"] = True
                 # Of this chain, unless its beacon says otherwise: a LoRa
                 # Stump reached through this chain's Stump with a radio
@@ -1363,6 +1365,7 @@ def on_message(router, message):
             if (t in ("#" + rrc.MESH_ROOM, "#" + rrc.CHAIN_ROOM) or text0.startswith("[DM>")
                     or (t.startswith("#") and text0.startswith(("[ROOM", "[NAMES")))):
                 rrc.mark_stump(dest_hash_hex)
+                _lb_release(dest_hash_hex)
                 try:
                     import chain
                     chain.stump_heard()      # and introduce this one back
@@ -2404,6 +2407,39 @@ def _lb_send(item):
     Packet(_lb["out"], data, attached_interface=iface, create_receipt=False).send()
 
 
+# Broadcasts from a Stump not known as one yet (its beacon not heard):
+# LXMF hex -> [(when, data)], a few each, for LB_HOLD_S.
+_lb_held = {}
+LB_HOLD_S = 120
+LB_HOLD_EACH = 4
+LB_HOLD_FROM = 8
+
+
+def _lb_hold(h, data):
+    now = time.time()
+    for k in [k for k, v in _lb_held.items() if now - v[-1][0] > LB_HOLD_S]:
+        del _lb_held[k]
+    q = _lb_held.get(h)
+    if q is None:
+        if len(_lb_held) >= LB_HOLD_FROM:
+            _lb_held.pop(min(_lb_held, key=lambda k: _lb_held[k][-1][0]))
+        q = _lb_held[h] = []
+    q.append((now, bytes(data)))
+    del q[:-LB_HOLD_EACH]
+
+
+def _lb_release(h):
+    """Stump h's beacon is in: its broadcasts kept meanwhile, taken now
+    (checked as any: its signature, played once)."""
+    q = _lb_held.pop(h, None)
+    if not q:
+        return
+    now = time.time()
+    for t, data in q:
+        if now - t <= LB_HOLD_S:
+            _lb_in(data, None)
+
+
 def _lb_in(data, packet):
     """A Stump's #lora-mesh broadcast, heard on the radio."""
     try:
@@ -2418,7 +2454,13 @@ def _lb_in(data, packet):
             return
         h = src.hex()
         if not rrc.is_stump(h):
-            return                    # only a Stump's (by its beacon)
+            # Only a Stump's (by its beacon). One that just started sends
+            # its first lines before its beacon reaches this Stump: kept a
+            # while, and taken once the beacon says it's a Stump (they were
+            # dropped: its first line after a start never showed on the
+            # other radio Stumps; kit finding 19, 1.0.0-beta.72).
+            _lb_hold(h, data)
+            return
         ident = Identity.recall(src)
         if ident is None or not ident.validate(sig, _lb_signed(src, boot, seq, text)):
             return

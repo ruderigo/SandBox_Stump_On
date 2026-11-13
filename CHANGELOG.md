@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.0-beta.72
+- **A LoRa Stump's first line after it starts was lost on the other radio Stumps** (kit finding 19). Its #lora-mesh broadcast reaches them before its beacon does, and they dropped it ("not a Stump yet"); it was never sent again. The Stumps without a radio got it (a message of its own). Now a broadcast from a Stump not known yet is kept a while (2 minutes, a few per Stump, from a few Stumps) and taken once its beacon is in, checked as any (its signature, played once). The kit bench on a PC failed on this every run (CI too: #88 timed out on it).
+- Tests: `lb_hold` (kept, then shown in order once the beacon is in; a forged one never; played again later shown once; bounded).
+
 ## 1.0.0-beta.71
 - **A message over LoRa the Stump can't check no longer carries its sender's rights.** An open Stump takes a message it can't check yet (no announce heard from that address, so no key), as LXMF clients do. It was treated as that address in every way: anyone could send as an op's address to a Stump that hadn't heard the op's announce, and kick, mute, ban. Now such a message is chat only: no role (op, mod), not verified for a room's tier, `/invite`, or the access modes; and the Stump asks for the sender's announce (a path request, once a minute at most), so their next message checks out. The admin's password still works (the password is the proof). Hybrid and mandatory Stumps drop these messages, as before.
 - **No /auth needed over LoRa** (FireFly's request): a LoRa sender whose messages check out is verified as its identity for a room's tier (minted-only, invite-only), `/invite` and `/whoami`, as /auth made it. `/auth` over LoRa still works (typed by hand; older Stumps).
