@@ -183,7 +183,7 @@ check("not identified: refused", anon.out and anon.out[0][1] == 40, anon.out)
 # it; a total ban (#main or -stump) and the hub sends nothing at all.
 import mods
 mods.reset("nn_mods.json")
-zcid = [h.cid for h in hub._sessions.values() if getattr(h, "nick", "") == "Zoe"] or [h.cid for h in hub._sessions.values()]
+zcid = [h.cid for h in hub._sessions if getattr(h, "nick", "") == "Zoe" and h.cid]
 zcid = zcid[0]
 rrc.create_room("bavard")
 mods._load()["bans"]["bavard"] = {mods._key(zcid): {"label": "Zoe", "by": "test", "at": 0}}
