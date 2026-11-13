@@ -192,6 +192,22 @@ if all(up(x) for x in ALL):
         check("/names in #lora-mesh on %s: the people on %s too" % (who[2], ", ".join(others)), ok, names(who))
     for who in ALL:
         everyone(who, 180)
+
+    # The chain's members (the no-radio one is a computer here: the macOS
+    # Stump on Bob's Glitch): the LoRa Stumps' people in #lora-mesh, never in
+    # #wifi-mesh -- the one without a radio reaches them only through the
+    # first, over the chain link (1.0.0-beta.68).
+    def names_in(who, room):
+        get(who, "/rrc/send", ("/join " + room).encode())
+        out = names(who)
+        get(who, "/rrc/send", b"/join lora-mesh")
+        return out
+    def right_rooms(when):
+        for who in (A, B):
+            w = names_in(who, "wifi-mesh")
+            check("#wifi-mesh on %s (%s): only the chain's, not the LoRa Stumps' people" % (who[2], when),
+                  "@" + K[2] not in w and "@" + G[2] not in w, w)
+    right_rooms("before a restart")
     # One of them restarts (an update, a power cut): listed again everywhere, and lists everyone, soon.
     nodes[K[2]].terminate()
     logs[K[2]] = nodes[K[2]].communicate(timeout=20)[0]
@@ -202,6 +218,7 @@ if all(up(x) for x in ALL):
     print("(after the restart: within 150 s, not the next names list 10 minutes later)")
     for who in ALL:
         everyone(who, 150)
+    right_rooms("after the restart")
 for name, proc in nodes.items():
     proc.terminate()
     try:

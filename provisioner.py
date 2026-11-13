@@ -389,7 +389,7 @@ EXPECTED_FILE_HASHES = {
     "librarian.py": "1d92d849fe11b612",
     "lora_boards.py": "d60ef896cd1a0ff9",
     "main.py": "1aa56ed560be50d7",
-    "mods.py": "5a66c6cf5e5c2254",
+    "mods.py": "faec751da8673d95",
     "node_common.py": "e1e748a3283da2f4",
     "peripherals/__init__.py": "d2bdac4de6de79de",
     "peripherals/adc_reader.py": "50a393bfa61641d4",

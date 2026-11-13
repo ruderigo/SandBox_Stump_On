@@ -179,6 +179,31 @@ anon = FakeSession(None)
 hub.on_link(anon)
 anon.cb(env(1, body={}))
 check("not identified: refused", anon.out and anon.out[0][1] == 40, anon.out)
+# Banned on the Stump (mods.py, 1.0.0-beta.64): a room ban refuses joining
+# it; a total ban (#main or -stump) and the hub sends nothing at all.
+import mods
+mods.reset("nn_mods.json")
+zcid = [h.cid for h in hub._sessions.values() if getattr(h, "nick", "") == "Zoe"] or [h.cid for h in hub._sessions.values()]
+zcid = zcid[0]
+rrc.create_room("bavard")
+mods._load()["bans"]["bavard"] = {mods._key(zcid): {"label": "Zoe", "by": "test", "at": 0}}
+fs.out.clear()
+fs.cb(env(10, room="bavard"))
+check("NomadNet, banned from a room: JOIN refused (ERROR)", fs.out and fs.out[0][1] == 40, fs.out)
+mods._load()["bans"]["*"] = {mods._key(zcid): {"label": "Zoe", "by": "test", "at": 0}}
+fs.out.clear()
+rrc.post('main', 'rod', 'Zoe must not get this')
+rrc.send_dm('rod', 'Zoe', 'nor this')
+hub.tick()
+check("NomadNet, a total ban: the hub sends nothing (no room line, no DM)",
+      not any('must not' in str(e.get(6)) or 'nor this' in str(e.get(6)) for e in fs.out), fs.out)
+fs.cb(env(20, room="main", body="let me in"))
+check("... and what they send isn't posted", not any(m.get('body') == 'let me in' for m in rrc.since('main', 0)))
+mods._load()["bans"].clear()
+rrc.post('main', 'rod', 'back for Zoe')
+hub.tick()
+check("... unbanned: lines again from then on (not what was missed)", any(e.get(6) == 'back for Zoe' for e in fs.out)
+      and not any('must not' in str(e.get(6)) for e in fs.out), fs.out)
 fs.out.clear()
 fs.cb(env(12, room="main"))
 check("PART -> PARTED, the room told", fs.out and fs.out[0][1] == 13 and any(m.get('body') == '✗ ~Zoe' for m in rrc.since('main', 0)), fs.out)

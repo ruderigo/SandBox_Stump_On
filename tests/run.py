@@ -79,6 +79,8 @@ TESTS = [
     ("simple_pack", "assert", SIMPLE),
     ("mods_room", "assert", []),
     ("default_lang", "assert", []),
+    ("mods_more", "assert", []),
+    ("mods_paths", "assert", []),
 ]
 
 _NORM = [
