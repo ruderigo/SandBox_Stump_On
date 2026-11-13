@@ -108,8 +108,11 @@ def _on_chain(dest_hash_hex, message=None):
 
 
 def _chain_stump(dest_hash_hex):
-    """A Stump (heard by its beacon) on this Stump's chain."""
-    return rrc.is_stump(dest_hash_hex) and _on_chain(dest_hash_hex)
+    """A Stump (heard by its beacon) on this Stump's chain: reached over
+    the chain, and not one whose beacon says it's in no chain or another
+    (a LoRa Stump reached through this chain's Stump with a radio: its
+    path and its messages come over the chain link too; 1.0.0-beta.68)."""
+    return rrc.is_stump(dest_hash_hex) and _on_chain(dest_hash_hex) and not _other_chain(dest_hash_hex)
 
 
 # People on the other Stumps of the chain, as DM contacts "rod@LaBuche":
@@ -329,8 +332,19 @@ def _take_in_chain_stumps(router):
                 rrc.drop_reachable(h)
             continue
         if not _chain_stump(h):
+            p = _peers.get(h)
+            if p is not None and p["room"] == rrc.CHAIN_ROOM and _other_chain(h):
+                # Placed in #wifi-mesh before its beacon said it's not of this
+                # chain (its first message came through this chain's Stump
+                # with a radio): to #lora-mesh (1.0.0-beta.68).
+                rrc.system(rrc.CHAIN_ROOM, rrc.ev_leave("~" + p["nick"]))
+                p["room"] = p["home_room"] = rrc.MESH_ROOM
+                p["last_sent_id"] = rrc.since(rrc.MESH_ROOM, 0)[-1]["id"] if rrc.since(rrc.MESH_ROOM, 0) else 0
+                rrc.system(rrc.MESH_ROOM, rrc.ev_join("~" + p["nick"]))
+                rrc.touch_user(h, nick=p["nick"], room=rrc.MESH_ROOM)
+                rrc._remote_names.pop(h, None)     # its lists come again, for #lora-mesh
+                _names_soon(h)
             if _has_path(h) or _radio_reachable(h):
-                p = _peers.get(h)
                 if p is None:
                     _get_peer(h, _known_name(router, h))
                 else:
@@ -626,8 +640,10 @@ def _get_peer(dest_hash_hex, display_name, message=None):
         redirect_reason = None
         ident = plugins.service_lookup("identity")
         stump = _chain_stump(dest_hash_hex)
-        if not stump and rrc.is_stump(dest_hash_hex) and not _on_chain(dest_hash_hex, message):
-            # Another Stump, over LoRa: shares #lora-mesh with this one.
+        if not stump and rrc.is_stump(dest_hash_hex) and (not _on_chain(dest_hash_hex, message) or _other_chain(dest_hash_hex)):
+            # Another Stump, over LoRa (or reached through this chain's
+            # Stump with a radio, its beacon saying it's not of this
+            # chain): shares #lora-mesh with this one.
             room, stump = rrc.MESH_ROOM, True
         elif stump or _on_chain(dest_hash_hex, message):
             # Over the chain: #wifi-mesh, not #lora-mesh (which is for LoRa).
@@ -1232,10 +1248,16 @@ def on_message(router, message):
             if title.startswith("#") or text0.startswith("[DM"):
                 rrc.mark_stump(dest_hash_hex)
                 peer["stump"] = True
-                if peer["room"] != rrc.CHAIN_ROOM:
+                # Of this chain, unless its beacon says otherwise: a LoRa
+                # Stump reached through this chain's Stump with a radio
+                # (1.0.0-beta.68). No beacon yet: of the chain, as before
+                # (a chain's Stump sends #lora-mesh too), moved once its
+                # beacon -- an announce, it comes through the chain -- says.
+                want = rrc.MESH_ROOM if _other_chain(dest_hash_hex) else rrc.CHAIN_ROOM
+                if peer["room"] != want:
                     rrc.system(peer["room"], rrc.ev_leave("~" + peer["nick"]))
-                    peer["room"] = peer["home_room"] = rrc.CHAIN_ROOM
-                    rrc.system(rrc.CHAIN_ROOM, rrc.ev_join("~" + peer["nick"]))
+                    peer["room"] = peer["home_room"] = want
+                    rrc.system(want, rrc.ev_join("~" + peer["nick"]))
                 rrc.touch_user(dest_hash_hex, nick=peer["nick"], room=peer["room"])
         if not peer.get("stump") and not rrc.is_stump(dest_hash_hex):
             # Over the radio too, another Stump shows by what it sends, before
@@ -1887,8 +1909,7 @@ CATCH_UP = 5                  # lines a Stump newly sharing a room gets from bef
 _my_chain = [None, -999]      # this Stump's chain id, and when it was read
 
 
-def _same_chain_id(h):
-    """Stump h's beacon names this Stump's chain ("ch": its chain id)."""
+def _my_chain_id():
     now = time.time()
     if now - _my_chain[1] > 60:
         try:
@@ -1897,15 +1918,52 @@ def _same_chain_id(h):
         except Exception:
             _my_chain[0] = None
         _my_chain[1] = now
-    if not _my_chain[0]:
+    return _my_chain[0]
+
+
+def _same_chain_id(h):
+    """Stump h's beacon names this Stump's chain ("ch": its chain id)."""
+    mine = _my_chain_id()
+    if not mine:
         return False
+    return _chain_says(h) == mine
+
+
+def _says_chain(release):
+    """A beacon from this release says its chain whenever it's in one
+    ("ch", 1.0.0-beta.63): without it, it's in none."""
+    r = str(release or "")
+    if "-beta." in r:
+        try:
+            return int(r.split("-beta.", 1)[1].split("-")[0].split()[0]) >= 63
+        except (ValueError, IndexError):
+            return False
+    return bool(r) and r[0].isdigit() and not r.startswith("0.")     # 1.0.0 and on
+
+
+def _chain_says(h):
+    """What Stump h's beacon says of its chain: its id, "" (in none), or
+    None (no beacon heard, or one too old to say)."""
     try:
         import discovery
         v = discovery._known.get(h)
         c = v.get("caps") if v else None
-        return isinstance(c, dict) and c.get("ch") == _my_chain[0]
     except Exception:
-        return False
+        return None
+    if not isinstance(c, dict):
+        return None
+    if c.get("ch"):
+        return str(c["ch"])
+    return "" if _says_chain(c.get("r")) else None
+
+
+def _other_chain(h):
+    """Stump h's beacon says it's in no chain, or in another: a LoRa Stump,
+    however its messages reach this one (1.0.0-beta.68). False when this
+    Stump isn't in a chain, or h's beacon can't say."""
+    mine = _my_chain_id()
+    said = _chain_says(h)
+    return bool(mine) and said is not None and said != mine
 
 
 def _room_chain(h, peer=None):
@@ -1917,6 +1975,8 @@ def _room_chain(h, peer=None):
     radio is on the chain at once (1.0.0-beta.63)."""
     if not rrc.room_exists(rrc.CHAIN_ROOM):
         return False
+    if _other_chain(h):
+        return False              # its beacon: no chain, or another (1.0.0-beta.68)
     if _on_chain(h) or _same_chain_id(h):
         return True
     p = peer if peer is not None else _peers.get(h)

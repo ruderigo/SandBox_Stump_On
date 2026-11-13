@@ -266,5 +266,62 @@ m.source_hash = bytes.fromhex(LORA)
 m.receiving_interface = LoRaInterface()
 rrc_mesh.on_message(R, m)
 check("... and one that came over LoRa in #lora-mesh", rrc_mesh._peers[LORA]["room"] == "lora-mesh")
+# The kit bench (1.0.0-beta.68): this Stump is the chain's member with no
+# radio; eKoms' Stump is in no chain, on LoRa, and reaches this one only
+# through the chain's first Stump (its path, its messages: over the chain
+# link). Its beacon (beta.63 on: "ch" only when in a chain) says it's in
+# none: a LoRa Stump -- #lora-mesh, not #wifi-mesh.
+import discovery, time
+rrc_mesh._my_chain[0], rrc_mesh._my_chain[1] = "mychain00001", time.time()
+EK = '5a' * 16
+path(EK, ChainHubInterface())
+discovery.heard(EK, "LaBuche-eK0ms", [], {"p": 2, "r": "1.0.0-beta.67", "rad": True, "rs": 1, "lb": 1})
+rrc.mark_stump(EK)
+m = Msg("<ekuser> hello from eKoms\n[NAMES] ekuser~a1b2c3d4")
+m.source_hash = bytes.fromhex(EK)
+m.receiving_interface = ChainHubInterface()
+m.title_as_string = lambda: "#lora-mesh"
+rrc_mesh.on_message(R, m)
+pe = rrc_mesh._peers.get(EK) or {}
+check("a Stump in no chain, reached through the chain's first Stump: in #lora-mesh, not #wifi-mesh",
+      pe.get("room") == "lora-mesh", pe.get("room"))
+check("... its line in #lora-mesh", any(x["body"] == "hello from eKoms" for x in rrc.since("lora-mesh", 0))
+      and not any(x["body"] == "hello from eKoms" for x in rrc.since("wifi-mesh", 0)))
+check("... its people in #lora-mesh's /names, not #wifi-mesh's", any(n.startswith("ekuser@") for n in rrc.remote_names("lora-mesh"))
+      and not any(n.startswith("ekuser@") for n in rrc.remote_names("wifi-mesh")), (rrc.remote_names("lora-mesh"), rrc.remote_names("wifi-mesh")))
+check("... not a chain Stump", not rrc_mesh._chain_stump(EK) and not rrc_mesh._room_chain(EK))
+# A Stump of this chain (its beacon names it) over the same link: still #wifi-mesh.
+MATE = '6b' * 16
+path(MATE, ChainHubInterface())
+discovery.heard(MATE, "LaBuche", [], {"p": 2, "r": "1.0.0-beta.67", "ch": "mychain00001", "rs": 1, "lb": 1})
+rrc.mark_stump(MATE)
+m = Msg("<mate> hi chain")
+m.source_hash = bytes.fromhex(MATE)
+m.receiving_interface = ChainHubInterface()
+m.title_as_string = lambda: "#wifi-mesh"
+rrc_mesh.on_message(R, m)
+check("a Stump of this chain over the same link: #wifi-mesh", (rrc_mesh._peers.get(MATE) or {}).get("room") == "wifi-mesh")
+# An older Stump (before beta.63: its beacon can't say): the link decides, as before.
+OLD = '7c' * 16
+path(OLD, ChainHubInterface())
+discovery.heard(OLD, "Oldie2", [], {"p": 2, "r": "1.0.0-beta.60"})
+rrc.mark_stump(OLD)
+check("a Stump too old to say its chain, over the chain link: a chain Stump, as before", rrc_mesh._chain_stump(OLD))
+# Placed in #wifi-mesh before its beacon came (its first message came over
+# the chain link): moved to #lora-mesh once the beacon says it's in no chain.
+LATE2 = '8d' * 16
+path(LATE2, ChainHubInterface())
+m = Msg("anyone?")
+m.source_hash = bytes.fromhex(LATE2)
+m.receiving_interface = ChainHubInterface()
+rrc_mesh.on_message(R, m)
+before = (rrc_mesh._peers.get(LATE2) or {}).get("room")
+discovery.heard(LATE2, "LaBuche-BGARE", [], {"p": 2, "r": "1.0.0-beta.67", "rad": True, "rs": 1})
+rrc.mark_stump(LATE2)
+rrc_mesh._take_in_chain_stumps(R)
+after = (rrc_mesh._peers.get(LATE2) or {}).get("room")
+check("first heard over the chain link before its beacon, then the beacon says no chain: moved to #lora-mesh",
+      after == "lora-mesh", (before, after))
+rrc_mesh._my_chain[0], rrc_mesh._my_chain[1] = None, -999
 del rrc_mesh._send_queue[:]
 print('FAILURES:', FAIL)
