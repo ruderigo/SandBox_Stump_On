@@ -6,7 +6,8 @@
 # radios on one air). Each has someone in #lora-mesh; /names on each lists
 # everyone, wherever they are. Then one restarts: within a couple of
 # minutes it lists everyone again, and everyone lists it (it waited up to
-# 10 minutes for the next names list before).
+# 10 minutes for the next names list before). Then a crowd on one: its
+# names list too long for one radio piece still reaches everyone whole.
 # Linux only. Run: python3 tests/pc/pc_lora_names_test.py
 import json, os, pty, subprocess, sys, tempfile, threading, time, tty, urllib.request
 
@@ -155,6 +156,15 @@ def get(who, path, data=None):
         return r.read().decode("utf-8", "replace")
 
 
+def get_as(who, cookie, path, data=None):
+    """A request from another browser on that Stump (its own cookie: another person)."""
+    ip, port, _ = who
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    req = urllib.request.Request("http://%s:%d%s" % (ip, port, path), data=data, headers={"Cookie": "stump_v=" + cookie})
+    with opener.open(req, timeout=10) as r:
+        return r.read().decode("utf-8", "replace")
+
+
 def lora(who):
     return json.loads(get(who, "/rrc/poll?room=lora-mesh&since=0"))["messages"]
 
@@ -234,6 +244,26 @@ if all(up(x) for x in ALL):
     for who in ALL:
         everyone(who, 150)
     right_rooms("after the restart")
+
+    # A crowd on one LoRa Stump: its names list past both radio limits
+    # (the broadcast's 170 bytes, a single send's 200) -- in parts, whole
+    # names, everyone listed on every Stump; no piece of it as a line in
+    # #lora-mesh (1.0.0-beta.70: the S3's /names on the kit lost people).
+    CROWD = ["Visiteur-soir-%02d" % i for i in range(1, 21)]
+    for i, nick in enumerate(CROWD):
+        c = "v%020d" % (i + 1)
+        get_as(G, c, "/rrc/poll?room=main&since=0")
+        get_as(G, c, "/rrc/send", ("/nick " + nick).encode())
+        get_as(G, c, "/rrc/send", b"/join lora-mesh")
+    get(G, "/rrc/send", b"/join lora-mesh")
+    here = names(G)
+    check("(the crowd on %s, in its #lora-mesh)" % G[2], all(n in here for n in CROWD), here)
+    for who in (A, B, K):
+        ok = wait(lambda: all(n + "@" + G[2] in names(who) for n in CROWD), 120)
+        missing = [n for n in CROWD if n + "@" + G[2] not in names(who)]
+        check("/names in #lora-mesh on %s: all %d of the crowd on %s" % (who[2], len(CROWD), G[2]), ok, missing)
+        junk = [m["nick"] + ": " + m["body"] for m in lora(who) if m["nick"] != "*" and ("Visiteur" in m["body"] or "~" in m["body"])]
+        check("... and no piece of its list as a line in #lora-mesh on %s" % who[2], not junk, junk)
 for name, proc in nodes.items():
     proc.terminate()
     try:

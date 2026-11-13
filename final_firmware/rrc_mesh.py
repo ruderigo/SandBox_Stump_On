@@ -480,14 +480,39 @@ def _from_stump(dest_hash_hex, peer, text, router=None, title=""):
             continue
         if room is None and not line.startswith("[DM"):
             continue
-        if line.startswith("[NAMES]"):
+        if line.startswith("[NAMES"):
             # Who's in that room on that Stump (for /names here); each one
-            # a DM contact as nick@thatstump.
+            # a DM contact as nick@thatstump. A long list comes in parts,
+            # "[NAMES 1/3] ..." (1.0.0-beta.70): shown as they come, and
+            # whoever isn't listed dropped only once the last part is in.
+            # Anything else "[NAMES..." is never shown as a line.
+            end = line.find("]")
+            tag = line[1:end] if end > 0 else ""
+            part = total = 1
+            if tag != "NAMES":
+                try:
+                    part, total = [int(x) for x in tag[6:].split("/")]
+                except Exception:
+                    continue
+                if not tag.startswith("NAMES ") or not 1 <= part <= total <= 99:
+                    continue
             entries = []
-            for n in line[7:].split():
+            for n in line[end + 1:].split():
                 nick, _, ident = n.partition("~")
                 if nick and nick != "-" and "@" not in nick:
                     entries.append((nick, ident[:8] if all(c in "0123456789abcdef" for c in ident) and ident else None))
+            pk = dest_hash_hex + " " + room
+            if part > 1:
+                got = _names_parts_in.get(pk)
+                if got is None or got[0] != part or got[1] != total:
+                    continue           # a part missed: the next list (10 min) is whole
+                entries = got[2] + entries
+            if part < total:
+                _names_parts_in[pk] = (part + 1, total, entries)
+                if len(_names_parts_in) > 32:
+                    _names_parts_in.pop(next(iter(_names_parts_in)))
+            else:
+                _names_parts_in.pop(pk, None)
             rrc.set_remote_names(dest_hash_hex, who, room, entries)
             listed = set()
             for nick, ident in entries[:20]:
@@ -495,6 +520,8 @@ def _from_stump(dest_hash_hex, peer, text, router=None, title=""):
                 if cid:
                     listed.add(cid)
                     _remote[cid].setdefault("rooms", set()).add(room)
+            if part < total:
+                continue
             # Gone from that Stump's list for this room: gone as a contact
             # here too (not an hour later) -- unless that Stump still lists
             # them in its other room (a Stump sends one list per room).
@@ -551,6 +578,9 @@ def _from_stump(dest_hash_hex, peer, text, router=None, title=""):
         if line[:1] in ("✓", "✗", "✎", "→", "⊖", "⊘", "⧗"):
             continue           # an older Stump's room notices: not chat
         rrc.post(room, who, line, via=dest_hash_hex)
+
+
+_names_parts_in = {}       # "stump room" -> (next part, of, entries so far): a list coming in parts
 
 
 # A DM to this Stump itself: BarKeep's answer to a trigger (!help, !list,
@@ -1268,7 +1298,11 @@ def on_message(router, message):
                 t = message.title_as_string() or ""
             except Exception:
                 t = ""
-            if t in ("#" + rrc.MESH_ROOM, "#" + rrc.CHAIN_ROOM) or text0.startswith("[DM>"):
+            # Also a room's scope ("[ROOM] #bavard wifi 1", titled "#bavard";
+            # it showed in #lora-mesh as said by "mesh-fd92"), and a names
+            # list (1.0.0-beta.70).
+            if (t in ("#" + rrc.MESH_ROOM, "#" + rrc.CHAIN_ROOM) or text0.startswith("[DM>")
+                    or (t.startswith("#") and text0.startswith(("[ROOM", "[NAMES")))):
                 rrc.mark_stump(dest_hash_hex)
                 try:
                     import chain
@@ -1773,13 +1807,21 @@ def _chain_iface(dest_hash_bytes):
     return None
 
 
-def _radio_pieces(lines, limit=RADIO_CHUNK):
+def _radio_pieces(lines, limit=RADIO_CHUNK, parts=False):
     """Lines grouped into texts of at most `limit` bytes; a longer line is
-    cut, each piece keeping its "<nick> " so the other side files it."""
+    cut, each piece keeping its "<nick> " so the other side files it. A
+    long names list is split between whole names: "[NAMES 1/2] ...",
+    "[NAMES 2/2] ..." to a Stump that takes parts (`parts`), else as many
+    whole names as one "[NAMES] ..." holds. (It was cut like any line,
+    mid-name, the rest without its "[NAMES]": the other Stump kept the
+    first piece, and showed the rest as a line in #lora-mesh -- the S3's
+    /names on the kit, once a LoRa Stump had about 10 people.)"""
     out, cur = [], ""
     for line in lines:
         pieces = [line]
-        if len(line.encode()) > limit:
+        if line.startswith("[NAMES] ") and len(line.encode()) > limit:
+            pieces = _names_parts(line[8:].split(), limit, parts)
+        elif len(line.encode()) > limit:
             head = line[:line.index("> ") + 2] if line.startswith("<") and "> " in line else ""
             body, pieces = line[len(head):], []
             step = max(20, (limit - len(head.encode())) // 2)    # utf-8: up to 2+ bytes a char
@@ -1795,6 +1837,37 @@ def _radio_pieces(lines, limit=RADIO_CHUNK):
     if cur:
         out.append(cur)
     return out
+
+
+def _names_parts(entries, limit, parts):
+    """A names list's entries in lines of at most `limit` bytes, whole
+    names only (1.0.0-beta.70)."""
+    room = limit - len("[NAMES 99/99] ")
+    groups, cur = [], []
+    for e in entries:
+        if len(e.encode()) > room:
+            continue
+        if cur and len(" ".join(cur + [e]).encode()) > room:
+            groups.append(cur)
+            cur = []
+        cur.append(e)
+    if cur or not groups:
+        groups.append(cur or ["-"])
+    if not parts or len(groups) == 1:
+        return ["[NAMES] " + " ".join(groups[0])]
+    n = len(groups)
+    return ["[NAMES %d/%d] %s" % (i + 1, n, " ".join(g)) for i, g in enumerate(groups)]
+
+
+def _parts_capable(h):
+    """Stump h takes a long names list in parts (its beacon's "np")."""
+    try:
+        import discovery
+        v = discovery._known.get(h)
+        c = v.get("caps") if v else None
+        return isinstance(c, dict) and bool(c.get("np"))
+    except Exception:
+        return False
 
 
 def _no_radio(h):
@@ -1832,7 +1905,7 @@ def _queue_lora(router, dest_hash_hex, lines, title=None):
         else:
             _send_queue.append((router, dest, text, title))
         return
-    for text in _radio_pieces(lines):
+    for text in _radio_pieces(lines, parts=_parts_capable(dest_hash_hex)):
         _send_queue.append((router, dest, text, title, None, r))
 
 
@@ -2253,7 +2326,7 @@ def _flush_lora_broadcast(router):
     if not lines:
         return
     r = _radio()
-    for text in _radio_pieces(lines, RADIO_CHUNK - 30):
+    for text in _radio_pieces(lines, RADIO_CHUNK - 30, all(_parts_capable(h) for h in hs)):
         _send_queue.append(("lb", text, r))
 
 
