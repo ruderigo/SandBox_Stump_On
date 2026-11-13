@@ -1248,13 +1248,12 @@ def on_message(router, message):
             if title.startswith("#") or text0.startswith("[DM"):
                 rrc.mark_stump(dest_hash_hex)
                 peer["stump"] = True
-                # Of this chain, unless its beacon says otherwise -- or, no
-                # beacon yet, it only sends #lora-mesh (a chain's Stump sends
-                # #wifi-mesh too): a LoRa Stump reached through this chain's
-                # Stump with a radio (1.0.0-beta.68).
-                lora_stump = _other_chain(dest_hash_hex) or (
-                    title == "#" + rrc.MESH_ROOM and not _same_chain_id(dest_hash_hex) and _chain_says(dest_hash_hex) is None)
-                want = rrc.MESH_ROOM if lora_stump else rrc.CHAIN_ROOM
+                # Of this chain, unless its beacon says otherwise: a LoRa
+                # Stump reached through this chain's Stump with a radio
+                # (1.0.0-beta.68). No beacon yet: of the chain, as before
+                # (a chain's Stump sends #lora-mesh too), moved once its
+                # beacon -- an announce, it comes through the chain -- says.
+                want = rrc.MESH_ROOM if _other_chain(dest_hash_hex) else rrc.CHAIN_ROOM
                 if peer["room"] != want:
                     rrc.system(peer["room"], rrc.ev_leave("~" + peer["nick"]))
                     peer["room"] = peer["home_room"] = want

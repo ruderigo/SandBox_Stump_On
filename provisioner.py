@@ -400,7 +400,7 @@ EXPECTED_FILE_HASHES = {
     "radio.py": "56e01b273ceaab68",
     "rooms.py": "7b0188b528a9084d",
     "rrc.py": "e648200706723e00",
-    "rrc_mesh.py": "3f6b6ae0fcc296ab",
+    "rrc_mesh.py": "e69c87bb46d0be08",
     "rrc_ui.py": "bac6f49ea930a979",
     "settings.py": "2fdadde51ffeae0c",
     "store.py": "625ba090410222cf",
