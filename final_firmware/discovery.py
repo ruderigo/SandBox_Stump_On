@@ -265,6 +265,7 @@ def caps():
         out["rad"] = False
     out["lb"] = 1                         # takes #lora-mesh broadcasts (rrc_mesh, 1.0.0-beta.58)
     out["rs"] = 1                         # rooms with a scope (rooms.py, 1.0.0-beta.62)
+    out["np"] = 1                         # takes a long names list in parts, "[NAMES 1/2] ..." (rrc_mesh, 1.0.0-beta.70)
     try:
         import chain
         cid = chain.chain_id() if chain.settings() else None

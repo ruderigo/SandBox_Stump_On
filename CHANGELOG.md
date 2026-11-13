@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.0-beta.70
+- **/names on a Stump that hears the others over its radio lost people** (the S3 on the kit, once eKoms or BGARE had about 10 people in #lora-mesh). A Stump's names list goes as one line, `[NAMES] ...`; over the radio it was cut into 170-byte pieces (200 for a send to one Stump) like any long line: mid-name, and every piece after the first without its `[NAMES]`. The other Stump kept the first piece and showed the rest in #lora-mesh as a line from that Stump. The Stumps without a radio got the list in one message, whole. Now a long list goes in parts between whole names, `[NAMES 1/3] ...`, read back whole: shown as the parts come, and whoever isn't listed dropped only once the last part is in (a part lost: the next list is whole). To a Stump too old to read parts (its beacon has no `np`), as many whole names as one line holds. A line beginning `[NAMES` is never shown as chat.
+- A Stump not known yet sending a room's scope over the radio (`[ROOM] #bavard wifi 1`, titled `#bavard`) is taken as a Stump, not shown in #lora-mesh as a line from "mesh-…".
+- Tests: `names_parts` (the split, the reading back, a part lost, someone leaving, older Stumps, the radio broadcast, a Stump not known yet); `pc_lora_names` (the kit bench) with a crowd of 20 on one LoRa Stump: listed on every Stump, no piece as a line -- it fails on beta.69 on the Stump with the radio, as on the kit.
+
 ## 1.0.0-beta.69
 - **Two moderation fixes**, found by the new tests:
   - `/deop`, `/demod`, `/unban`, `/unmute` (and the others) naming someone who can't be found, or a name two people share, crashed the command instead of saying so. Now: "no such person", or the list of who matches (with their short hash, to pick one).
