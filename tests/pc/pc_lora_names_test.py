@@ -112,8 +112,7 @@ def start(who, heltec, parent=None, chain=True):
     ip, port, name = who
     folder = os.path.join(work, name)
     if os.path.isdir(folder):                    # a restart: the same Stump, same identity
-        nodes[name] = subprocess.Popen([sys.executable, "-u", "stump_pc.py"], cwd=folder,
-                                       stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        nodes[name] = run(folder)
         return
     os.makedirs(folder)
     P._pc_copy_firmware(P.STUMP_APP_DIR, folder)
@@ -130,8 +129,23 @@ def start(who, heltec, parent=None, chain=True):
     else:
         cfg += "CHAIN_ENABLED = False\n"
     open(os.path.join(folder, "config.py"), "w", encoding="utf-8").write(cfg)
-    nodes[name] = subprocess.Popen([sys.executable, "-u", "stump_pc.py"], cwd=folder,
-                                   stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    nodes[name] = run(folder)
+
+
+def run(folder):
+    """A Stump's output to a file, not a pipe: a pipe nobody reads until
+    the end fills (64 KB) and the Stump stops, stuck writing its log -- a
+    long run's chain Stump froze that way, and looked like a bug."""
+    out = open(os.path.join(folder, "out.log"), "a", encoding="utf-8")
+    return subprocess.Popen([sys.executable, "-u", "stump_pc.py"], cwd=folder,
+                            stdout=out, stderr=subprocess.STDOUT, text=True)
+
+
+def log_of(name):
+    try:
+        return open(os.path.join(work, name, "out.log"), encoding="utf-8", errors="replace").read()
+    except OSError:
+        return ""
 
 
 def get(who, path, data=None):
@@ -174,7 +188,6 @@ check("a Stump on its own starts, its radio online", wait(lambda: up(K) and radi
 start(G, air[2], chain=False)
 check("another Stump on its own starts, its radio online", wait(lambda: up(G) and radio_on(G), 60))
 ALL = (A, B, K, G)
-logs = {}
 if all(up(x) for x in ALL):
     names = lambda who: " ".join(json.loads(get(who, "/rrc/send", b"/names"))["replies"])
     for who in ALL:
@@ -205,12 +218,14 @@ if all(up(x) for x in ALL):
     def right_rooms(when):
         for who in (A, B):
             w = names_in(who, "wifi-mesh")
-            check("#wifi-mesh on %s (%s): only the chain's, not the LoRa Stumps' people" % (who[2], when),
-                  "@" + K[2] not in w and "@" + G[2] not in w, w)
+            listed = [n.strip().lstrip("@%+~") for n in w.split(":", 1)[-1].split(",")]
+            lora = [n for n in listed for s in (K[2], G[2]) if n == s or n.endswith("@" + s)]
+            check("#wifi-mesh on %s (%s): only the chain's, not the LoRa Stumps or their people" % (who[2], when),
+                  not lora, w)
     right_rooms("before a restart")
     # One of them restarts (an update, a power cut): listed again everywhere, and lists everyone, soon.
     nodes[K[2]].terminate()
-    logs[K[2]] = nodes[K[2]].communicate(timeout=20)[0]
+    nodes[K[2]].wait(timeout=20)
     start(K, air[1], chain=False)
     check("%s restarts" % K[2], wait(lambda: up(K) and radio_on(K), 60))
     get(K, "/rrc/send", b"/join lora-mesh")
@@ -222,11 +237,11 @@ if all(up(x) for x in ALL):
 for name, proc in nodes.items():
     proc.terminate()
     try:
-        log = proc.communicate(timeout=20)[0]
+        proc.wait(timeout=20)
     except subprocess.TimeoutExpired:
         proc.kill()
-        log = proc.communicate()[0]
-    log = logs.get(name, "") + log
+        proc.wait()
+    log = log_of(name)
     check("no tracebacks in %s's log" % name, "Traceback" not in log, log[log.find("Traceback"):][:1500])
     if FAIL:
         print("---- %s log (tail) ----\n%s" % (name, log[-3000:]))
