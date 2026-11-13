@@ -80,9 +80,9 @@
   ],
   "hashes": {
     "stumpid/__init__.py": "83462abf471caca1",
-    "stumpid/core.py": "18c1755044a4ab25",
+    "stumpid/core.py": "c10129486a9cd915",
     "stumpid/install.py": "444f832672ff3224",
     "stumpid/strings.py": "1504d6866266b030",
-    "stumpid/README.md": "e5ff786a91fdebbc"
+    "stumpid/README.md": "c27f64201d6af194"
   }
 }
