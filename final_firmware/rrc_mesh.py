@@ -1194,6 +1194,64 @@ def _stale_age(message):
         return None
 
 
+# Whether a LoRa sender has answered for its address (1.0.0-beta.71):
+# its last message's signature checked out against the key from its
+# announce. An open node also takes a message it can't check yet (no
+# announce heard: no key), as LXMF clients do -- as chat only: no role
+# (op, mod), not verified for a room's tier, /invite or /whoami, until a
+# message of theirs checks out. And it asks for that sender's announce
+# (a path request), so the next one does. Before, anyone could send as
+# an op's address to a Stump that hadn't heard the op's announce yet.
+_proved = {}              # LXMF hex -> when its last message checked out
+_unproved = {}            # LXMF hex -> when its last message couldn't be checked
+_asked = {}               # LXMF hex -> when its announce was asked for
+ASK_EVERY = 60
+PROOF_MAX = 64
+
+
+def _note_proof(h, message):
+    now = time.time()
+    if getattr(message, "signature_validated", True):
+        _unproved.pop(h, None)
+        _proved[h] = now
+        table = _proved
+    else:
+        _proved.pop(h, None)
+        _unproved[h] = now
+        table = _unproved
+        if now - _asked.get(h, -ASK_EVERY) >= ASK_EVERY:
+            _asked[h] = now
+            if len(_asked) > PROOF_MAX:
+                _asked.pop(min(_asked, key=_asked.get))
+            try:
+                from urns.transport import Transport
+                Transport.request_path(bytes.fromhex(h))
+            except Exception as e:
+                print("[rrc_mesh] couldn't ask for %s's announce: %s" % (h[:8], e))
+    if len(table) > PROOF_MAX:
+        table.pop(min(table, key=table.get))
+
+
+def proved(h):
+    """This LoRa sender's messages check out (this session)."""
+    return str(h) in _proved
+
+
+def unproved(h):
+    """This LoRa sender's last message couldn't be checked (no key yet)."""
+    return str(h) in _unproved
+
+
+def identity_hash(h):
+    """The identity (hex) behind an LXMF address, from its announce; or None."""
+    try:
+        from urns.identity import Identity
+        i = Identity.recall(bytes.fromhex(h))
+        return i.hexhash if i is not None else None
+    except Exception:
+        return None
+
+
 def _strict():
     """True when the node's access mode (stumpid) isn't 'open'."""
     try:
@@ -1216,6 +1274,7 @@ def on_message(router, message):
             print("[rrc_mesh] ignored a message from %s: its sender can't be verified yet "
                   "(no announce heard), and this node isn't open" % dest_hash_hex[:8])
             return
+        _note_proof(dest_hash_hex, message)
         # A /msg, /nick or voice note left at a propagation node can reach
         # the chat hours after it was sent; acting on it then would surprise
         # everyone. Tell the sender instead.

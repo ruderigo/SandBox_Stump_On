@@ -55,6 +55,7 @@ TESTS = [
     ("librarian", "assert", []),
     ("mesh_room", "assert", []),
     ("names_parts", "assert", []),
+    ("lora_proof", "assert", []),
     ("radio_status", "assert", []),
     ("profiles_store", "assert", []),
     ("conn_limits", "assert", []),

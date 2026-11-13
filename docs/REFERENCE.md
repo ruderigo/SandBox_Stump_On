@@ -433,7 +433,11 @@ Set at provisioning time, or live via `/admin <password> mode <m>`:
   room, private messages -- takes a verified identity: the `/auth`
   challenge, which a FireFly answers with one button. A FireFly over
   LoRa counts as verified (every message it sends is signed, and a
-  non-open node only takes signed ones).
+  non-open node only takes signed ones), for a room's tier, `/invite`
+  and `/whoami` too, with no `/auth` over LoRa (1.0.0-beta.71). An open
+  node also takes a message it can't check yet (no announce heard from
+  its sender): as chat only, no role (op, mod) and not verified, and it
+  asks for the sender's announce so the next one checks out.
 - **`mandatory`** (closed) — reading and writing both take a verified
   identity. Before `/auth`, a web client's poll comes back empty, with
   the topic saying why; only `/auth`, `/whoami`, `/help` work.
