@@ -57,7 +57,10 @@ request.
 - `hybrid` — everyone reads every room and writes in `#main`; writing
   anywhere else (other rooms, private messages) takes a verified
   identity (`/auth`, which a FireFly answers). A FireFly over LoRa
-  counts as verified: its messages are signed.
+  counts as verified: its messages are signed. With its messages
+  checking out against its announce's key, it's verified as its
+  identity for a room's tier, `/invite` and `/whoami` too, with no
+  `/auth` over LoRa (1.0.0-beta.71; `verified_identity_for`).
 - `mandatory` (closed) — reading and writing both take one
   (`core.can_read()`: the web poll is empty before `/auth`); only
   `/auth`, `/whoami`, `/help` work. Going mandatory moves the unverified
@@ -136,7 +139,11 @@ The wire format is deliberately just chat text, so it works identically
 over WiFi (direct HTTP to `barkeep.py`) and over LoRa (via `rrc_mesh`,
 which routes mesh-peer commands through the same `rrc.handle_input`
 this plugin gates) — one implementation, two transports. A mesh peer
-using `/auth` gets the exact same handshake a web client does.
+using `/auth` gets the exact same handshake a web client does. Over
+LoRa it's no longer needed (1.0.0-beta.71): a message that checks out
+proves the same. Send your announce once when you first hear a Stump,
+so your first message already checks out; else the Stump asks for it
+(a path request) and takes that first message as chat only.
 
 Minting an identity is `Identity()` from `urns.identity` (or the
 equivalent in any RNS-compatible client) — nothing Stump-specific.

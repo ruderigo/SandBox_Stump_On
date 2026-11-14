@@ -290,7 +290,19 @@ def mark_verified(client_id, hexhash):
 
 
 def verified_identity_for(client_id):
-    return _verified_this_session.get(client_id)
+    """The identity this client proved: by /auth this session, or, over
+    LoRa, by its messages checking out against its announce's key -- what
+    /auth over LoRa proved, every message (1.0.0-beta.71: a room's tier,
+    /invite, /whoami without it)."""
+    h = _verified_this_session.get(client_id)
+    if h is None and _is_mesh_client(client_id):
+        try:
+            import rrc_mesh
+            if rrc_mesh.proved(client_id):
+                h = rrc_mesh.identity_hash(client_id)
+        except ImportError:
+            pass
+    return h
 
 
 def is_verified(client_id):
@@ -307,7 +319,17 @@ def _is_mesh_client(client_id):
 
 
 def _identified(client_id):
-    return is_verified(client_id) or _is_mesh_client(client_id)
+    if is_verified(client_id):
+        return True
+    if not _is_mesh_client(client_id):
+        return False
+    # Over LoRa: not when its last message couldn't be checked (an open
+    # node takes those; hybrid and mandatory drop them before this).
+    try:
+        import rrc_mesh
+        return not rrc_mesh.unproved(client_id)
+    except ImportError:
+        return True
 
 
 # The three access modes:

@@ -989,6 +989,7 @@ def _note_stump_beacon(router, app_data, packet):
                 except Exception:
                     pass
             rrc.mark_stump(h)
+            _lb_release(h)
         return True
     except Exception:
         return False
@@ -1194,6 +1195,64 @@ def _stale_age(message):
         return None
 
 
+# Whether a LoRa sender has answered for its address (1.0.0-beta.71):
+# its last message's signature checked out against the key from its
+# announce. An open node also takes a message it can't check yet (no
+# announce heard: no key), as LXMF clients do -- as chat only: no role
+# (op, mod), not verified for a room's tier, /invite or /whoami, until a
+# message of theirs checks out. And it asks for that sender's announce
+# (a path request), so the next one does. Before, anyone could send as
+# an op's address to a Stump that hadn't heard the op's announce yet.
+_proved = {}              # LXMF hex -> when its last message checked out
+_unproved = {}            # LXMF hex -> when its last message couldn't be checked
+_asked = {}               # LXMF hex -> when its announce was asked for
+ASK_EVERY = 60
+PROOF_MAX = 64
+
+
+def _note_proof(h, message):
+    now = time.time()
+    if getattr(message, "signature_validated", True):
+        _unproved.pop(h, None)
+        _proved[h] = now
+        table = _proved
+    else:
+        _proved.pop(h, None)
+        _unproved[h] = now
+        table = _unproved
+        if now - _asked.get(h, -ASK_EVERY) >= ASK_EVERY:
+            _asked[h] = now
+            if len(_asked) > PROOF_MAX:
+                _asked.pop(min(_asked, key=_asked.get))
+            try:
+                from urns.transport import Transport
+                Transport.request_path(bytes.fromhex(h))
+            except Exception as e:
+                print("[rrc_mesh] couldn't ask for %s's announce: %s" % (h[:8], e))
+    if len(table) > PROOF_MAX:
+        table.pop(min(table, key=table.get))
+
+
+def proved(h):
+    """This LoRa sender's messages check out (this session)."""
+    return str(h) in _proved
+
+
+def unproved(h):
+    """This LoRa sender's last message couldn't be checked (no key yet)."""
+    return str(h) in _unproved
+
+
+def identity_hash(h):
+    """The identity (hex) behind an LXMF address, from its announce; or None."""
+    try:
+        from urns.identity import Identity
+        i = Identity.recall(bytes.fromhex(h))
+        return i.hexhash if i is not None else None
+    except Exception:
+        return None
+
+
 def _strict():
     """True when the node's access mode (stumpid) isn't 'open'."""
     try:
@@ -1216,6 +1275,7 @@ def on_message(router, message):
             print("[rrc_mesh] ignored a message from %s: its sender can't be verified yet "
                   "(no announce heard), and this node isn't open" % dest_hash_hex[:8])
             return
+        _note_proof(dest_hash_hex, message)
         # A /msg, /nick or voice note left at a propagation node can reach
         # the chat hours after it was sent; acting on it then would surprise
         # everyone. Tell the sender instead.
@@ -1277,6 +1337,7 @@ def on_message(router, message):
                 title = ""
             if title.startswith("#") or text0.startswith("[DM"):
                 rrc.mark_stump(dest_hash_hex)
+                _lb_release(dest_hash_hex)
                 peer["stump"] = True
                 # Of this chain, unless its beacon says otherwise: a LoRa
                 # Stump reached through this chain's Stump with a radio
@@ -1304,6 +1365,7 @@ def on_message(router, message):
             if (t in ("#" + rrc.MESH_ROOM, "#" + rrc.CHAIN_ROOM) or text0.startswith("[DM>")
                     or (t.startswith("#") and text0.startswith(("[ROOM", "[NAMES")))):
                 rrc.mark_stump(dest_hash_hex)
+                _lb_release(dest_hash_hex)
                 try:
                     import chain
                     chain.stump_heard()      # and introduce this one back
@@ -2345,6 +2407,39 @@ def _lb_send(item):
     Packet(_lb["out"], data, attached_interface=iface, create_receipt=False).send()
 
 
+# Broadcasts from a Stump not known as one yet (its beacon not heard):
+# LXMF hex -> [(when, data)], a few each, for LB_HOLD_S.
+_lb_held = {}
+LB_HOLD_S = 120
+LB_HOLD_EACH = 4
+LB_HOLD_FROM = 8
+
+
+def _lb_hold(h, data):
+    now = time.time()
+    for k in [k for k, v in _lb_held.items() if now - v[-1][0] > LB_HOLD_S]:
+        del _lb_held[k]
+    q = _lb_held.get(h)
+    if q is None:
+        if len(_lb_held) >= LB_HOLD_FROM:
+            _lb_held.pop(min(_lb_held, key=lambda k: _lb_held[k][-1][0]))
+        q = _lb_held[h] = []
+    q.append((now, bytes(data)))
+    del q[:-LB_HOLD_EACH]
+
+
+def _lb_release(h):
+    """Stump h's beacon is in: its broadcasts kept meanwhile, taken now
+    (checked as any: its signature, played once)."""
+    q = _lb_held.pop(h, None)
+    if not q:
+        return
+    now = time.time()
+    for t, data in q:
+        if now - t <= LB_HOLD_S:
+            _lb_in(data, None)
+
+
 def _lb_in(data, packet):
     """A Stump's #lora-mesh broadcast, heard on the radio."""
     try:
@@ -2359,7 +2454,13 @@ def _lb_in(data, packet):
             return
         h = src.hex()
         if not rrc.is_stump(h):
-            return                    # only a Stump's (by its beacon)
+            # Only a Stump's (by its beacon). One that just started sends
+            # its first lines before its beacon reaches this Stump: kept a
+            # while, and taken once the beacon says it's a Stump (they were
+            # dropped: its first line after a start never showed on the
+            # other radio Stumps; kit finding 19, 1.0.0-beta.72).
+            _lb_hold(h, data)
+            return
         ident = Identity.recall(src)
         if ident is None or not ident.validate(sig, _lb_signed(src, boot, seq, text)):
             return

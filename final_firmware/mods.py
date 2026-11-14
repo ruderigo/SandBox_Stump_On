@@ -155,7 +155,16 @@ def _here(scope):
 
 
 def rank(cid, room):
-    """"op", "mod" or None, for this person in this room."""
+    """"op", "mod" or None, for this person in this room. Over LoRa, only
+    once their messages check out: a message an open Stump can't check
+    yet (no announce heard) could be anyone's (1.0.0-beta.71)."""
+    if rrc._is_lxmf(str(cid or "")):
+        try:
+            import rrc_mesh
+            if rrc_mesh.unproved(cid):
+                return None
+        except ImportError:
+            pass
     k = holder(cid)
     r = _load()["roles"].get(k) if k else None
     if not r:
