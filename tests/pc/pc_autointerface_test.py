@@ -65,7 +65,7 @@ def role_ref(work):
   enable_transport = False
   share_instance = No
 [logging]
-  loglevel = 4
+  loglevel = 7
 [interfaces]
   [[Default Interface]]
     type = AutoInterface
@@ -149,7 +149,10 @@ def main():
             stump.kill()
         log.close()
         if code != 0:
-            print(open(os.path.join(work, "stump.out")).read()[-4000:])
+            import re as _re
+            txt = open(os.path.join(work, "stump.out")).read()
+            keep = [l for l in txt.split("\n") if _re.search(r"LXMF|Link|link|deliver|Outbound|outbound|TX|RX|Inbound|6915|Path|proof|receipt|ERR|WARN|NOTE", l)]
+            print("\n".join(keep[-400:]))
         for ns in (A, B):
             sh("ip", "netns", "del", ns, check=False)
     sys.exit(code)
