@@ -381,7 +381,7 @@ EXPECTED_FILE_HASHES = {
     "docs/PC.md": "63136bb4bc617291",
     "docs/PI.md": "e02f8a6a95e9408f",
     "docs/PLUGINS.md": "8085ca56b773b64a",
-    "example_node.py": "8061f04f24817e2a",
+    "example_node.py": "f2ddf4f5ceba20b1",
     "features.py": "81e8af361c64a911",
     "fserv.py": "06b87b1d6fb95eb4",
     "fservbot/plugin.json": "12b3c544160411e3",
